@@ -1,0 +1,13 @@
+{
+    "venvPath": "backend/core",
+    "venv": "venv",
+    "extraPaths": [
+        "backend/core",
+        "backend/core/venv/Lib/site-packages"
+    ],
+    "reportAttributeAccessIssue": false,
+    "reportOptionalMemberAccess": false,
+    "reportMissingImports": false,
+    "reportMissingModuleSource": false,
+    "reportUnusedImport": false
+}

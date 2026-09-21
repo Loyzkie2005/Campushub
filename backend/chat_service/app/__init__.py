@@ -1,0 +1,1 @@
+"""CampusHub chat service."""

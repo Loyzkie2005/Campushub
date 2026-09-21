@@ -1,0 +1,1303 @@
+{
+  "userId": "ab735353-a618-4569-b9de-3b26a925ed17",
+  "isPaidUser": false,
+  "isPlusUser": false,
+  "entitlementToken": "",
+  "entitlementExpiresAt": 0,
+  "plusLicenseKey": "",
+  "openAIApiKey": "",
+  "openAIOrgId": "",
+  "huggingfaceApiKey": "",
+  "cohereApiKey": "",
+  "anthropicApiKey": "",
+  "googleApiKey": "",
+  "openRouterAiApiKey": "",
+  "xaiApiKey": "",
+  "mistralApiKey": "",
+  "deepseekApiKey": "",
+  "siliconflowApiKey": "",
+  "defaultChainType": "llm_chain",
+  "defaultModelKey": "google/gemini-2.5-flash|openrouterai",
+  "contextTurns": 15,
+  "userSystemPrompt": "",
+  "openAIProxyBaseUrl": "",
+  "stream": true,
+  "copilotFolder": "copilot",
+  "copilotRootHistory": [
+    "copilot"
+  ],
+  "upgradedToV8FromLegacy": false,
+  "defaultSaveFolder": "copilot/copilot-conversations",
+  "defaultConversationTag": "copilot-conversation",
+  "autosaveChat": true,
+  "autoAddActiveContentToContext": true,
+  "defaultOpenArea": "view",
+  "defaultSendShortcut": "enter",
+  "customPromptsFolder": "copilot/copilot-custom-prompts",
+  "qaExclusions": "copilot",
+  "qaInclusions": "",
+  "chatNoteContextPath": "",
+  "chatNoteContextTags": [],
+  "debug": false,
+  "maxSourceChunks": 30,
+  "enableInlineCitations": true,
+  "groqApiKey": "",
+  "activeModels": [
+    {
+      "name": "copilot-plus-flash",
+      "provider": "copilot-plus",
+      "enabled": true,
+      "isBuiltIn": true,
+      "core": true,
+      "plusExclusive": true,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "google/gemini-2.5-flash",
+      "provider": "openrouterai",
+      "enabled": true,
+      "isBuiltIn": true,
+      "core": true,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gpt-5.5",
+      "provider": "openai",
+      "enabled": true,
+      "isBuiltIn": true,
+      "core": true,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gpt-5.4-mini",
+      "provider": "openai",
+      "enabled": true,
+      "isBuiltIn": true,
+      "core": true,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "google/gemini-3.5-flash",
+      "provider": "openrouterai",
+      "enabled": true,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision",
+        "reasoning"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic",
+      "enabled": true,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision",
+        "reasoning"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gemini-3.5-flash",
+      "provider": "google",
+      "enabled": true,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision",
+        "reasoning"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gemini-3.1-flash-lite",
+      "provider": "google",
+      "enabled": true,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gemini-2.5-flash",
+      "provider": "google",
+      "enabled": true,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "google/gemini-3.1-pro-preview",
+      "provider": "openrouterai",
+      "enabled": false,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision",
+        "reasoning"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "google/gemini-2.5-pro",
+      "provider": "openrouterai",
+      "enabled": false,
+      "isBuiltIn": true,
+      "core": false,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "openai/gpt-5.5",
+      "provider": "openrouterai",
+      "enabled": false,
+      "isBuiltIn": true,
+      "core": false,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "openai/gpt-5.4-mini",
+      "provider": "openrouterai",
+      "enabled": false,
+      "isBuiltIn": true,
+      "core": false,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "grok-4.3",
+      "provider": "xai",
+      "enabled": false,
+      "isBuiltIn": true,
+      "core": false,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "x-ai/grok-4.3",
+      "provider": "openrouterai",
+      "enabled": false,
+      "isBuiltIn": true,
+      "core": false,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gpt-4.1",
+      "provider": "openai",
+      "enabled": false,
+      "isBuiltIn": true,
+      "core": false,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gpt-4.1-mini",
+      "provider": "openai",
+      "enabled": false,
+      "isBuiltIn": true,
+      "core": false,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "claude-opus-4-7",
+      "provider": "anthropic",
+      "enabled": false,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision",
+        "reasoning"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "claude-haiku-4-5",
+      "provider": "anthropic",
+      "enabled": false,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision",
+        "reasoning"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gemini-3.1-pro-preview",
+      "provider": "google",
+      "enabled": false,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision",
+        "reasoning"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "gemini-2.5-pro",
+      "provider": "google",
+      "enabled": false,
+      "isBuiltIn": true,
+      "capabilities": [
+        "vision"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "deepseek-chat",
+      "provider": "deepseek",
+      "enabled": false,
+      "isBuiltIn": true,
+      "apiKey": ""
+    },
+    {
+      "name": "deepseek-reasoner",
+      "provider": "deepseek",
+      "enabled": false,
+      "isBuiltIn": true,
+      "capabilities": [
+        "reasoning"
+      ],
+      "apiKey": ""
+    },
+    {
+      "name": "deepseek-ai/DeepSeek-V3",
+      "provider": "siliconflow",
+      "enabled": false,
+      "isBuiltIn": false,
+      "baseUrl": "https://api.siliconflow.com/v1",
+      "apiKey": ""
+    },
+    {
+      "name": "deepseek-ai/DeepSeek-R1",
+      "provider": "siliconflow",
+      "enabled": false,
+      "isBuiltIn": false,
+      "baseUrl": "https://api.siliconflow.com/v1",
+      "capabilities": [
+        "reasoning"
+      ],
+      "apiKey": ""
+    }
+  ],
+  "lexicalSearchRamLimit": 100,
+  "promptUsageTimestamps": {},
+  "promptSortStrategy": "timestamp",
+  "chatHistorySortStrategy": "recent",
+  "projectsFolder": "copilot/projects",
+  "defaultConversationNoteName": "{$topic}@{$date}_{$time}",
+  "inlineEditCommands": [],
+  "projectList": [],
+  "lastDismissedVersion": null,
+  "lastShownStartupVersion": null,
+  "passMarkdownImages": true,
+  "enableAutonomousAgent": true,
+  "enableCustomPromptTemplating": true,
+  "enableSelfHostMode": false,
+  "enableMiyo": false,
+  "enableMiyoSearchSkill": false,
+  "miyoSearchAll": false,
+  "relevantNotesLiveUpdate": true,
+  "miyoServerUrl": "",
+  "selfHostSearchProvider": "firecrawl",
+  "firecrawlApiKey": "",
+  "perplexityApiKey": "",
+  "parallelApiKey": "",
+  "exaApiKey": "",
+  "supadataApiKey": "",
+  "docProcessorBackend": "plus",
+  "enableLexicalBoosts": true,
+  "suggestedDefaultCommands": false,
+  "autonomousAgentEnabledToolIds": [
+    "localSearch",
+    "readNote",
+    "webSearch",
+    "pomodoro",
+    "youtubeTranscription",
+    "writeFile",
+    "editFile",
+    "updateMemory"
+  ],
+  "reasoningEffort": "low",
+  "verbosity": "medium",
+  "memoryFolderName": "copilot/memory",
+  "enableRecentConversations": true,
+  "maxRecentConversations": 30,
+  "enableSavedMemory": true,
+  "quickCommandIncludeNoteContext": true,
+  "autoIncludeTextSelection": false,
+  "autoAddSelectionToContext": false,
+  "autoAcceptEdits": false,
+  "diffViewMode": "split",
+  "userSystemPromptsFolder": "copilot/system-prompts",
+  "defaultSystemPromptTitle": "",
+  "autoCompactThreshold": 128000,
+  "convertedDocOutputFolder": "",
+  "agentMode": {
+    "byok": {},
+    "activeBackend": "codex",
+    "backends": {},
+    "debugFullFrames": true,
+    "notificationSound": true,
+    "notificationSoundId": "piano",
+    "welcomeDismissed": true,
+    "skills": {
+      "folder": "copilot/skills"
+    },
+    "deviceProfiles": {
+      "22125bd0-a456-43c8-af15-42273b931a65": {
+        "codex": {
+          "binaryPath": "C:\\Users\\leste\\.obsidian-copilot\\codex\\1.10.0\\codex-acp.exe",
+          "binaryVersion": "1.10.0",
+          "binarySource": "managed"
+        },
+        "opencode": {
+          "binaryPath": "C:\\Users\\leste\\.obsidian-copilot\\opencode\\1.18.16\\bin\\opencode.exe",
+          "binaryVersion": "1.18.16",
+          "binarySource": "managed",
+          "probeSessionId": "ses_f602d9e7affezf0bEmhzdBdhaB"
+        }
+      }
+    }
+  },
+  "providers": {
+    "6a05d8f3-9840-416c-9ff0-ff3a5219c8ea": {
+      "providerType": "anthropic",
+      "displayName": "Claude",
+      "origin": {
+        "kind": "agent",
+        "agentType": "claude"
+      },
+      "requiresApiKey": false,
+      "providerId": "6a05d8f3-9840-416c-9ff0-ff3a5219c8ea",
+      "addedAt": 1789387745830,
+      "apiKeyKeychainId": null
+    },
+    "2e3139bd-abc6-430e-97a7-3bf1937e565f": {
+      "providerType": "openai-compatible",
+      "displayName": "opencode",
+      "origin": {
+        "kind": "agent",
+        "agentType": "opencode"
+      },
+      "requiresApiKey": false,
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "addedAt": 1789387760143,
+      "apiKeyKeychainId": null
+    },
+    "07261a05-8253-423a-8524-1c560a469c64": {
+      "providerType": "openai-compatible",
+      "displayName": "Codex",
+      "origin": {
+        "kind": "agent",
+        "agentType": "codex"
+      },
+      "requiresApiKey": false,
+      "providerId": "07261a05-8253-423a-8524-1c560a469c64",
+      "addedAt": 1789387927945,
+      "apiKeyKeychainId": null
+    }
+  },
+  "configuredModels": [
+    {
+      "providerId": "6a05d8f3-9840-416c-9ff0-ff3a5219c8ea",
+      "info": {
+        "id": "default",
+        "displayName": "Default (recommended)",
+        "description": "Use the default model (currently Opus 5 (1M context)) · $5/$25 per Mtok"
+      },
+      "configuredModelId": "edf611bd-6e45-4756-b58c-4ee7da0c6ce7",
+      "configuredAt": 1789387746377
+    },
+    {
+      "providerId": "6a05d8f3-9840-416c-9ff0-ff3a5219c8ea",
+      "info": {
+        "id": "opus[1m]",
+        "displayName": "Opus (1M context)",
+        "description": "Opus 5 with 1M context · Best for everyday, complex tasks · $5/$25 per Mtok"
+      },
+      "configuredModelId": "34566b76-414e-4045-b1e8-ce9aca77f502",
+      "configuredAt": 1789387746378
+    },
+    {
+      "providerId": "6a05d8f3-9840-416c-9ff0-ff3a5219c8ea",
+      "info": {
+        "id": "sonnet",
+        "displayName": "Sonnet",
+        "description": "Sonnet 5 · Efficient for routine tasks · $3/$15 per Mtok"
+      },
+      "configuredModelId": "fd8719d4-e618-4deb-888b-3a12bbf5d2d9",
+      "configuredAt": 1789387746379
+    },
+    {
+      "providerId": "6a05d8f3-9840-416c-9ff0-ff3a5219c8ea",
+      "info": {
+        "id": "sonnet[1m]",
+        "displayName": "Sonnet 5 (1M context)",
+        "description": "Sonnet 5 for long sessions · $3/$15 per Mtok"
+      },
+      "configuredModelId": "e159e28a-39bc-4cb6-92f7-a76e9f6fe77d",
+      "configuredAt": 1789387746379
+    },
+    {
+      "providerId": "6a05d8f3-9840-416c-9ff0-ff3a5219c8ea",
+      "info": {
+        "id": "haiku",
+        "displayName": "Haiku",
+        "description": "Haiku 4.5 · Fastest for quick answers · $1/$5 per Mtok"
+      },
+      "configuredModelId": "282f5f17-da09-4b80-9a9d-792ba6504359",
+      "configuredAt": 1789387746379
+    },
+    {
+      "providerId": "6a05d8f3-9840-416c-9ff0-ff3a5219c8ea",
+      "info": {
+        "id": "nvidia/nemotron-3-super-120b-a12b:free",
+        "displayName": "nvidia/nemotron-3-super-120b-a12b:free",
+        "description": "Custom model"
+      },
+      "configuredModelId": "53abc993-a025-4849-a855-277f84fe37bb",
+      "configuredAt": 1789387746380
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/big-pickle",
+        "displayName": "OpenCode Zen/Big Pickle"
+      },
+      "configuredModelId": "4c65707a-4d8b-4c86-9412-703d2ef6ef75",
+      "configuredAt": 1789387760147
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-fable-5",
+        "displayName": "OpenCode Zen/Claude Fable 5"
+      },
+      "configuredModelId": "2cba08bb-d50e-4c15-a40d-1fea317a952e",
+      "configuredAt": 1789387760148
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-haiku-4-5",
+        "displayName": "OpenCode Zen/Claude Haiku 4.5"
+      },
+      "configuredModelId": "124f1a39-5d9a-48f0-bd61-28d80a31de9f",
+      "configuredAt": 1789387760158
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-opus-4-5",
+        "displayName": "OpenCode Zen/Claude Opus 4.5"
+      },
+      "configuredModelId": "705e9493-0c03-4bb3-9f56-5090191d4642",
+      "configuredAt": 1789387760158
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-opus-4-6",
+        "displayName": "OpenCode Zen/Claude Opus 4.6"
+      },
+      "configuredModelId": "d4fbdbd5-56f2-40d0-beed-17b985e661cc",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-opus-4-7",
+        "displayName": "OpenCode Zen/Claude Opus 4.7"
+      },
+      "configuredModelId": "bcee5369-228c-4dc8-9c4f-b4c842312bf1",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-opus-4-8",
+        "displayName": "OpenCode Zen/Claude Opus 4.8"
+      },
+      "configuredModelId": "d494ba3e-a80a-4030-be42-db450c8e8be3",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-opus-5",
+        "displayName": "OpenCode Zen/Claude Opus 5"
+      },
+      "configuredModelId": "dae08b34-987c-46d5-951b-bfa7c90d3110",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-sonnet-4",
+        "displayName": "OpenCode Zen/Claude Sonnet 4"
+      },
+      "configuredModelId": "b8ea6e70-0850-4566-ba13-b52c9e73782d",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-sonnet-4-5",
+        "displayName": "OpenCode Zen/Claude Sonnet 4.5"
+      },
+      "configuredModelId": "adb4ed6e-fee6-41c6-be0c-c84ffddfc760",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-sonnet-4-6",
+        "displayName": "OpenCode Zen/Claude Sonnet 4.6"
+      },
+      "configuredModelId": "54340915-c5c7-479d-a07e-95ed881ff298",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-sonnet-5",
+        "displayName": "OpenCode Zen/Claude Sonnet 5"
+      },
+      "configuredModelId": "313bad63-8bc2-4d4b-9d77-4cbdfa4ce9eb",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/deepseek-v4-flash",
+        "displayName": "OpenCode Zen/DeepSeek V4 Flash"
+      },
+      "configuredModelId": "6c023007-b035-4b00-89c5-0597ec0f8895",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/deepseek-v4-pro",
+        "displayName": "OpenCode Zen/DeepSeek V4 Pro"
+      },
+      "configuredModelId": "7df39775-b558-4dae-acf0-199205162ecf",
+      "configuredAt": 1789387760159
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gemini-3-flash",
+        "displayName": "OpenCode Zen/Gemini 3 Flash"
+      },
+      "configuredModelId": "0f2b4c25-dbe3-49db-abb1-a2930f4ca0d5",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gemini-3.1-pro",
+        "displayName": "OpenCode Zen/Gemini 3.1 Pro Preview"
+      },
+      "configuredModelId": "7d0ab792-9b90-4e99-989d-15092862dc6c",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gemini-3.5-flash",
+        "displayName": "OpenCode Zen/Gemini 3.5 Flash"
+      },
+      "configuredModelId": "867c3f61-4d3e-4f94-ba91-a082a243a054",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gemini-3.5-flash-lite",
+        "displayName": "OpenCode Zen/Gemini 3.5 Flash Lite"
+      },
+      "configuredModelId": "f0cec90b-8efe-4723-8b72-8b6377ae6b30",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gemini-3.6-flash",
+        "displayName": "OpenCode Zen/Gemini 3.6 Flash"
+      },
+      "configuredModelId": "3bb4b583-b287-4bf8-b810-c8ba078c0a16",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gemini-3.7-flash",
+        "displayName": "OpenCode Zen/Gemini 3.7 Flash"
+      },
+      "configuredModelId": "bdeb5a6a-843e-4835-8c8a-90c2f58a8cbb",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/glm-5",
+        "displayName": "OpenCode Zen/GLM-5"
+      },
+      "configuredModelId": "9cde06e3-6381-4376-9e85-3852fcf34103",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/glm-5.1",
+        "displayName": "OpenCode Zen/GLM-5.1"
+      },
+      "configuredModelId": "cf7862bf-a119-4c1d-8a23-4b7007118c6d",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/glm-5.2",
+        "displayName": "OpenCode Zen/GLM-5.2"
+      },
+      "configuredModelId": "98f3f2bd-2ef6-4cb7-9544-11dc37d2a0b9",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5",
+        "displayName": "OpenCode Zen/GPT-5"
+      },
+      "configuredModelId": "9b391541-5e59-4360-a415-86ae55e74f95",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5-codex",
+        "displayName": "OpenCode Zen/GPT-5 Codex"
+      },
+      "configuredModelId": "7cb49645-3cee-4a5d-b83a-9a38ac904cd3",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5-nano",
+        "displayName": "OpenCode Zen/GPT-5 Nano"
+      },
+      "configuredModelId": "fc6f9c4a-3a3f-4156-a232-a0da625b3c64",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.1",
+        "displayName": "OpenCode Zen/GPT-5.1"
+      },
+      "configuredModelId": "4ab6a95b-8f59-4e9c-9135-65065a38cfc0",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.1-codex",
+        "displayName": "OpenCode Zen/GPT-5.1 Codex"
+      },
+      "configuredModelId": "0e944c42-bea9-485d-b473-9f7a6befe151",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.1-codex-max",
+        "displayName": "OpenCode Zen/GPT-5.1 Codex Max"
+      },
+      "configuredModelId": "281c566d-6692-4645-a373-746c133cb7a2",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.1-codex-mini",
+        "displayName": "OpenCode Zen/GPT-5.1 Codex Mini"
+      },
+      "configuredModelId": "ac7f2804-b789-45d7-b01e-824edd54972c",
+      "configuredAt": 1789387760160
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.2",
+        "displayName": "OpenCode Zen/GPT-5.2"
+      },
+      "configuredModelId": "9f24994a-f39f-4214-9c54-24c5dd214868",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.2-codex",
+        "displayName": "OpenCode Zen/GPT-5.2 Codex"
+      },
+      "configuredModelId": "9335acbb-c5ca-4dd6-93b3-c27832b4b44c",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.3-codex",
+        "displayName": "OpenCode Zen/GPT-5.3 Codex"
+      },
+      "configuredModelId": "24cddf3e-7353-4e9b-9abf-67304bd4152c",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.3-codex-spark",
+        "displayName": "OpenCode Zen/GPT-5.3 Codex Spark"
+      },
+      "configuredModelId": "d333d748-48e7-44d6-b1de-3c472644a6a5",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.4",
+        "displayName": "OpenCode Zen/GPT-5.4"
+      },
+      "configuredModelId": "9dc2c584-ab45-4425-b119-ac27acbdea49",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.4-mini",
+        "displayName": "OpenCode Zen/GPT-5.4 Mini"
+      },
+      "configuredModelId": "e1714e19-f53b-4f28-9011-94d661d9d3c2",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.4-nano",
+        "displayName": "OpenCode Zen/GPT-5.4 Nano"
+      },
+      "configuredModelId": "3df23e85-0fdc-42b7-8498-fee1f9c71d27",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.4-pro",
+        "displayName": "OpenCode Zen/GPT-5.4 Pro"
+      },
+      "configuredModelId": "3558efa4-4683-4e6c-9f52-5f14c4c47c19",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.5",
+        "displayName": "OpenCode Zen/GPT-5.5"
+      },
+      "configuredModelId": "3b140a23-f825-4f98-817b-0b51df2b3e29",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.5-pro",
+        "displayName": "OpenCode Zen/GPT-5.5 Pro"
+      },
+      "configuredModelId": "07836ceb-3f29-4a02-bee3-bfe4a74016e7",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.6-luna",
+        "displayName": "OpenCode Zen/GPT-5.6 Luna"
+      },
+      "configuredModelId": "52768970-7819-4c4f-8f79-7686dca1e8bb",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.6-sol",
+        "displayName": "OpenCode Zen/GPT-5.6 Sol (50% Off)"
+      },
+      "configuredModelId": "e90458bf-016d-45a0-a1c1-37a30e46cea3",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-5.6-terra",
+        "displayName": "OpenCode Zen/GPT-5.6 Terra"
+      },
+      "configuredModelId": "552b228a-ab5d-4abd-b37e-1cca222d9cd5",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/grok-4.5",
+        "displayName": "OpenCode Zen/Grok 4.5"
+      },
+      "configuredModelId": "a3823ea5-56a4-45eb-8292-f6a47897231d",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/grok-4.6",
+        "displayName": "OpenCode Zen/Grok 4.6"
+      },
+      "configuredModelId": "e5f5b97f-2a14-4ba6-a3d2-1bc9f6ff9463",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/grok-build-0.1",
+        "displayName": "OpenCode Zen/Grok Build 0.1"
+      },
+      "configuredModelId": "130b3f9e-7fd1-4f07-8a53-0f782e4df665",
+      "configuredAt": 1789387760161
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/kimi-k2.5",
+        "displayName": "OpenCode Zen/Kimi K2.5"
+      },
+      "configuredModelId": "cc9399fb-390b-4fdc-95c2-daa0b963c0e2",
+      "configuredAt": 1789387760162
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/kimi-k2.6",
+        "displayName": "OpenCode Zen/Kimi K2.6"
+      },
+      "configuredModelId": "ff6d8181-731d-451b-85f6-073721dabf08",
+      "configuredAt": 1789387760162
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/kimi-k2.7-code",
+        "displayName": "OpenCode Zen/Kimi K2.7 Code"
+      },
+      "configuredModelId": "43c4e41a-0dd3-47c1-9a3a-0a118ffc245d",
+      "configuredAt": 1789387760162
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/kimi-k3",
+        "displayName": "OpenCode Zen/Kimi K3"
+      },
+      "configuredModelId": "6233253a-d8a4-4859-9e36-1927a6ab979b",
+      "configuredAt": 1789387760162
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/ling-3.0-flash-fin-free",
+        "displayName": "OpenCode Zen/Ling 3.0 Flash Fin Free"
+      },
+      "configuredModelId": "a87b2531-15a6-4b7a-811e-8744b7d433a7",
+      "configuredAt": 1789387760162
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/mimo-v2.5-free",
+        "displayName": "OpenCode Zen/MiMo V2.5 Free"
+      },
+      "configuredModelId": "3028050e-e9fd-4463-bd0f-4484eb25545f",
+      "configuredAt": 1789387760162
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/minimax-m2.5",
+        "displayName": "OpenCode Zen/MiniMax-M2.5"
+      },
+      "configuredModelId": "59f12a7c-6566-4a86-a12e-022239f5e226",
+      "configuredAt": 1789387760162
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/minimax-m2.7",
+        "displayName": "OpenCode Zen/MiniMax-M2.7"
+      },
+      "configuredModelId": "1c2284f5-3e0a-4ce7-ba5d-086501698252",
+      "configuredAt": 1789387760163
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/minimax-m3",
+        "displayName": "OpenCode Zen/MiniMax-M3"
+      },
+      "configuredModelId": "594e9689-e488-4ff8-9edf-ea8624ab06ff",
+      "configuredAt": 1789387760163
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/muse-spark-1.2",
+        "displayName": "OpenCode Zen/Muse Spark 1.2"
+      },
+      "configuredModelId": "897c27a5-26d8-471d-a983-7c09746939bc",
+      "configuredAt": 1789387760163
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/muse-spark-1.2-contributor-free",
+        "displayName": "OpenCode Zen/Muse Spark 1.2 Free"
+      },
+      "configuredModelId": "bf677e6b-b4df-4208-b1a4-82c9f38d0222",
+      "configuredAt": 1789387760163
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/nemotron-3-ultra-free",
+        "displayName": "OpenCode Zen/Nemotron 3 Ultra Free"
+      },
+      "configuredModelId": "ca025671-c9d2-4357-8cba-4cc14984b8e3",
+      "configuredAt": 1789387760163
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/nemotron-3.5-lightning-free",
+        "displayName": "OpenCode Zen/Nemotron 3.5 Lightning Free"
+      },
+      "configuredModelId": "ed553783-f7fc-4853-9193-69244e2834c7",
+      "configuredAt": 1789387760163
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/qwen3.5-plus",
+        "displayName": "OpenCode Zen/Qwen3.5 Plus"
+      },
+      "configuredModelId": "92143660-4ad2-4c72-a1a1-ee4a9bd2acd5",
+      "configuredAt": 1789387760163
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/qwen3.6-plus",
+        "displayName": "OpenCode Zen/Qwen3.6 Plus"
+      },
+      "configuredModelId": "ceffce3f-3902-4a8d-aaeb-39192cdeda59",
+      "configuredAt": 1789387760163
+    },
+    {
+      "providerId": "07261a05-8253-423a-8524-1c560a469c64",
+      "info": {
+        "id": "gpt-6-astra",
+        "displayName": "GPT-6-Astra",
+        "modalities": {
+          "input": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "limits": {
+          "context": 1050000,
+          "output": 128000,
+          "input": 922000
+        },
+        "reasoning": true,
+        "toolCall": true,
+        "releaseDate": "2026-09-04",
+        "cost": {
+          "input": 10,
+          "output": 50
+        },
+        "description": "Our most capable model for complex, demanding work."
+      },
+      "configuredModelId": "1b62c254-1237-47fa-aaa3-81e402600a57",
+      "configuredAt": 1789387927962
+    },
+    {
+      "providerId": "07261a05-8253-423a-8524-1c560a469c64",
+      "info": {
+        "id": "gpt-5.6-sol",
+        "displayName": "GPT-5.6-Sol",
+        "modalities": {
+          "input": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "limits": {
+          "context": 1050000,
+          "output": 128000,
+          "input": 922000
+        },
+        "reasoning": true,
+        "toolCall": true,
+        "releaseDate": "2026-07-09",
+        "cost": {
+          "input": 5,
+          "output": 30
+        },
+        "description": "Reliable agentic workhorse for everyday tasks."
+      },
+      "configuredModelId": "1fb86053-6a0b-45fa-9a74-a5894e6e91db",
+      "configuredAt": 1789387927963
+    },
+    {
+      "providerId": "07261a05-8253-423a-8524-1c560a469c64",
+      "info": {
+        "id": "gpt-5.6-terra",
+        "displayName": "GPT-5.6-Terra",
+        "modalities": {
+          "input": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "limits": {
+          "context": 1050000,
+          "output": 128000,
+          "input": 922000
+        },
+        "reasoning": true,
+        "toolCall": true,
+        "releaseDate": "2026-07-09",
+        "cost": {
+          "input": 2,
+          "output": 12
+        },
+        "description": "Balanced agentic coding model for everyday work."
+      },
+      "configuredModelId": "3d5cbcdd-43dd-4262-9fc8-fa5ff8c0a3e0",
+      "configuredAt": 1789387927964
+    },
+    {
+      "providerId": "07261a05-8253-423a-8524-1c560a469c64",
+      "info": {
+        "id": "gpt-5.6-luna",
+        "displayName": "GPT-5.6-Luna",
+        "modalities": {
+          "input": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "limits": {
+          "context": 1050000,
+          "output": 128000,
+          "input": 922000
+        },
+        "reasoning": true,
+        "toolCall": true,
+        "releaseDate": "2026-07-09",
+        "cost": {
+          "input": 0.2,
+          "output": 1.2
+        },
+        "description": "Fast and affordable agentic coding model."
+      },
+      "configuredModelId": "14c77ec0-6b7e-4b8e-9b7f-cf83b0df7479",
+      "configuredAt": 1789387927964
+    },
+    {
+      "providerId": "07261a05-8253-423a-8524-1c560a469c64",
+      "info": {
+        "id": "gpt-5.5",
+        "displayName": "GPT-5.5",
+        "modalities": {
+          "input": [
+            "text",
+            "image",
+            "pdf"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "limits": {
+          "context": 1050000,
+          "output": 128000,
+          "input": 922000
+        },
+        "reasoning": true,
+        "toolCall": true,
+        "releaseDate": "2026-04-23",
+        "cost": {
+          "input": 5,
+          "output": 30
+        },
+        "description": "Proven previous-generation model for coding and general work."
+      },
+      "configuredModelId": "49f39583-384c-4bf3-8694-8db39fb97d66",
+      "configuredAt": 1789387927965
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/claude-fable-5-1",
+        "displayName": "OpenCode Zen/Claude Fable 5.1"
+      },
+      "configuredModelId": "159947c7-04c7-4c35-a294-aa4d19bad013",
+      "configuredAt": 1789387931328
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/deepseek-v4-flash-vision-exp",
+        "displayName": "OpenCode Zen/DeepSeek V4 Flash Vision Exp"
+      },
+      "configuredModelId": "34040320-7612-4781-ac3e-80e948926578",
+      "configuredAt": 1789387931329
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gemini-3.8-flash",
+        "displayName": "OpenCode Zen/Gemini 3.8 Flash"
+      },
+      "configuredModelId": "51d5dab8-8853-4fc1-8706-a2ceb5d4e80e",
+      "configuredAt": 1789387931337
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/glm-5.3",
+        "displayName": "OpenCode Zen/GLM-5.3"
+      },
+      "configuredModelId": "431c5682-be2a-4981-823b-547d1135ade2",
+      "configuredAt": 1789387931337
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/glm-5.3-flash",
+        "displayName": "OpenCode Zen/GLM-5.3-Flash"
+      },
+      "configuredModelId": "b1e6f78a-7675-496f-a9da-8617b6f6969e",
+      "configuredAt": 1789387931337
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/gpt-6-astra",
+        "displayName": "OpenCode Zen/GPT-6 Astra"
+      },
+      "configuredModelId": "08d90f53-ee80-46cc-a8e0-ada9764f1960",
+      "configuredAt": 1789387931337
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/muse-spark-1.3",
+        "displayName": "OpenCode Zen/Muse Spark 1.3"
+      },
+      "configuredModelId": "35869265-f8b2-4e9b-87ae-8ef4d998bfd8",
+      "configuredAt": 1789387931338
+    },
+    {
+      "providerId": "2e3139bd-abc6-430e-97a7-3bf1937e565f",
+      "info": {
+        "id": "opencode/muse-spark-1.3-contributor-free",
+        "displayName": "OpenCode Zen/Muse Spark 1.3 Free"
+      },
+      "configuredModelId": "a3916911-42c3-4df9-902c-e8ae4745cf25",
+      "configuredAt": 1789387931338
+    }
+  ],
+  "backends": {
+    "claude": {
+      "enabledModels": [
+        "edf611bd-6e45-4756-b58c-4ee7da0c6ce7",
+        "34566b76-414e-4045-b1e8-ce9aca77f502",
+        "fd8719d4-e618-4deb-888b-3a12bbf5d2d9",
+        "e159e28a-39bc-4cb6-92f7-a76e9f6fe77d",
+        "282f5f17-da09-4b80-9a9d-792ba6504359",
+        "53abc993-a025-4849-a855-277f84fe37bb"
+      ]
+    },
+    "opencode": {
+      "enabledModels": [
+        "4c65707a-4d8b-4c86-9412-703d2ef6ef75",
+        "2cba08bb-d50e-4c15-a40d-1fea317a952e",
+        "124f1a39-5d9a-48f0-bd61-28d80a31de9f"
+      ]
+    },
+    "codex": {
+      "enabledModels": [
+        "1b62c254-1237-47fa-aaa3-81e402600a57",
+        "1fb86053-6a0b-45fa-9a74-a5894e6e91db",
+        "3d5cbcdd-43dd-4262-9fc8-fa5ff8c0a3e0",
+        "14c77ec0-6b7e-4b8e-9b7f-cf83b0df7479",
+        "49f39583-384c-4bf3-8694-8db39fb97d66"
+      ]
+    }
+  },
+  "_keychainVaultId": "1030568b",
+  "settingsVersion": 14
+}

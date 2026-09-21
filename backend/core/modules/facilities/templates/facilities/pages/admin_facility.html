@@ -1,0 +1,2264 @@
+{% load static humanize %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CAMPUSHUB | Facilities</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_facility.css' %}?v=20260915-multi-image-slots" />
+    <link rel="stylesheet" href="{% static 'facilities/css/facility_form_controls.css' %}?v=20260915" />
+</head>
+
+<body>
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='facilities' %}
+
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Facilities' breadcrumb_section='Facilities Management' breadcrumb_page='Facilities' %}
+
+            <main class="dashboard-content p-4">
+                <div id="facilitiesListSection">
+                    <section class="facility-summary-grid">
+                        <article class="facility-summary-card">
+                            <div class="facility-summary-icon facility-summary-icon-navy">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.8" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75" />
+                                </svg>
+                            </div>
+                            <div>
+                                <span class="facility-summary-label">Total Facilities</span>
+                                <strong id="facilitySummaryTotal">{{ facilities_total }}</strong>
+                                <span class="facility-summary-caption">All registered facilities</span>
+                            </div>
+                        </article>
+                        <article class="facility-summary-card">
+                            <div class="facility-summary-icon facility-summary-icon-gold">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.8" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M6.75 3v2.25m10.5-2.25v2.25M3.75 9h16.5m-15 12h13.5A1.5 1.5 0 0 0 20.25 19.5V6.75a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5V19.5a1.5 1.5 0 0 0 1.5 1.5Z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <span class="facility-summary-label">Open for Booking</span>
+                                <strong id="facilitySummaryOpen">{{ open_for_booking_count }}</strong>
+                                <span class="facility-summary-caption">Accepting reservation requests</span>
+                            </div>
+                        </article>
+                        <article class="facility-summary-card">
+                            <div class="facility-summary-icon facility-summary-icon-gold">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.8" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.83-5.83M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17 6.344 10.095a4.5 4.5 0 0 1-.957-4.93l.218-.506 3.332 3.332 2.121-2.121-3.332-3.332.506-.218a4.5 4.5 0 0 1 4.93.957l5.075 5.075" />
+                                </svg>
+                            </div>
+                            <div>
+                                <span class="facility-summary-label">Under Maintenance</span>
+                                <strong id="facilitySummaryMaintenance">{{ under_maintenance_count }}</strong>
+                                <span class="facility-summary-caption">Temporarily unavailable</span>
+                            </div>
+                        </article>
+                        <article class="facility-summary-card">
+                            <div class="facility-summary-icon facility-summary-icon-navy">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.8" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M3.75 18.75v-7.5m16.5 7.5v-5.25A2.25 2.25 0 0 0 18 11.25H9.75m-6 3h16.5M6 11.25V8.625A1.125 1.125 0 0 1 7.125 7.5h1.5A1.125 1.125 0 0 1 9.75 8.625v2.625M3.75 18.75v1.5m16.5-1.5v1.5" />
+                                </svg>
+                            </div>
+                            <div>
+                                <span class="facility-summary-label">Rooms / Units</span>
+                                <strong id="facilitySummaryUnits">{{ rooms_units_total }}</strong>
+                                <span class="facility-summary-caption">Configured rooms and units</span>
+                            </div>
+                        </article>
+                    </section>
+                    <!-- Search Filter -->
+                    <div class="facility-page-layout">
+                        <div class="facility-page-left">
+                            <section class="facility-table-panel facility-table-panel-inline">
+                                <div class="facility-table-toolbar">
+                                    <div class="facility-table-search">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="1.8" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                                        </svg>
+                                        <input type="search" id="facilitySearchInput" placeholder="Search facility..."
+                                            aria-label="Search facility">
+                                    </div>
+
+                                    <select id="facilityTypeFilter" class="facility-table-filter"
+                                        aria-label="Filter facilities by type">
+                                        <option value="all">All Types</option>
+                                        {% for value, label in facility_type_choices %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+
+                                    <select id="facilityStatusFilter" class="facility-table-filter"
+                                        aria-label="Filter facilities by status">
+                                        <option value="all">All Status</option>
+                                        {% for value, label in facility_status_choices %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+
+                                    <select id="facilityBookingModeFilter" class="facility-table-filter"
+                                        aria-label="Filter facilities by booking mode">
+                                        <option value="all">All Booking Modes</option>
+                                        {% for value, label in booking_mode_choices %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+
+                                    <select id="facilityArchiveFilter" class="facility-table-filter"
+                                        aria-label="Filter facilities by archive state">
+                                        <option value="active" selected>Active Facilities</option>
+                                        <option value="archived">Archived Facilities</option>
+                                        <option value="all">All Facilities</option>
+                                    </select>
+
+                                    <button type="button" class="facility-add-btn" id="addFacilityBtn"{% if not can_manage_facilities %} hidden{% endif %}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 4.5v15m7.5-7.5h-15" />
+                                        </svg>
+                                        <span>Add Facility</span>
+                                    </button>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <div class="facility-table-container">
+                                    <table class="facility-table" id="facilityTable">
+                                        <thead>
+                                            <tr>
+                                                <th class="facility-col-name">Facility</th>
+                                                <th class="facility-col-type">Type</th>
+                                                <th class="facility-col-capacity">Capacity / Units</th>
+                                                <th class="facility-col-rate">Rate (&#8369;)</th>
+                                                <th class="facility-col-price-type">Price Type</th>
+                                                <th class="facility-col-status">Status</th>
+                                                <th class="facility-col-bookings">Booking Mode</th>
+                                                <th class="facility-col-actions">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for f in facilities %}
+                                            <tr data-facility-id="{{ f.id }}" data-status="{{ f.availability_status }}"
+                                                data-is-archived="{% if f.is_archived %}1{% else %}0{% endif %}"
+                                                data-facility-type="{{ f.facility_type|default:'other' }}"
+                                                data-location="{{ f.location|default:'' }}"
+                                                data-capacity="{{ f.capacity|default:0 }}"
+                                                data-price-type="{{ f.price_type }}"
+                                                data-booking-mode="{{ f.booking_mode }}"
+                                                data-rooms-units="{{ f.rooms_units|default:0 }}"
+                                                data-room-type="{{ f.room_type|default:'' }}"
+                                                data-amenities="{{ f.amenities|join:'|' }}"
+                                                data-description="{{ f.description|default:'' }}"
+                                                data-requirements="{{ f.requirements|default:'' }}"
+                                                data-terms-conditions="{{ f.terms_conditions|default:'' }}"
+                                                data-slots="{{ f.slots|default:'' }}"
+                                                data-image-url="{{ f.get_first_image_url|default:'' }}"
+                                                data-images="{{ f.get_images_json|escapejs }}">
+                                                <td class="facility-col-name">
+                                                    <span class="facility-workflow-data" hidden>{{ f.form_workflow|json_script }}</span>
+                                                    <span class="facility-amenities-data" hidden>{{ f.amenities|json_script }}</span>
+                                                    <div class="facility-row-name">
+                                                        {% if f.get_first_image_url %}
+                                                        <img src="{{ f.get_first_image_url }}" alt="{{ f.facility_name }}"
+                                                            class="facility-row-img">
+                                                        {% else %}
+                                                        <div class="facility-row-thumb">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none"
+                                                                viewBox="0 0 24 24" stroke-width="1.6"
+                                                                stroke="currentColor">
+                                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                                    d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21" />
+                                                            </svg>
+                                                        </div>
+                                                        {% endif %}
+                                                        <div>
+                                                            <strong>{{ f.facility_name }}</strong>
+                                                            <span class="facility-row-sub">{{ f.location|default:f.id }}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="facility-col-type">
+                                                    {% if f.facility_type == 'covered_court' %}Covered Court
+                                                    {% elif f.facility_type == 'function_hall' %}Function Hall
+                                                    {% elif f.facility_type == 'hostel' %}Hostel Accommodation
+                                                    {% elif f.facility_type == 'training_kitchen' %}Training Kitchen / Assessment Center
+                                                    {% elif f.facility_type == 'food_analysis' %}Food Analysis Hub
+                                                    {% elif f.facility_type == 'lease_space' %}Lease of Space
+                                                    {% else %}Other{% endif %}
+                                                </td>
+                                                <td class="facility-col-capacity">
+                                                    {% if f.rooms_units %}{{ f.rooms_units }} unit{{ f.rooms_units|pluralize }}
+                                                    {% elif f.capacity %}{{ f.capacity }} pax
+                                                    {% else %}<span class="facility-muted-value">Not applicable</span>{% endif %}
+                                                </td>
+                                                <td class="facility-col-rate">
+                                                    {% if f.rate %}&#8369;{{ f.rate|floatformat:0|intcomma }}
+                                                    {% else %}<span class="facility-muted-value">Based on service</span>{% endif %}
+                                                </td>
+                                                <td class="facility-col-price-type">Per {{ f.price_type|title }}</td>
+                                                <td class="facility-col-status">
+                                                    <span
+                                                        class="facility-status facility-status-{{ f.availability_status }}">
+                                                        {% if f.availability_status == 'available' %}Open for Booking
+                                                        {% elif f.availability_status == 'maintenance' %}Under Maintenance
+                                                        {% elif f.availability_status == 'reserved' or f.availability_status == 'occupied' or f.availability_status == 'unavailable' %}Temporarily Unavailable
+                                                        {% elif f.availability_status == 'inactive' %}Inactive
+                                                        {% else %}{{ f.availability_status|title }}{% endif %}
+                                                    </span>
+                                                </td>
+                                                <td class="facility-col-bookings">
+                                                    <span class="facility-booking-mode-label">
+                                                    {% if f.booking_mode == 'slot' %}Slot-based
+                                                    {% elif f.booking_mode == 'room' %}Room-based
+                                                    {% elif f.booking_mode == 'service' or f.booking_mode == 'direct' %}Service Request
+                                                    {% elif f.booking_mode == 'assessment' %}Assessment / Schedule-Based
+                                                    {% elif f.booking_mode == 'lease' %}Lease Application
+                                                    {% else %}{{ f.booking_mode|title }}{% endif %}
+                                                    </span>
+                                                </td>
+                                                <td class="facility-col-actions">{% include 'partials/facility_row_menu.html' %}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr>
+                                                <td colspan="8" class="facility-empty-row">No facilities added yet.</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                    </div>
+                                    <div class="facility-empty-row" id="facilityEmptyRow" hidden>No facilities match
+                                        your search.</div>
+                                </div>
+                                <div class="facility-table-footer" id="facilityTableFooter" {% if not facilities %}hidden{% endif %}>
+                                    <span class="facility-showing-text" id="facilityShowingText"></span>
+                                    <div class="facility-pagination" id="facilityPagination" aria-label="Facilities pagination"></div>
+                                </div>
+                            </section>
+
+                            <section class="facility-activity-panel">
+                                <div class="facility-activity-header">
+                                    <h2>Recent Activities</h2>
+                                    <span>Latest facility and booking records</span>
+                                </div>
+                                <ul class="facility-activity-list" id="facilityActivityList">
+                                    {% for activity in recent_facility_activities %}
+                                    <li class="facility-activity-item" data-server-activity="true">
+                                        <span class="facility-activity-icon facility-activity-{{ activity.kind }}" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25m10.5-2.25v2.25M3.75 9h16.5m-15 12h13.5A1.5 1.5 0 0 0 20.25 19.5V6.75a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5V19.5a1.5 1.5 0 0 0 1.5 1.5Z" />
+                                            </svg>
+                                        </span>
+                                        <div class="facility-activity-main">
+                                            <strong>{{ activity.title }}</strong>
+                                            <span>{{ activity.description }}</span>
+                                        </div>
+                                        <small>{{ activity.occurred_at|date:"M d, Y g:i A" }}</small>
+                                    </li>
+                                    {% empty %}
+                                    <li class="facility-activity-empty text-muted">No recent activities yet.</li>
+                                    {% endfor %}
+                                </ul>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="facility-loading-section d-none" id="facilityLoadingSection" aria-live="polite"{% if not can_manage_facilities %} hidden{% endif %}>
+                    <div class="facility-loading-spinner" aria-hidden="true"></div>
+                    <strong>Preparing add facility...</strong>
+                </section>
+
+                <section class="facility-form-section d-none" id="facilityFormSection">
+                    <div class="facility-form-header">
+                        <div class="facility-form-header-top">
+                            <button type="button" class="facility-back-btn" id="backToFacilitiesButton"
+                                aria-label="Back to facilities">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                                </svg>
+                            </button>
+                            <h2 id="facilityFormTitle">Add Facility</h2>
+                        </div>
+                        <p>Fill in the facility details.</p>
+                    </div>
+
+                    <div class="facility-form-body">
+                        <div class="facility-form-row-top">
+                            <!-- 1. Facility Images (left) -->
+                            <section class="facility-form-section-images" id="facilityImagesSection" aria-labelledby="facilitySectionImages">
+                                <h3 class="facility-form-section-title" id="facilitySectionImages">1. Facility Images</h3>
+
+                                <label for="facilityImageUpload" class="create-upload-dropzone" id="facilityImageDropzone">
+                                    <!-- Default state: icon + text -->
+                                    <span class="upload-default-state">
+                                        <span class="create-upload-icon" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                                stroke-width="1.8" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                                            </svg>
+                                        </span>
+                                        <span class="create-upload-copy">
+                                            <span class="create-upload-line">Drop your images here, or</span>
+                                            <span class="create-upload-button">Click to browse</span>
+                                        </span>
+                                    </span>
+
+                                    <!-- Loading state: spinner -->
+                                    <span class="upload-loading-state" aria-hidden="true">
+                                        <span class="upload-spinner"></span>
+                                        <span class="upload-loading-text">Uploading...</span>
+                                    </span>
+
+                                    <!-- Selected state: filename only -->
+                                    <span class="upload-selected-state">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="1.8" stroke="currentColor" class="upload-check-icon">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                        </svg>
+                                        <span class="upload-selected-filename" id="facilityImageFileName">No file selected</span>
+                                    </span>
+                                </label>
+                                <input type="file" class="create-upload-input" id="facilityImageUpload" accept="image/*" multiple>
+
+                                <div class="facility-image-slots" id="facilityImageSlots" aria-label="Facility image previews">
+                                    <div class="facility-image-slot" data-slot-index="0" role="button" tabindex="0" aria-label="Image slot 1">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="1" role="button" tabindex="0" aria-label="Image slot 2">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="2" role="button" tabindex="0" aria-label="Image slot 3">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="3" role="button" tabindex="0" aria-label="Image slot 4">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="4" role="button" tabindex="0" aria-label="Image slot 5">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="5" role="button" tabindex="0" aria-label="Image slot 6">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                </div>
+                                <span class="facility-form-help">Supported: JPG, PNG, WEBP. Up to 6 images.</span>
+                            </section>
+
+                            <!-- 2. Basic Information (right) -->
+                            <section class="facility-form-section-basic" aria-labelledby="facilitySectionBasic">
+                                <h3 class="facility-form-section-title" id="facilitySectionBasic">2. Basic Information</h3>
+                                <div class="facility-form-field">
+                                    <label for="facilityName" class="form-label">Facility Name</label>
+                                    <input type="text" class="form-control" id="facilityName"
+                                        placeholder="Enter facility name" required>
+                                </div>
+                                <div class="facility-form-field">
+                                    <label for="facilityType" class="form-label">Facility Type</label>
+                                    <select class="form-select" id="facilityType" required>
+                                        <option value="covered_court">Covered Court</option>
+                                        <option value="function_hall">Function Hall</option>
+                                        <option value="hostel">Hostel Accommodation</option>
+                                        <option value="food_analysis">Food Analysis Hub</option>
+                                        <option value="training_kitchen">Training Kitchen / Assessment Center</option>
+                                        <option value="lease_space">Lease of Space</option>
+                                        <option value="other" hidden>Other (Legacy)</option>
+                                    </select>
+                                </div>
+                                <div class="facility-form-field">
+                                    <label for="facilityLocation" class="form-label">Location</label>
+                                    <input type="text" class="form-control" id="facilityLocation"
+                                        placeholder="Enter building or campus location" required>
+                                </div>
+                                <div class="facility-form-field">
+                                    <label for="facilityStatus" class="form-label">Status</label>
+                                    <select class="form-select" id="facilityStatus" required>
+                                        {% for value, label in facility_status_choices %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <span class="facility-form-help">Time-slot availability is managed through Calendar / Schedules.</span>
+                                </div>
+                            </section>
+                        </div>
+
+                        <div class="facility-form-grid">
+                            <div class="facility-form-field facility-form-field-wide">
+                                <label for="facilityDescription" class="form-label">Description</label>
+                                <textarea class="form-control" id="facilityDescription" rows="4"
+                                    placeholder="Describe the facility, service, or space"></textarea>
+                            </div>
+                            <div class="facility-form-field">
+                                <label for="facilityBookingMode" class="form-label">Booking Mode</label>
+                                <select class="form-select" id="facilityBookingMode" disabled></select>
+                                <span class="facility-form-help">Set automatically from the selected facility type.</span>
+                            </div>
+                            <div class="facility-form-field" data-facility-field="capacity">
+                                <label for="facilityCapacity" class="form-label">Capacity</label>
+                                <input type="text" class="form-control" id="facilityCapacity" inputmode="numeric"
+                                    placeholder="Enter capacity">
+                            </div>
+                            <div class="facility-form-field" data-facility-field="rate">
+                                <label for="facilityRate" class="form-label" id="facilityRateLabel">Rate</label>
+                                <div class="facility-price-wrap">
+                                    <span class="facility-price-currency" aria-hidden="true">&#8369;</span>
+                                    <input type="text" class="form-control" id="facilityRate" inputmode="decimal"
+                                        placeholder="Enter rate">
+                                </div>
+                            </div>
+                            <div class="facility-form-field" data-facility-field="price_type">
+                                <label for="facilityPriceType" class="form-label">Price Type</label>
+                                <select class="form-select" id="facilityPriceType"></select>
+                            </div>
+                            <div class="facility-form-field facility-form-field-wide" data-facility-field="operating_hours">
+                                <label id="facilityOperatingHoursLabel" class="form-label">Operating Schedule</label>
+                                <p id="facilityScheduleNotice" class="facility-schedule-notice" role="status" hidden></p>
+                                <div id="facilityOperatingHours" class="facility-hours" role="group" aria-labelledby="facilityOperatingHoursLabel"></div>
+                            </div>
+                            <div class="facility-form-field" data-facility-field="minimum_booking_duration">
+                                <label for="facilityMinimumBookingDuration" class="form-label">Minimum Booking Duration</label>
+                                <select class="form-select" id="facilityMinimumBookingDuration">
+                                    <option value="">No minimum</option>
+                                    <option value="0.5">30 minutes</option>
+                                    <option value="1">1 hour</option>
+                                    <option value="2">2 hours</option>
+                                    <option value="3">3 hours</option>
+                                    <option value="4">4 hours</option>
+                                    <option value="6">6 hours</option>
+                                    <option value="8">8 hours</option>
+                                </select>
+                            </div>
+                            <div class="facility-form-field" data-facility-field="rooms_units">
+                                <label for="facilityUnits" class="form-label" id="facilityUnitsLabel">Rooms / Units</label>
+                                <input type="number" class="form-control" id="facilityUnits" min="1"
+                                    placeholder="Enter rooms or units">
+                            </div>
+                            <div class="facility-form-field" data-facility-field="room_type">
+                                <label for="facilityRoomType" class="form-label">Room Type</label>
+                                <input type="text" class="form-control" id="facilityRoomType"
+                                    placeholder="Enter room type">
+                            </div>
+                            <div class="facility-form-field" data-facility-field="capacity_per_room">
+                                <label for="facilityCapacityPerRoom" class="form-label">Capacity per Room</label>
+                                <input type="number" class="form-control" id="facilityCapacityPerRoom" min="1"
+                                    placeholder="Enter guests per room">
+                            </div>
+                            <div class="facility-form-field" data-facility-field="check_in_time">
+                                <label for="facilityCheckInTime" class="form-label">Check-in Time</label>
+                                <input type="time" class="form-control" id="facilityCheckInTime">
+                            </div>
+                            <div class="facility-form-field" data-facility-field="check_out_time">
+                                <label for="facilityCheckOutTime" class="form-label">Check-out Time</label>
+                                <input type="time" class="form-control" id="facilityCheckOutTime">
+                            </div>
+                            <div class="facility-form-field" data-facility-field="assessment_service_type">
+                                <label for="facilityAssessmentServiceType" class="form-label">Assessment / Service Type</label>
+                                <input type="text" class="form-control" id="facilityAssessmentServiceType"
+                                    placeholder="Enter assessment or service type">
+                            </div>
+                            <div class="facility-form-field" data-facility-field="area_size">
+                                <label for="facilityAreaSize" class="form-label">Area / Size</label>
+                                <input type="text" class="form-control" id="facilityAreaSize"
+                                    placeholder="Example: 45 sq m">
+                            </div>
+                            <div class="facility-form-field facility-form-field-wide" data-facility-field="turnaround_information">
+                                <label for="facilityTurnaroundInformation" class="form-label">Turnaround / Processing Information</label>
+                                <textarea class="form-control" id="facilityTurnaroundInformation" rows="3"
+                                    placeholder="Enter the expected processing period"></textarea>
+                            </div>
+                            <div class="facility-form-field facility-form-field-wide" data-facility-field="amenities">
+                                <label class="form-label" id="facilityAmenitiesLabel">Amenities</label>
+                                <div id="facilityAmenityChoices" class="facility-choice-grid" role="group" aria-labelledby="facilityAmenitiesLabel"></div>
+                                <label class="facility-check"><input type="checkbox" id="facilityOtherAmenity">Other</label>
+                                <div id="facilityOtherAmenityField" class="facility-other-field" hidden>
+                                    <label for="facilityOtherAmenityText" class="form-label">Specify other amenity</label>
+                                    <input type="text" class="form-control" id="facilityOtherAmenityText" maxlength="200" disabled>
+                                </div>
+                            </div>
+                            <div class="facility-form-field facility-form-field-wide">
+                                <label for="facilityRequirements" class="form-label" id="facilityRequirementsLabel">Requirements</label>
+                                <textarea class="form-control" id="facilityRequirements" rows="3"
+                                    placeholder="Enter facility or service requirements"></textarea>
+                            </div>
+                            <div class="facility-form-field facility-form-field-wide">
+                                <label for="facilityTermsConditions" class="form-label">Terms &amp; Conditions</label>
+                                <textarea class="form-control" id="facilityTermsConditions" rows="3"
+                                    placeholder="Enter terms and conditions for facility usage"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="facility-form-footer"{% if not can_manage_facilities %} hidden{% endif %}>
+                        <button type="button" class="facility-cancel-btn" id="cancelFacilityButton">Cancel</button>
+                        <button type="button" class="facility-save-btn" id="saveFacilityButton">
+                            <span class="save-btn-label">Save Facility</span>
+                            <span class="save-btn-spinner" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <div class="facility-save-toast" id="facilitySaveToast" role="status" aria-live="polite">
+        Facility saved for testing.
+    </div>
+
+    <div class="modal fade" id="archiveFacilityModal" tabindex="-1" aria-labelledby="archiveFacilityModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content delete-product-card">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title" id="archiveFacilityModalLabel">Archive Facility</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center pt-2">
+                    <div class="archive-warning-icon mb-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="48" height="48" style="color:#FCB316;"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5 19.625 18.132a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m5.25 4.5h6M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
+                    </div>
+                    <p style="font-size:0.92rem; color:#374151; margin-bottom:8px;">Archive this facility? It will be hidden from new bookings, while preserving all historical bookings, schedules, payments, and reports.</p>
+                    <strong id="archiveFacilityName" style="color:#1A1851; font-size:1rem;">Selected facility</strong>
+                </div>
+                <div class="modal-footer border-0 justify-content-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="delete-product-confirm" id="confirmArchiveFacilityButton" style="background-color:#FCB316;color:#1A1851;font-weight:600;border:none;padding:8px 20px;border-radius:6px;">Archive</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="restoreFacilityModal" tabindex="-1" aria-labelledby="restoreFacilityModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content delete-product-card">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title" id="restoreFacilityModalLabel">Restore Facility</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center pt-2">
+                    <div class="archive-warning-icon mb-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="48" height="48" style="color:#1A1851;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                    </div>
+                    <p style="font-size:0.92rem; color:#374151; margin-bottom:8px;">Restore this facility? It will be made available again for reservations.</p>
+                    <strong id="restoreFacilityName" style="color:#1A1851; font-size:1rem;">Selected facility</strong>
+                </div>
+                <div class="modal-footer border-0 justify-content-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="delete-product-confirm" id="confirmRestoreFacilityButton" style="background-color:#1A1851;color:#ffffff;font-weight:600;border:none;padding:8px 20px;border-radius:6px;">Restore</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade logout-modal" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content logout-card">
+                <div class="logout-card-body">
+                    <button type="button" class="logout-close" data-bs-dismiss="modal" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 162 162"
+                            class="logout-close-icon" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-width="17" stroke="currentColor"
+                                d="M9.01074 8.98926L153.021 153"></path>
+                            <path stroke-linecap="round" stroke-width="17" stroke="currentColor"
+                                d="M9.01074 153L153.021 8.98926"></path>
+                        </svg>
+                    </button>
+                    <p class="logout-heading" id="logoutModalLabel">Logout</p>
+                    <p class="logout-copy">
+                        Are you sure you want to logout?
+                    </p>
+                    <div class="logout-actions">
+                        <a href="{% url 'admin_logout_page' %}" class="logout-button logout-button-primary">Yes</a>
+                        <button type="button" class="logout-button logout-button-secondary"
+                            data-bs-dismiss="modal">No</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_notifications.js' %}?v=20260523-3"></script>
+    {{ calendar_events|json_script:"facilityCalendarEventsData" }}
+    {{ facility_form_configuration|json_script:"facilityFormConfigurationData" }}
+    <script src="{% static 'facilities/js/facility_form_controls.js' %}?v=20260915"></script>
+    <script>
+        const CAN_MANAGE_FACILITIES = {{ can_manage_facilities|yesno:"true,false" }};
+        const CAN_BOOK_FACILITIES = {{ can_book_facilities|yesno:"true,false" }};
+        const facilityFormConfiguration = JSON.parse(
+            document.getElementById('facilityFormConfigurationData')?.textContent || '{}'
+        );
+        const facilitiesListSection = document.getElementById('facilitiesListSection');
+        const facilityLoadingSection = document.getElementById('facilityLoadingSection');
+        const facilityFormSection = document.getElementById('facilityFormSection');
+        const addFacilityBtn = document.getElementById('addFacilityBtn');
+        const backToFacilitiesButton = document.getElementById('backToFacilitiesButton');
+        const cancelFacilityButton = document.getElementById('cancelFacilityButton');
+        const saveFacilityButton = document.getElementById('saveFacilityButton');
+        const facilityFormTitle = document.getElementById('facilityFormTitle');
+        const facilitySaveToast = document.getElementById('facilitySaveToast');
+        const facilityBookingMode = document.getElementById('facilityBookingMode');
+        const facilityImageUpload = document.getElementById('facilityImageUpload');
+        const facilityImageDropzone = document.getElementById('facilityImageDropzone');
+        const facilityImageFileName = document.getElementById('facilityImageFileName');
+        const scheduleImageUpload = document.getElementById('scheduleImageUpload');
+        const scheduleImageDropzone = document.getElementById('scheduleImageDropzone');
+        const scheduleImageFileName = document.getElementById('scheduleImageFileName');
+        const toggleScheduleFormBtn = document.getElementById('toggleScheduleFormBtn');
+        const scheduleUploadForm = document.getElementById('scheduleUploadForm');
+        const reservationUploadForm = document.getElementById('reservationUploadForm');
+        const facilityActivityList = document.getElementById('facilityActivityList');
+        const viewCalendarButton = document.getElementById('viewCalendarButton');
+        const facilityCalendarModal = document.getElementById('facilityCalendarModal');
+        const calendarSelectedDateLabel = document.getElementById('calendarSelectedDateLabel');
+        const calendarUpcomingList = document.getElementById('calendarUpcomingList');
+        const facilityCalendarGrid = document.getElementById('facilityCalendarGrid');
+        let editingFacilityRow = null;
+        let selectedFacilityImageUrl = '';
+        let pendingFacilityImageRead = null;
+        const FACILITY_IMAGE_SLOT_MAX = 6;
+        let facilityImageSlots = Array(FACILITY_IMAGE_SLOT_MAX).fill(null);
+        let pendingFacilityImageSlotIndex = null;
+
+        function renderFacilityImageSlots() {
+            const grid = document.getElementById('facilityImageSlots');
+            if (!grid) return;
+            grid.querySelectorAll('.facility-image-slot').forEach((slotEl, index) => {
+                const emptyEl = slotEl.querySelector('.facility-image-slot-empty');
+                const previewEl = slotEl.querySelector('.facility-image-slot-preview');
+                const removeBtn = slotEl.querySelector('.facility-image-slot-remove');
+                const processingEl = slotEl.querySelector('.facility-image-slot-processing');
+                const data = facilityImageSlots[index];
+                if (data?.isProcessing) {
+                    slotEl.classList.add('is-processing');
+                    slotEl.classList.remove('is-filled');
+                    if (processingEl) processingEl.hidden = false;
+                    if (emptyEl) emptyEl.hidden = true;
+                    if (previewEl) previewEl.hidden = true;
+                    if (removeBtn) removeBtn.hidden = true;
+                } else if (data?.src) {
+                    slotEl.classList.remove('is-processing');
+                    slotEl.classList.add('is-filled');
+                    if (processingEl) processingEl.hidden = true;
+                    if (previewEl) {
+                        previewEl.src = data.src;
+                        previewEl.hidden = false;
+                    }
+                    if (emptyEl) emptyEl.hidden = true;
+                    if (removeBtn) removeBtn.hidden = false;
+                } else {
+                    slotEl.classList.remove('is-processing', 'is-filled');
+                    if (processingEl) processingEl.hidden = true;
+                    if (previewEl) {
+                        previewEl.removeAttribute('src');
+                        previewEl.hidden = true;
+                    }
+                    if (emptyEl) emptyEl.hidden = false;
+                    if (removeBtn) removeBtn.hidden = true;
+                }
+            });
+            const count = facilityImageSlots.filter((slot) => slot && (slot.src || slot.isProcessing)).length;
+            if (facilityImageDropzone) {
+                facilityImageDropzone.classList.toggle('has-file', count > 0);
+            }
+            if (facilityImageFileName) {
+                facilityImageFileName.textContent = count
+                    ? (count === 1 ? '1 image selected' : `${count} images selected`)
+                    : 'No file selected';
+            }
+        }
+
+        function setFacilityImageSlotsFromSources(sources = []) {
+            facilityImageSlots = Array(FACILITY_IMAGE_SLOT_MAX).fill(null);
+            let list = [];
+            if (typeof sources === 'string') {
+                try {
+                    const parsed = JSON.parse(sources);
+                    if (Array.isArray(parsed)) list = parsed;
+                    else if (sources.trim()) list = [sources.trim()];
+                } catch (e) {
+                    if (sources.trim()) list = [sources.trim()];
+                }
+            } else if (Array.isArray(sources)) {
+                list = sources;
+            }
+            list.filter(Boolean)
+                .slice(0, FACILITY_IMAGE_SLOT_MAX)
+                .forEach((src, index) => {
+                    facilityImageSlots[index] = { src, file: null, isProcessing: false };
+                });
+            renderFacilityImageSlots();
+        }
+
+        function getFacilityImageSlotSources() {
+            return facilityImageSlots.filter(Boolean).map((slot) => slot.src).filter(Boolean);
+        }
+
+        function clearFacilityImageSlots() {
+            facilityImageSlots = Array(FACILITY_IMAGE_SLOT_MAX).fill(null);
+            pendingFacilityImageSlotIndex = null;
+            if (facilityImageUpload) facilityImageUpload.value = '';
+            renderFacilityImageSlots();
+        }
+
+        function removeFacilityImageSlot(index) {
+            if (index < 0 || index >= FACILITY_IMAGE_SLOT_MAX) return;
+            facilityImageSlots[index] = null;
+            renderFacilityImageSlots();
+        }
+
+        function addFacilityImageFileToSlot(file, slotIndex) {
+            if (!file || slotIndex < 0 || slotIndex >= FACILITY_IMAGE_SLOT_MAX) return;
+            facilityImageSlots[slotIndex] = { src: '', file, isProcessing: true };
+            renderFacilityImageSlots();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                facilityImageSlots[slotIndex] = { src: e.target?.result || '', file, isProcessing: false };
+                renderFacilityImageSlots();
+            };
+            reader.onerror = () => {
+                facilityImageSlots[slotIndex] = null;
+                renderFacilityImageSlots();
+                showFacilityToast('Could not read image file.', 'error');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function addFacilityImageFiles(files) {
+            if (!files || !files.length) return;
+            const fileList = Array.from(files);
+            let added = 0;
+            let overflow = false;
+            fileList.forEach((file) => {
+                const emptyIndex = facilityImageSlots.findIndex((slot) => !slot || (!slot.src && !slot.isProcessing));
+                if (emptyIndex === -1) {
+                    overflow = true;
+                    return;
+                }
+                facilityImageSlots[emptyIndex] = { src: '', file, isProcessing: true };
+                renderFacilityImageSlots();
+                const slotIndex = emptyIndex;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    facilityImageSlots[slotIndex] = { src: e.target?.result || '', file, isProcessing: false };
+                    renderFacilityImageSlots();
+                };
+                reader.onerror = () => {
+                    facilityImageSlots[slotIndex] = null;
+                    renderFacilityImageSlots();
+                };
+                reader.readAsDataURL(file);
+                added += 1;
+            });
+            if (overflow || (fileList.length > added && added === 0)) {
+                showFacilityToast('Maximum 6 images allowed.', 'error');
+            }
+        }
+
+        const uploadedSchedules = [];
+
+        const scheduleTypeMeta = {
+            class: {
+                label: 'Class Schedule',
+                calendarClass: 'class',
+                activityClass: 'facility-activity-warning',
+                message: 'class schedule uploaded'
+            },
+            reservation: {
+                label: 'Reservation',
+                calendarClass: 'reserved',
+                activityClass: 'facility-activity-info',
+                message: 'reservation uploaded'
+            },
+            maintenance: {
+                label: 'Maintenance',
+                calendarClass: 'maintenance',
+                activityClass: 'facility-activity-danger',
+                message: 'maintenance schedule uploaded'
+            },
+            assessment: {
+                label: 'Assessment Schedule',
+                calendarClass: 'assessment',
+                activityClass: 'facility-activity-info',
+                message: 'assessment schedule uploaded'
+            }
+        };
+
+        const baseCalendarEvents = JSON.parse(
+            document.getElementById('facilityCalendarEventsData')?.textContent || '[]'
+        ).map((event) => ({
+            ...event,
+            startTime: event.start || '',
+            endTime: event.end || '',
+            description: event.purpose || ''
+        }));
+
+        const facilityFields = {
+            name: document.getElementById('facilityName'),
+            type: document.getElementById('facilityType'),
+            location: document.getElementById('facilityLocation'),
+            capacity: document.getElementById('facilityCapacity'),
+            rate: document.getElementById('facilityRate'),
+            priceType: document.getElementById('facilityPriceType'),
+            status: document.getElementById('facilityStatus'),
+            mode: facilityBookingMode,
+            units: document.getElementById('facilityUnits'),
+            roomType: document.getElementById('facilityRoomType'),
+            minimumBookingDuration: document.getElementById('facilityMinimumBookingDuration'),
+            capacityPerRoom: document.getElementById('facilityCapacityPerRoom'),
+            checkInTime: document.getElementById('facilityCheckInTime'),
+            checkOutTime: document.getElementById('facilityCheckOutTime'),
+            turnaroundInformation: document.getElementById('facilityTurnaroundInformation'),
+            assessmentServiceType: document.getElementById('facilityAssessmentServiceType'),
+            areaSize: document.getElementById('facilityAreaSize'),
+            description: document.getElementById('facilityDescription'),
+            requirements: document.getElementById('facilityRequirements'),
+            termsConditions: document.getElementById('facilityTermsConditions')
+        };
+        const structuredFacilityControls = new FacilityFormControls(facilityFormSection, facilityFormConfiguration);
+        const getSelectedFacilityAmenities = () => structuredFacilityControls.getAmenities();
+        const setSelectedFacilityAmenities = (amenities = []) => structuredFacilityControls.setAmenities(amenities);
+
+        const workflowFieldMap = {
+            minimum_booking_duration: facilityFields.minimumBookingDuration,
+            capacity_per_room: facilityFields.capacityPerRoom,
+            check_in_time: facilityFields.checkInTime,
+            check_out_time: facilityFields.checkOutTime,
+            turnaround_information: facilityFields.turnaroundInformation,
+            assessment_service_type: facilityFields.assessmentServiceType,
+            area_size: facilityFields.areaSize,
+        };
+
+        const syncFacilityFormType = ({ preservePrice = true } = {}) => {
+            const type = facilityFields.type?.value || 'covered_court';
+            const config = facilityFormConfiguration.types?.[type]
+                || facilityFormConfiguration.types?.other;
+            if (!config) return;
+
+            document.querySelectorAll('[data-facility-field]').forEach((wrap) => {
+                const isVisible = wrap.dataset.facilityField === 'price_type'
+                    || config.fields.includes(wrap.dataset.facilityField);
+                wrap.hidden = !isVisible;
+                wrap.querySelectorAll('input, select, textarea').forEach((field) => {
+                    field.disabled = !isVisible;
+                });
+            });
+
+            const modeLabel = facilityFormConfiguration.booking_mode_labels?.[config.booking_mode]
+                || config.booking_mode;
+            facilityFields.mode.innerHTML = `<option value="${config.booking_mode}">${modeLabel}</option>`;
+            facilityFields.mode.value = config.booking_mode;
+            facilityFields.mode.disabled = true;
+
+            const previousPrice = preservePrice ? facilityFields.priceType.value : '';
+            facilityFields.priceType.innerHTML = config.price_types.map((value) => {
+                const label = facilityFormConfiguration.price_type_labels?.[value] || value;
+                return `<option value="${value}">${label}</option>`;
+            }).join('');
+            facilityFields.priceType.value = config.price_types.includes(previousPrice)
+                ? previousPrice
+                : config.default_price_type;
+
+            document.getElementById('facilityAmenitiesLabel').textContent = config.amenities_label || 'Amenities';
+            document.querySelector('label[for="facilityOtherAmenityText"]').textContent = type === 'food_analysis'
+                ? 'Specify other service' : 'Specify other amenity';
+            document.getElementById('facilityRequirementsLabel').textContent = config.requirements_label || 'Requirements';
+            document.getElementById('facilityRateLabel').textContent = config.rate_label || 'Rate';
+            document.getElementById('facilityUnitsLabel').textContent = config.units_label || 'Rooms / Units';
+
+            const required = new Set(config.required || []);
+            const requiredFields = {
+                capacity: facilityFields.capacity,
+                rate: facilityFields.rate,
+                rooms_units: facilityFields.units,
+                room_type: facilityFields.roomType,
+                ...workflowFieldMap,
+            };
+            Object.entries(requiredFields).forEach(([key, field]) => {
+                if (field) field.required = required.has(key);
+            });
+            structuredFacilityControls.syncType(type, config, editingFacilityRow?.dataset.slots || '');
+        };
+
+        facilityFields.type?.addEventListener('change', () => syncFacilityFormType({ preservePrice: false }));
+        syncFacilityFormType({ preservePrice: false });
+
+        // Facility table filtering + pagination.
+        const facilitySearch = document.getElementById('facilitySearchInput');
+        const facilityTypeFilter = document.getElementById('facilityTypeFilter');
+        const facilityStatusFilter = document.getElementById('facilityStatusFilter');
+        const facilityBookingModeFilter = document.getElementById('facilityBookingModeFilter');
+        const facilityArchiveFilter = document.getElementById('facilityArchiveFilter');
+        const facilityTableBody = document.querySelector('#facilityTable tbody');
+        const facilityEmptyRow = document.getElementById('facilityEmptyRow');
+        const facilityShowingText = document.getElementById('facilityShowingText');
+        const facilityPagination = document.getElementById('facilityPagination');
+        const facilityTableFooter = document.getElementById('facilityTableFooter');
+        const facilitySummaryElements = {
+            total: document.getElementById('facilitySummaryTotal'),
+            open: document.getElementById('facilitySummaryOpen'),
+            maintenance: document.getElementById('facilitySummaryMaintenance'),
+            units: document.getElementById('facilitySummaryUnits')
+        };
+        const FACILITY_PAGE_SIZE = 5;
+        let facilityCurrentPage = 1;
+
+        const facilitySummaryContribution = (facility) => ({
+            total: facility ? 1 : 0,
+            open: facility?.status === 'available' ? 1 : 0,
+            maintenance: facility?.status === 'maintenance' ? 1 : 0,
+            units: facility ? Math.max(0, parseInt(facility.units, 10) || 0) : 0
+        });
+
+        const adjustFacilitySummary = (previousFacility, nextFacility) => {
+            const previous = facilitySummaryContribution(previousFacility);
+            const next = facilitySummaryContribution(nextFacility);
+            Object.entries(facilitySummaryElements).forEach(([key, element]) => {
+                if (!element) return;
+                const current = parseInt(element.textContent, 10) || 0;
+                element.textContent = String(Math.max(0, current - previous[key] + next[key]));
+            });
+        };
+
+        const getFacilityDataRows = () => Array.from(
+            document.querySelectorAll('#facilityTable tbody tr[data-facility-id]')
+        );
+
+        const getMatchedFacilityRows = () => {
+            const search = (facilitySearch?.value || '').trim().toLowerCase();
+            const facilityType = facilityTypeFilter?.value || 'all';
+            const status = facilityStatusFilter?.value || 'all';
+            const bookingMode = facilityBookingModeFilter?.value || 'all';
+            const archiveMode = facilityArchiveFilter?.value || 'active';
+            return getFacilityDataRows().filter((row) => {
+                const matchesType = facilityType === 'all' || row.dataset.facilityType === facilityType;
+                const rowStatus = ['reserved', 'occupied'].includes(row.dataset.status)
+                    ? 'unavailable'
+                    : row.dataset.status;
+                const matchesStatus = status === 'all' || rowStatus === status;
+                const matchesBookingMode = bookingMode === 'all' || row.dataset.bookingMode === bookingMode;
+                const isArchived = row.dataset.isArchived === '1' || row.dataset.isArchived === 'true';
+                let matchesArchive = true;
+                if (archiveMode === 'active') {
+                    matchesArchive = !isArchived;
+                } else if (archiveMode === 'archived') {
+                    matchesArchive = isArchived;
+                } else {
+                    matchesArchive = true;
+                }
+                const matchesSearch = !search || row.textContent.toLowerCase().includes(search);
+                return matchesType && matchesStatus && matchesBookingMode && matchesArchive && matchesSearch;
+            });
+        };
+
+        const renderFacilityPagination = (matchedCount) => {
+            if (!facilityPagination) return;
+            facilityPagination.innerHTML = '';
+            if (matchedCount <= 0) return;
+
+            const totalPages = Math.max(1, Math.ceil(matchedCount / FACILITY_PAGE_SIZE));
+            if (facilityCurrentPage > totalPages) facilityCurrentPage = totalPages;
+
+            const makeBtn = (label, page, options = {}) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'facility-page-btn' + (options.active ? ' is-active' : '');
+                btn.textContent = label;
+                btn.disabled = !!options.disabled;
+                if (!options.disabled && page != null) {
+                    btn.addEventListener('click', () => {
+                        facilityCurrentPage = page;
+                        applyFacilityFilters();
+                    });
+                }
+                return btn;
+            };
+
+            facilityPagination.appendChild(makeBtn('\u2039', facilityCurrentPage - 1, {
+                disabled: facilityCurrentPage <= 1
+            }));
+            for (let page = 1; page <= totalPages; page += 1) {
+                facilityPagination.appendChild(makeBtn(String(page), page, {
+                    active: page === facilityCurrentPage
+                }));
+            }
+            facilityPagination.appendChild(makeBtn('\u203A', facilityCurrentPage + 1, {
+                disabled: facilityCurrentPage >= totalPages
+            }));
+        };
+
+        const applyFacilityFilters = () => {
+            const matched = getMatchedFacilityRows();
+            const allRows = getFacilityDataRows();
+            const hasFacilities = allRows.length > 0;
+            const totalPages = Math.max(1, Math.ceil(matched.length / FACILITY_PAGE_SIZE) || 1);
+            if (facilityCurrentPage > totalPages) facilityCurrentPage = totalPages;
+
+            const start = (facilityCurrentPage - 1) * FACILITY_PAGE_SIZE;
+            const end = start + FACILITY_PAGE_SIZE;
+            const pageRows = new Set(matched.slice(start, end));
+
+            allRows.forEach((row) => {
+                row.hidden = !pageRows.has(row);
+            });
+
+            if (facilityEmptyRow) facilityEmptyRow.hidden = !(hasFacilities && matched.length === 0);
+
+            // Hide "Showing..." + pagination when there are no facilities
+            if (facilityTableFooter) {
+                facilityTableFooter.hidden = !hasFacilities || matched.length === 0;
+            }
+
+            if (facilityShowingText && matched.length > 0) {
+                const from = start + 1;
+                const to = Math.min(end, matched.length);
+                facilityShowingText.textContent = `Showing ${from} to ${to} of ${matched.length} facilities`;
+            } else if (facilityShowingText) {
+                facilityShowingText.textContent = '';
+            }
+
+            renderFacilityPagination(matched.length);
+        };
+
+        if (facilitySearch) {
+            facilitySearch.addEventListener('input', () => {
+                facilityCurrentPage = 1;
+                applyFacilityFilters();
+            });
+        }
+        [facilityTypeFilter, facilityStatusFilter, facilityBookingModeFilter, facilityArchiveFilter].forEach((filter) => {
+            filter?.addEventListener('change', () => {
+                facilityCurrentPage = 1;
+                applyFacilityFilters();
+            });
+        });
+        applyFacilityFilters();
+
+        const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
+
+        const formatStatus = (value) => {
+            const status = String(value || 'available').toLowerCase();
+            const labels = {
+                available: 'Open for Booking',
+                reserved: 'Temporarily Unavailable',
+                occupied: 'Temporarily Unavailable',
+                unavailable: 'Temporarily Unavailable',
+                maintenance: 'Under Maintenance',
+                inactive: 'Inactive'
+            };
+            return labels[status] || status.charAt(0).toUpperCase() + status.slice(1);
+        };
+
+        const formatBookingMode = (value) => {
+            const mode = String(value || 'room').toLowerCase();
+            if (mode === 'slot') return 'Slot-based';
+            if (mode === 'room') return 'Room-based';
+            if (mode === 'service' || mode === 'direct') return 'Service Request';
+            if (mode === 'assessment') return 'Assessment / Schedule-Based';
+            if (mode === 'lease') return 'Lease Application';
+            return mode.charAt(0).toUpperCase() + mode.slice(1);
+        };
+
+        const formatFacilityType = (value) => {
+            const key = String(value || 'other').toLowerCase();
+            const labels = {
+                covered_court: 'Covered Court',
+                function_hall: 'Function Hall',
+                hostel: 'Hostel Accommodation',
+                training_kitchen: 'Training Kitchen / Assessment Center',
+                food_analysis: 'Food Analysis Hub',
+                lease_space: 'Lease of Space',
+                other: 'Other',
+            };
+            return labels[key] || 'Other';
+        };
+
+        const normalizePriceType = (value) => {
+            const normalized = String(value || 'hour').toLowerCase().replace(/^per\s+/, '').trim();
+            if (['hour', 'night', 'session', 'service', 'monthly'].includes(normalized)) {
+                return normalized;
+            }
+            return 'hour';
+        };
+
+        const formatPriceType = (value) => {
+            const normalized = normalizePriceType(value);
+            if (normalized === 'monthly') return 'Monthly';
+            const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+            return `Per ${label}`;
+        };
+
+        const formatDate = (value) => {
+            if (!value) return 'Tomorrow';
+            const date = new Date(`${value}T00:00:00`);
+            if (Number.isNaN(date.getTime())) return value;
+            return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        };
+
+        const formatTimeRange = (startTime, endTime) => {
+            const formatTime = (value) => {
+                const [hourValue = '0', minute = '0'] = String(value || '00:00').split(':');
+                const date = new Date();
+                date.setHours(Number(hourValue), Number(minute), 0, 0);
+                return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            };
+            return `${formatTime(startTime)} - ${formatTime(endTime)}`;
+        };
+
+        const formatNumberWithCommas = (value) => {
+            const cleanedValue = String(value || '').replace(/,/g, '');
+            const parts = cleanedValue.split('.');
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            return parts.join('.');
+        };
+
+        const formatCurrencyInput = (field) => {
+            if (!field) return;
+            const value = getNumericFieldValue(field);
+            field.value = value ? formatNumberWithCommas(value) : '';
+        };
+
+        const getAllScheduleEvents = () => [...baseCalendarEvents, ...uploadedSchedules];
+
+        const getCalendarEventsForDate = (date) => getAllScheduleEvents()
+            .filter((event) => event.date === date);
+
+        const renderScheduleRow = (event) => {
+            const meta = scheduleTypeMeta[event.type] || scheduleTypeMeta.reservation;
+            return `
+                <div class="facility-schedule-row ${escapeHtml(meta.calendarClass)}" data-schedule-date="${escapeHtml(event.date)}">
+                    <span class="facility-schedule-row-date">${escapeHtml(formatDate(event.date))}</span>
+                    <span class="facility-schedule-row-time">${escapeHtml(formatTimeRange(event.startTime, event.endTime))}</span>
+                    <span class="facility-schedule-row-facility">${escapeHtml(event.facility)}</span>
+                    <span class="facility-schedule-row-type">${escapeHtml(meta.label)}</span>
+                </div>`;
+        };
+
+        const renderUpcomingSchedule = (filterDate = null) => {
+            if (!calendarUpcomingList) return;
+
+            let events = getAllScheduleEvents();
+            if (filterDate) {
+                events = events.filter((event) => event.date === filterDate);
+                if (calendarSelectedDateLabel) {
+                    calendarSelectedDateLabel.textContent = `For ${formatDate(filterDate)}`;
+                }
+            } else if (calendarSelectedDateLabel) {
+                calendarSelectedDateLabel.textContent = 'All dates';
+            }
+
+            events.sort((left, right) => {
+                const byDate = String(left.date).localeCompare(String(right.date));
+                if (byDate !== 0) return byDate;
+                return timeToMinutes(left.startTime) - timeToMinutes(right.startTime);
+            });
+
+            if (!events.length) {
+                calendarUpcomingList.innerHTML = filterDate
+                    ? '<div class="facility-schedule-row facility-schedule-row-empty">No schedules for this date.</div>'
+                    : '<div class="facility-schedule-row facility-schedule-row-empty">No upcoming schedules yet. Use Add Reservation to add one row.</div>';
+                return;
+            }
+
+            calendarUpcomingList.innerHTML = events.map((event) => renderScheduleRow(event)).join('');
+        };
+
+        const renderCalendarDateDetails = (date) => {
+            if (!date) {
+                renderUpcomingSchedule();
+                return;
+            }
+            document.querySelectorAll('[data-calendar-date]').forEach((day) => {
+                day.classList.toggle('is-selected', day.dataset.calendarDate === date);
+            });
+            renderUpcomingSchedule(date);
+        };
+
+        const markModalCalendarDate = (schedule) => {
+            const meta = scheduleTypeMeta[schedule.type] || scheduleTypeMeta.reservation;
+            const modalDay = document.querySelector(`[data-calendar-date="${schedule.date}"]`);
+            if (!modalDay) return;
+            modalDay.classList.add('has-event', meta.calendarClass);
+        };
+
+        const timeToMinutes = (value) => {
+            const [hour = '0', minute = '0'] = String(value || '00:00').split(':');
+            return Number(hour) * 60 + Number(minute);
+        };
+
+        const schedulesOverlap = (startA, endA, startB, endB) => {
+            return timeToMinutes(startA) < timeToMinutes(endB) && timeToMinutes(startB) < timeToMinutes(endA);
+        };
+
+        const findScheduleConflict = ({ facility, date, startTime, endTime }) => {
+            return uploadedSchedules.find((schedule) => (
+                schedule.facility === facility &&
+                schedule.date === date &&
+                schedulesOverlap(startTime, endTime, schedule.startTime, schedule.endTime)
+            ));
+        };
+
+        window.checkFacilityBookingConflict = ({ facility, date, startTime, endTime }) => {
+            const conflict = findScheduleConflict({ facility, date, startTime, endTime });
+            if (conflict) {
+                return {
+                    allowed: false,
+                    message: 'This facility is unavailable during the selected schedule.',
+                    conflict
+                };
+            }
+            return { allowed: true, message: 'Booking request allowed.' };
+        };
+
+        window.validateFacilityBookingRequest = (booking) => {
+            const result = window.checkFacilityBookingConflict(booking);
+            if (!result.allowed) {
+                showFacilityToast('This facility is unavailable during the selected schedule.', 'error');
+            }
+            return result.allowed;
+        };
+
+        const markCalendarSchedule = (schedule) => {
+            const meta = scheduleTypeMeta[schedule.type] || scheduleTypeMeta.reservation;
+            const dayButton = document.querySelector(`[data-calendar-date="${schedule.date}"]`);
+
+            if (!dayButton || dayButton.classList.contains('is-muted')) return;
+            dayButton.classList.add('has-event', meta.calendarClass);
+            dayButton.title = `${schedule.facility} - ${meta.label} (${schedule.startTime}-${schedule.endTime})`;
+
+            if (!dayButton.querySelector('.dot')) {
+                const dot = document.createElement('i');
+                dot.className = `dot dot-${meta.calendarClass}`;
+                dayButton.appendChild(dot);
+            } else {
+                dayButton.querySelector('.dot').className = `dot dot-${meta.calendarClass}`;
+            }
+            markModalCalendarDate(schedule);
+        };
+
+        const initializeCalendarDots = () => {
+            document.querySelectorAll('.facility-calendar-day.has-event').forEach((button) => {
+                const type = ['reserved', 'class', 'maintenance', 'assessment']
+                    .find((name) => button.classList.contains(name)) || 'reserved';
+                if (!button.querySelector('.dot')) {
+                    const dot = document.createElement('i');
+                    dot.className = `dot dot-${type}`;
+                    button.appendChild(dot);
+                }
+            });
+        };
+
+        const addFacilityActivity = (schedule, options = {}) => {
+            if (!facilityActivityList) return;
+            facilityActivityList.querySelectorAll('.facility-activity-empty').forEach((el) => el.remove());
+            const meta = scheduleTypeMeta[schedule.type] || scheduleTypeMeta.reservation;
+            const item = document.createElement('li');
+            item.className = 'facility-activity-item';
+            item.innerHTML = `
+                <span class="facility-activity-icon ${escapeHtml(meta.activityClass)}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 8.25h18M4.5 5.25h15A1.5 1.5 0 0 1 21 6.75v12A1.5 1.5 0 0 1 19.5 20.25h-15A1.5 1.5 0 0 1 3 18.75v-12A1.5 1.5 0 0 1 4.5 5.25z" />
+                    </svg>
+                </span>
+                <div class="facility-activity-main">
+                    <strong>${escapeHtml(schedule.facility)} ${escapeHtml(meta.message)}.</strong>
+                    <span>${escapeHtml(schedule.description || `${meta.label} from ${schedule.startTime} to ${schedule.endTime}`)}</span>
+                </div>
+                <small>${escapeHtml(options.timeLabel || 'Just now')}</small>`;
+            if (options.append) {
+                facilityActivityList.appendChild(item);
+            } else {
+                facilityActivityList.prepend(item);
+            }
+
+            Array.from(facilityActivityList.querySelectorAll('.facility-activity-item')).slice(8).forEach((activity) => activity.remove());
+        };
+
+        const initializeFacilityActivities = () => {
+            if (!facilityActivityList) return;
+            const hasRealItems = facilityActivityList.querySelector('.facility-activity-item');
+            if (hasRealItems) return;
+            facilityActivityList.innerHTML = '';
+            if (!baseCalendarEvents.length) {
+                facilityActivityList.innerHTML = '<li class="facility-activity-empty text-muted">No recent activities yet.</li>';
+                return;
+            }
+            baseCalendarEvents
+                .slice()
+                .reverse()
+                .forEach((event, index) => {
+                    addFacilityActivity(event, {
+                        append: true,
+                        timeLabel: index === 0 ? 'Today' : `${index + 1} days ago`
+                    });
+                });
+        };
+
+        const showFacilityToast = (message = 'Facility saved for testing.', type = 'success') => {
+            if (!facilitySaveToast) return;
+            facilitySaveToast.textContent = message;
+            facilitySaveToast.classList.toggle('is-error', type === 'error');
+            facilitySaveToast.classList.add('show');
+            window.clearTimeout(facilitySaveToast.hideTimer);
+            facilitySaveToast.hideTimer = window.setTimeout(() => facilitySaveToast.classList.remove('show'), 2400);
+        };
+
+        const showFacilitiesList = () => {
+            if (facilityLoadingSection) {
+                facilityLoadingSection.classList.add('d-none');
+                facilityLoadingSection.style.display = '';
+            }
+            if (facilityFormSection) {
+                facilityFormSection.classList.add('d-none');
+                facilityFormSection.style.display = '';
+            }
+            if (facilitiesListSection) {
+                facilitiesListSection.classList.remove('d-none');
+                facilitiesListSection.style.display = '';
+            }
+        };
+
+        const showFacilityForm = () => {
+            if (facilityLoadingSection) {
+                facilityLoadingSection.classList.add('d-none');
+                facilityLoadingSection.style.display = '';
+            }
+            if (facilitiesListSection) {
+                facilitiesListSection.classList.add('d-none');
+                facilitiesListSection.style.display = 'none';
+            }
+            if (facilityFormSection) {
+                facilityFormSection.classList.remove('d-none');
+                facilityFormSection.style.display = 'block';
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        const showFacilityLoading = (callback) => {
+            facilitiesListSection?.classList.add('d-none');
+            facilityFormSection?.classList.add('d-none');
+            facilityLoadingSection?.classList.remove('d-none');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.setTimeout(callback, 520);
+        };
+
+        const resetFacilityForm = () => {
+            editingFacilityRow = null;
+            if (facilityFormTitle) facilityFormTitle.textContent = 'Add Facility';
+            if (saveFacilityButton) {
+                saveFacilityButton.classList.remove('is-saving');
+                saveFacilityButton.disabled = false;
+                saveFacilityButton.hidden = false;
+                const label = saveFacilityButton.querySelector('.save-btn-label');
+                if (label) label.textContent = 'Save Facility';
+            }
+            facilityFormSection?.querySelectorAll('input, select, textarea').forEach((field) => {
+                field.disabled = false;
+            });
+            Object.values(facilityFields).forEach((field) => {
+                if (!field) return;
+                if (field.tagName === 'SELECT') field.selectedIndex = 0;
+                else field.value = '';
+            });
+            clearFacilityImageSlots();
+            selectedFacilityImageUrl = '';
+            pendingFacilityImageRead = null;
+            setSelectedFacilityAmenities([]);
+            structuredFacilityControls.setWorkflow({});
+            syncFacilityFormType({ preservePrice: false });
+        };
+
+        const getRowMenuHtml = (isArchived = false) => `
+            <div class="facility-row-actions">
+                <button type="button" class="facility-action-icon" data-facility-row-action="view" aria-label="View" title="View">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="18" height="18">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
+                </button>
+                ${CAN_MANAGE_FACILITIES ? `
+                <div class="dropdown facility-row-more">
+                    <button type="button" class="facility-action-icon" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" aria-label="More facility actions" title="More actions">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75h.008v.008H12V6.75Zm0 5.25h.008v.008H12V12Zm0 5.25h.008v.008H12v-.008Z" /></svg>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end facility-row-dropdown">
+                        ${isArchived ? `
+                        <li><button type="button" class="dropdown-item facility-row-restore" data-facility-row-action="restore"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>Restore Facility</button></li>
+                        ` : `
+                        <li><button type="button" class="dropdown-item" data-facility-row-action="edit"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg>Edit Facility</button></li>
+                        <li><button type="button" class="dropdown-item facility-row-archive" data-facility-row-action="archive"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5 19.625 18.132a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m5.25 4.5h6M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>Archive Facility</button></li>
+                        `}
+                    </ul>
+                </div>` : ''}
+            </div>`;
+        const rowMenuHtml = getRowMenuHtml(false);
+
+        const getFacilityFromRow = (row) => {
+            const cells = row.children;
+            const rate = cells[3]?.textContent.replace(/[^\d.]/g, '').trim() || '';
+            let images = [];
+            try {
+                if (row.dataset.images) {
+                    const parsed = JSON.parse(row.dataset.images);
+                    if (Array.isArray(parsed)) images = parsed;
+                }
+            } catch (e) {
+                images = [];
+            }
+            if (!images.length && row.dataset.imageUrl) {
+                images = [row.dataset.imageUrl];
+            }
+            return {
+                id: row.dataset.facilityId || '',
+                name: cells[0]?.querySelector('strong')?.textContent.trim() || '',
+                facilityType: row.dataset.facilityType || 'other',
+                location: row.dataset.location || '',
+                description: row.dataset.description || '',
+                capacity: row.dataset.capacity || '0',
+                units: row.dataset.roomsUnits || '0',
+                rate,
+                priceType: normalizePriceType(row.dataset.priceType || cells[4]?.textContent.trim() || 'hour'),
+                mode: row.dataset.bookingMode || 'room',
+                roomType: row.dataset.roomType || '',
+                amenities: JSON.parse(row.dataset.amenitiesJson || row.querySelector('.facility-amenities-data script')?.textContent || 'null')
+                    || (row.dataset.amenities || '').split('|').filter(Boolean),
+                status: row.dataset.status || 'available',
+                images: images,
+                imageUrl: images[0] || row.dataset.imageUrl || '',
+                requirements: row.dataset.requirements || '',
+                termsConditions: row.dataset.termsConditions || '',
+                workflowConfig: JSON.parse(row.dataset.workflowConfig || row.querySelector('.facility-workflow-data script')?.textContent || '{}'),
+                slots: row.dataset.slots || '',
+                bookings: '0'
+            };
+        };
+
+        const renderFacilityRow = (row, facility) => {
+            const status = String(facility.status || 'available').toLowerCase();
+            const facilityType = facility.facilityType || facility.facility_type || 'other';
+            const images = Array.isArray(facility.images) ? facility.images : (facility.imageUrl ? [facility.imageUrl] : []);
+            const firstImg = images[0] || facility.imageUrl || '';
+            row.dataset.facilityId = facility.id || row.dataset.facilityId || '';
+            row.dataset.status = status;
+            row.dataset.facilityType = facilityType;
+            row.dataset.location = facility.location || '';
+            row.dataset.capacity = facility.capacity || '0';
+            row.dataset.roomsUnits = facility.units || facility.rooms_units || '0';
+            row.dataset.imageUrl = firstImg;
+            row.dataset.images = JSON.stringify(images);
+            row.dataset.priceType = normalizePriceType(facility.priceType);
+            row.dataset.bookingMode = facility.mode || 'room';
+            row.dataset.roomType = facility.roomType || '';
+            row.dataset.amenities = (facility.amenities || []).join('|');
+            row.dataset.amenitiesJson = JSON.stringify(facility.amenities || []);
+            row.dataset.description = facility.description || '';
+            row.dataset.requirements = facility.requirements || '';
+            row.dataset.termsConditions = facility.termsConditions || '';
+            row.dataset.slots = facility.slots || '';
+            const workflowConfig = facility.workflowConfig || facility.workflow_config || {};
+            row.dataset.workflowConfig = JSON.stringify(workflowConfig);
+            const thumb = firstImg
+                ? `<img src="${firstImg}" alt="${escapeHtml(facility.name)}" class="facility-row-img">`
+                : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21" />
+                </svg>`;
+            const units = Math.max(0, parseInt(facility.units || facility.rooms_units, 10) || 0);
+            const capacity = Math.max(0, parseInt(facility.capacity, 10) || 0);
+            const capacityLabel = units > 0
+                ? `${units} unit${units === 1 ? '' : 's'}`
+                : (capacity > 0 ? `${capacity} pax` : '<span class="facility-muted-value">Not applicable</span>');
+            const numericRate = Number(facility.rate || 0);
+            const rateLabel = numericRate > 0
+                ? `&#8369;${escapeHtml(formatNumberWithCommas(numericRate))}`
+                : '<span class="facility-muted-value">Based on service</span>';
+            row.innerHTML = `
+                <td class="facility-col-name">
+                    <div class="facility-row-name">
+                        <div class="facility-row-thumb">
+                            ${thumb}
+                        </div>
+                        <div>
+                            <strong>${escapeHtml(facility.name)}</strong>
+                            <span class="facility-row-sub">${escapeHtml(facility.location || facility.id || row.dataset.facilityId || '')}</span>
+                        </div>
+                    </div>
+                </td>
+                <td class="facility-col-type">${escapeHtml(formatFacilityType(facilityType))}</td>
+                <td class="facility-col-capacity">${capacityLabel}</td>
+                <td class="facility-col-rate">${rateLabel}</td>
+                <td class="facility-col-price-type">${escapeHtml(formatPriceType(facility.priceType))}</td>
+                <td class="facility-col-status"><span class="facility-status facility-status-${escapeHtml(status)}">${escapeHtml(formatStatus(status))}</span></td>
+                <td class="facility-col-bookings"><span class="facility-booking-mode-label">${escapeHtml(formatBookingMode(facility.mode || 'room'))}</span></td>
+                <td class="facility-col-actions">${rowMenuHtml}</td>`;
+        };
+
+        const fillFacilityFormFromRow = (row) => {
+            const facility = getFacilityFromRow(row);
+            facilityFields.name.value = facility.name;
+            if (facilityFields.type) facilityFields.type.value = facility.facilityType || 'other';
+            syncFacilityFormType({ preservePrice: false });
+            facilityFields.location.value = facility.location;
+            facilityFields.capacity.value = facility.capacity;
+            facilityFields.rate.value = formatNumberWithCommas(facility.rate);
+            facilityFields.priceType.value = normalizePriceType(facility.priceType);
+            facilityFields.status.value = ['reserved', 'occupied'].includes(facility.status)
+                ? 'unavailable'
+                : facility.status;
+            if (facilityFields.units) facilityFields.units.value = facility.units || '1';
+            if (facilityFields.roomType) facilityFields.roomType.value = facility.roomType || '';
+            Object.entries(workflowFieldMap).forEach(([key, field]) => {
+                if (field) field.value = facility.workflowConfig?.[key] || '';
+            });
+            structuredFacilityControls.setWorkflow(facility.workflowConfig || {});
+            structuredFacilityControls.syncType(facility.facilityType,
+                facilityFormConfiguration.types[facility.facilityType] || facilityFormConfiguration.types.other,
+                facility.slots);
+            facilityFields.description.value = facility.description;
+            if (facilityFields.requirements) facilityFields.requirements.value = facility.requirements;
+            if (facilityFields.termsConditions) facilityFields.termsConditions.value = facility.termsConditions;
+            setSelectedFacilityAmenities(facility.amenities);
+            selectedFacilityImageUrl = facility.imageUrl;
+            pendingFacilityImageRead = null;
+            setFacilityImageSlotsFromSources(facility.images && facility.images.length ? facility.images : (facility.imageUrl ? [facility.imageUrl] : []));
+            return facility;
+        };
+
+        const openEditFacilityForm = (row) => {
+            editingFacilityRow = row;
+            fillFacilityFormFromRow(row);
+            facilityFormSection?.querySelectorAll('input, select, textarea').forEach((field) => {
+                field.disabled = false;
+            });
+            syncFacilityFormType();
+            if (facilityFormTitle) facilityFormTitle.textContent = 'Edit Facility';
+            const label = saveFacilityButton?.querySelector('.save-btn-label');
+            if (label) label.textContent = 'Update Facility';
+            if (saveFacilityButton) {
+                saveFacilityButton.hidden = false;
+                saveFacilityButton.disabled = false;
+            }
+            showFacilityForm();
+        };
+
+        const openViewFacilityForm = (row) => {
+            editingFacilityRow = null;
+            fillFacilityFormFromRow(row);
+            facilityFormSection?.querySelectorAll('input, select, textarea').forEach((field) => {
+                field.disabled = true;
+            });
+            if (facilityFormTitle) facilityFormTitle.textContent = 'View Facility';
+            if (saveFacilityButton) {
+                saveFacilityButton.hidden = true;
+                saveFacilityButton.disabled = true;
+            }
+            showFacilityForm();
+        };
+
+        if (facilityImageUpload && facilityImageDropzone) {
+            facilityImageUpload.addEventListener('change', () => {
+                if (!facilityImageUpload.files?.length) {
+                    if (!facilityImageSlots.filter(Boolean).length) {
+                        facilityImageDropzone.classList.remove('is-loading', 'has-file');
+                        if (facilityImageFileName) facilityImageFileName.textContent = 'No file selected';
+                    }
+                    pendingFacilityImageSlotIndex = null;
+                    return;
+                }
+                if (pendingFacilityImageSlotIndex !== null) {
+                    addFacilityImageFileToSlot(facilityImageUpload.files[0], pendingFacilityImageSlotIndex);
+                    pendingFacilityImageSlotIndex = null;
+                } else {
+                    addFacilityImageFiles(facilityImageUpload.files);
+                }
+                facilityImageUpload.value = '';
+            });
+
+            facilityImageDropzone.addEventListener('click', (event) => {
+                if (event.target instanceof Element && event.target.closest('.facility-image-slots')) return;
+                pendingFacilityImageSlotIndex = null;
+            });
+
+            ['dragenter', 'dragover'].forEach(ev => {
+                facilityImageDropzone.addEventListener(ev, e => {
+                    e.preventDefault();
+                    facilityImageDropzone.classList.add('is-dragover');
+                });
+            });
+            ['dragleave', 'dragend', 'drop'].forEach(ev => {
+                facilityImageDropzone.addEventListener(ev, e => {
+                    e.preventDefault();
+                    facilityImageDropzone.classList.remove('is-dragover');
+                });
+            });
+            facilityImageDropzone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer?.files;
+                if (files && files.length) {
+                    addFacilityImageFiles(files);
+                }
+            });
+
+            const slotsContainer = document.getElementById('facilityImageSlots');
+            if (slotsContainer) {
+                slotsContainer.addEventListener('click', (e) => {
+                    const target = e.target;
+                    if (!(target instanceof Element)) return;
+
+                    const removeBtn = target.closest('.facility-image-slot-remove');
+                    if (removeBtn) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        const slotEl = removeBtn.closest('.facility-image-slot');
+                        const idx = slotEl ? parseInt(slotEl.dataset.slotIndex, 10) : -1;
+                        if (!isNaN(idx)) removeFacilityImageSlot(idx);
+                        return;
+                    }
+
+                    const slotEl = target.closest('.facility-image-slot');
+                    if (slotEl) {
+                        const idx = parseInt(slotEl.dataset.slotIndex, 10);
+                        if (!isNaN(idx)) {
+                            const current = facilityImageSlots[idx];
+                            if (!current || !current.src) {
+                                e.stopPropagation();
+                                pendingFacilityImageSlotIndex = idx;
+                                facilityImageUpload.click();
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        if (scheduleImageUpload) {
+            scheduleImageUpload.addEventListener('change', () => {
+                const file = scheduleImageUpload.files?.[0];
+                if (!file) {
+                    scheduleImageDropzone?.classList.remove('has-file');
+                    if (scheduleImageFileName) scheduleImageFileName.textContent = 'No file selected';
+                    return;
+                }
+
+                scheduleImageDropzone?.classList.add('has-file');
+                if (scheduleImageFileName) scheduleImageFileName.textContent = file.name;
+            });
+        }
+
+        const openFacilityCalendarModal = (date = '2024-05-08') => {
+            if (!facilityCalendarModal) return;
+            facilityCalendarModal.classList.add('is-open');
+            facilityCalendarModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            document.querySelectorAll('[data-calendar-date]').forEach((button) => {
+                button.classList.toggle('is-selected', button.dataset.calendarDate === date);
+            });
+            renderCalendarDateDetails(date);
+        };
+
+        const closeFacilityCalendarModal = () => {
+            if (!facilityCalendarModal) return;
+            facilityCalendarModal.classList.remove('is-open');
+            facilityCalendarModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        };
+
+        if (viewCalendarButton) {
+            viewCalendarButton.addEventListener('click', () => openFacilityCalendarModal());
+        }
+
+        document.querySelectorAll('[data-close-calendar-modal]').forEach((button) => {
+            button.addEventListener('click', closeFacilityCalendarModal);
+        });
+
+        if (facilityCalendarGrid) {
+            facilityCalendarGrid.addEventListener('click', (event) => {
+                const button = event.target.closest('[data-calendar-date]');
+                if (!button || button.classList.contains('is-muted')) return;
+                renderCalendarDateDetails(button.dataset.calendarDate);
+            });
+        }
+
+        const calendarPanelButtons = document.querySelectorAll('[data-calendar-panel-target]');
+        const calendarPanels = document.querySelectorAll('[data-calendar-panel]');
+        const showCalendarPanel = (panelName = 'calendar') => {
+            calendarPanels.forEach((panel) => {
+                panel.classList.toggle('d-none', panel.dataset.calendarPanel !== panelName);
+            });
+            calendarPanelButtons.forEach((button) => {
+                button.classList.toggle('is-active', button.dataset.calendarPanelTarget === panelName);
+            });
+        };
+
+        calendarPanelButtons.forEach((button) => {
+            button.addEventListener('click', () => showCalendarPanel(button.dataset.calendarPanelTarget));
+        });
+
+        if (toggleScheduleFormBtn && scheduleUploadForm) {
+
+            scheduleUploadForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const schedule = {
+                    facility: document.getElementById('scheduleFacility').value,
+                    type: document.getElementById('scheduleType').value,
+                    date: document.getElementById('scheduleDate').value,
+                    startTime: document.getElementById('scheduleStartTime').value,
+                    endTime: document.getElementById('scheduleEndTime').value,
+                    description: document.getElementById('scheduleDescription').value.trim()
+                };
+
+                if (!schedule.facility || !schedule.date || !schedule.startTime || !schedule.endTime) {
+                    showFacilityToast('Please complete the schedule details.', 'error');
+                    return;
+                }
+
+                if (timeToMinutes(schedule.startTime) >= timeToMinutes(schedule.endTime)) {
+                    showFacilityToast('End time must be later than start time.', 'error');
+                    return;
+                }
+
+                uploadedSchedules.push(schedule);
+                markCalendarSchedule(schedule);
+                addFacilityActivity(schedule);
+                renderUpcomingSchedule(schedule.date);
+                scheduleUploadForm.reset();
+                scheduleImageDropzone?.classList.remove('has-file');
+                if (scheduleImageFileName) scheduleImageFileName.textContent = 'No file selected';
+                showCalendarPanel('calendar');
+                showFacilityToast('Schedule uploaded and facility time blocked.');
+            });
+        }
+
+        if (reservationUploadForm) {
+            reservationUploadForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const booking = {
+                    facility: document.getElementById('reservationFacility').value,
+                    date: document.getElementById('reservationDate').value,
+                    startTime: document.getElementById('reservationStartTime').value,
+                    endTime: document.getElementById('reservationEndTime').value
+                };
+
+                if (!booking.facility || !booking.date || !booking.startTime || !booking.endTime) {
+                    showFacilityToast('Please complete the reservation details.', 'error');
+                    return;
+                }
+
+                if (timeToMinutes(booking.startTime) >= timeToMinutes(booking.endTime)) {
+                    showFacilityToast('End time must be later than start time.', 'error');
+                    return;
+                }
+
+                if (!window.validateFacilityBookingRequest(booking)) return;
+
+                const reservation = {
+                    ...booking,
+                    type: 'reservation',
+                    description: document.getElementById('reservationPurpose').value.trim() || 'Reservation uploaded.'
+                };
+
+                uploadedSchedules.push(reservation);
+                markCalendarSchedule(reservation);
+                addFacilityActivity(reservation);
+                renderUpcomingSchedule(reservation.date);
+                reservationUploadForm.reset();
+                showCalendarPanel('calendar');
+                showFacilityToast('Reservation added.');
+            });
+        }
+
+        if (addFacilityBtn && CAN_MANAGE_FACILITIES) {
+            addFacilityBtn.addEventListener('click', () => {
+                resetFacilityForm();
+                showFacilityForm();
+            });
+        }
+
+        if (backToFacilitiesButton) {
+            backToFacilitiesButton.addEventListener('click', () => {
+                resetFacilityForm();
+                showFacilitiesList();
+            });
+        }
+
+        if (cancelFacilityButton) {
+            cancelFacilityButton.addEventListener('click', () => {
+                resetFacilityForm();
+                showFacilitiesList();
+            });
+        }
+
+        const getCookie = (name) => {
+            const match = document.cookie
+                .split(';')
+                .map((c) => c.trim())
+                .find((c) => c.startsWith(`${name}=`));
+            return match ? decodeURIComponent(match.split('=')[1]) : '';
+        };
+
+        const getNumericFieldValue = (field, fallback = '') => {
+            const rawValue = String(field?.value || '').trim();
+            const numericValue = rawValue.replace(/[^\d.]/g, '');
+            return numericValue || fallback;
+        };
+
+        if (facilityFields.rate) {
+            facilityFields.rate.addEventListener('input', () => {
+                const cursorAtEnd = facilityFields.rate.selectionStart === facilityFields.rate.value.length;
+                formatCurrencyInput(facilityFields.rate);
+                if (cursorAtEnd) {
+                    const end = facilityFields.rate.value.length;
+                    facilityFields.rate.setSelectionRange(end, end);
+                }
+            });
+            facilityFields.rate.addEventListener('blur', () => formatCurrencyInput(facilityFields.rate));
+        }
+
+        if (saveFacilityButton && CAN_MANAGE_FACILITIES) {
+            saveFacilityButton.addEventListener('click', async () => {
+                const isProcessing = facilityImageSlots.some(slot => slot && slot.isProcessing);
+                if (isProcessing) {
+                    showFacilityToast('Please wait for images to finish processing.', 'error');
+                    return;
+                }
+                const imageSources = getFacilityImageSlotSources();
+                const primaryImage = imageSources[0] || '';
+                if (!structuredFacilityControls.validate()) return;
+
+                const facility = {
+                    id: editingFacilityRow ? getFacilityFromRow(editingFacilityRow).id : '',
+                    name: (facilityFields.name?.value || document.getElementById('facilityName')?.value || '').trim(),
+                    facilityType: facilityFields.type?.value || 'other',
+                    location: (facilityFields.location?.value || '').trim(),
+                    capacity: getNumericFieldValue(facilityFields.capacity || document.getElementById('facilityCapacity'), '0'),
+                    rate: getNumericFieldValue(facilityFields.rate || document.getElementById('facilityRate')),
+                    priceType: normalizePriceType(facilityFields.priceType?.value),
+                    mode: facilityFields.mode?.value || 'room',
+                    units: getNumericFieldValue(facilityFields.units, '0'),
+                    roomType: (facilityFields.roomType?.value || ''),
+                    amenities: getSelectedFacilityAmenities(),
+                    status: facilityFields.status?.value || 'available',
+                    workflowConfig: {
+                        ...Object.fromEntries(Object.entries(workflowFieldMap)
+                            .filter(([, field]) => !field.disabled)
+                            .map(([key, field]) => [key, (field.value || '').trim()])),
+                        ...(!document.querySelector('[data-facility-field="operating_hours"]').hidden
+                            ? {operating_hours: structuredFacilityControls.getOperatingHours()} : {}),
+                    },
+                    slots: editingFacilityRow ? getFacilityFromRow(editingFacilityRow).slots : '',
+                    description: (facilityFields.description?.value || '').trim(),
+                    requirements: (facilityFields.requirements?.value || '').trim(),
+                    termsConditions: (facilityFields.termsConditions?.value || '').trim(),
+                    images: imageSources,
+                    imageUrl: primaryImage || (editingFacilityRow ? getFacilityFromRow(editingFacilityRow).imageUrl : ''),
+                    bookings: editingFacilityRow ? getFacilityFromRow(editingFacilityRow).bookings : '0'
+                };
+                const previousFacility = editingFacilityRow ? getFacilityFromRow(editingFacilityRow) : null;
+
+                if (!facility.name || !facility.location || !facility.rate) {
+                    const missing = [];
+                    if (!facility.name) missing.push('name');
+                    if (!facility.location) missing.push('location');
+                    if (!facility.rate) missing.push('rate');
+                    showFacilityToast(`Please fill in: ${missing.join(', ')}.`, 'error');
+                    return;
+                }
+
+                saveFacilityButton.classList.add('is-saving');
+                saveFacilityButton.disabled = true;
+                const label = saveFacilityButton.querySelector('.save-btn-label');
+                if (label) label.textContent = editingFacilityRow ? 'Updating...' : 'Saving...';
+
+                const finishUI = (savedFacility) => {
+                    if (savedFacility?.id) facility.id = savedFacility.id;
+                    if (savedFacility?.facility_type) facility.facilityType = savedFacility.facility_type;
+                    if (savedFacility?.rooms_units != null) facility.units = savedFacility.rooms_units;
+                    if (savedFacility?.location != null) facility.location = savedFacility.location;
+                    if (savedFacility?.booking_mode) facility.mode = savedFacility.booking_mode;
+                    if (savedFacility?.price_type) facility.priceType = savedFacility.price_type;
+                    if (savedFacility?.status) facility.status = savedFacility.status;
+                    if (savedFacility?.workflow_config) facility.workflowConfig = savedFacility.workflow_config;
+                    if (savedFacility?.images) facility.images = savedFacility.images;
+                    if (savedFacility?.image_url) {
+                        facility.imageUrl = savedFacility.image_url;
+                        if (!facility.images || !facility.images.length) facility.images = [savedFacility.image_url];
+                    }
+                    if (editingFacilityRow) {
+                        renderFacilityRow(editingFacilityRow, facility);
+                        showFacilityToast('Facility updated.');
+                    } else {
+                        const row = document.createElement('tr');
+                        renderFacilityRow(row, facility);
+                        facilityTableBody?.prepend(row);
+                        if (savedFacility) {
+                            showFacilityToast('Facility added.');
+                        } else {
+                            showFacilityToast('Facility saved locally (offline).', 'error');
+                        }
+                    }
+                    adjustFacilitySummary(previousFacility, facility);
+                    resetFacilityForm();
+                    showFacilitiesList();
+                    applyFacilityFilters();
+                };
+
+                const endpoint = editingFacilityRow
+                    ? `/api/facilities/${encodeURIComponent(facility.id)}/update/`
+                    : '/api/facilities/create/';
+
+                fetch(endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                    },
+                    body: JSON.stringify({
+                        name: facility.name,
+                        facility_type: facility.facilityType || 'other',
+                        location: facility.location,
+                        description: facility.description,
+                        capacity: facility.capacity,
+                        rate: facility.rate,
+                        price_type: normalizePriceType(facility.priceType),
+                        mode: facility.mode,
+                        rooms_units: facility.units,
+                        room_type: facility.roomType || '',
+                        amenities: facility.amenities,
+                        status: facility.status,
+                        workflow_config: facility.workflowConfig,
+                        requirements: facility.requirements,
+                        terms_conditions: facility.termsConditions,
+                        images: facility.images,
+                        image_url: facility.imageUrl,
+                    }),
+                })
+                    .then(async (response) => {
+                        const ok = response.ok;
+                        const data = await response.json().catch(() => ({}));
+                        if (!ok) {
+                            const msg = data.error || 'Could not save facility.';
+                            showFacilityToast(msg, 'error');
+                            saveFacilityButton.classList.remove('is-saving');
+                            saveFacilityButton.disabled = false;
+                            if (label) label.textContent = editingFacilityRow ? 'Update Facility' : 'Save Facility';
+                            return;
+                        }
+                        finishUI(data.facility || {});
+                    })
+                    .catch(() => {
+                        const msg = editingFacilityRow ? 'Could not update facility.' : 'Could not save facility.';
+                        showFacilityToast(msg, 'error');
+                        saveFacilityButton.classList.remove('is-saving');
+                        saveFacilityButton.disabled = false;
+                        if (label) label.textContent = editingFacilityRow ? 'Update Facility' : 'Save Facility';
+                    });
+            });
+        }
+
+        let pendingFacilityActionRow = null;
+
+        const openArchiveFacilityModal = (row) => {
+            if (!row) return;
+            pendingFacilityActionRow = row;
+            const facility = getFacilityFromRow(row);
+            const nameEl = document.getElementById('archiveFacilityName');
+            if (nameEl) nameEl.textContent = facility.name || 'Selected facility';
+            const modalEl = document.getElementById('archiveFacilityModal');
+            if (modalEl && window.bootstrap?.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        };
+
+        const openRestoreFacilityModal = (row) => {
+            if (!row) return;
+            pendingFacilityActionRow = row;
+            const facility = getFacilityFromRow(row);
+            const nameEl = document.getElementById('restoreFacilityName');
+            if (nameEl) nameEl.textContent = facility.name || 'Selected facility';
+            const modalEl = document.getElementById('restoreFacilityModal');
+            if (modalEl && window.bootstrap?.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        };
+
+        const archiveFacilityRow = async (row) => {
+            const facilityId = row?.dataset.facilityId || '';
+            if (!facilityId) return;
+            const previousFacility = getFacilityFromRow(row);
+
+            const response = await fetch(`/api/facilities/${encodeURIComponent(facilityId)}/archive/`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'Could not archive facility.');
+            }
+
+            row.dataset.isArchived = '1';
+            const actionsCell = row.querySelector('.facility-col-actions');
+            if (actionsCell) {
+                actionsCell.innerHTML = getRowMenuHtml(true);
+            }
+            adjustFacilitySummary(previousFacility, null);
+            applyFacilityFilters();
+            showFacilityToast('Facility archived successfully.');
+        };
+
+        const restoreFacilityRow = async (row) => {
+            const facilityId = row?.dataset.facilityId || '';
+            if (!facilityId) return;
+            const restoredFacility = getFacilityFromRow(row);
+
+            const response = await fetch(`/api/facilities/${encodeURIComponent(facilityId)}/restore/`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'Could not restore facility.');
+            }
+
+            row.dataset.isArchived = '0';
+            const actionsCell = row.querySelector('.facility-col-actions');
+            if (actionsCell) {
+                actionsCell.innerHTML = getRowMenuHtml(false);
+            }
+            adjustFacilitySummary(null, restoredFacility);
+            applyFacilityFilters();
+            showFacilityToast('Facility restored successfully.');
+        };
+
+        document.getElementById('confirmArchiveFacilityButton')?.addEventListener('click', async () => {
+            if (!pendingFacilityActionRow) return;
+            const btn = document.getElementById('confirmArchiveFacilityButton');
+            const originalText = btn?.textContent || 'Archive';
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Archiving…';
+            }
+            try {
+                await archiveFacilityRow(pendingFacilityActionRow);
+                const modalEl = document.getElementById('archiveFacilityModal');
+                if (modalEl && window.bootstrap?.Modal) {
+                    window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                }
+            } catch (err) {
+                showFacilityToast(err.message || 'Could not archive facility.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+                pendingFacilityActionRow = null;
+            }
+        });
+
+        document.getElementById('confirmRestoreFacilityButton')?.addEventListener('click', async () => {
+            if (!pendingFacilityActionRow) return;
+            const btn = document.getElementById('confirmRestoreFacilityButton');
+            const originalText = btn?.textContent || 'Restore';
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Restoring…';
+            }
+            try {
+                await restoreFacilityRow(pendingFacilityActionRow);
+                const modalEl = document.getElementById('restoreFacilityModal');
+                if (modalEl && window.bootstrap?.Modal) {
+                    window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                }
+            } catch (err) {
+                showFacilityToast(err.message || 'Could not restore facility.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+                pendingFacilityActionRow = null;
+            }
+        });
+
+        // Facility row action icons.
+        document.addEventListener('click', (event) => {
+            const rowAction = event.target.closest('[data-facility-row-action]');
+            if (rowAction) {
+                const row = rowAction.closest('tr');
+                const action = rowAction.dataset.facilityRowAction;
+                if (action === 'view') openViewFacilityForm(row);
+                if (action === 'edit' && CAN_MANAGE_FACILITIES) openEditFacilityForm(row);
+                if (action === 'archive' && CAN_MANAGE_FACILITIES) {
+                    openArchiveFacilityModal(row);
+                }
+                if (action === 'restore' && CAN_MANAGE_FACILITIES) {
+                    openRestoreFacilityModal(row);
+                }
+                return;
+            }
+        });
+
+        applyFacilityFilters();
+        initializeCalendarDots();
+        initializeFacilityActivities();
+        renderUpcomingSchedule();
+
+        // Dynamic facility calendar with month navigation
+        (function () {
+            const grid = document.getElementById('facilityCalendarGrid');
+            const title = document.getElementById('facilityCalendarTitle');
+            const prevBtn = document.getElementById('facilityCalendarPrev');
+            const nextBtn = document.getElementById('facilityCalendarNext');
+            if (!grid || !title) return;
+
+            const today = new Date();
+            let viewYear = today.getFullYear();
+            let viewMonth = today.getMonth(); // 0-11
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'];
+
+            const renderCalendar = () => {
+                title.textContent = `${monthNames[viewMonth]} ${viewYear}`;
+
+                // Remove existing day buttons (keep dow headers)
+                grid.querySelectorAll('button.facility-calendar-day').forEach(b => b.remove());
+
+                const firstDay = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+                const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+                const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+                const todayIsThisMonth = today.getFullYear() === viewYear && today.getMonth() === viewMonth;
+
+                // Leading days from previous month
+                for (let i = firstDay - 1; i >= 0; i--) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'facility-calendar-day is-muted';
+                    btn.textContent = daysInPrevMonth - i;
+                    grid.appendChild(btn);
+                }
+
+                const padDatePart = (value) => String(value).padStart(2, '0');
+
+                // Current month days
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'facility-calendar-day';
+                    if (todayIsThisMonth && d === today.getDate()) btn.classList.add('is-active');
+                    btn.dataset.calendarDate = `${viewYear}-${padDatePart(viewMonth + 1)}-${padDatePart(d)}`;
+                    btn.textContent = d;
+                    grid.appendChild(btn);
+                }
+
+                // Trailing days fill the six-week calendar grid.
+                const total = firstDay + daysInMonth;
+                const trailing = (7 - (total % 7)) % 7;
+                for (let i = 1; i <= trailing; i++) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'facility-calendar-day is-muted';
+                    btn.textContent = i;
+                    grid.appendChild(btn);
+                }
+
+                getAllScheduleEvents().forEach((schedule) => markCalendarSchedule(schedule));
+                if (typeof initializeCalendarDots === 'function') initializeCalendarDots();
+            };
+
+            if (prevBtn) prevBtn.addEventListener('click', () => {
+                viewMonth--;
+                if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+                renderCalendar();
+            });
+
+            if (nextBtn) nextBtn.addEventListener('click', () => {
+                viewMonth++;
+                if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+                renderCalendar();
+            });
+
+            renderCalendar();
+        })();
+
+    </script>
+</body>
+
+</html>

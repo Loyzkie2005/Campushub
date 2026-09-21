@@ -1,0 +1,69 @@
+/* ── Settings Page ── */
+
+.settings-layout { display: grid; grid-template-columns: 260px 1fr; min-height: 600px; background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #e8eaf0; overflow: hidden; }
+
+/* Settings Sidebar */
+.settings-sidebar { background: #f8fafc; border-right: 1px solid #e8eaf0; padding: 24px 16px; }
+.settings-nav { display: flex; flex-direction: column; gap: 4px; }
+.settings-nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: none; background: none; border-radius: 8px; font-size: 0.85rem; font-weight: 500; color: #64748b; cursor: pointer; transition: all 0.15s; text-align: left; width: 100%; font-family: inherit; }
+.settings-nav-item:hover { background: #e8eaf0; color: #1A1851; }
+.settings-nav-item.active { background: #1A1851; color: #FCB316; font-weight: 600; }
+.settings-nav-item.active svg { color: #FCB316; }
+
+/* Settings Content */
+.settings-content { min-width: 0; padding: 28px; }
+.settings-tab { display: none; }
+.settings-tab.active { display: block; }
+
+.settings-card { }
+.settings-card h3 { font-size: 1.2rem; font-weight: 700; color: #1A1851; margin: 0 0 4px; }
+.settings-desc { font-size: 0.84rem; color: #64748b; margin-bottom: 20px; }
+.settings-subtitle { font-size: 0.92rem; font-weight: 700; color: #374151; margin: 0; }
+
+.settings-profile { display: flex; flex-direction: column; align-items: center; margin: 4px 0 28px; text-align: center; }
+.settings-profile-avatar { position: relative; display: flex; align-items: center; justify-content: center; width: 112px; height: 112px; border: 4px solid #fff; border-radius: 50%; background: #1A1851; color: #fff; box-shadow: 0 0 0 2px #1A1851, 0 10px 24px rgba(26,24,81,0.18); font-size: 2rem; font-weight: 800; }
+.settings-profile-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.settings-profile-camera { position: absolute; right: -2px; bottom: 4px; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 3px solid #fff; border-radius: 50%; background: #FCB316; color: #1A1851; cursor: pointer; box-shadow: 0 4px 10px rgba(15,23,42,0.18); transition: transform 0.15s ease, background 0.15s ease; }
+.settings-profile-camera:hover { transform: scale(1.06); background: #ffd15c; }
+.settings-profile-camera svg { width: 18px; height: 18px; }
+.settings-profile > strong { margin-top: 14px; color: #1A1851; font-size: 1rem; font-weight: 800; }
+.settings-profile > small { margin-top: 2px; color: #64748b; font-size: 0.76rem; font-weight: 600; }
+
+.settings-textarea { font-size: 0.84rem; line-height: 1.7; resize: vertical; min-height: 200px; }
+
+.settings-actions { margin-top: 20px; display: flex; justify-content: flex-end; }
+
+.btn-settings-save { padding: 10px 24px; background: #1A1851; color: #fff; border: none; border-radius: 8px; font-size: 0.84rem; font-weight: 600; cursor: pointer; transition: background 0.2s; font-family: inherit; }
+.btn-settings-save:hover { background: #FCB316; color: #1A1851; }
+
+.btn-settings-restore { padding: 10px 24px; background: #fff; color: #d97706; border: 2px solid #d97706; border-radius: 8px; font-size: 0.84rem; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.btn-settings-restore:hover { background: #d97706; color: #fff; }
+
+/* Backup Section */
+.backup-section { display: flex; flex-direction: column; gap: 16px; }
+.backup-action-card { display: flex; align-items: center; gap: 16px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e8eaf0; }
+.backup-action-card h4 { font-size: 0.92rem; font-weight: 700; color: #1A1851; margin: 0 0 4px; }
+.backup-action-card p { font-size: 0.78rem; color: #64748b; margin: 0; }
+.backup-action-card .btn-settings-save,
+.backup-action-card .btn-settings-restore { margin-left: auto; flex-shrink: 0; }
+
+.backup-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.backup-icon-blue { background: rgba(26,24,81,0.06); color: #1A1851; border: 1px solid rgba(26,24,81,0.12); }
+.backup-icon-amber { background: rgba(252,179,22,0.14); color: #1A1851; border: 1px solid #FCB316; }
+
+.backup-history h4 { font-size: 0.92rem; font-weight: 700; color: #1A1851; margin-bottom: 12px; }
+.backup-table { width: 100%; border-collapse: collapse; }
+.backup-table thead th { background: #f8fafc; padding: 10px 16px; font-size: 0.72rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #e8eaf0; text-align: left; }
+.backup-table tbody td { padding: 12px 16px; font-size: 0.84rem; color: #374151; border-bottom: 1px solid #f1f5f9; }
+.btn-download-backup { padding: 5px 12px; background: none; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.78rem; color: #1A1851; cursor: pointer; font-weight: 600; font-family: inherit; transition: all 0.15s; }
+.btn-download-backup:hover { background: #1A1851; color: #fff; border-color: #1A1851; }
+
+.status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; }
+.status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-active { background: #1A1851; color: #ffffff; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .settings-layout { grid-template-columns: 1fr; }
+    .settings-sidebar { border-right: none; border-bottom: 1px solid #e8eaf0; }
+}

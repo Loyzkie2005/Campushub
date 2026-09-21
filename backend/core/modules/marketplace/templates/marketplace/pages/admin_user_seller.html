@@ -1,0 +1,97 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Sellers</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_sellers.css' %}?v=20260901-rbac" />
+</head>
+<body>
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='sellers' %}
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Sellers' breadcrumb_section='Marketplace' breadcrumb_page='Sellers' %}
+            <main class="dashboard-content p-4">
+                <section class="seller-page container-fluid px-0">
+                    <div class="seller-summary" aria-label="Seller request summary">
+                        <article><span>Total Requests</span><strong>{{ status_counts.total }}</strong></article>
+                        <article><span>Pending</span><strong>{{ status_counts.pending }}</strong></article>
+                        <article><span>Approved</span><strong>{{ status_counts.approved }}</strong></article>
+                        <article><span>Rejected</span><strong>{{ status_counts.rejected }}</strong></article>
+                    </div>
+
+                    <section class="seller-list-panel">
+                        <header class="seller-list-header">
+                            <div><h2>Seller Access Requests</h2><p>Review marketplace seller applications and access status.</p></div>
+                            <form method="get" class="seller-filters">
+                                <label class="seller-search">
+                                    <span class="visually-hidden">Search sellers</span>
+                                    <input type="search" name="q" value="{{ search_query }}" placeholder="Search sellers..." />
+                                </label>
+                                <select name="status" aria-label="Filter seller status" onchange="this.form.submit()">
+                                    <option value="">All Status</option>
+                                    <option value="pending"{% if status_filter == 'pending' %} selected{% endif %}>Pending</option>
+                                    <option value="approved"{% if status_filter == 'approved' %} selected{% endif %}>Approved</option>
+                                    <option value="rejected"{% if status_filter == 'rejected' %} selected{% endif %}>Rejected</option>
+                                </select>
+                                <button type="submit">Search</button>
+                            </form>
+                        </header>
+
+                        <div class="seller-table-wrap">
+                            <table class="seller-table">
+                                <thead><tr><th>Applicant</th><th>Username</th><th>Department</th><th>Product Type</th><th>Contact</th><th>Status</th><th>Date Applied</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                    {% for seller in page_obj %}
+                                    <tr>
+                                        <td><strong>{{ seller.full_name|default:'Unnamed applicant' }}</strong><small>{{ seller.user.email|default:'No email provided' }}</small></td>
+                                        <td>{{ seller.student_id|default:'Not provided' }}</td>
+                                        <td>{{ seller.user.department.name|default:'Not Assigned' }}</td>
+                                        <td>{{ seller.product_type|default:'Not specified' }}</td>
+                                        <td>{{ seller.contact_number|default:'Not provided' }}</td>
+                                        <td><span class="seller-status seller-status--{{ seller.status }}">{{ seller.get_status_display }}</span></td>
+                                        <td>{{ seller.created_at|date:'M d, Y' }}</td>
+                                        <td>
+                                            {% if seller.status == 'pending' %}
+                                            <div class="seller-actions">
+                                                <form method="post" action="{% url 'marketplace_approve_seller_request' seller.id %}">{% csrf_token %}<button class="seller-action seller-action--approve" type="submit">Approve</button></form>
+                                                <form method="post" action="{% url 'marketplace_reject_seller_request' seller.id %}" class="js-reject-seller">{% csrf_token %}<input type="hidden" name="rejection_reason" /><button class="seller-action seller-action--reject" type="submit">Reject</button></form>
+                                            </div>
+                                            {% else %}
+                                            <span class="seller-action-muted">Reviewed</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr><td colspan="8" class="seller-empty">No seller requests match the selected filters.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <footer class="seller-list-footer">
+                            <span>Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} requests</span>
+                            {% if page_obj.paginator.num_pages > 1 %}
+                            <nav class="seller-pagination" aria-label="Seller request pages">
+                                {% if page_obj.has_previous %}<a href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" aria-label="Previous page">&lsaquo;</a>{% else %}<span aria-hidden="true">&lsaquo;</span>{% endif %}
+                                <strong>{{ page_obj.number }}</strong>
+                                {% if page_obj.has_next %}<a href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page_obj.next_page_number }}" aria-label="Next page">&rsaquo;</a>{% else %}<span aria-hidden="true">&rsaquo;</span>{% endif %}
+                            </nav>
+                            {% endif %}
+                        </footer>
+                    </section>
+                </section>
+            </main>
+        </div>
+    </div>
+    {% include 'partials/admin_logout_modal.html' %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_sellers.js' %}?v=20260901-rbac"></script>
+</body>
+</html>

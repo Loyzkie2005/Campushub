@@ -1,0 +1,267 @@
+:root {
+    --export-navy: #1a1851;
+    --export-gold: #fcb316;
+    --export-white: #ffffff;
+    --export-page: #f8fafc;
+    --export-border: #dbe2ea;
+    --export-muted: #65738a;
+}
+
+.export-page {
+    min-height: calc(100vh - 74px);
+    padding: 24px;
+    background: var(--export-page);
+    color: var(--export-navy);
+}
+
+.export-heading {
+    margin-bottom: 20px;
+}
+
+.export-heading h2,
+.export-card h3 {
+    margin: 0;
+    font-family: "Montserrat", sans-serif;
+    color: var(--export-navy);
+}
+
+.export-heading h2 {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.export-heading p,
+.export-card-header p {
+    margin: 6px 0 0;
+    color: var(--export-muted);
+    font-size: 14px;
+}
+
+.export-card {
+    max-width: 1040px;
+    overflow: hidden;
+    border: 1px solid var(--export-border);
+    border-radius: 8px;
+    background: var(--export-white);
+}
+
+.export-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 22px;
+    border-bottom: 1px solid var(--export-border);
+}
+
+.export-card h3 {
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.export-scope {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border: 1px solid var(--export-navy);
+    border-radius: 5px;
+    color: var(--export-navy);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.export-form {
+    padding: 22px;
+}
+
+.export-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.export-field {
+    display: grid;
+    gap: 7px;
+}
+
+.export-field label {
+    color: var(--export-navy);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.export-field label span {
+    color: var(--export-muted);
+    font-weight: 400;
+}
+
+.export-field input {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    border: 1px solid var(--export-border);
+    border-radius: 5px;
+    background: var(--export-white);
+    color: var(--export-navy);
+    font: 14px "Roboto", sans-serif;
+}
+
+.export-field input[readonly] {
+    background: var(--export-page);
+}
+
+.export-field input:focus {
+    border-color: var(--export-navy);
+    outline: 2px solid rgba(26, 24, 81, 0.12);
+    outline-offset: 1px;
+}
+
+.export-counts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 22px;
+    border: 1px solid var(--export-border);
+    border-radius: 6px;
+}
+
+.export-count {
+    min-width: 0;
+    padding: 14px 16px;
+    border-right: 1px solid var(--export-border);
+}
+
+.export-count:last-child {
+    border-right: 0;
+}
+
+.export-count span,
+.export-count strong {
+    display: block;
+}
+
+.export-count span {
+    color: var(--export-muted);
+    font-size: 12px;
+}
+
+.export-count strong {
+    margin-top: 4px;
+    color: var(--export-navy);
+    font: 700 20px "Montserrat", sans-serif;
+}
+
+.export-notice {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--export-gold);
+    background: var(--export-page);
+}
+
+.export-notice svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    color: var(--export-navy);
+}
+
+.export-notice p {
+    margin: 0;
+    color: var(--export-muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.export-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 22px;
+}
+
+.export-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 10px 18px;
+    border: 1px solid var(--export-navy);
+    border-radius: 5px;
+    background: var(--export-navy);
+    color: var(--export-white);
+    font: 600 13px "Montserrat", sans-serif;
+}
+
+.export-button:hover,
+.export-button:focus-visible {
+    border-color: var(--export-gold);
+    background: var(--export-gold);
+    color: var(--export-navy);
+}
+
+.export-button svg {
+    width: 18px;
+    height: 18px;
+}
+
+.export-messages {
+    position: fixed;
+    z-index: 1100;
+    top: 86px;
+    right: 24px;
+}
+
+@media (max-width: 820px) {
+    .export-fields,
+    .export-counts {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .export-count:nth-child(2) {
+        border-right: 0;
+    }
+
+    .export-count:nth-child(-n + 2) {
+        border-bottom: 1px solid var(--export-border);
+    }
+}
+
+@media (max-width: 560px) {
+    .export-page {
+        padding: 16px;
+    }
+
+    .export-card-header,
+    .export-form {
+        padding: 18px;
+    }
+
+    .export-card-header,
+    .export-fields,
+    .export-counts {
+        grid-template-columns: 1fr;
+    }
+
+    .export-card-header {
+        display: grid;
+    }
+
+    .export-scope {
+        justify-self: start;
+    }
+
+    .export-count {
+        border-right: 0;
+        border-bottom: 1px solid var(--export-border);
+    }
+
+    .export-count:last-child {
+        border-bottom: 0;
+    }
+
+    .export-actions,
+    .export-button {
+        width: 100%;
+    }
+}

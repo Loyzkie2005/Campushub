@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Loading…</title>
+</head>
+<body>
+    <script src="/static/components/js/admin_session.js?v=20260605-multi-tab"></script>
+    <script>
+        (function () {
+            const QUERY_PARAM = '__at';
+            const token = window.CampusHubAdminSession?.getTabToken?.() || sessionStorage.getItem('campushub_admin_tab_token');
+            if (!token) {
+                window.location.replace('/');
+                return;
+            }
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set(QUERY_PARAM, token);
+            window.location.replace(nextUrl.toString());
+        })();
+    </script>
+</body>
+</html>

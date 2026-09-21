@@ -1,0 +1,359 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}" />
+    <title>CampusHub | Generate Reports</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_reports.css' %}?v=20260822-export-preview" />
+</head>
+<body>
+<div class="sidebar-section">
+    {% include 'partials/admin_sidebar.html' with active_page='reports' %}
+    <div class="main-wrapper" id="mainWrapper">
+        {% include 'partials/admin_header.html' with page_title='Generate Reports' breadcrumb_section='Reports' breadcrumb_page='Generate Reports' %}
+
+        <main class="dashboard-content p-4">
+            <div class="container-fluid px-0">
+                <section class="report-filters-card mb-4" aria-labelledby="reportBuilderTitle">
+                    <div class="report-builder-heading">
+                        <div>
+                            <h2 id="reportBuilderTitle">Report Builder</h2>
+                            <p>Preview filtered system records, then export the same data.</p>
+                        </div>
+                    </div>
+                    <div class="report-filters-row">
+                        <div class="report-filter-group report-type-group">
+                            <label for="reportType">Report Type</label>
+                            <select class="form-select" id="reportType">
+                                {% for group, report_options in report_groups.items %}
+                                <optgroup label="{{ group }}">
+                                    {% for value, label in report_options.items %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="report-filter-group report-date-group">
+                            <label>Date Range</label>
+                            <div class="date-range-inputs">
+                                <input type="date" class="form-control" id="reportDateFrom" aria-label="Start date" />
+                                <span>to</span>
+                                <input type="date" class="form-control" id="reportDateTo" aria-label="End date" />
+                            </div>
+                        </div>
+                        <div class="report-actions">
+                            <label class="visually-hidden" for="reportExportFormat">Export format</label>
+                            <select class="form-select report-format-select" id="reportExportFormat" aria-label="Export format" autocomplete="off">
+                                <option value="pdf" selected>Print PDF</option>
+                                <option value="csv">Download CSV</option>
+                            </select>
+                            <button type="button" class="btn-generate-report" id="btnOpenExportPreview">
+                                <i class="bi bi-printer" aria-hidden="true"></i>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+                    <div class="report-feedback" id="reportFeedback" role="status" aria-live="polite"></div>
+                </section>
+
+                <div class="row g-4 align-items-stretch">
+                    <div class="col-12 col-xl-9">
+                        <section class="report-card h-100">
+                            <div class="report-card-header">
+                                <div>
+                                    <h2>Report Preview</h2>
+                                    <span class="report-card-sub" id="reportPreviewTitle"></span>
+                                </div>
+                                <span class="preview-count" id="previewCount">0 records</span>
+                            </div>
+                            <div class="report-chart-area" id="reportChartWrap">
+                                <canvas id="reportChart"></canvas>
+                                <div class="report-chart-empty" id="reportChartEmpty" hidden>
+                                    <i class="bi bi-graph-up" aria-hidden="true"></i>
+                                    <strong>No chart data</strong>
+                                    <span>Records for the selected report will appear here.</span>
+                                </div>
+                            </div>
+                            <div class="report-table-area">
+                                <table class="report-table">
+                                    <thead id="reportTableHead"></thead>
+                                    <tbody id="reportTableBody"></tbody>
+                                </table>
+                                <div class="report-empty" id="reportEmpty" hidden>
+                                    <span aria-hidden="true">&#9633;</span>
+                                    <strong>No records found</strong>
+                                    <p>Try another report type or date range.</p>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="col-12 col-xl-3 d-flex flex-column gap-4">
+                        <section class="report-card">
+                            <div class="report-card-header"><h2>Report Summary</h2></div>
+                            <div class="report-summary" id="reportSummary"></div>
+                        </section>
+                        <section class="report-card flex-grow-1">
+                            <div class="report-card-header"><h2>Recent Reports</h2></div>
+                            <div class="recent-reports-list">
+                                {% for report in recent_reports %}
+                                <div class="recent-report-item">
+                                    <span class="recent-report-icon">{{ report.file_format|upper }}</span>
+                                    <div>
+                                        <strong>{{ report.get_report_type_display }}</strong>
+                                        <span>{{ report.created_at|date:"M d, Y g:i A" }} &middot; {{ report.row_count }} rows</span>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="recent-reports-empty">Generated reports will appear here.</div>
+                                {% endfor %}
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+{{ initial_report|json_script:"initialReportData" }}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const previewUrl = "{% url 'admin_report_preview' %}";
+    const downloadUrl = "{% url 'admin_report_download' %}";
+    const reportType = document.getElementById('reportType');
+    const dateFrom = document.getElementById('reportDateFrom');
+    const dateTo = document.getElementById('reportDateTo');
+    const feedback = document.getElementById('reportFeedback');
+    const openExportButton = document.getElementById('btnOpenExportPreview');
+    const exportFormat = document.getElementById('reportExportFormat');
+    let chart = null;
+    let report = JSON.parse(document.getElementById('initialReportData').textContent);
+
+    function params(includeFormat) {
+        const query = new URLSearchParams({ report_type: reportType.value });
+        if (dateFrom.value) query.set('date_from', dateFrom.value);
+        if (dateTo.value) query.set('date_to', dateTo.value);
+        if (includeFormat) query.set('format', exportFormat.value);
+        return query;
+    }
+
+    function render(nextReport) {
+        report = nextReport;
+        document.getElementById('reportPreviewTitle').textContent = report.title + ' - ' + report.range;
+        document.getElementById('previewCount').textContent = report.rows.length + (report.rows.length === 1 ? ' record' : ' records');
+        document.getElementById('reportSummary').innerHTML = report.summary.map(function (item) {
+            return '<div class="summary-stat"><span>' + escapeHtml(item.label) + '</span><strong>' + escapeHtml(String(item.value)) + '</strong></div>';
+        }).join('');
+
+        document.getElementById('reportTableHead').innerHTML = '<tr>' + report.columns.map(function (column) {
+            return '<th>' + escapeHtml(column) + '</th>';
+        }).join('') + '</tr>';
+        document.getElementById('reportTableBody').innerHTML = report.rows.slice(0, 10).map(function (row) {
+            return '<tr>' + report.columns.map(function (column) {
+                return '<td>' + escapeHtml(String(row[column] ?? '')) + '</td>';
+            }).join('') + '</tr>';
+        }).join('');
+        document.getElementById('reportEmpty').hidden = report.rows.length > 0;
+
+        if (chart) {
+            chart.destroy();
+            chart = null;
+        }
+        const chartCanvas = document.getElementById('reportChart');
+        const chartEmpty = document.getElementById('reportChartEmpty');
+        const hasChartData = report.chart.labels.length > 0 && report.chart.values.length > 0;
+        chartCanvas.hidden = !hasChartData;
+        chartEmpty.hidden = hasChartData;
+        if (!hasChartData) return;
+
+        const isMoneyChart = ['sales', 'orders', 'bookings', 'facility_payments'].includes(report.report_type);
+        chart = new Chart(chartCanvas, {
+            type: 'line',
+            data: {
+                labels: report.chart.labels,
+                datasets: [{
+                    label: report.title,
+                    data: report.chart.values,
+                    borderColor: '#1A1851',
+                    backgroundColor: '#1A1851',
+                    borderWidth: 2.5,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#1A1851',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    tension: 0.35,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#ffffff',
+                        titleColor: '#0f172a',
+                        bodyColor: '#64748b',
+                        borderColor: '#e5e7eb',
+                        borderWidth: 1,
+                        padding: 10
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            color: '#94a3b8',
+                            font: { family: 'Roboto', size: 9, weight: '600' }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grace: '10%',
+                        ticks: {
+                            precision: isMoneyChart ? 2 : 0,
+                            maxTicksLimit: 6,
+                            color: '#94a3b8',
+                            font: { family: 'Roboto', size: 9, weight: '600' },
+                            callback: function (value) {
+                                return isMoneyChart ? 'PHP ' + Number(value).toLocaleString() : Number(value).toLocaleString();
+                            }
+                        },
+                        grid: {
+                            display: true,
+                            drawOnChartArea: true,
+                            color: '#eef2f7',
+                            borderDash: [4, 4]
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function escapeHtml(value) {
+        const node = document.createElement('div');
+        node.textContent = value;
+        return node.innerHTML;
+    }
+
+    function openNativePrintPreview(nextReport) {
+        const columns = nextReport.columns.map(function (column) {
+            return '<th>' + escapeHtml(column) + '</th>';
+        }).join('');
+        const rows = nextReport.rows.map(function (row) {
+            return '<tr>' + nextReport.columns.map(function (column) {
+                return '<td>' + escapeHtml(String(row[column] ?? '')) + '</td>';
+            }).join('') + '</tr>';
+        }).join('') || '<tr><td class="empty" colspan="' + nextReport.columns.length + '">No records found for the selected filters.</td></tr>';
+        const generatedAt = new Intl.DateTimeFormat('en-PH', {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+        }).format(new Date());
+        const printableReport =
+            '<header class="native-print-header"><div><div class="native-print-brand">CampusHub</div><h1>' + escapeHtml(nextReport.title) + '</h1><p>' + escapeHtml(nextReport.range) + '</p></div>' +
+            '<div class="native-print-meta"><strong>' + nextReport.rows.length + (nextReport.rows.length === 1 ? ' record' : ' records') + '</strong><br>Generated ' + escapeHtml(generatedAt) + '</div></header>' +
+            '<table><thead><tr>' + columns + '</tr></thead><tbody>' + rows + '</tbody></table>' +
+            '<footer>Generated by CampusHub</footer>';
+
+        const printStyle = document.createElement('style');
+        printStyle.id = 'nativePrintStyles';
+        printStyle.textContent =
+            '@media print{' +
+            '@page{size:portrait;margin:12mm}' +
+            'body> :not(#nativePrintReport){display:none!important}' +
+            '#nativePrintReport{display:block!important;color:#111827;font-family:Arial,sans-serif;font-size:10pt}' +
+            '#nativePrintReport *{box-sizing:border-box}' +
+            '#nativePrintReport .native-print-header{display:flex;justify-content:space-between;gap:24px;padding-bottom:12px;border-bottom:3px solid #1A1851}' +
+            '#nativePrintReport .native-print-brand{color:#1A1851;font-size:20pt;font-weight:800}' +
+            '#nativePrintReport h1{margin:5px 0 2px;font-size:16pt}' +
+            '#nativePrintReport p{margin:0;color:#64748b}' +
+            '#nativePrintReport .native-print-meta{text-align:right;font-size:9pt;line-height:1.5}' +
+            '#nativePrintReport table{width:100%;margin-top:18px;border-collapse:collapse;table-layout:auto}' +
+            '#nativePrintReport thead{display:table-header-group}' +
+            '#nativePrintReport tr{break-inside:avoid}' +
+            '#nativePrintReport th,#nativePrintReport td{padding:8px 7px;border:1px solid #d8dee9;text-align:left;vertical-align:top;overflow-wrap:anywhere}' +
+            '#nativePrintReport th{background:#1A1851!important;color:#fff!important;font-size:8pt;text-transform:uppercase;print-color-adjust:exact;-webkit-print-color-adjust:exact}' +
+            '#nativePrintReport tbody tr:nth-child(even){background:#f8fafc}' +
+            '#nativePrintReport .empty{height:90px;text-align:center;vertical-align:middle;color:#94a3b8}' +
+            '#nativePrintReport footer{margin-top:14px;padding-top:8px;border-top:1px solid #d8dee9;color:#64748b;font-size:8pt;text-align:right}' +
+            '}';
+
+        const printReport = document.createElement('section');
+        printReport.id = 'nativePrintReport';
+        printReport.style.display = 'none';
+        printReport.innerHTML = printableReport;
+        document.head.appendChild(printStyle);
+        document.body.appendChild(printReport);
+
+        const cleanUpPrintLayout = function () {
+            printReport.remove();
+            printStyle.remove();
+        };
+        window.addEventListener('afterprint', cleanUpPrintLayout, { once: true });
+        window.print();
+        window.setTimeout(cleanUpPrintLayout, 120000);
+        return true;
+    }
+
+    function hasValidDateRange() {
+        if (!dateFrom.value || !dateTo.value || dateFrom.value <= dateTo.value) return true;
+        feedback.textContent = 'The start date cannot be after the end date.';
+        feedback.className = 'report-feedback error';
+        return false;
+    }
+
+    async function refreshPreview() {
+        if (!hasValidDateRange()) return;
+        openExportButton.disabled = true;
+        feedback.textContent = 'Updating preview...';
+        feedback.className = 'report-feedback';
+        try {
+            const response = await fetch(previewUrl + '?' + params(false).toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Unable to load the report preview.');
+            render(data);
+            feedback.textContent = '';
+        } catch (error) {
+            feedback.textContent = error.message;
+            feedback.className = 'report-feedback error';
+        } finally {
+            openExportButton.disabled = false;
+        }
+    }
+
+    function exportReport() {
+        if (!hasValidDateRange()) return;
+        feedback.textContent = exportFormat.value === 'pdf' ? 'Opening print preview...' : 'Preparing CSV export...';
+        feedback.className = 'report-feedback';
+        if (exportFormat.value === 'pdf') {
+            if (!openNativePrintPreview(report)) return;
+        } else {
+            window.location.assign(downloadUrl + '?' + params(true).toString());
+        }
+        window.setTimeout(function () { feedback.textContent = ''; }, 1500);
+    }
+
+    exportFormat.addEventListener('change', function () {
+        openExportButton.querySelector('i').className = exportFormat.value === 'pdf' ? 'bi bi-printer' : 'bi bi-download';
+    });
+    [reportType, dateFrom, dateTo].forEach(function (input) { input.addEventListener('change', refreshPreview); });
+    openExportButton.addEventListener('click', exportReport);
+    render(report);
+});
+</script>
+</body>
+</html>

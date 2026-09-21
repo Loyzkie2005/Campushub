@@ -1,0 +1,412 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d">
+    <title>CAMPUSHUB | Orders</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right">
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
+    <link rel="stylesheet" href="{% static 'components/css/admin_orders.css' %}?v=20260831-cash-pickup">
+</head>
+<body>
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='orders' %}
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Orders' breadcrumb_section='Marketplace' breadcrumb_page='Orders' %}
+            <main class="dashboard-content p-4">
+                <section class="orders-page-shell container-fluid px-0">
+                    <!-- Top Summary Cards (Total Orders | Pending | Ready for Pickup | Completed) -->
+                    <div class="order-stats-grid" aria-label="Order summary">
+                        <button type="button" class="order-stat-card" data-order-stat-filter="" aria-label="Show all orders">
+                            <span class="order-stat-icon order-stat-icon-blue" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z"></path></svg>
+                            </span>
+                            <span><span class="order-stat-label">Total Orders</span><strong>{{ order_stats.total|default:0 }}</strong></span>
+                        </button>
+                        <button type="button" class="order-stat-card" data-order-stat-filter="pending" aria-label="Show pending orders">
+                            <span class="order-stat-icon order-stat-icon-amber" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path></svg>
+                            </span>
+                            <span><span class="order-stat-label">Pending</span><strong>{{ order_stats.pending|default:0 }}</strong></span>
+                        </button>
+                        <button type="button" class="order-stat-card" data-order-stat-filter="ready_for_pickup" aria-label="Show ready for pickup orders">
+                            <span class="order-stat-icon order-stat-icon-indigo" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25V3.75A1.125 1.125 0 0 0 13.125 2.625h-6.75A1.125 1.125 0 0 0 5.25 3.75v10.5m9-6.75h4.5m-4.5 3h3.75m-3.75 3h2.25"></path></svg>
+                            </span>
+                            <span><span class="order-stat-label">Ready for Pickup</span><strong>{{ order_stats.ready_for_pickup|default:0 }}</strong></span>
+                        </button>
+                        <button type="button" class="order-stat-card" data-order-stat-filter="completed" aria-label="Show completed orders">
+                            <span class="order-stat-icon order-stat-icon-green" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path></svg>
+                            </span>
+                            <span><span class="order-stat-label">Completed</span><strong>{{ order_stats.completed|default:0 }}</strong></span>
+                        </button>
+                    </div>
+
+                    <!-- Orders Panel -->
+                    <div class="orders-panel" id="ordersListSection">
+                        <div class="order-list-toolbar">
+                            <div class="order-list-heading">
+                                <h2>Orders List</h2>
+                                <p>Manage Cash on Pickup orders, payment confirmation, and pickup status.</p>
+                            </div>
+                            <div class="orders-panel-tools">
+                                <div class="orders-search">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"></path></svg>
+                                    <input type="search" id="ordersSearchInput" placeholder="Search order ID, customer, product..." aria-label="Search orders">
+                                </div>
+                                <select class="orders-inline-filter" id="ordersStatusFilter" aria-label="Filter by order status">
+                                    <option value="">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="processing">Processing</option>
+                                    <option value="ready_for_pickup">Ready for Pickup</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <select class="orders-inline-filter" id="ordersPaymentFilter" aria-label="Filter by payment status">
+                                    <option value="">All Payments</option>
+                                    <option value="unpaid">Unpaid</option>
+                                    <option value="paid">Paid</option>
+                                </select>
+                                <div class="orders-date-wrapper">
+                                    <select class="orders-inline-filter" id="ordersDatePresetFilter" aria-label="Filter by date">
+                                        <option value="">All Dates</option>
+                                        <option value="today">Today</option>
+                                        <option value="7days">Last 7 Days</option>
+                                        <option value="30days">Last 30 Days</option>
+                                        <option value="month">This Month</option>
+                                        <option value="custom">Custom Range</option>
+                                    </select>
+                                    <div class="orders-custom-date-range" id="ordersCustomDateRange" style="display: none;">
+                                        <input type="date" id="ordersDateFrom" aria-label="From date" class="orders-inline-filter">
+                                        <input type="date" id="ordersDateTo" aria-label="To date" class="orders-inline-filter">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive" id="ordersTableWrap" {% if not orders %}style="display:none"{% endif %}>
+                            <div class="orders-table-container">
+                                <table class="orders-table" id="ordersTable">
+                                    <colgroup>
+                                        <col class="table-col-num">
+                                        <col class="table-col-orderid">
+                                        <col class="table-col-customer">
+                                        <col class="table-col-product">
+                                        <col class="table-col-qty">
+                                        <col class="table-col-amount">
+                                        <col class="table-col-status">
+                                        <col class="table-col-payment">
+                                        <col class="table-col-date">
+                                        <col class="table-col-action">
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th class="col-num">#</th>
+                                            <th class="col-orderid">ORDER ID</th>
+                                            <th class="col-customer">CUSTOMER</th>
+                                            <th class="col-product-name">ITEMS</th>
+                                            <th class="col-qty">QTY</th>
+                                            <th class="col-amount">TOTAL</th>
+                                            <th class="col-status">ORDER STATUS</th>
+                                            <th class="col-payment">PAYMENT STATUS</th>
+                                            <th class="col-date">ORDER DATE</th>
+                                            <th class="col-action">ACTIONS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ordersTableBody">
+                                        {% for order in orders %}
+                                        <tr data-order-id="{{ order.id }}"
+                                            data-update-url="{% url 'admin_order_update' order.id %}"
+                                            data-order-status="{{ order.status|lower }}"
+                                            data-payment-status="{{ order.payment_status }}"
+                                            data-order-code="{{ order.order_code|default:'' }}"
+                                            data-buyer-name="{{ order.display_buyer_name|default:order.buyer_name|default:''|escape }}"
+                                            data-buyer-type="{{ order.buyer_user_type|default:''|escape }}"
+                                            data-buyer-email="{{ order.display_buyer_email|default:order.buyer_email|default:''|escape }}"
+                                            data-buyer-phone="{{ order.display_buyer_phone|default:''|escape }}"
+                                            data-product-name="{{ order.product_name|escape }}"
+                                            data-display-items="{{ order.display_items|escape }}"
+                                            data-seller-name="{{ order.seller_name|default:''|escape }}"
+                                            data-message-to-seller="{{ order.message_to_seller|default:''|escape }}"
+                                            data-option="{{ order.option|default:''|escape }}"
+                                            data-customization="{{ order.get_customization_json|escape }}"
+                                            data-items-json="{{ order.items_json|escape }}"
+                                            data-quantity="{{ order.display_qty }}"
+                                            data-unit-price="{{ order.unit_price }}"
+                                            data-total-price="{{ order.total_price }}"
+                                            data-category="{{ order.category|default:''|escape }}"
+                                            data-receipt-no="{{ order.official_receipt_no|default:''|escape }}"
+                                            data-payment-encoded-by="{{ order.payment_encoded_by|default:''|escape }}"
+                                            data-paid-at="{% if order.paid_at %}{{ order.paid_at|date:'M d, Y at g:i A' }}{% endif %}"
+                                            data-pickup-location="{{ order.pickup_location|default:'Cashiering / Selling Counter'|escape }}"
+                                            data-pickup-scheduled-at="{% if order.pickup_scheduled_at %}{{ order.pickup_scheduled_at|date:'M d, Y at g:i A' }}{% endif %}"
+                                            data-cancellation-reason="{{ order.cancellation_reason|default:''|escape }}"
+                                            data-status-history="{{ order.status_history_json|escape }}"
+                                            data-created-date="{{ order.created_at|date:'Y-m-d' }}"
+                                            data-created-at="{{ order.created_at|date:'M d, Y' }} at {{ order.created_at|date:'g:i A' }}">
+                                            <td class="col-num">{{ forloop.counter }}</td>
+                                            <td class="col-orderid"><strong>{{ order.order_code|default:'Not assigned' }}</strong></td>
+                                            <td class="col-customer">
+                                                <strong title="{{ order.display_buyer_name }}">{{ order.display_buyer_name }}</strong>
+                                                {% if order.display_buyer_email %}
+                                                    <span>{{ order.display_buyer_email }}</span>
+                                                {% elif order.buyer_user_type %}
+                                                    <span>{{ order.buyer_user_type }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="col-product-name">
+                                                <strong title="{{ order.display_items }}">{{ order.display_items }}</strong>
+                                                {% if order.category %}<span>{{ order.category }}</span>{% endif %}
+                                            </td>
+                                            <td class="col-qty"><strong>{{ order.display_qty }}</strong></td>
+                                            <td class="col-amount">&#8369; {{ order.total_price }}</td>
+                                            <td class="col-status">
+                                                <span class="status-pill status-{{ order.status|lower }}">{{ order.get_status_display }}</span>
+                                            </td>
+                                            <td class="col-payment">
+                                                <span class="payment-pill payment-{{ order.payment_status }}">{{ order.get_payment_status_display }}</span>
+                                                {% if order.official_receipt_no %}<small>OR {{ order.official_receipt_no }}</small>{% endif %}
+                                            </td>
+                                            <td class="col-date">
+                                                <strong>{{ order.created_at|date:'M d, Y' }}</strong>
+                                                <span>{{ order.created_at|date:'g:i A' }}</span>
+                                            </td>
+                                            <td class="col-action">
+                                                <div class="action-row">
+                                                    <button type="button" class="btn-user-action view-order-action" title="View Order Details" aria-label="View Order Details">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"></path>
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"></path>
+                                                        </svg>
+                                                    </button>
+                                                    <div class="dropdown d-inline-block">
+                                                        <button type="button" class="btn-user-action order-more-btn" data-bs-toggle="dropdown" aria-expanded="false" title="More options" aria-label="More actions">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="16" height="16">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+                                                            </svg>
+                                                        </button>
+                                                        <ul class="dropdown-menu dropdown-menu-end order-action-menu">
+                                                            {% if order.status == 'pending' %}
+                                                            <li><button type="button" class="dropdown-item btn-step-action" data-next-status="processing">Start Processing</button></li>
+                                                            <li><button type="button" class="dropdown-item text-danger btn-cancel-action">Cancel Order</button></li>
+                                                            {% elif order.status == 'processing' %}
+                                                            <li><button type="button" class="dropdown-item btn-step-action" data-next-status="ready_for_pickup">Mark Ready for Pickup</button></li>
+                                                            <li><button type="button" class="dropdown-item text-danger btn-cancel-action">Cancel Order</button></li>
+                                                            {% elif order.status == 'ready_for_pickup' %}
+                                                            <li><button type="button" class="dropdown-item text-success fw-bold btn-complete-action">Complete Order</button></li>
+                                                            <li><button type="button" class="dropdown-item text-danger btn-cancel-action">Cancel Order</button></li>
+                                                            {% endif %}
+                                                            <li><a class="dropdown-item" href="{% url 'admin_messages_page' %}">Message Buyer</a></li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {% if not orders %}
+                        <div class="orders-empty-state" id="ordersEmptyState">
+                            <div class="empty-orders-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z"></path></svg>
+                            </div>
+                            <span>No orders found yet.</span>
+                        </div>
+                        {% endif %}
+
+                        <div class="orders-table-footer" id="ordersTableFooter" {% if not orders %}style="display:none"{% endif %}>
+                            <span class="orders-showing-text" id="ordersShowingText">Showing {{ order_stats.total|default:0 }} entries</span>
+                            <div class="orders-pagination" id="ordersPagination"></div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Complete Order Modal (Cash on Pickup Confirmation) -->
+    <div class="modal fade" id="completeOrderModal" tabindex="-1" aria-labelledby="completeOrderModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content complete-order-modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="completeOrderModalLabel">Complete Order</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3" style="font-size: 0.88rem;">Confirm that the buyer has physically collected the items and paid in cash upon pickup.</p>
+                    <div class="complete-order-summary-box mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-secondary" style="font-size: 0.85rem;">Amount Due:</span>
+                            <strong class="fs-5 text-dark" id="completeOrderAmountDue">&#8369; 0.00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-0">
+                            <span class="text-secondary" style="font-size: 0.85rem;">Payment Method:</span>
+                            <strong class="text-navy" style="font-size: 0.85rem;">Cash on Pickup</strong>
+                        </div>
+                    </div>
+                    <div class="form-check complete-order-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="cashPaymentReceivedCheck">
+                        <label class="form-check-label fw-bold text-dark" for="cashPaymentReceivedCheck">
+                            Cash payment received
+                        </label>
+                    </div>
+                    <div class="order-modal-alert is-error" id="completeOrderAlert" role="alert" style="display: none; margin-top: 10px;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn order-modal-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success order-modal-confirm-btn" id="btnConfirmCompleteOrder" disabled>Confirm &amp; Complete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cancel Order Confirmation Modal -->
+    <div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-labelledby="cancelOrderModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="cancelOrderModalLabel">Cancel Order</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-2" style="font-size: 0.88rem;">Please provide a reason for cancelling this order. Any reserved stock will be automatically restored.</p>
+                    <div class="mb-3">
+                        <label for="orderCancelReasonInput" class="form-label fw-bold" style="font-size: 0.82rem;">Cancellation Reason <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="orderCancelReasonInput" rows="3" placeholder="Buyer requested cancellation, unavailable variant, etc." required></textarea>
+                    </div>
+                    <div class="order-modal-alert is-error" id="cancelOrderAlert" role="alert" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn order-modal-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-danger" id="btnConfirmCancelOrder">Confirm Cancellation</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Details Modal / Drawer -->
+    <div class="modal fade" id="orderDetailModal" tabindex="-1" aria-labelledby="orderDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <form class="modal-content order-detail-modal" id="orderManagementForm">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title" id="orderDetailModalLabel">Order Details</h5>
+                        <p class="order-modal-subtitle">Review order items, customer information, pickup status, and payment records.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="order-modal-alert" id="orderModalAlert" role="alert" hidden></div>
+
+                    <!-- 1. Order Information -->
+                    <section class="order-modal-section">
+                        <h6>Order Information</h6>
+                        <dl class="order-detail-list">
+                            <div><dt>Order ID</dt><dd id="orderDetailCode">&mdash;</dd></div>
+                            <div><dt>Order Date</dt><dd id="orderDetailDate">&mdash;</dd></div>
+                            <div><dt>Order Status</dt><dd id="orderDetailStatusBadge">&mdash;</dd></div>
+                        </dl>
+                    </section>
+
+                    <!-- 2. Customer Information -->
+                    <section class="order-modal-section">
+                        <h6>Customer Information</h6>
+                        <dl class="order-detail-list">
+                            <div><dt>Full Name</dt><dd id="orderDetailCustomer">&mdash;</dd></div>
+                            <div><dt>Email</dt><dd id="orderDetailEmail">&mdash;</dd></div>
+                            <div><dt>Contact Number</dt><dd id="orderDetailPhone">&mdash;</dd></div>
+                            <div><dt>Seller</dt><dd id="orderDetailSeller">&mdash;</dd></div>
+                            <div><dt>Message to Seller</dt><dd id="orderDetailSellerMessage">&mdash;</dd></div>
+                        </dl>
+                    </section>
+
+                    <!-- 3. Order Items Table -->
+                    <section class="order-modal-section">
+                        <h6>Order Items</h6>
+                        <div class="table-responsive border rounded mb-2">
+                            <table class="table table-sm table-striped mb-0 order-items-table" style="font-size: 0.84rem;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Variant / Options</th>
+                                        <th class="text-center">Qty</th>
+                                        <th class="text-end">Unit Price</th>
+                                        <th class="text-end">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="orderItemsTableBody">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- 4. Order Summary -->
+                    <section class="order-modal-section">
+                        <h6>Order Summary</h6>
+                        <dl class="order-detail-list">
+                            <div><dt>Total Items / Qty</dt><dd id="orderDetailTotalQty">&mdash;</dd></div>
+                            <div><dt>Total Amount</dt><dd><strong class="fs-6 text-navy" id="orderDetailAmount">&mdash;</strong></dd></div>
+                        </dl>
+                    </section>
+
+                    <!-- 5. Pickup Information -->
+                    <section class="order-modal-section">
+                        <h6>Pickup Information</h6>
+                        <dl class="order-detail-list">
+                            <div><dt>Pickup Method</dt><dd><span class="badge bg-light text-dark border">Cash on Pickup</span></dd></div>
+                            <div><dt>Pickup Location</dt><dd id="orderDetailPickupLocation">&mdash;</dd></div>
+                            <div><dt>Pickup Schedule</dt><dd id="orderDetailPickupSchedule">&mdash;</dd></div>
+                        </dl>
+                    </section>
+
+                    <!-- 6. Payment Information -->
+                    <section class="order-modal-section">
+                        <h6>Payment Information</h6>
+                        <dl class="order-detail-list">
+                            <div><dt>Payment Method</dt><dd>Cash on Pickup</dd></div>
+                            <div><dt>Payment Status</dt><dd id="orderDetailPaymentStatus">&mdash;</dd></div>
+                            <div><dt>Amount Paid</dt><dd id="orderDetailAmountPaid">&mdash;</dd></div>
+                            <div><dt>Date Paid</dt><dd id="orderDetailPaidAt">&mdash;</dd></div>
+                            <div><dt>Recorded / Received By</dt><dd id="orderDetailRecordedBy">&mdash;</dd></div>
+                            <div><dt>Official Receipt (OR)</dt><dd id="orderDetailOR">&mdash;</dd></div>
+                        </dl>
+                        <div class="order-management-grid mt-2" id="orderORInputContainer">
+                            <label class="order-form-field">
+                                <span>Official Receipt Number (Optional)</span>
+                                <input type="text" id="orderManageReceipt" maxlength="100" placeholder="Enter OR number if issued by cashier">
+                            </label>
+                        </div>
+                    </section>
+
+                    <!-- 7. Status Timeline / History -->
+                    <section class="order-modal-section">
+                        <h6>Status History</h6>
+                        <div class="order-history-list" id="orderStatusHistory"></div>
+                    </section>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn order-modal-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" id="btnModalCompleteOrder" style="display: none;">Complete Order</button>
+                    <button type="submit" class="btn order-modal-primary" id="orderSaveButton">Save Receipt Info</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="order-action-toast" id="orderActionToast" role="status" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_notifications.js' %}?v=20260523-3"></script>
+    <script src="{% static 'components/js/admin_orders.js' %}?v=20260831-cash-pickup"></script>
+</body>
+</html>

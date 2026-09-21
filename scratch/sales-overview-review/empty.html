@@ -1,0 +1,1065 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/static/assets/img/icon.png?v=20260529d" />
+    <title>CampusHub | Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/components/css/admin_layout.css?v=20260728-split" />
+    <link rel="stylesheet" href="/static/components/css/admin_header_menus.css?v=20260728-split" />
+    <link rel="stylesheet" href="/static/components/css/admin_dashboard.css?v=20260823-facility-analytics" />
+    
+    <link rel="stylesheet" href="/static/components/css/admin_sales_overview.css?v=20260920-row" />
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="sidebar-section">
+
+        
+<aside class="sidebar" id="sidebar">
+    <script>
+        if (sessionStorage.getItem('sidebar_collapsed') === 'true') {
+            document.documentElement.classList.add('sidebar-is-collapsed');
+        }
+    </script>
+    <div class="sidebar-logo">
+        <img src="/static/assets/img/icon.png?v=20260912" alt="CampusHub" class="sidebar-icon-img" /><span class="sidebar-logo-text"><span class="logo-campus">Campus</span><span class="logo-hub">Hub</span></span>
+    </div>
+    <hr class="sidebar-divider">
+
+    <nav class="sidebar-nav">
+        <!-- Dashboard (always visible, no group) -->
+        <a href="/admin-dashboard/" class="sidebar-item active">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+            </svg>
+            <span class="item-label">Dashboard</span>
+        </a>
+
+        <!-- Marketplace -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">Marketplace</span>
+            </button>
+            <div class="nav-group-items">
+                
+                <a href="/admin-products/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" />
+                    </svg>
+                    <span class="item-label">Products</span>
+                </a>
+                
+                
+                <a href="/admin-orders/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
+                    </svg>
+                    <span class="item-label">Orders</span>
+                </a>
+                
+                
+                
+            </div>
+        </div>
+        
+
+        <!-- User Management -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">User Management</span>
+            </button>
+            <div class="nav-group-items">
+                
+                <a href="/admin-users/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                    </svg>
+                    <span class="item-label">Users</span>
+                </a>
+                
+                
+                <a href="/admin-roles/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                    </svg>
+                    <span class="item-label">Roles & Permissions</span>
+                </a>
+                
+                
+                <a href="/admin-user-monitoring/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
+                    </svg>
+                    <span class="item-label">User Monitoring</span>
+                </a>
+                
+            </div>
+        </div>
+        
+
+        <!-- Facilities -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">Facilities</span>
+            </button>
+            <div class="nav-group-items">
+                
+                <a href="/admin-facility/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+                    </svg>
+                    <span class="item-label">Facilities</span>
+                </a>
+                
+                
+                <a href="/admin-bookings/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 8.25h18M4.5 5.25h15A1.5 1.5 0 0121 6.75v12A1.5 1.5 0 0119.5 20.25h-15A1.5 1.5 0 013 18.75v-12A1.5 1.5 0 014.5 5.25zM9 13.5l2.25 2.25L15 12" />
+                    </svg>
+                    <span class="item-label">Bookings</span>
+                </a>
+                
+                
+                <a href="/admin-calendar/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 8.25h16.5M5.25 5.25h13.5A1.5 1.5 0 0 1 20.25 6.75v12a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-12a1.5 1.5 0 0 1 1.5-1.5Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 12h.008v.008H8.25V12Zm3.75 0h.008v.008H12V12Zm3.75 0h.008v.008h-.008V12Zm-7.5 3.75h.008v.008H8.25v-.008Zm3.75 0h.008v.008H12v-.008Z" />
+                    </svg>
+                    <span class="item-label">Calendar</span>
+                </a>
+                
+                
+            </div>
+        </div>
+        
+
+        <!-- Reports -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">Reports</span>
+            </button>
+            <div class="nav-group-items">
+                <a href="/admin-generate-reports/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m5.25 10.5H3.75A2.25 2.25 0 0 1 1.5 18V6A2.25 2.25 0 0 1 3.75 3.75h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25Z" />
+                    </svg>
+                    <span class="item-label">
+                        Generate Reports
+                    </span>
+                </a>
+            </div>
+        </div>
+        
+
+        <!-- System Settings -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">System Settings</span>
+            </button>
+            <div class="nav-group-items">
+                
+                <a href="/admin-messages/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72A7.152 7.152 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+                    </svg>
+                    <span class="item-label">Messages</span>
+                </a>
+                
+                
+                <a href="/admin-notifications/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                    </svg>
+                    <span class="item-label">Notifications</span>
+                </a>
+                
+                
+                <a href="/admin-settings/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
+                    <span class="item-label">Settings</span>
+                </a>
+                
+                
+                
+                <a href="/admin-backup/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
+                    </svg>
+                    <span class="item-label">Backup & Restore</span>
+                </a>
+                
+                
+            </div>
+        </div>
+        
+    </nav>
+
+    <!-- Bottom -->
+    <div class="sidebar-bottom">
+        <a href="#" class="sidebar-item" data-bs-toggle="modal" data-bs-target="#logoutModal">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+            </svg>
+            <span class="item-label">Logout</span>
+        </a>
+    </div>
+</aside>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var sidebar = document.getElementById('sidebar');
+    var mainWrapper = document.getElementById('mainWrapper');
+    localStorage.removeItem('campushub_sidebar_collapsed');
+    localStorage.removeItem('sidebar_collapsed');
+    document.documentElement.classList.remove('sidebar-is-collapsed', 'sidebar-user-toggling');
+    var isInitiallyCollapsed = sessionStorage.getItem('sidebar_collapsed') === 'true';
+    document.documentElement.classList.toggle('sidebar-is-collapsed', isInitiallyCollapsed);
+    if (sidebar) sidebar.classList.toggle('collapsed', isInitiallyCollapsed);
+    if (mainWrapper) mainWrapper.classList.toggle('expanded', isInitiallyCollapsed);
+
+    // Sidebar collapse toggle
+    var sidebarToggle = document.getElementById('sidebarToggle');
+    if (sidebarToggle) {
+        sidebarToggle.setAttribute('aria-expanded', isInitiallyCollapsed ? 'false' : 'true');
+    }
+    if (sidebarToggle && sidebarToggle.dataset.sidebarBound !== 'true') {
+        sidebarToggle.dataset.sidebarBound = 'true';
+        sidebarToggle.addEventListener('click', function() {
+            document.documentElement.classList.add('sidebar-user-toggling');
+            var isCollapsed = sidebar ? sidebar.classList.toggle('collapsed') : false;
+            if (mainWrapper) mainWrapper.classList.toggle('expanded', isCollapsed);
+            document.documentElement.classList.toggle('sidebar-is-collapsed', isCollapsed);
+            sidebarToggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+            sessionStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
+            setTimeout(function() {
+                document.documentElement.classList.remove('sidebar-user-toggling');
+            }, 300);
+        });
+    }
+
+    // Collapsible sidebar groups
+    document.querySelectorAll('.nav-group-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var group = btn.closest('.nav-group');
+            var isOpen = group.classList.contains('open');
+            if (isOpen) {
+                group.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            } else {
+                group.classList.add('open');
+                btn.setAttribute('aria-expanded', 'true');
+            }
+        });
+    });
+
+    // Restore and save scroll position
+    var sidebarNav = document.querySelector('.sidebar-nav');
+    if (sidebarNav) {
+        var savedScrollTop = sessionStorage.getItem('sidebar_scroll_top');
+        if (savedScrollTop !== null) {
+            sidebarNav.scrollTop = parseInt(savedScrollTop, 10);
+        }
+        var activeItem = sidebarNav.querySelector('.sidebar-item.active');
+        if (activeItem && savedScrollTop === null) {
+            activeItem.scrollIntoView({ block: 'nearest' });
+        }
+        sidebarNav.addEventListener('scroll', function() {
+            sessionStorage.setItem('sidebar_scroll_top', sidebarNav.scrollTop);
+        });
+    }
+});
+</script>
+
+
+        <!-- Main -->
+        <div class="main-wrapper" id="mainWrapper">
+
+            <!-- Header -->
+            
+<header class="dashboard-header" data-admin-user-id="357">
+    <div class="header-left">
+        <button type="button" class="header-hamburger" id="sidebarToggle" aria-label="Toggle sidebar" aria-expanded="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />
+            </svg>
+        </button>
+        <div class="header-title-group">
+            <h1 class="header-page-title">Dashboard</h1>
+            <nav class="admin-breadcrumb" aria-label="Breadcrumb">
+                
+                
+                
+            </nav>
+        </div>
+    </div>
+    <div class="header-right">
+        
+<div class="dropdown chat-header-dropdown">
+    <button class="header-icon-btn message-header-btn" type="button" aria-label="Messages" data-bs-toggle="dropdown"
+        data-bs-auto-close="outside" aria-expanded="false">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72A7.152 7.152 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+        </svg>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end chat-header-menu">
+        <div class="chat-header-menu-title">
+            <h2>Messages</h2>
+        </div>
+
+        <div class="chat-header-search">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input id="chatHeaderSearch" type="search" placeholder="Search messages" aria-label="Search messages">
+        </div>
+
+        <div class="chat-header-tabs">
+            <button type="button" class="active" data-chat-filter="all">All</button>
+            <button type="button" data-chat-filter="unseen">Unseen</button>
+        </div>
+
+        <div class="chat-header-list" id="chatHeaderList">
+            <div class="chat-header-empty">
+                <span class="chat-header-empty-icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72A7.152 7.152 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+                    </svg>
+                </span>
+                <strong>No messages</strong>
+            </div>
+        </div>
+
+        <a href="/admin-messages/" class="chat-header-see-all">See all Messages</a>
+    </div>
+</div>
+<script defer src="/static/components/js/admin_chat_dropdown.js?v=20260727-chat-auth-fix"></script>
+
+        <div class="dropdown notification-dropdown">
+            <button class="header-icon-btn notif-btn" type="button" aria-label="Notifications"
+                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                </svg>
+                
+            </button>
+            <div class="dropdown-menu dropdown-menu-end notification-menu">
+                <div class="notification-menu-header">
+                    <strong>Notifications</strong>
+                    <div class="notification-tabs" role="tablist" aria-label="Notification filters">
+                        <button type="button" class="notification-tab active" data-notification-filter="all">All</button>
+                        <button type="button" class="notification-tab" data-notification-filter="unseen">Unread</button>
+                    </div>
+                </div>
+                <div class="notification-menu-list">
+                    
+                    <div class="notification-menu-empty">
+                        <span class="notification-menu-empty-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                            </svg>
+                        </span>
+                        <strong>No notifications</strong>
+                        <p>Seller requests, bookings, and system alerts will appear here.</p>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        <div class="header-divider"></div>
+        
+<div class="dropdown header-profile-dropdown">
+    <button class="header-profile border-0 bg-transparent p-0 shadow-none" type="button"
+        data-bs-toggle="dropdown" aria-expanded="false"
+        style="border: 0 !important; outline: 0 !important; box-shadow: none !important;">
+        <img src="/static/assets/img/profile.jpg?v=20260529" alt="super-admin-dedicated"
+            class="border-0 shadow-none" width="34" height="34"
+            style="border: 0 !important; box-shadow: none !important; border-radius: 50%;" />
+    </button>
+    <div class="dropdown-menu dropdown-menu-end admin-profile-menu">
+        <a class="dropdown-item admin-profile-item" href="#">
+            <span>Settings</span>
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item admin-profile-item is-danger" href="/admin-logout/">
+            <span>Logout</span>
+        </a>
+    </div>
+</div>
+
+    </div>
+</header>
+
+<script src="/static/components/js/admin_session.js?v=20260605-multi-tab" defer></script>
+
+
+
+            <!-- Content -->
+            <main class="dashboard-content">
+                <div class="container-fluid py-4 px-4">
+                    <div class="dashboard-section-heading dashboard-section-heading--first">
+                        <h2>System Overview</h2>
+                        <time datetime="2026-09-20T05:11:01.185615+00:00">Updated Sep 20, 2026 5:11 AM</time>
+                    </div>
+                    <section class="dashboard-stats-grid row g-3">
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-navy">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                                    </svg>
+                                </div>
+                                <div class="dashboard-stat-content">
+                                    <strong>4</strong>
+                                    <span>Total Users</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-navy">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l4.071-4.071A1.5 1.5 0 0 1 9.06 3h5.88a1.5 1.5 0 0 1 1.06.44l4.071 4.071a3 3 0 0 1-.621 4.72" />
+                                    </svg>
+                                </div>
+                                <div class="dashboard-stat-content">
+                                    <strong>1</strong>
+                                    <span>Active Sellers</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-navy">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" />
+                                    </svg>
+                                </div>
+                                <div class="dashboard-stat-content">
+                                    <strong>2</strong>
+                                    <span>Total Products</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-navy">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+                                    </svg>
+                                </div>
+                                <div class="dashboard-stat-content">
+                                    <strong>1</strong>
+                                    <span>Total Facilities</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-navy">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+                                    </svg>
+                                </div>
+                                <div class="dashboard-stat-content">
+                                    <strong>0</strong>
+                                    <span>Total Orders</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-navy">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                                    </svg>
+                                </div>
+                                <div class="dashboard-stat-content">
+                                    <strong>1</strong>
+                                    <span>Total Bookings</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-navy">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </div>
+                                <div class="dashboard-stat-content">
+                                    <strong>&#8369;0.00</strong>
+                                    <span>Marketplace Revenue</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-navy">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </div>
+                                <div class="dashboard-stat-content">
+                                    <strong>0</strong>
+                                    <span>Pending Approvals</span>
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+
+                    
+                    <section class="dash-card dashboard-system-services mt-3" aria-labelledby="systemStatusTitle">
+                        <div class="dash-card-header dashboard-system-services-header">
+                            <h2 id="systemStatusTitle">System Status</h2>
+                            <a href="/admin-settings/" class="dash-view-all-link">Manage Settings</a>
+                        </div>
+                        <div class="dashboard-service-list">
+                            <div class="dashboard-service-item">
+                                <span class="dashboard-service-icon dashboard-service-icon--database" aria-hidden="true"></span>
+                                <div><strong>Database</strong><span>Connected</span></div>
+                                <span class="dashboard-service-state dashboard-service-state--online">Online</span>
+                            </div>
+                            <div class="dashboard-service-item">
+                                <span class="dashboard-service-icon dashboard-service-icon--chat" aria-hidden="true"></span>
+                                <div><strong>Chat Service</strong><span>FastAPI messaging</span></div>
+                                <span class="dashboard-service-state" id="chatServiceStatus" data-health-url="http://testserver:8001/health">Checking</span>
+                            </div>
+                            <a class="dashboard-service-item dashboard-service-item--link" href="/admin-backup/">
+                                <span class="dashboard-service-icon dashboard-service-icon--backup" aria-hidden="true"></span>
+                                <div><strong>Backup &amp; Restore</strong><span>System data tools</span></div>
+                                <span class="dashboard-service-action">Open</span>
+                            </a>
+                        </div>
+                    </section>
+                    
+
+                    <!-- Row 1: Sales Overview | Top Selling Product | Product Categories -->
+                    <script id="revenueChartData" type="application/json">{"grouping": "daily", "labels": ["Aug 22", "Aug 23", "Aug 24", "Aug 25", "Aug 26", "Aug 27", "Aug 28", "Aug 29", "Aug 30", "Aug 31", "Sep 01", "Sep 02", "Sep 03", "Sep 04", "Sep 05", "Sep 06", "Sep 07", "Sep 08", "Sep 09", "Sep 10", "Sep 11", "Sep 12", "Sep 13", "Sep 14", "Sep 15", "Sep 16", "Sep 17", "Sep 18", "Sep 19", "Sep 20"], "tooltip_labels": ["Aug 22, 2026", "Aug 23, 2026", "Aug 24, 2026", "Aug 25, 2026", "Aug 26, 2026", "Aug 27, 2026", "Aug 28, 2026", "Aug 29, 2026", "Aug 30, 2026", "Aug 31, 2026", "Sep 01, 2026", "Sep 02, 2026", "Sep 03, 2026", "Sep 04, 2026", "Sep 05, 2026", "Sep 06, 2026", "Sep 07, 2026", "Sep 08, 2026", "Sep 09, 2026", "Sep 10, 2026", "Sep 11, 2026", "Sep 12, 2026", "Sep 13, 2026", "Sep 14, 2026", "Sep 15, 2026", "Sep 16, 2026", "Sep 17, 2026", "Sep 18, 2026", "Sep 19, 2026", "Sep 20, 2026"], "values": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "sales": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "order_values": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "orders": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}</script>
+                    <div class="dashboard-section-heading"><h2>Marketplace Analytics</h2></div>
+                    
+                    <section class="marketplace-overview-row" aria-label="Marketplace overview">
+    <div class="marketplace-overview-row__sales">
+        <section class="sales-overview" id="sales-overview-card" aria-labelledby="salesOverviewTitle">
+    <header class="sales-overview__header">
+        <div class="sales-overview__heading">
+            <span class="sales-overview__icon" aria-hidden="true"><!--
+Lucide 0.468.0: chart-no-axes-column-increasing and shopping-cart. ISC License.
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT).
+All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+Permission to use, copy, modify, and/or distribute this software for any purpose with or
+without fee is hereby granted, provided that the above copyright notice and this
+permission notice appear in all copies.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO
+THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    
+    <line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>
+    
+</svg>
+</span>
+            <div>
+                <h2 id="salesOverviewTitle">Sales Overview</h2>
+                <p>Completed and paid Cash on Pickup orders</p>
+            </div>
+        </div>
+        <form method="get" action="#sales-overview-card" id="salesOverviewFilters" class="sales-overview__filters">
+            <input type="hidden" name="facility_days" value="14">
+            <select name="sales_days" aria-label="Sales period">
+                <option value="7">Last 7 Days</option>
+                <option value="14">Last 14 Days</option>
+                <option value="30" selected>Last 30 Days</option>
+            </select>
+            <select name="grouping" aria-label="Sales grouping">
+                <option value="daily" selected>Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+            </select>
+            <noscript><button type="submit">Apply</button></noscript>
+        </form>
+    </header>
+    <div class="sales-overview__metrics">
+        
+        <article class="sales-overview__metric" data-metric="sales">
+            <span class="sales-overview__icon" aria-hidden="true">
+                &#8369;
+            </span>
+            <div class="sales-overview__metric-content">
+                <h3>Total Sales</h3>
+                <strong>&#8369;0.00</strong>
+                <p><b>No change</b> <span>vs. previous 30 days</span></p>
+            </div>
+        </article>
+        
+        <article class="sales-overview__metric" data-metric="orders">
+            <span class="sales-overview__icon sales-overview__icon--gold" aria-hidden="true">
+                <!--
+Lucide 0.468.0: chart-no-axes-column-increasing and shopping-cart. ISC License.
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT).
+All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+Permission to use, copy, modify, and/or distribute this software for any purpose with or
+without fee is hereby granted, provided that the above copyright notice and this
+permission notice appear in all copies.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO
+THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    
+    <circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/>
+    <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
+    
+</svg>
+
+            </span>
+            <div class="sales-overview__metric-content">
+                <h3>Completed Orders</h3>
+                <strong>0</strong>
+                <p><b>No change</b> <span>vs. previous 30 days</span></p>
+            </div>
+        </article>
+        
+        <article class="sales-overview__metric" data-metric="average">
+            <span class="sales-overview__icon" aria-hidden="true">
+                <!--
+Lucide 0.468.0: chart-no-axes-column-increasing and shopping-cart. ISC License.
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT).
+All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+Permission to use, copy, modify, and/or distribute this software for any purpose with or
+without fee is hereby granted, provided that the above copyright notice and this
+permission notice appear in all copies.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO
+THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    
+    <line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/>
+    
+</svg>
+
+            </span>
+            <div class="sales-overview__metric-content">
+                <h3>Average Order Value</h3>
+                <strong>&#8369;0.00</strong>
+                <p><b>No change</b> <span>vs. previous 30 days</span></p>
+            </div>
+        </article>
+        
+    </div>
+    <div class="sales-overview__trend">
+        <div class="sales-overview__trend-header">
+            <div>
+                <h3>Sales Trend</h3>
+                <p>Daily sales and completed orders for the last 30 days</p>
+            </div>
+            <div class="sales-overview__legend sales-chart-legend" aria-label="Chart legend">
+                <span><i class="sales-overview__swatch" aria-hidden="true"></i>Sales (&#8369;)</span>
+                <span><i class="sales-overview__swatch sales-overview__swatch--orders" aria-hidden="true"></i>Orders</span>
+            </div>
+        </div>
+        <p class="sales-overview__empty">No completed sales in the selected period.</p>
+        <div class="sales-overview__canvas">
+            <canvas id="salesOverviewChart" role="img" aria-label="Sales amounts and completed order counts by daily period. Detailed values follow in the chart data table."></canvas>
+        </div>
+        <p id="salesOverviewChartError" hidden>Chart unavailable. Sales totals are shown above; period values are available below.</p>
+        <details class="sales-overview__data">
+            <summary>View chart data</summary>
+            <div><table><caption>Sales and orders by period</caption><thead><tr><th scope="col">Period</th><th scope="col">Sales (&#8369;)</th><th scope="col">Orders</th></tr></thead><tbody>
+                <tr><th scope="row">Aug 22, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 23, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 24, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 25, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 26, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 27, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 28, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 29, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 30, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Aug 31, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 01, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 02, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 03, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 04, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 05, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 06, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 07, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 08, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 09, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 10, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 11, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 12, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 13, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 14, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 15, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 16, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 17, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 18, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 19, 2026</th><td>&#8369;0.00</td><td>0</td></tr><tr><th scope="row">Sep 20, 2026</th><td>&#8369;0.00</td><td>0</td></tr>
+            </tbody></table></div>
+        </details>
+    </div>
+    <footer class="sales-overview__footer">
+        <p>Data is based on completed orders with confirmed payment (Cash on Pickup).</p>
+        
+        <a href="/admin-marketplace-analytics/?period=custom&amp;date_from=2026-08-22&amp;date_to=2026-09-20&amp;grouping=daily">View Detailed Analytics <span aria-hidden="true">&rarr;</span></a>
+        
+    </footer>
+</section>
+
+    </div>
+    <section class="marketplace-overview-panel" id="marketplaceAnalyticsSlot" aria-labelledby="topProductsTitle">
+        <header>
+            <h2 id="topProductsTitle">Top-Selling Products</h2>
+            <a href="/admin-products/">View Products</a>
+        </header>
+        <p>All-time completed and paid sales</p>
+        <p class="marketplace-overview-panel__empty">No completed product sales yet.</p>
+    </section>
+    <section class="marketplace-overview-panel" id="productCategoriesSlot" aria-labelledby="productCategoriesTitle">
+        <header><h2 id="productCategoriesTitle">Product Categories</h2></header>
+        <p>Non-archived products by category</p>
+        <div class="marketplace-overview-panel__donut">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+                
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#1A1851" stroke-width="16" stroke-dasharray="157.08 314.16" stroke-dashoffset="0.00" transform="rotate(-90 60 60)"/>
+                
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#FCB316" stroke-width="16" stroke-dasharray="157.08 314.16" stroke-dashoffset="-157.08" transform="rotate(-90 60 60)"/>
+                
+            </svg>
+            <div><strong>2</strong><span>Products</span></div>
+        </div>
+        <ul class="marketplace-overview-panel__categories">
+            
+            <li><i style="background-color: #1A1851" aria-hidden="true"></i><span>Merchandise</span><strong>1</strong></li>
+            
+            <li><i style="background-color: #FCB316" aria-hidden="true"></i><span>Stationery</span><strong>1</strong></li>
+            
+        </ul>
+    </section>
+</section>
+
+                    
+                    
+                    <script id="facilityBookingChartData" type="application/json">{"labels": ["Sep 07", "Sep 08", "Sep 09", "Sep 10", "Sep 11", "Sep 12", "Sep 13", "Sep 14", "Sep 15", "Sep 16", "Sep 17", "Sep 18", "Sep 19", "Sep 20"], "approved": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "pending": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "completed": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "cancelled": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}</script>
+                    <script id="facilityRevenueChartData" type="application/json">{"labels": ["Sep 07", "Sep 08", "Sep 09", "Sep 10", "Sep 11", "Sep 12", "Sep 13", "Sep 14", "Sep 15", "Sep 16", "Sep 17", "Sep 18", "Sep 19", "Sep 20"], "values": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}</script>
+                    <script id="facilityStatusChartData" type="application/json">{"available": 1, "occupied": 0, "maintenance": 0, "blocked": 0}</script>
+                    <div class="dashboard-section-heading dashboard-facilities-heading mt-4">
+                        <h2>Facilities Analytics</h2>
+                        <div class="dashboard-section-actions">
+                            <select class="dash-select" id="facilityPeriodSelect" aria-label="Facility analytics period">
+                                <option value="7">Last 7 Days</option>
+                                <option value="14">Last 14 Days</option>
+                                <option value="30">Last 30 Days</option>
+                            </select>
+                            <a href="/admin-facility/" class="dash-view-all-link">Manage Facilities</a>
+                        </div>
+                    </div>
+                    <section class="row g-3 mt-2 facility-analytics-grid">
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-booking-overview h-100">
+                                <div class="dash-card-header"><h2>Booking Overview</h2></div>
+                                <div class="facility-status-summary" aria-label="Booking status totals">
+                                    <span><i class="facility-status-dot facility-status-dot--approved"></i>Approved <strong id="facilityStatusApproved">0</strong></span>
+                                    <span><i class="facility-status-dot facility-status-dot--pending"></i>Pending <strong id="facilityStatusPending">0</strong></span>
+                                    <span><i class="facility-status-dot facility-status-dot--completed"></i>Completed <strong id="facilityStatusCompleted">0</strong></span>
+                                    <span><i class="facility-status-dot facility-status-dot--cancelled"></i>Rejected/Cancelled <strong id="facilityStatusCancelled">0</strong></span>
+                                </div>
+                                <div class="facility-booking-chart-wrap"><canvas id="facilityBookingOverviewChart"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-utilization-analytics h-100">
+                                <div class="dash-card-header"><h2>Facility Utilization</h2></div>
+                                <p class="facility-metric-note">Approved and completed reserved hours across 8 operating hours per day.</p>
+                                <div class="facility-utilization-list" id="facilityUtilizationList">
+                                    
+                                    <div class="facility-utilization-row">
+                                        <div><strong>Covered Court</strong><span>0.0 booked hours</span></div>
+                                        <div class="facility-utilization-track"><span data-utilization="0"></span></div>
+                                        <b>0%</b>
+                                    </div>
+                                    
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-highlight-card h-100">
+                                <div class="dash-card-header"><h2>Most Booked Facility</h2></div>
+                                <div class="facility-highlight-body">
+                                    <span class="facility-highlight-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4Zm0 2H4v2a4 4 0 0 0 4 4m9-6h3v2a4 4 0 0 1-4 4"/></svg>
+                                    </span>
+                                    <strong id="facilityMostBookedName">No bookings yet</strong>
+                                    <span id="facilityMostBookedCount">Selected period</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-upcoming-analytics h-100">
+                                <div class="dash-card-header"><h2>Upcoming Reservations</h2><a href="/admin-calendar/" class="dash-view-all-link">View Calendar</a></div>
+                                <div class="facility-upcoming-list">
+                                    
+                                    <a href="/admin-bookings/" class="facility-upcoming-item">
+                                        <span class="facility-upcoming-date">Sep 22, 2026</span>
+                                        <div><strong>Covered Court</strong><span>8:00 AM - 12:00 PM &middot; seller-student</span></div>
+                                    </a>
+                                    
+                                </div>
+                                <a href="/admin-bookings/" class="facility-upcoming-all">View All Bookings</a>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-availability-card h-100">
+                                <div class="dash-card-header"><h2>Facility Status</h2></div>
+                                <div class="facility-status-layout">
+                                    <div class="facility-status-chart-wrap">
+                                        <canvas id="facilityStatusChart"></canvas>
+                                        <div class="facility-status-chart-label"><strong id="facilityStatusTotal">1</strong><span>Facilities</span></div>
+                                    </div>
+                                    <div class="facility-availability-list">
+                                        <div><span><i class="facility-availability-dot facility-availability-dot--available"></i>Available</span><strong id="facilityAvailabilityAvailable">1</strong></div>
+                                        <div><span><i class="facility-availability-dot facility-availability-dot--occupied"></i>Occupied</span><strong id="facilityAvailabilityOccupied">0</strong></div>
+                                        <div><span><i class="facility-availability-dot facility-availability-dot--maintenance"></i>Maintenance</span><strong id="facilityAvailabilityMaintenance">0</strong></div>
+                                        <div><span><i class="facility-availability-dot facility-availability-dot--blocked"></i>Blocked</span><strong id="facilityAvailabilityBlocked">0</strong></div>
+                                    </div>
+                                </div>
+                                <div class="facility-conflict-summary">
+                                    <span>Schedule conflicts</span><strong id="facilityScheduleConflicts">0</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-revenue-analytics h-100">
+                                <div class="dash-card-header"><h2>Facility Revenue</h2></div>
+                                <div class="facility-revenue-total">
+                                    <strong id="facilityPeriodRevenue">&#8369;0.00</strong>
+                                    <span>Paid facility transactions in the selected period</span>
+                                </div>
+                                <div class="facility-revenue-chart-wrap"><canvas id="facilityRevenueChart"></canvas></div>
+                                <a href="/admin-generate-reports/" class="facility-report-link">View Facility Reports</a>
+                            </div>
+                        </div>
+                    </section>
+                    
+
+                    <!-- Recent Activities -->
+                    <section class="row g-3 mt-3 dash-row-equal">
+                        <div class="col-12 dashboard-analytics-recent d-flex">
+                            <div class="dash-card dash-card-overview dash-card-equal h-100 d-flex flex-column">
+                                <div class="dash-card-header">
+                                    <h2>Recent Activities</h2>
+                                </div>
+                                <div class="activity-feed flex-grow-1">
+                                    
+                                    <article class="activity-feed-item">
+                                        <span class="activity-feed-icon activity-feed-icon--booking" aria-hidden="true">
+                                            
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                                            
+                                        </span>
+                                        <div class="activity-feed-body">
+                                            <strong>New booking for Covered Court</strong>
+                                            <span>Sep 22, 2026 • 8:00 AM - 12:00 PM</span>
+                                        </div>
+                                        <time class="activity-feed-time">5:11 AM</time>
+                                    </article>
+                                    
+                                    <article class="activity-feed-item">
+                                        <span class="activity-feed-icon activity-feed-icon--product" aria-hidden="true">
+                                            
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z"/></svg>
+                                            
+                                        </span>
+                                        <div class="activity-feed-body">
+                                            <strong>New product &quot;USTP Notebook&quot; added</strong>
+                                            <span>by seller-student</span>
+                                        </div>
+                                        <time class="activity-feed-time">5:11 AM</time>
+                                    </article>
+                                    
+                                    <article class="activity-feed-item">
+                                        <span class="activity-feed-icon activity-feed-icon--product" aria-hidden="true">
+                                            
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z"/></svg>
+                                            
+                                        </span>
+                                        <div class="activity-feed-body">
+                                            <strong>New product &quot;USTP Lanyard&quot; added</strong>
+                                            <span>by seller-student</span>
+                                        </div>
+                                        <time class="activity-feed-time">5:11 AM</time>
+                                    </article>
+                                    
+                                </div>
+                                <div class="activity-view-all-wrap">
+                                    <a href="/admin-notifications/" class="activity-view-all-btn">View All Activities</a>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Row 3: Action Center | Low Stock Products -->
+                    <section class="row g-3 mt-3">
+                        <div class="col-12 col-xl-7 d-flex" id="pendingApprovalsSlot">
+                            <div class="dash-card dashboard-action-center h-100">
+                                <div class="dash-card-header">
+                                    <h2>Pending Approvals</h2>
+                                    <a href="/admin-notifications/" class="dash-view-all-link">View All</a>
+                                </div>
+                                <div class="approval-summary" aria-label="Pending approval totals">
+                                    <a href="/admin-products/" class="approval-summary-item">
+                                        <span class="approval-summary-icon approval-summary-icon--product" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z"/></svg>
+                                        </span>
+                                        <span class="approval-summary-copy"><span>Products</span><small>Pending</small></span>
+                                        <strong>0</strong>
+                                    </a>
+                                    
+                                    <a href="/admin-notifications/" class="approval-summary-item">
+                                        <span class="approval-summary-icon approval-summary-icon--seller" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.118a7.5 7.5 0 0 1 15 0A17.93 17.93 0 0 1 12 21.75c-2.676 0-5.216-.584-7.5-1.632Z"/></svg>
+                                        </span>
+                                        <span class="approval-summary-copy"><span>Sellers</span><small>Pending</small></span>
+                                        <strong>0</strong>
+                                    </a>
+                                    <a href="/admin-bookings/" class="approval-summary-item">
+                                        <span class="approval-summary-icon approval-summary-icon--booking" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 9h18M5.25 5.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25A2.25 2.25 0 0 1 18.75 21H5.25A2.25 2.25 0 0 1 3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25Z"/></svg>
+                                        </span>
+                                        <span class="approval-summary-copy"><span>Bookings</span><small>Pending</small></span>
+                                        <strong>0</strong>
+                                    </a>
+                                    
+                                </div>
+                                
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-5 d-flex" id="lowStockSlot">
+                            <div class="dash-card dash-card-low-stock h-100">
+                                <div class="dash-card-header">
+                                    <h2>Low Stock Products</h2>
+                                    <a href="/admin-products/" class="dash-view-all-link">View All</a>
+                                </div>
+                                <div class="table-responsive low-stock-table-wrap">
+                                    <table class="low-stock-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Product</th>
+                                                <th>Category</th>
+                                                <th class="text-end">Stock Left</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            
+                                            <tr>
+                                                <td>
+                                                    <div class="low-stock-product-cell">
+                                                        
+                                                        <span class="low-stock-thumb-empty" aria-hidden="true"></span>
+                                                        
+                                                        <strong>USTP Notebook</strong>
+                                                    </div>
+                                                </td>
+                                                <td></td>
+                                                <td class="text-end low-stock-qty">3</td>
+                                            </tr>
+                                            
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Row 4: Recent Orders -->
+                    <section class="row g-3 mt-3">
+                        <div class="col-12 d-flex" id="recentOrdersSlot">
+                            <div class="dash-card dash-card-recent-orders h-100">
+                                <div class="dash-card-header">
+                                    <h2>Recent Orders</h2>
+                                    <a href="/admin-orders/" class="dash-view-all-link">View All</a>
+                                </div>
+                                <div class="table-responsive recent-orders-table-wrap">
+                                    <table class="recent-orders-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Order ID</th>
+                                                <th>Product</th>
+                                                <th>Buyer</th>
+                                                <th class="text-end">Amount</th>
+                                                <th>Status</th>
+                                                <th>Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            
+                                            <tr><td colspan="6" class="recent-orders-empty">No recent orders yet.</td></tr>
+                                            
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+
+            </main>
+        </div>
+
+    </div>
+
+    <div class="modal fade logout-modal" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content logout-card">
+                <div class="logout-card-body">
+                    <button type="button" class="logout-close" data-bs-dismiss="modal" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 162 162"
+                            class="logout-close-icon" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-width="17" stroke="currentColor"
+                                d="M9.01074 8.98926L153.021 153"></path>
+                            <path stroke-linecap="round" stroke-width="17" stroke="currentColor"
+                                d="M9.01074 153L153.021 8.98926"></path>
+                        </svg>
+                    </button>
+                    <p class="logout-heading" id="logoutModalLabel">Logout</p>
+                    <p class="logout-copy">
+                        Are you sure you want to logout?
+                    </p>
+                    <div class="logout-actions">
+                        <a href="/" class="logout-button logout-button-primary">Yes</a>
+                        <button type="button" class="logout-button logout-button-secondary"
+                            data-bs-dismiss="modal">No</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/components/js/admin_notifications.js?v=20260726-empty-messages"></script>
+    <script src="/static/components/js/admin_dashboard.js?v=20260904-offset-zero"></script>
+    
+    <script src="/static/components/js/admin_sales_overview.js?v=20260920"></script>
+    
+</body>
+
+</html>

@@ -1,0 +1,15 @@
+<div class="modal fade logout-modal" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content logout-card">
+            <div class="logout-card-body">
+                <button type="button" class="logout-close" data-bs-dismiss="modal" aria-label="Close">&times;</button>
+                <p class="logout-heading" id="logoutModalLabel">Logout</p>
+                <p class="logout-copy">Are you sure you want to logout?</p>
+                <div class="logout-actions">
+                    <a href="{% url 'admin_logout_page' %}" class="logout-button logout-button-primary">Yes</a>
+                    <button type="button" class="logout-button logout-button-secondary" data-bs-dismiss="modal">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

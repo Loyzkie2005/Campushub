@@ -1,0 +1,60 @@
+<section class="row g-3 mt-3 dash-overview-row">
+    <div class="col-12 col-xl-6">
+        {% include 'dashboard/partials/sales_overview.html' %}
+    </div>
+    <div class="col-12 col-xl-3 d-flex" id="marketplaceAnalyticsSlot">
+        <div class="dash-card dash-card-overview dashboard-top-selling h-100">
+            <div class="dash-card-header">
+                <h2 id="topProductsTitle">Top-Selling Product</h2>
+                <a href="{% url 'admin_products_page' %}" class="dash-view-all-link">View Products</a>
+            </div>
+            <div class="dashboard-top-selling-body">
+                <span class="dashboard-top-selling-icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"/></svg>
+                </span>
+                <span class="dashboard-top-selling-label">Based on completed marketplace sales</span>
+                <strong>{{ dashboard_stats.best_selling|default:best_selling|default:"—" }}</strong>
+                {% if dashboard_stats.best_selling == "—" or best_selling == "—" or not best_selling %}
+                <p>No completed product sales yet.</p>
+                {% else %}
+                <p>Current all-time sales leader</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-3 d-flex" id="productCategoriesSlot">
+        <div class="dash-card dash-card-categories dash-card-equal h-100">
+            <div class="dash-card-header"><h2 id="productCategoriesTitle">Product Categories</h2></div>
+            <div class="top-categories-chart top-categories-stacked">
+                <div class="donut-chart">
+                    <svg viewBox="0 0 120 120" aria-hidden="true">
+                        {% if top_categories %}
+                        {% for cat in top_categories %}
+                        <circle cx="60" cy="60" r="50" fill="none" stroke="{{ cat.color }}" stroke-width="20"
+                            stroke-dasharray="{{ cat.dasharray }}" stroke-dashoffset="{{ cat.dashoffset }}"
+                            transform="rotate(-90 60 60)"></circle>
+                        {% endfor %}
+                        {% else %}
+                        <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="20"></circle>
+                        {% endif %}
+                    </svg>
+                    <div class="donut-center-label">
+                        <strong>{{ category_total|default:0 }}</strong>
+                        <span>{% if category_total == 1 %}Product{% else %}Products{% endif %}</span>
+                    </div>
+                </div>
+                <div class="category-legend category-legend-below">
+                    {% for cat in top_categories %}
+                    <div class="legend-item">
+                        <span class="legend-dot" data-color="{{ cat.color }}" style="background-color: {{ cat.color }};"></span>
+                        <span class="legend-name">{% firstof cat.category cat.name %}</span>
+                        <strong class="legend-count">{{ cat.count }}</strong>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted" style="font-size:0.82rem; margin:0;">No product categories yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

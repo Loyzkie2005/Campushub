@@ -1,0 +1,351 @@
+﻿{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Backup & Restore</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_backup.css' %}?v=20260728-actions-center" />
+</head>
+<body>
+<div class="sidebar-section">
+    {% include 'partials/admin_sidebar.html' with active_page='backup' %}
+
+    <div class="main-wrapper" id="mainWrapper">
+        {% include 'partials/admin_header.html' with page_title='Backup & Restore' breadcrumb_section='System Settings' breadcrumb_page='Backup & Restore' %}
+
+        <main class="dashboard-content p-4">
+            <div class="container-fluid px-0">
+
+                <!-- Stats Row -->
+                <div class="backup-stats-row mb-4">
+                    <div class="backup-stat">
+                        <div class="backup-stat-icon backup-stat-icon-blue"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375" /></svg></div>
+                        <div><span>Total Backups</span><strong>{{ stats.total }}</strong></div>
+                    </div>
+                    <div class="backup-stat">
+                        <div class="backup-stat-icon backup-stat-icon-green"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></div>
+                        <div><span>Successful Backups</span><strong>{{ stats.successful }}</strong></div>
+                    </div>
+                    <div class="backup-stat backup-stat-red">
+                        <div class="backup-stat-icon backup-stat-icon-red"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg></div>
+                        <div><span>Failed Backups</span><strong>{{ stats.failed }}</strong></div>
+                    </div>
+                    <div class="backup-stat">
+                        <div class="backup-stat-icon backup-stat-icon-purple"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg></div>
+                        <div><span>Storage Used</span><strong>{{ stats.total_size }}</strong><span class="backup-stat-sub">of 40 GB ({{ stats.storage_percent }}%)</span></div>
+                    </div>
+                    <div class="backup-stat">
+                        <div class="backup-stat-icon backup-stat-icon-amber"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="24" height="24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></div>
+                        <div><span>Last Backup Time</span><strong class="backup-stat-sm">{% if stats.last_backup %}{{ stats.last_backup|date:"M d, Y h:i A" }}{% else %}Never{% endif %}</strong></div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="backup-quick-actions mb-4">
+                    <form method="post" style="display:contents">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_backup" />
+                        <input type="hidden" name="backup_type" value="full" />
+                        <button type="submit" class="backup-qa-card">
+                            <div class="backup-qa-icon backup-qa-icon-blue">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="22" height="22"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
+                            </div>
+                            <div>
+                                <strong>Create Backup</strong>
+                                <span>Generate campushub_postgres.sql</span>
+                            </div>
+                        </button>
+                    </form>
+                    <div class="backup-qa-card">
+                        <div class="backup-qa-icon backup-qa-icon-amber">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="22" height="22"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                        </div>
+                        <div>
+                            <strong>Restore Backup</strong>
+                            <span>Upload and validate a backup file</span>
+                        </div>
+                    </div>
+                    <form method="post" style="display:contents">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="download_latest" />
+                        <button type="submit" class="backup-qa-card">
+                            <div class="backup-qa-icon backup-qa-icon-green">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="22" height="22"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                            </div>
+                            <div>
+                                <strong>Download Latest</strong>
+                                <span>{% if latest_backup %}{{ latest_backup.filename }}{% else %}No backup available{% endif %}</span>
+                            </div>
+                        </button>
+                    </form>
+                    <div class="backup-qa-card">
+                        <div class="backup-qa-icon backup-qa-icon-purple">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="22" height="22"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                        </div>
+                        <div>
+                            <strong>Auto Backup Status</strong>
+                            <span>{{ auto_config.frequency|title }} â€” {% if auto_config.enabled %}Enabled{% else %}Disabled{% endif %}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Backup Database + Security Features -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12 col-lg-7">
+                        <div class="backup-card">
+                            <h3>Backup Database</h3>
+                            <p class="backup-desc">Generate timestamped backups. Select what to include.</p>
+                            <div class="backup-options-grid">
+                                <label class="backup-option">
+                                    <input type="radio" name="backup_type" value="full" checked />
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375" /></svg>
+                                    <span>Backup PostgreSQL Database</span>
+                                </label>
+                                <label class="backup-option">
+                                    <input type="radio" name="backup_type" value="marketplace" />
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" /></svg>
+                                    <span>Backup Marketplace Data</span>
+                                </label>
+                                <label class="backup-option">
+                                    <input type="radio" name="backup_type" value="users" />
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
+                                    <span>Backup User Accounts</span>
+                                </label>
+                                <label class="backup-option">
+                                    <input type="radio" name="backup_type" value="system" />
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" /></svg>
+                                    <span>Full System Backup</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-5">
+                        <div class="backup-card">
+                            <h3>Security Features</h3>
+                            <div class="security-list">
+                                <div class="security-item"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg> Admin password confirmation before restore</div>
+                                <div class="security-item"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg> Backup validation before processing</div>
+                                <div class="security-item"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg> Restore warning and scope selection</div>
+                                <div class="security-item"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg> Audit logs for backup actions</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Backup History + Summary -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12 col-lg-9">
+                        <div class="backup-card">
+                            <div class="backup-card-header">
+                                <div>
+                                    <h3>Backup History</h3>
+                                    <span class="backup-desc">List of all system backups</span>
+                                </div>
+                            </div>
+                            {% if messages %}
+                            <div class="px-4 pt-3">
+                                {% for message in messages %}
+                                <div class="campushub-toast show {% if 'error' in message.tags %}toast-error{% else %}toast-success{% endif %}" id="pageToast">{{ message }}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="backup-table-wrap">
+                                <table class="backup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Backup Name</th>
+                                            <th>Type</th>
+                                            <th>Size</th>
+                                            <th>Date Created</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for backup in backups %}
+                                        <tr>
+                                            <td>
+                                                <div class="backup-name-cell">
+                                                    <span class="backup-file-icon">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                                                    </span>
+                                                    <span class="backup-name">{{ backup.filename }}</span>
+                                                </div>
+                                            </td>
+                                            <td><span class="backup-type-badge">{{ backup.type }}</span></td>
+                                            <td>{{ backup.size_display }}</td>
+                                            <td>{{ backup.created_at|date:"M d, Y h:i A" }}</td>
+                                            <td>
+                                                {% if backup.status == "Completed" %}
+                                                <span class="status-badge status-completed">Success</span>
+                                                {% else %}
+                                                <span class="status-badge status-failed">Failed</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="action-row">
+                                                    <form method="post" style="display:inline">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="download_backup" />
+                                                        <input type="hidden" name="filename" value="{{ backup.filename }}" />
+                                                        <button type="submit" class="btn-backup-action btn-backup-download" title="Download">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                                                        </button>
+                                                    </form>
+                                                    <form method="post" style="display:inline">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="delete_backup" />
+                                                        <input type="hidden" name="filename" value="{{ backup.filename }}" />
+                                                        <button type="submit" class="btn-backup-action btn-backup-danger" title="Delete" onclick="return confirm('Delete {{ backup.filename }}?')">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="6" class="text-center py-4 text-muted">No backups yet. Click "Create Backup" to generate one.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="backup-table-footer">
+                                <span class="backup-showing">Showing 1 to {{ backups|length }} of {{ stats.total }} backups</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-3">
+                        <div class="backup-card">
+                            <h3>Backup Summary</h3>
+                            <div class="backup-summary-list">
+                                <div class="summary-row"><span>Successful Backups</span><strong class="text-success">{{ stats.successful }}</strong></div>
+                                <div class="summary-row"><span>Failed Backups</span><strong class="text-danger">{{ stats.failed }}</strong></div>
+                                <div class="summary-row"><span>Total Size</span><strong>{{ stats.total_size }}</strong></div>
+                                <div class="summary-row"><span>Oldest Backup</span><strong>{% if backups %}{{ backups|last }}{% else %}â€”{% endif %}</strong></div>
+                                <div class="summary-row"><span>Latest Backup</span><strong>{% if stats.last_backup %}{{ stats.last_backup|date:"M d, Y" }}{% else %}â€”{% endif %}</strong></div>
+                            </div>
+                            <div class="backup-notes mt-3">
+                                <h4>Important Notes</h4>
+                                <ul>
+                                    <li>Keep regular backups to prevent data loss.</li>
+                                    <li>Store backups in a secure location.</li>
+                                    <li>Test restore process periodically.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Restore + Auto Backup Settings -->
+                <div class="row g-4">
+                    <div class="col-12 col-lg-7">
+                        <div class="backup-card">
+                            <h3>Restore System</h3>
+                            <p class="backup-desc">Upload a validated .sql or .zip backup and choose the restore scope.</p>
+                            <form method="post" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="restore_upload" />
+                                <label for="restoreFileInput" class="restore-upload-dropzone" id="restoreDropZone">
+                                    <span class="upload-default-state">
+                                        <span class="restore-upload-icon">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                                            </svg>
+                                        </span>
+                                        <span class="restore-upload-copy">
+                                            <span class="restore-upload-line">Drop your backup file here, or</span>
+                                            <span class="restore-upload-button">Click to browse</span>
+                                        </span>
+                                        <span class="restore-upload-formats">.sql and .zip files supported (max 50MB)</span>
+                                    </span>
+                                    <span class="upload-selected-state" style="display:none">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="20" height="20" style="color:#1A1851"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                                        <span class="selected-filename"></span>
+                                    </span>
+                                    <input type="file" name="backup_file" id="restoreFileInput" accept=".sql,.zip" style="display:none" />
+                                </label>
+                                <div class="restore-warning">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>
+                                    Restoring a backup may overwrite current system data.
+                                </div>
+                                <button type="submit" class="btn-restore">Restore Now</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-5">
+                        <div class="backup-card">
+                            <h3>Auto Backup Settings</h3>
+                            <p class="backup-desc">Configure scheduled backup preferences.</p>
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="save_auto_backup" />
+                                <div class="auto-backup-toggle">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="auto_enabled" {% if auto_config.enabled %}checked{% endif %} />
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <span>Enable automatic backup</span>
+                                </div>
+                                <div class="auto-backup-frequency">
+                                    <label class="freq-option {% if auto_config.frequency == 'daily' %}active{% endif %}"><input type="radio" name="frequency" value="daily" {% if auto_config.frequency == 'daily' %}checked{% endif %} /> Daily backup</label>
+                                    <label class="freq-option {% if auto_config.frequency == 'weekly' %}active{% endif %}"><input type="radio" name="frequency" value="weekly" {% if auto_config.frequency == 'weekly' %}checked{% endif %} /> Weekly backup</label>
+                                    <label class="freq-option {% if auto_config.frequency == 'monthly' %}active{% endif %}"><input type="radio" name="frequency" value="monthly" {% if auto_config.frequency == 'monthly' %}checked{% endif %} /> Monthly backup</label>
+                                </div>
+                                <div class="auto-backup-info">
+                                    <div class="info-row"><span>Frequency</span><strong>{{ auto_config.frequency|title }}</strong></div>
+                                    <div class="info-row"><span>Status</span><strong>{% if auto_config.enabled %}Enabled{% else %}Disabled{% endif %}</strong></div>
+                                    <div class="info-row"><span>Latest Backup</span><strong>{% if stats.last_backup %}{{ stats.last_backup|date:"M d, Y h:i A" }}{% else %}Never{% endif %}</strong></div>
+                                    <div class="info-row"><span>Storage Usage</span><strong>{{ stats.total_size }} / 40 GB</strong></div>
+                                </div>
+                                <button type="submit" class="btn-save-settings">Save Settings</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-hide toast
+    var toast = document.getElementById('pageToast');
+    if (toast) { setTimeout(function() { toast.classList.remove('show'); }, 4000); }
+
+    var dropZone = document.getElementById('restoreDropZone');
+    var fileInput = document.getElementById('restoreFileInput');
+    if (dropZone && fileInput) {
+        dropZone.addEventListener('click', function() { fileInput.click(); });
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length) {
+                dropZone.classList.add('has-file');
+                dropZone.querySelector('.selected-filename').textContent = fileInput.files[0].name + ' (' + (fileInput.files[0].size / 1024 / 1024).toFixed(2) + ' MB)';
+            }
+        });
+        dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('is-dragover'); });
+        dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('is-dragover'); });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('is-dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                dropZone.classList.add('has-file');
+                dropZone.querySelector('.selected-filename').textContent = e.dataTransfer.files[0].name + ' (' + (e.dataTransfer.files[0].size / 1024 / 1024).toFixed(2) + ' MB)';
+            }
+        });
+    }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1096 @@
+:root {
+    --campushub-navy: #1A1851;
+    --campushub-gold: #FCB316;
+    --campushub-blue: #0175C2;
+    --campushub-surface: #ffffff;
+    --campushub-muted: #64748b;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
+}
+
+body {
+    background-color: #ffffff;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.orders-page-shell {
+    padding: 0;
+    width: 100%;
+    max-width: 100%;
+    text-align: left;
+}
+
+.order-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 0;
+    margin-bottom: 22px;
+}
+
+.order-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 100px;
+    padding: 18px 20px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.order-stat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.order-stat-icon svg {
+    width: 26px;
+    height: 26px;
+}
+
+.order-stat-icon-blue,
+.order-stat-icon-green,
+.order-stat-icon-red,
+.order-stat-icon-indigo {
+    background: rgba(26, 24, 81, 0.05);
+    color: #1A1851;
+    border: 1px solid rgba(26, 24, 81, 0.12);
+}
+
+.order-stat-icon-amber {
+    background: rgba(252, 179, 22, 0.12);
+    color: #1A1851;
+    border: 1px solid #FCB316;
+}
+
+.order-stat-card strong {
+    display: block;
+    color: #0f172a;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    margin: 4px 0;
+}
+
+.order-stat-label {
+    display: block;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: none;
+    margin-bottom: 0;
+}
+
+.order-stat-sub {
+    display: block;
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-weight: 500;
+    margin-top: 2px;
+}
+
+/* ── Orders Panel (sized to match Products list container) ── */
+.orders-panel {
+    margin-top: 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: none;
+    overflow: hidden;
+    scroll-margin-top: 12px;
+}
+
+.order-list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.order-list-toolbar h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.order-list-toolbar p {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.orders-panel-tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: nowrap;
+}
+
+/* ── Search ── */
+.orders-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: min(325px, 100%);
+    min-width: min(325px, 100%);
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 2px;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+.orders-search svg {
+    width: 16px;
+    height: 16px;
+    color: #64748b;
+}
+
+.orders-search input {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.orders-search input::placeholder {
+    color: #94a3b8;
+}
+
+/* ── Inline filter selects ── */
+.orders-inline-filter {
+    min-height: 40px;
+    padding: 0 28px 0 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: 'Roboto', sans-serif;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23374151' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px;
+}
+
+.orders-inline-filter:focus {
+    border-color: #1A1851;
+    box-shadow: 0 0 0 2px rgba(26, 24, 81, 0.1);
+}
+
+/* ── Table (same container size as Products) ── */
+.orders-panel .table-responsive {
+    overflow-x: auto;
+    min-height: 500px;
+    padding: 14px 16px 8px;
+    background: #ffffff;
+}
+
+.orders-table-container {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.orders-table {
+    width: 100%;
+    min-width: 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.orders-table .table-col-num {
+    width: 48px;
+}
+
+.orders-table .table-col-orderid {
+    width: 13%;
+}
+
+.orders-table .table-col-customer {
+    width: 13%;
+}
+
+.orders-table .table-col-product {
+    width: 17%;
+}
+
+.orders-table .table-col-qty {
+    width: 76px;
+}
+
+.orders-table .table-col-amount {
+    width: 110px;
+}
+
+.orders-table .table-col-status {
+    width: 125px;
+}
+
+.orders-table .table-col-payment {
+    width: 115px;
+}
+
+.orders-table .table-col-date {
+    width: 120px;
+}
+
+.orders-table .table-col-action {
+    width: 80px;
+}
+
+.orders-table th,
+.orders-table td {
+    height: 58px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #edf2f7;
+    color: #334155;
+    font-size: 0.88rem;
+    line-height: 1.35;
+    text-align: center;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
+.orders-table th {
+    height: 48px;
+    color: #64748b;
+    background: #f3f4f6;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    white-space: nowrap;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.orders-table thead {
+    background: #f3f4f6;
+}
+
+.orders-table thead tr {
+    background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.orders-table thead th {
+    background: #f3f4f6 !important;
+    color: #64748b !important;
+    text-align: center !important;
+}
+
+.orders-table th:first-child,
+.orders-table td:first-child {
+    padding-left: 14px;
+}
+
+.orders-table th:last-child,
+.orders-table td:last-child {
+    padding-right: 14px;
+}
+
+.orders-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.orders-table td.col-qty strong {
+    display: inline;
+    margin: 0;
+    font-size: 0.92rem;
+}
+
+.orders-table td strong {
+    display: block;
+    color: #0f172a;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.orders-table td.col-orderid strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+}
+
+.fulfillment-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.fulfillment-empty {
+    color: #94a3b8;
+    font-size: 0.82rem;
+}
+
+.orders-table td span:not(.status-pill) {
+    display: block;
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 0.78rem;
+    text-align: center;
+}
+
+/* Default: center all columns */
+.orders-table th,
+.orders-table td {
+    text-align: center !important;
+}
+
+/* Text columns stay left */
+/* Precise Column Alignments (Strictly Synchronized with Products Table) */
+/* 1. # (Index): Centered */
+.orders-table th.col-num,
+.orders-table td.col-num {
+    text-align: center !important;
+    color: rgba(26, 24, 81, 0.45);
+    font-weight: 600;
+    font-size: 0.78rem;
+}
+
+/* 2. Order ID: Left-aligned */
+.orders-table th.col-orderid,
+.orders-table td.col-orderid {
+    text-align: left !important;
+}
+
+.orders-table td.col-orderid strong {
+    text-align: left !important;
+}
+
+/* 3. Customer: Left-aligned (Same as Seller & Dept in Products) */
+.orders-table th.col-customer,
+.orders-table td.col-customer {
+    text-align: left !important;
+}
+
+.orders-table td.col-customer strong,
+.orders-table td.col-customer span {
+    text-align: left !important;
+}
+
+/* 4. Product Name: Left-aligned (Same as Product in Products) */
+.orders-table th.col-product-name,
+.orders-table td.col-product-name {
+    text-align: left !important;
+}
+
+.orders-table td.col-product-name strong,
+.orders-table td.col-product-name span {
+    text-align: left !important;
+}
+
+/* 5. Qty: Centered (Same as Inventory in Products) */
+.orders-table th.col-qty,
+.orders-table td.col-qty {
+    text-align: center !important;
+}
+
+.orders-table td.col-qty strong {
+    display: block;
+    text-align: center !important;
+    margin: 0 auto;
+}
+
+/* 6. Amount: Left-aligned by PHP ₱ symbol (Same as Price in Products) */
+.orders-table th.col-amount,
+.orders-table td.col-amount {
+    text-align: left !important;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+/* 7. Status: Centered (Same as Status in Products) */
+.orders-table th.col-status,
+.orders-table td.col-status {
+    text-align: center !important;
+}
+
+.orders-table td.col-status .status-pill {
+    margin: 0 auto !important;
+}
+
+/* 8. Payment: Centered */
+.orders-table th.col-payment,
+.orders-table td.col-payment {
+    text-align: center !important;
+}
+
+.orders-table td.col-payment .payment-pill {
+    margin: 0 auto !important;
+}
+
+.orders-table td.col-payment small {
+    display: block;
+    text-align: center !important;
+    margin: 2px auto 0;
+    color: #64748b;
+    font-size: 0.72rem;
+}
+
+/* 9. Date: Left-aligned (Same as Date in Products) */
+.orders-table th.col-date,
+.orders-table td.col-date {
+    text-align: left !important;
+    white-space: nowrap;
+}
+
+.orders-table td.col-date strong,
+.orders-table td.col-date span {
+    text-align: left !important;
+    display: block;
+}
+
+.col-date strong {
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.col-date span {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-weight: 500;
+    margin-top: 1px;
+}
+
+/* 10. Actions: Centered (Same as Actions in Products) */
+.orders-table th.col-action,
+.orders-table td.col-action {
+    text-align: center !important;
+}
+
+.orders-table .col-action .action-row {
+    display: flex;
+    align-items: center;
+    justify-content: center !important;
+    width: 100%;
+}
+
+/* ── Status Pills (Standard Institutional Colors) ── */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 78px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-family: 'Montserrat', sans-serif !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1.3;
+    margin: 0 auto;
+    box-shadow: none;
+    white-space: nowrap;
+}
+
+.status-completed {
+    background: #f0fdf4 !important;
+    color: #166534 !important;
+    border: 1px solid #86efac !important;
+}
+
+.status-pending,
+.status-processing,
+.status-ready_for_pickup {
+    background: #fffbeb !important;
+    color: #92400e !important;
+    border: 1px solid #fcd34d !important;
+}
+
+.status-cancelled {
+    background: #fef2f2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fca5a5 !important;
+}
+
+/* ── Payment Pills ── */
+.payment-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: 68px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-family: 'Montserrat', sans-serif !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1.3;
+    margin: 0 auto;
+    box-shadow: none;
+    white-space: nowrap;
+}
+
+.payment-paid {
+    background: #f0fdf4 !important;
+    color: #166534 !important;
+    border: 1px solid #86efac !important;
+}
+
+.payment-unpaid {
+    background: #fffbeb !important;
+    color: #92400e !important;
+    border: 1px solid #fcd34d !important;
+}
+
+/* ── Action Buttons ── */
+.orders-table .action-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.orders-table .action-row .btn-user-action {
+    border-radius: 6px;
+}
+
+.orders-table th.col-action,
+.orders-table td.col-action {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+/* ── Empty State ── */
+.orders-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 170px;
+    padding: 32px;
+    text-align: center;
+    color: #7c8490;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.empty-orders {
+    height: 170px;
+    padding: 32px;
+    text-align: center;
+    color: #7c8490;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-transform: none;
+}
+
+.empty-orders-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 42px;
+    margin-bottom: 10px;
+    border: 1px solid #d9dee5;
+    border-radius: 2px;
+    background: #fbfcfd;
+    color: #c3c9d1;
+}
+
+.empty-orders-icon svg {
+    width: 28px;
+    height: 28px;
+}
+
+.empty-orders span {
+    display: block;
+}
+
+/* ── Pagination / Footer ── */
+.orders-table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 16px 0;
+    margin: 0 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.orders-showing-text {
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding-left: 20px;
+}
+
+.orders-pagination {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #374151;
+    font-family: 'Roboto', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.page-btn:hover {
+    background: #f8fafc;
+}
+
+.page-btn.is-active {
+    background: #1A1851;
+    color: #ffffff;
+    border-color: #1A1851;
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-ellipsis {
+    color: #94a3b8;
+    font-size: 0.82rem;
+    padding: 0 4px;
+}
+
+.order-detail-modal .modal-header {
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.order-detail-modal .modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.order-detail-list {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+}
+
+.order-detail-list div {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 8px;
+    align-items: start;
+}
+
+.order-detail-list dt {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.order-detail-list dd {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .order-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .order-list-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .orders-panel-tools {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .orders-search {
+        width: 100%;
+        min-width: 100%;
+    }
+}
+
+@media (max-width: 576px) {
+    .order-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Shared table action buttons (from admin_actions.css) ── */
+
+/* Shared admin table action buttons — view navy, edit gold, delete red */
+
+.action-row,
+.order-row-actions,
+.facility-row-actions,
+.product-row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.btn-user-action,
+.btn-role-action,
+.btn-monitor-action,
+.btn-backup-action,
+.facility-action-icon,
+.icon-table-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #64748b;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease,
+        box-shadow 0.15s ease, transform 0.15s ease;
+    padding: 0;
+}
+
+.btn-user-action svg,
+.btn-role-action svg,
+.btn-monitor-action svg,
+.btn-backup-action svg,
+.facility-action-icon svg,
+.icon-table-action svg {
+    width: 16px;
+    height: 16px;
+}
+
+.btn-user-action:hover,
+.btn-role-action:hover,
+.btn-monitor-action:hover,
+.btn-backup-action:hover,
+.facility-action-icon:hover,
+.icon-table-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+/* View / eye */
+.btn-view-user,
+.btn-view-product,
+.view-product-action,
+.btn-view-perms,
+.btn-open-role,
+.btn-monitor-view,
+.btn-backup-download,
+.view-order-action,
+.btn-view-order,
+[data-facility-row-action="view"] {
+    border-color: #1A1851;
+    color: #1A1851;
+}
+
+.btn-view-user:hover,
+.btn-view-product:hover,
+.view-product-action:hover,
+.btn-view-perms:hover,
+.btn-open-role:hover,
+.btn-monitor-view:hover,
+.btn-backup-download:hover,
+.view-order-action:hover,
+.btn-view-order:hover,
+[data-facility-row-action="view"]:hover {
+    background: #1A1851;
+    border-color: #1A1851;
+    color: #ffffff;
+    box-shadow: 0 3px 8px rgba(26, 24, 81, 0.22);
+}
+
+/* Edit */
+.btn-edit-user,
+.btn-edit-product,
+.edit-product-action,
+.btn-edit-role,
+[data-facility-row-action="edit"] {
+    border-color: #FCB316;
+    color: #FCB316;
+}
+
+.btn-edit-user:hover,
+.btn-edit-product:hover,
+.edit-product-action:hover,
+.btn-edit-role:hover,
+[data-facility-row-action="edit"]:hover {
+    background: #FCB316;
+    border-color: #FCB316;
+    color: #1A1851;
+    box-shadow: 0 3px 8px rgba(252, 179, 22, 0.35);
+}
+
+/* Delete / danger */
+.btn-delete-user,
+.btn-delete-product,
+.delete-product-action,
+.btn-delete-role,
+.btn-monitor-danger,
+.btn-backup-danger,
+.delete-order-action,
+[data-facility-row-action="delete"],
+.facility-action-icon.is-danger {
+    border-color: rgba(26, 24, 81, 0.25);
+    color: #1A1851;
+}
+
+.btn-delete-user:hover,
+.btn-delete-product:hover,
+.delete-product-action:hover,
+.btn-delete-role:hover,
+.btn-monitor-danger:hover,
+.btn-backup-danger:hover,
+.delete-order-action:hover,
+[data-facility-row-action="delete"]:hover,
+.facility-action-icon.is-danger:hover {
+    background: rgba(26, 24, 81, 0.08);
+    border-color: #1A1851;
+    color: #1A1851;
+    box-shadow: 0 2px 6px rgba(26, 24, 81, 0.12);
+}
+
+/* Neutral monitor actions (e.g. lock) */
+.btn-monitor-action:not(.btn-monitor-view):not(.btn-monitor-danger):hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+.btn-user-action:focus-visible,
+.btn-role-action:focus-visible,
+.btn-monitor-action:focus-visible,
+.btn-backup-action:focus-visible,
+.facility-action-icon:focus-visible,
+.icon-table-action:focus-visible {
+    outline: 2px solid #1A1851;
+    outline-offset: 2px;
+}
+
+/* ── More Actions Dropdown ── */
+.order-more-btn {
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+.order-more-btn:hover {
+    background: #f8fafc;
+    border-color: #1A1851;
+    color: #1A1851;
+}
+
+.order-action-menu {
+    min-width: 175px;
+    padding: 6px 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    box-shadow: 0 6px 16px rgba(26, 24, 81, 0.12);
+    font-family: 'Roboto', sans-serif;
+    font-size: 0.82rem;
+    z-index: 1060;
+}
+
+.order-action-menu .dropdown-item {
+    padding: 7px 16px;
+    font-size: 0.82rem;
+    color: #1A1851;
+    font-weight: 500;
+    transition: background 0.15s ease, color 0.15s ease;
+    cursor: pointer;
+}
+
+.order-action-menu .dropdown-item:hover {
+    background: #f1f5f9;
+    color: #1A1851;
+}
+
+.order-action-menu .dropdown-item.text-danger:hover {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.order-action-menu .dropdown-item.text-success:hover {
+    background: #f0fdf4;
+    color: #166534;
+}
+
+/* ── Complete Order Modal ── */
+.complete-order-modal-content {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(26, 24, 81, 0.15);
+}
+
+.complete-order-summary-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 14px 18px;
+}
+
+.complete-order-check {
+    padding-left: 1.8rem;
+}
+
+.complete-order-check .form-check-input {
+    width: 1.15rem;
+    height: 1.15rem;
+    border-color: #94a3b8;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.complete-order-check .form-check-input:checked {
+    background-color: #1A1851;
+    border-color: #1A1851;
+}
+
+.complete-order-check .form-check-label {
+    font-size: 0.88rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.order-modal-confirm-btn {
+    font-family: 'Montserrat', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 0.82rem !important;
+    padding: 8px 18px !important;
+    border-radius: 6px !important;
+}
+
+/* ── Order Items Table in Modal ── */
+.order-items-table {
+    margin-bottom: 0;
+    border-collapse: collapse;
+}
+
+.order-items-table th {
+    background: #f8fafc !important;
+    color: #1A1851 !important;
+    font-family: 'Montserrat', sans-serif !important;
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 9px 12px;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.order-items-table td {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    color: #1e293b;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+/* ── Filter Toolbar Enhancements ── */
+.orders-date-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.orders-custom-date-range {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ── Order Action Toast ── */
+.order-action-toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    transform: translateX(14px);
+    z-index: 1200;
+    min-width: 280px;
+    max-width: 420px;
+    padding: 16px 20px;
+    border-radius: 8px;
+    border-left: 5px solid #FCB316;
+    background: #1A1851;
+    color: #ffffff;
+    box-shadow: 0 16px 34px rgba(26, 24, 81, 0.25);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.order-action-toast.is-visible {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+}
+
+.order-action-toast.is-error {
+    border-left-color: #e53e3e;
+}

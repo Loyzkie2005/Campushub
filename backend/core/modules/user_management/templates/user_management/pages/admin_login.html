@@ -1,0 +1,199 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+        (function () {
+            var theme = localStorage.getItem('campushub_admin_theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+    <link rel="icon" id="pageFavicon" type="image/png" href="{% static 'assets/img/logo_light.png' %}?v=20260912-navy"
+        data-light-src="{% static 'assets/img/logo_light.png' %}?v=20260912-navy"
+        data-dark-src="{% static 'assets/img/icon.png' %}?v=20260912-white" />
+    <title>CampusHub | Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_login.css' %}?v=20260913-btnfix" />
+</head>
+
+<body>
+    <main class="container-fluid p-0 login-page">
+        <!-- Full-bleed background layer spanning side to side with opacity -->
+        <div class="login-bg-backdrop" aria-hidden="true"></div>
+
+        <!-- Login row -->
+        <div class="row g-0 login-row">
+            <!-- Hero section (Left - White Background) -->
+            <div class="col-lg-7 col-xl-7 d-flex flex-column justify-content-center position-relative login-hero">
+                <!-- CampusHub Brand -->
+                <div class="position-absolute login-brand login-enter">
+                    <img class="login-logo" id="loginBrandLogo"
+                        src="{% static 'assets/img/logo_light.png' %}?v=20260912-navy"
+                        data-light-src="{% static 'assets/img/logo_light.png' %}?v=20260912-navy"
+                        data-dark-src="{% static 'assets/img/icon.png' %}?v=20260912-white" alt="CampusHub Logo" />
+                    <h4 class="login-brand-name">
+                        <span class="brand-campus">Campus</span><span class="brand-hub">Hub</span>
+                    </h4>
+                </div>
+
+                <!-- Hero message -->
+                <div class="login-intro mt-5 pt-4 pt-lg-0 login-enter">
+                    <h1 class="login-heading">
+                        Your <span class="brand-campus">Campus</span><br />
+                        Essentials,<br />
+                        <span class="login-highlight">Simplified.</span>
+                    </h1>
+                    <p class="mt-4 login-copy">
+                        Access everything you need for campus life in one unified platform.
+                    </p>
+                </div>
+            </div>
+            <!-- End hero section -->
+
+            <!-- Login panel (Right) -->
+            <div class="col-lg-5 col-xl-5 login-panel login-enter">
+                <!-- Login card (Navy Blue) -->
+                <div class="login-card">
+                    <!-- Card header -->
+                    <div class="login-header">
+                        <h2 class="login-title">Welcome</h2>
+                        <p class="login-subtitle">Sign in to your account</p>
+                    </div>
+
+                    <div id="errorMessage" class="alert alert-danger d-none py-2 px-3 small rounded-3 mb-3" role="alert"
+                        aria-live="polite"></div>
+                    <!-- End error message -->
+
+                    <form id="adminLoginForm" class="login-form" data-login-url="{% url 'admin_login' %}"
+                        data-redirect-url="{% url 'admin_dashboard_page' %}" novalidate>
+                        <!-- Username field -->
+                        <div class="username-field">
+                            <label for="username" class="form-label">Username</label>
+                            <!-- Username input -->
+                            <div class="input-group">
+                                <span class="input-group-text" aria-hidden="true">
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                        <circle cx="12" cy="7" r="4" />
+                                    </svg>
+                                </span>
+                                <input id="username" name="username" type="text" class="form-control"
+                                    placeholder="Enter your username" required autocomplete="username" />
+                            </div>
+                            <!-- End username input -->
+                        </div>
+                        <!-- End username field -->
+
+                        <!-- Password field -->
+                        <div class="password-field">
+                            <label for="password" class="form-label">Password</label>
+                            <!-- Password input -->
+                            <div class="input-group password-input">
+                                <span class="input-group-text" aria-hidden="true">
+                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
+                                </span>
+                                <input id="password" name="password" type="password" class="form-control"
+                                    placeholder="Enter your password" required autocomplete="current-password" />
+                                <button type="button" class="password-toggle" id="togglePassword"
+                                    aria-label="Show password" aria-pressed="false">
+                                    <span id="eyeOpen">
+                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                    </span>
+                                    <span id="eyeClosed" class="d-none">
+                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <path
+                                                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                                            <path
+                                                d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                                            <line x1="1" y1="1" x2="23" y2="23" />
+                                            <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                                        </svg>
+                                    </span>
+                                </button>
+                            </div>
+                            <!-- End password input -->
+                        </div>
+                        <!-- End password field -->
+
+                        <!-- Login options -->
+                        <div class="login-options">
+                            <!-- Remember username -->
+                            <div class="form-check m-0">
+                                <input type="checkbox" class="form-check-input" id="rememberMe" name="remember_me" />
+                                <label class="form-check-label" for="rememberMe">Remember Me</label>
+                            </div>
+                            <!-- End remember username -->
+                            <a href="#" class="login-help">Forgot password?</a>
+                        </div>
+                        <!-- End login options -->
+
+                        <button type="submit"
+                            class="btn login-button w-100 d-flex align-items-center justify-content-center gap-2">
+                            <span class="button-label">Login</span>
+                            <svg class="button-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                                aria-hidden="true">
+                                <path d="M5 12h14" />
+                                <path d="m12 5 7 7-7 7" />
+                            </svg>
+                            <span class="button-spinner" aria-hidden="true"></span>
+                        </button>
+                    </form>
+                </div>
+                <!-- End login card -->
+            </div>
+            <!-- End login panel -->
+        </div>
+        <!-- End login row -->
+        <!-- Single Theme Swap Icon Button in Right Bottom Corner (like mobile) -->
+        <aside class="theme-switch-wrapper" id="themeSwitchWrapper" aria-label="Theme switcher">
+            <button type="button" class="theme-toggle-fab" id="themeToggleBtn" aria-label="Switch theme mode"
+                title="Switch to dark mode">
+                <span class="theme-icon-sun" id="themeIconSun" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </span>
+                <span class="theme-icon-moon d-none" id="themeIconMoon" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </span>
+            </button>
+        </aside>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_session.js' %}?v=20260605-multi-tab"></script>
+    <script src="{% static 'components/js/admin_login.js' %}?v=20260912-theme2"></script>
+</body>
+
+</html>

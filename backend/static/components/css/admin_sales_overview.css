@@ -1,0 +1,745 @@
+/* ==========================================================================
+   CampusHub - Marketplace Overview & Sales Overview Card Styles
+   Clean Flat Minimalist UI Design (Institutional Navy #1A1851 & Gold #FCB316)
+   ========================================================================== */
+
+:root {
+    --sales-navy: #1a1851;
+    --sales-navy-hover: #12103a;
+    --sales-gold: #fcb316;
+    --sales-muted: #64748b;
+    --sales-border: #e2e8f0;
+    --sales-border-subtle: #f1f5f9;
+    --sales-card-bg: #ffffff;
+    --sales-bg: #f8fafc;
+    --sales-radius: 10px;
+    --sales-radius-sm: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   Marketplace Overview Row (3 Cards Aligned in One Row)
+   -------------------------------------------------------------------------- */
+.marketplace-overview-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: stretch;
+    margin-top: 16px;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+.marketplace-overview-row__sales {
+    min-width: 0;
+    height: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   Base White Card Containers
+   -------------------------------------------------------------------------- */
+.sales-overview,
+.marketplace-overview-panel {
+    background: #ffffff;
+    border: 1px solid #eaecf0;
+    border-radius: 12px;
+    padding: 20px 22px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    font-family: 'Montserrat', sans-serif !important;
+    box-sizing: border-box;
+}
+
+.sales-overview *,
+.marketplace-overview-panel * {
+    font-family: 'Montserrat', sans-serif !important;
+    box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   Card 1: Sales Overview (Matching Institutional Design System & Brand Palette)
+   -------------------------------------------------------------------------- */
+.sales-overview {
+    background: #ffffff;
+    border: 1px solid #eaecf0;
+    border-radius: 12px;
+    padding: 20px 22px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+}
+
+.sales-overview__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.sales-overview__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sales-overview__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: #eef2ff;
+    color: #2563eb;
+    flex-shrink: 0;
+}
+
+.sales-overview__icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.sales-overview__heading h2,
+#salesOverviewTitle {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #101828;
+    margin: 0;
+    line-height: 1.25;
+}
+
+.sales-overview__heading p {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #667085;
+    margin: 2px 0 0;
+    line-height: 1.3;
+}
+
+.sales-overview__filters {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    margin: 0;
+}
+
+.sales-overview__controls-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sales-overview__filters select {
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #344054;
+    background-color: #ffffff;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    height: 36px;
+    padding: 0 32px 0 12px;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sales-overview__filters select[name="period"],
+.sales-overview__filters select[name="sales_days"] {
+    padding-left: 32px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat, no-repeat;
+    background-position: left 10px center, right 10px center;
+}
+
+.sales-overview__filters select:hover {
+    border-color: #98a2b3;
+}
+
+.sales-overview__filters select:focus {
+    border-color: #1a1851;
+    box-shadow: 0 0 0 3px rgba(26, 24, 81, 0.08);
+}
+
+.sales-overview__custom-dates {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1px solid #eaecf0;
+    border-radius: 8px;
+    padding: 4px 10px;
+}
+
+.sales-date-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0;
+}
+
+.sales-date-field input[type="date"] {
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: #101828;
+    background: #ffffff;
+    border: 1px solid #d0d5dd;
+    border-radius: 6px;
+    padding: 2px 6px;
+    height: 30px;
+    outline: none;
+    cursor: pointer;
+}
+
+.sales-date-field input[type="date"]:focus {
+    border-color: #1a1851;
+}
+
+.sales-date-apply-btn {
+    height: 30px;
+    padding: 0 12px;
+    background: #1a1851;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.sales-date-apply-btn:hover {
+    background: #12103a;
+}
+
+/* 3 Mini Metric Cards */
+.sales-overview__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.sales-overview__metric {
+    background: #ffffff;
+    border: 1px solid #eaecf0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.02);
+}
+
+.sales-overview__metric .sales-overview__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.sales-overview__metric[data-metric="sales"] .sales-overview__icon {
+    background: #eff4ff;
+    color: #2563eb;
+}
+
+.sales-overview__metric[data-metric="orders"] .sales-overview__icon,
+.sales-overview__icon--gold {
+    background: #fef6ee;
+    color: #d97706;
+}
+
+.sales-overview__metric[data-metric="orders"] .sales-overview__icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.sales-overview__metric[data-metric="average"] .sales-overview__icon {
+    background: #eff4ff;
+    color: #2563eb;
+}
+
+.sales-overview__metric[data-metric="average"] .sales-overview__icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.sales-overview__metric-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.sales-overview__metric-content h3 {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #667085;
+    line-height: 1.2;
+    margin: 0 0 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sales-overview__metric-content strong {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #101828;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+}
+
+.sales-overview__metric-content p {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin: 4px 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #12b76a;
+}
+
+.sales-overview__metric-content p b {
+    font-weight: 600;
+}
+
+.sales-overview__metric-content p span {
+    color: #667085;
+    font-weight: 400;
+}
+
+/* Sales Trend Sub-Card Container */
+.sales-overview__trend {
+    background: #ffffff;
+    border: 1px solid #eaecf0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+.sales-overview__trend-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.sales-overview__trend-header h3 {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #101828;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.sales-overview__trend-header p {
+    font-size: 0.7125rem;
+    font-weight: 400;
+    color: #667085;
+    display: block;
+    margin: 2px 0 0;
+}
+
+.sales-overview__legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #344054;
+}
+
+.sales-overview__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sales-overview__swatch {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: #1a1851;
+}
+
+.sales-overview__swatch--orders {
+    border-radius: 2px;
+    background: #fcb316;
+}
+
+.sales-overview__canvas {
+    height: 260px;
+    position: relative;
+    width: 100%;
+}
+
+.sales-overview__canvas canvas {
+    width: 100% !important;
+    height: 260px !important;
+}
+
+.sales-overview__empty {
+    font-size: 0.75rem;
+    color: #667085;
+    text-align: center;
+    padding: 8px 0;
+    margin: 0;
+}
+
+.sales-overview__data {
+    margin-top: 8px;
+    font-size: 0.72rem;
+    color: #667085;
+}
+
+.sales-overview__data summary {
+    cursor: pointer;
+}
+
+.sales-overview__data table {
+    width: 100%;
+    margin-top: 6px;
+    border-collapse: collapse;
+}
+
+.sales-overview__data th,
+.sales-overview__data td {
+    padding: 4px 6px;
+    border-bottom: 1px solid #eaecf0;
+    text-align: left;
+}
+
+/* Footer */
+.sales-overview__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 8px;
+    flex-wrap: wrap;
+    margin-top: auto;
+}
+
+.sales-overview__footer-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #475467;
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
+.sales-overview__footer-info p {
+    margin: 0;
+}
+
+.sales-overview__info-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #eff4ff;
+    color: #2563eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.sales-overview__cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #344054;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid #d0d5dd;
+    background: #ffffff;
+    text-decoration: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+
+.sales-overview__cta-btn:hover {
+    background: #f9fafb;
+    border-color: #98a2b3;
+    color: #101828;
+    text-decoration: none;
+}
+
+/* --------------------------------------------------------------------------
+   Cards 2 & 3: Marketplace Overview Panels (Top-Selling & Categories)
+   -------------------------------------------------------------------------- */
+.marketplace-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.marketplace-panel-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #101828;
+    margin: 0;
+    line-height: 1.25;
+}
+
+.marketplace-panel-desc {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #667085;
+    margin: 2px 0 0;
+    line-height: 1.3;
+}
+
+.marketplace-panel-link {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #1a1851;
+    text-decoration: none;
+    flex-shrink: 0;
+    transition: color 0.15s ease;
+}
+
+.marketplace-panel-link:hover {
+    color: #fcb316;
+    text-decoration: underline;
+}
+
+/* Top-Selling Table */
+.marketplace-overview-panel__table {
+    width: 100%;
+    overflow-x: auto;
+    flex: 1;
+}
+
+.panel-ranked-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.panel-ranked-table th,
+.panel-ranked-table td {
+    padding: 10px 6px;
+    border-bottom: 1px solid #f2f4f7;
+    vertical-align: middle;
+}
+
+.panel-ranked-table thead th {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #667085;
+    border-bottom: 1px solid #eaecf0;
+    padding: 6px 6px 8px;
+    background: transparent;
+}
+
+.panel-rank-col {
+    width: 28px;
+    text-align: center;
+}
+
+.panel-rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    background: #f2f4f7;
+    color: #344054;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.panel-name-col {
+    font-weight: 600;
+    color: #101828;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+}
+
+.panel-empty-box {
+    margin: auto;
+    padding: 36px 0;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+}
+
+.marketplace-overview-panel__empty {
+    font-size: 0.8125rem;
+    color: #667085;
+    margin: 0;
+}
+
+/* Product Categories Donut & Legend */
+.marketplace-overview-panel__donut-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    justify-content: flex-start;
+    padding-top: 4px;
+}
+
+.marketplace-overview-panel__donut {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    flex-shrink: 0;
+}
+
+.marketplace-overview-panel__donut svg {
+    width: 100%;
+    height: 100%;
+}
+
+.donut-center-info {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.donut-center-info strong {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #1a1851;
+    line-height: 1;
+}
+
+.donut-center-info span {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #667085;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+}
+
+.marketplace-overview-panel__categories {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.marketplace-overview-panel__categories li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+}
+
+.marketplace-overview-panel__categories i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.marketplace-overview-panel__categories .category-name {
+    font-weight: 500;
+    color: #344054;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.marketplace-overview-panel__categories .category-count {
+    font-weight: 700;
+    color: #1a1851;
+    font-variant-numeric: tabular-nums;
+}
+
+.empty-category-item {
+    font-size: 0.78rem;
+    color: #667085;
+    text-align: center;
+    padding: 16px 0;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Breakpoints
+   -------------------------------------------------------------------------- */
+@media (max-width: 1200px) {
+    .marketplace-overview-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767px) {
+    .sales-overview__filters {
+        align-items: flex-start;
+        width: 100%;
+    }
+    .sales-overview__controls-top {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    .sales-overview__custom-dates {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    .sales-overview__metrics {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,0 +1,118 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Messages</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_messages.css' %}?v=20260821-chat-spacing" />
+</head>
+
+<body>
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='messages' %}
+
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Messages' breadcrumb_section='System Settings' breadcrumb_page='Messages' %}
+
+            <main class="dashboard-content p-4">
+                <section class="messages-workspace">
+                    <aside class="messages-sidebar">
+                        <div class="messages-sidebar-header">
+                            <div class="messages-title-row">
+                                <h2>Chats</h2>
+                            </div>
+                            <div class="messages-edit-actions">
+                            <button type="button" id="messagesDeleteBtn" class="messages-delete-btn d-none" aria-label="Delete selected chats" title="Delete selected chats">
+                                Delete
+                            </button>
+                            <button type="button" id="messagesComposeBtn" class="messages-compose-btn" aria-label="Edit chats" title="Edit chats">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.8" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+                                </svg>
+                            </button>
+                            </div>
+                        </div>
+                        <div class="messages-page-search">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            </svg>
+                            <input id="messagesSearchInput" type="search" placeholder="Search" aria-label="Search messages" />
+                        </div>
+                        <h3 class="messages-list-title">All Chats</h3>
+                        <div class="messages-list" id="messagesList">
+                            <div class="messages-list-empty">
+                                <strong>Loading chats…</strong>
+                            </div>
+                        </div>
+                    </aside>
+
+                    <section class="message-conversation">
+                        <div id="messageConversationHeader" class="message-conversation-header d-none">
+                            <div class="message-contact">
+                                <span id="messageContactAvatar" class="message-thread-avatar message-thread-avatar--conversation">M</span>
+                                <div>
+                                    <strong id="messageContactName">Messages</strong>
+                                    <small id="messageConnectionStatus" class="d-block text-muted">Connecting…</small>
+                                </div>
+                            </div>
+                            <div class="dropdown">
+                                <button type="button" class="message-more-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Chat options" title="Chat options">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <circle cx="12" cy="5" r="2"></circle>
+                                        <circle cx="12" cy="12" r="2"></circle>
+                                        <circle cx="12" cy="19" r="2"></circle>
+                                    </svg>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><button id="messageClearChatBtn" class="dropdown-item text-danger" type="button">Clear chat</button></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="message-chat-body" id="messageChatBody">
+                            <div class="messages-chat-empty">
+                                <strong>Loading chat…</strong>
+                            </div>
+                        </div>
+                        <form class="message-composer d-none" id="messageComposer">
+                            <input id="messageInput" type="text" maxlength="2000" placeholder="Type a message" aria-label="Type a message" autocomplete="off" disabled />
+                            <button id="messageSendBtn" type="submit" aria-label="Send message" title="Send message" disabled>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.54 60.54 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.54 60.54 0 0 0 3.478 2.405Z" />
+                                </svg>
+                            </button>
+                        </form>
+                    </section>
+                </section>
+            </main>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_notifications.js' %}?v=20260726-empty-messages"></script>
+    <script src="{% static 'components/js/admin_messages.js' %}?v=20260821-minute-time"></script>
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+

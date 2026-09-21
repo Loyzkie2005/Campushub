@@ -1,0 +1,47 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Facility Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_dashboard.css' %}?v=20260901-domain-analytics" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_analytics.css' %}?v=20260901-domain-analytics" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='facility_analytics' %}
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Facility Analytics' breadcrumb_section='Facilities' breadcrumb_page='Analytics' %}
+            <main class="dashboard-content">
+                <div class="analytics-page container-fluid p-4">
+                    <header class="analytics-page-header">
+                        <div><h1>Facility Analytics</h1><p>Booking, utilization, availability, and payment data from CampusHub facility records.</p></div>
+                        <select class="dash-select" id="facilityPeriodSelect" aria-label="Facility analytics period"><option value="7"{% if facility_days == 7 %} selected{% endif %}>Last 7 Days</option><option value="14"{% if facility_days == 14 %} selected{% endif %}>Last 14 Days</option><option value="30"{% if facility_days == 30 %} selected{% endif %}>Last 30 Days</option></select>
+                    </header>
+                    {{ facility_booking_chart|json_script:"facilityBookingChartData" }}
+                    {{ facility_analytics.revenue_chart|json_script:"facilityRevenueChartData" }}
+                    {{ facility_analytics.availability|json_script:"facilityStatusChartData" }}
+                    <section class="row g-3 facility-analytics-grid">
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex"><div class="dash-card facility-booking-overview h-100"><div class="dash-card-header"><h2>Booking Overview</h2></div><div class="facility-status-summary" aria-label="Booking status totals"><span>Approved <strong id="facilityStatusApproved">{{ facility_analytics.status_totals.approved }}</strong></span><span>Pending <strong id="facilityStatusPending">{{ facility_analytics.status_totals.pending }}</strong></span><span>Completed <strong id="facilityStatusCompleted">{{ facility_analytics.status_totals.completed }}</strong></span><span>Rejected/Cancelled <strong id="facilityStatusCancelled">{{ facility_analytics.status_totals.cancelled }}</strong></span></div><div class="facility-booking-chart-wrap"><canvas id="facilityBookingOverviewChart"></canvas></div></div></div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex"><div class="dash-card facility-utilization-analytics h-100"><div class="dash-card-header"><h2>Facility Utilization</h2></div><p class="facility-metric-note">Approved and completed reserved hours across {{ facility_operating_hours }} operating hours per day.</p><div class="facility-utilization-list" id="facilityUtilizationList">{% for facility in facility_analytics.facilities %}<div class="facility-utilization-row"><div><strong>{{ facility.name }}</strong><span>{{ facility.booked_hours }} booked hours</span></div><div class="facility-utilization-track"><span data-utilization="{{ facility.util_pct }}"></span></div><b>{{ facility.util_pct }}%</b></div>{% empty %}<p class="facility-analytics-empty">No facility data yet.</p>{% endfor %}</div></div></div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex"><div class="dash-card facility-highlight-card h-100"><div class="dash-card-header"><h2>Most Booked Facility</h2></div><div class="facility-highlight-body"><strong id="facilityMostBookedName">{% if facility_analytics.most_booked %}{{ facility_analytics.most_booked.name }}{% else %}No bookings yet{% endif %}</strong><span id="facilityMostBookedCount">{% if facility_analytics.most_booked %}{{ facility_analytics.most_booked.bookings }} approved/completed bookings{% else %}Selected period{% endif %}</span></div></div></div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex"><div class="dash-card facility-upcoming-analytics h-100"><div class="dash-card-header"><h2>Upcoming Reservations</h2><a href="{% url 'admin_calendar_page' %}" class="dash-view-all-link">View Calendar</a></div><div class="facility-upcoming-list">{% for booking in upcoming_booking_rows %}<a href="{% url 'admin_bookings_page' %}" class="facility-upcoming-item"><span class="facility-upcoming-date">{{ booking.date }}</span><div><strong>{{ booking.facility }}</strong><span>{{ booking.time }} &middot; {{ booking.requester }}</span></div></a>{% empty %}<div class="dashboard-empty-state dashboard-empty-state--compact"><p>No approved upcoming bookings.</p></div>{% endfor %}</div></div></div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex"><div class="dash-card facility-availability-card h-100"><div class="dash-card-header"><h2>Facility Status</h2></div><div class="facility-status-layout"><div class="facility-status-chart-wrap"><canvas id="facilityStatusChart"></canvas><div class="facility-status-chart-label"><strong id="facilityStatusTotal">{{ total_facilities }}</strong><span>Facilities</span></div></div><div class="facility-availability-list"><div><span>Open for Booking</span><strong id="facilityAvailabilityAvailable">{{ facility_analytics.availability.available }}</strong></div><div><span>Occupied</span><strong id="facilityAvailabilityOccupied">{{ facility_analytics.availability.occupied }}</strong></div><div><span>Maintenance</span><strong id="facilityAvailabilityMaintenance">{{ facility_analytics.availability.maintenance }}</strong></div><div><span>Blocked</span><strong id="facilityAvailabilityBlocked">{{ facility_analytics.availability.blocked }}</strong></div></div></div><div class="facility-conflict-summary"><span>Schedule conflicts</span><strong id="facilityScheduleConflicts">{{ facility_analytics.schedule_conflicts }}</strong></div></div></div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex"><div class="dash-card facility-revenue-analytics h-100"><div class="dash-card-header"><h2>Facility Revenue</h2></div><div class="facility-revenue-total"><strong id="facilityPeriodRevenue">&#8369;{{ facility_analytics.period_revenue }}</strong><span>Paid facility transactions in the selected period</span></div><div class="facility-revenue-chart-wrap"><canvas id="facilityRevenueChart"></canvas></div>{% if perms.accounts.can_view_reports %}<a href="{% url 'admin_generate_reports_page' %}" class="facility-report-link">View Facility Reports</a>{% endif %}</div></div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+    {% include 'partials/admin_logout_modal.html' %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_dashboard.js' %}?v=20260901-domain-analytics"></script>
+</body>
+</html>

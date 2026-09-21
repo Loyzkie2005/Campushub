@@ -1,0 +1,165 @@
+{% load humanize %}
+<!-- Action counts reuse the existing dashboard totals. -->
+<section class="overview-section" aria-labelledby="attentionTitle" id="attention-required">
+    <div class="overview-heading"><h2 id="attentionTitle">Attention Required</h2></div>
+    <div class="attention-list">
+        {% if perms.accounts.can_manage_products or perms.accounts.can_approve_products %}
+        <a href="{% url 'admin_products_page' %}"><span>Pending Products</span><strong>{{ pending_breakdown.product_approvals }}</strong></a>
+        {% endif %}
+        {% if perms.accounts.can_manage_sellers %}
+        <a href="{% url 'admin_sellers_page' %}?status=pending"><span>Pending Seller Requests</span><strong>{{ pending_breakdown.seller_requests }}</strong></a>
+        {% endif %}
+        {% if perms.accounts.can_manage_bookings or perms.accounts.can_approve_bookings %}
+        <a href="{% url 'admin_bookings_page' %}"><span>Pending Bookings</span><strong>{{ pending_breakdown.facility_bookings }}</strong></a>
+        {% endif %}
+        {% if perms.accounts.can_manage_products %}
+        <a href="{% url 'admin_products_page' %}"><span>Low Stock Products</span><strong>{{ dashboard_stats.low_stock }}</strong></a>
+        {% endif %}
+        {% if perms.accounts.can_manage_schedules %}
+        <a href="{% url 'admin_calendar_page' %}"><span>Schedule Conflicts</span><strong>{{ facility_analytics.schedule_conflicts|default:0 }}</strong></a>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Summary charts retain the original server-generated time buckets. -->
+<section class="overview-section" aria-labelledby="marketplaceTitle">
+    <div class="overview-heading">
+        <h2 id="marketplaceTitle">Marketplace Overview</h2>
+        {% if perms.accounts.can_view_marketplace_analytics %}<a href="{% url 'admin_marketplace_analytics_page' %}">Marketplace Analytics &rarr;</a>{% endif %}
+    </div>
+    <div class="overview-columns">
+        <div class="overview-chart" id="sales-overview-card">
+            <div class="overview-heading">
+                <div><h3>Sales Overview</h3><p>Completed and paid Cash on Pickup orders</p></div>
+                <label class="visually-hidden" for="revenuePeriodSelect">Sales grouping</label>
+                <select id="revenuePeriodSelect" class="overview-select">
+                    <option value="daily"{% if sales_grouping == 'daily' %} selected{% endif %}>Daily</option>
+                    <option value="weekly"{% if sales_grouping == 'weekly' %} selected{% endif %}>Weekly</option>
+                    <option value="monthly"{% if sales_grouping == 'monthly' %} selected{% endif %}>Monthly</option>
+                </select>
+            </div>
+            {% if has_period_sales %}
+            {{ revenue_chart|json_script:'superSalesData' }}
+            <div class="sales-chart-legend"><span><i class="chart-key"></i>Sales (&#8369;)</span><span><i class="chart-key chart-key--orders"></i>Orders</span></div>
+            <div class="overview-chart-canvas"><canvas id="superSalesChart" role="img" aria-label="Sales amount in pesos and completed paid orders by time period"></canvas></div>
+            {% else %}
+            <p class="overview-empty">No marketplace sales in this period.</p>
+            {% endif %}
+        </div>
+        <div class="overview-list">
+            <div class="overview-heading"><h3>Top-Selling Products</h3><span class="overview-note">All time &middot; units sold</span></div>
+            <ol class="ranked-products">
+                {% for product in top_selling_products %}
+                <li><span>{{ product.product_name }}</span><strong>{{ product.total_qty|intcomma }}</strong></li>
+                {% empty %}<li class="overview-empty">No completed product sales yet.</li>{% endfor %}
+            </ol>
+            {% if perms.accounts.can_manage_products %}<a class="overview-footer-link" href="{% url 'admin_products_page' %}">View Products &rarr;</a>{% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="overview-section" aria-labelledby="facilitiesTitle">
+    <div class="overview-heading">
+        <h2 id="facilitiesTitle">Facilities Overview</h2>
+        {% if perms.accounts.can_view_facility_analytics %}<a href="{% url 'admin_facility_analytics_page' %}">Facilities Analytics &rarr;</a>{% endif %}
+    </div>
+    <div class="overview-columns">
+        <div class="overview-chart">
+            <div class="overview-heading">
+                <div><h3>Booking Trend</h3><p>Bookings by scheduled date, all statuses</p></div>
+                <label class="visually-hidden" for="facilityPeriodSelect">Booking period</label>
+                <select id="facilityPeriodSelect" class="overview-select">
+                    <option value="7"{% if facility_days == 7 %} selected{% endif %}>Last 7 Days</option>
+                    <option value="14"{% if facility_days == 14 %} selected{% endif %}>Last 14 Days</option>
+                    <option value="30"{% if facility_days == 30 %} selected{% endif %}>Last 30 Days</option>
+                </select>
+            </div>
+            {% if has_period_bookings %}
+            {{ facility_booking_chart|json_script:'superBookingsData' }}
+            <div class="overview-chart-canvas"><canvas id="superBookingsChart" role="img" aria-label="Total bookings by scheduled date"></canvas></div>
+            {% else %}
+            <p class="overview-empty">{% if has_bookings %}No facility bookings in this period.{% else %}No facility bookings yet.{% endif %}</p>
+            {% endif %}
+        </div>
+        <div class="overview-list">
+            <div class="overview-heading"><h3>Upcoming Reservations</h3>{% if perms.accounts.can_manage_schedules %}<a href="{% url 'admin_calendar_page' %}">Calendar &rarr;</a>{% endif %}</div>
+            <ul class="reservation-list">
+                {% for booking in upcoming_booking_rows|slice:':4' %}
+                <li><strong>{{ booking.facility }}</strong><span>{{ booking.date }} &middot; {{ booking.time }}</span><span>{{ booking.requester }}</span></li>
+                {% empty %}<li class="overview-empty">No upcoming reservations.</li>{% endfor %}
+            </ul>
+            {% if perms.accounts.can_manage_bookings or perms.accounts.can_approve_bookings %}<a class="overview-footer-link" href="{% url 'admin_bookings_page' %}">View All Bookings &rarr;</a>{% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="overview-utilities">
+    <section class="overview-section" aria-labelledby="systemTitle">
+        <div class="overview-heading"><h2 id="systemTitle">System Status</h2></div>
+        <dl class="system-list">
+            <div><dt>Database</dt><dd class="service-state" title="Dashboard records loaded successfully from the database">Online</dd></div>
+            <div><dt>Chat Service</dt><dd class="service-state service-state--checking" id="superChatStatus" data-health-url="{{ chat_health_url }}" aria-live="polite">Checking</dd></div>
+            {% if perms.accounts.can_system_backup %}<div><dt><a href="{% url 'admin_backup_page' %}">Backup &amp; Restore</a></dt><dd class="service-state" title="Backup tools are available to your account; this is not a backup health check">Available</dd></div>{% endif %}
+        </dl>
+    </section>
+    <section class="overview-section" aria-labelledby="quickActionsTitle">
+        <div class="overview-heading"><h2 id="quickActionsTitle">Quick Actions</h2></div>
+        <nav class="quick-actions" aria-label="Quick actions">
+            {% if perms.accounts.can_approve_products or perms.accounts.can_manage_sellers or perms.accounts.can_approve_bookings %}<a href="#attention-required">Review Approvals</a>{% endif %}
+            {% if perms.accounts.can_manage_facilities %}<a href="{% url 'admin_facility_page' %}?action=add">Add Facility</a>{% endif %}
+            {% if perms.accounts.can_view_users or perms.accounts.can_manage_admin_accounts %}<a href="{% url 'admin_users_page' %}">Manage Users</a>{% endif %}
+            {% if perms.accounts.can_generate_reports %}<a href="{% url 'admin_generate_reports_page' %}">Generate Report</a>{% endif %}
+            {% if perms.accounts.can_system_backup %}<a href="{% url 'admin_backup_page' %}">Backup System</a>{% endif %}
+        </nav>
+    </section>
+</div>
+
+<section class="overview-section" aria-labelledby="activityTitle">
+    <div class="overview-heading"><h2 id="activityTitle">Recent Activity</h2>{% if perms.accounts.can_access_notifications %}<a href="{% url 'admin_notifications_page' %}">View All &rarr;</a>{% endif %}</div>
+    <div class="overview-table-wrap">
+        <table class="overview-table activity-table">
+            <thead><tr><th scope="col">Action</th><th scope="col">User</th><th scope="col">Module</th><th scope="col">Timestamp</th></tr></thead>
+            <tbody>
+                {% for item in recent_activities|slice:':8' %}
+                <tr><td>{{ item.title }}</td><td>{{ item.actor|default:'Not recorded' }}</td><td>{% if item.type == 'booking' %}Facilities{% else %}Marketplace{% endif %}</td><td><time datetime="{{ item.sort|date:'c' }}">{{ item.sort|date:'M j, Y g:i A' }}</time></td></tr>
+                {% empty %}<tr><td colspan="4" class="overview-empty">No recent activity yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Secondary operational details remain available without dominating the summary. -->
+<details class="overview-details">
+    <summary>Operational Details <span>Approval queue, low stock, recent orders</span></summary>
+    {% if perms.accounts.can_manage_products or perms.accounts.can_approve_products or perms.accounts.can_manage_sellers or perms.accounts.can_approve_bookings %}
+    <section class="overview-section" aria-labelledby="queueTitle">
+        <div class="overview-heading"><h3 id="queueTitle">Pending Approvals</h3></div>
+        <ul class="approval-list">
+            {% for item in approval_items %}
+            <li><div><strong>{{ item.title }}</strong><span>{{ item.subtitle }}</span></div>
+                {% if item.type == 'product' %}{% if perms.accounts.can_manage_products or perms.accounts.can_approve_products %}<a href="{% url 'admin_products_page' %}">Review</a>{% endif %}
+                {% elif item.type == 'facility' %}{% if perms.accounts.can_manage_bookings or perms.accounts.can_approve_bookings %}<a href="{% url 'admin_bookings_page' %}">Review</a>{% endif %}
+                {% elif perms.accounts.can_manage_sellers %}<a href="{% url 'admin_sellers_page' %}?status=pending">Review</a>{% endif %}
+            </li>
+            {% empty %}<li class="overview-empty">No pending approvals.</li>{% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+    {% if perms.accounts.can_manage_products %}
+    <section class="overview-section" aria-labelledby="lowStockTitle">
+        <div class="overview-heading"><h3 id="lowStockTitle">Low Stock Products</h3><a href="{% url 'admin_products_page' %}">View All &rarr;</a></div>
+        <div class="overview-table-wrap"><table class="overview-table"><thead><tr><th scope="col">Product</th><th scope="col">Seller</th><th scope="col">Stock Left</th></tr></thead><tbody>
+            {% for item in low_stock_products %}<tr><td>{{ item.name }}</td><td>{{ item.seller }}</td><td>{{ item.stock }}</td></tr>{% empty %}<tr><td colspan="3" class="overview-empty">No low stock products.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </section>
+    {% endif %}
+    {% if perms.accounts.can_manage_orders %}
+    <section class="overview-section" aria-labelledby="ordersTitle">
+        <div class="overview-heading"><h3 id="ordersTitle">Recent Orders</h3><a href="{% url 'admin_orders_page' %}">View All &rarr;</a></div>
+        <div class="overview-table-wrap"><table class="overview-table"><thead><tr><th scope="col">Order</th><th scope="col">Product</th><th scope="col">Buyer</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Date</th></tr></thead><tbody>
+            {% for order in recent_orders %}<tr><td>{{ order.code }}</td><td>{{ order.product_name }}</td><td>{{ order.buyer_name }}</td><td>&#8369;{{ order.total|intcomma }}</td><td>{{ order.status }}</td><td>{{ order.date }}</td></tr>{% empty %}<tr><td colspan="6" class="overview-empty">No recent orders yet.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </section>
+    {% endif %}
+</details>
+

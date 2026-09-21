@@ -1,0 +1,5 @@
+.env
+*.pyc
+__pycache__/
+venv/
+core/gmail_local.py

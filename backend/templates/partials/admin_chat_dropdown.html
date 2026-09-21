@@ -1,0 +1,49 @@
+{% load static %}
+<div class="dropdown chat-header-dropdown">
+    <button class="header-icon-btn message-header-btn" type="button" aria-label="Messages" data-bs-toggle="dropdown"
+        data-bs-auto-close="outside" aria-expanded="false">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72A7.152 7.152 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+        </svg>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end chat-header-menu">
+        <div class="chat-header-menu-title">
+            <h2>Messages</h2>
+        </div>
+
+        <div class="chat-header-search">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input id="chatHeaderSearch" type="search" placeholder="Search messages" aria-label="Search messages">
+        </div>
+
+        <div class="chat-header-tabs">
+            <button type="button" class="active" data-chat-filter="all">All</button>
+            <button type="button" data-chat-filter="unseen">Unseen</button>
+        </div>
+
+        <div class="chat-header-list" id="chatHeaderList">
+            <div class="chat-header-empty">
+                <span class="chat-header-empty-icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72A7.152 7.152 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+                    </svg>
+                </span>
+                <strong>No messages</strong>
+            </div>
+        </div>
+
+        <a href="{% url 'admin_messages_page' %}" class="chat-header-see-all">See all Messages</a>
+    </div>
+</div>
+<script defer src="{% static 'components/js/admin_chat_dropdown.js' %}?v=20260727-chat-auth-fix"></script>

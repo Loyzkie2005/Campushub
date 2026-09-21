@@ -1,0 +1,273 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d">
+    <title>CAMPUSHUB | Users</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right">
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
+    <link rel="stylesheet" href="{% static 'components/css/admin_users.css' %}?v=20260827-users-pagination-circle">
+</head>
+<body>
+<div class="sidebar-section">
+    {% include 'partials/admin_sidebar.html' with active_page='users' %}
+
+    <div class="main-wrapper" id="mainWrapper">
+        {% include 'partials/admin_header.html' with page_title='Users' breadcrumb_section='User Management' breadcrumb_page='Users' %}
+
+        <main class="dashboard-content users-page">
+            <div class="container-fluid px-0">
+                {% if messages %}
+                    {% for message in messages %}
+                    <div class="campushub-toast show {% if 'error' in message.tags %}toast-error{% elif 'info' in message.tags %}toast-info{% else %}toast-success{% endif %}" id="pageToast">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                {% endif %}
+
+                <div class="users-page-intro">
+                    <p>Manage all CampusHub user accounts and system access.</p>
+                </div>
+
+                <section class="row g-3 users-summary" aria-label="User account summary">
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="users-stat-card h-100">
+                            <span class="users-stat-icon users-stat-icon-blue" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            </span>
+                            <div><span class="users-stat-label">Total Users</span><strong>{{ total_users }}</strong><small>All registered accounts</small></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="users-stat-card h-100">
+                            <span class="users-stat-icon users-stat-icon-green" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+                            </span>
+                            <div><span class="users-stat-label">Active Users</span><strong>{{ active_users }}</strong><small>Currently active accounts</small></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="users-stat-card h-100">
+                            <span class="users-stat-icon users-stat-icon-gold" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                            </span>
+                            <div><span class="users-stat-label">Pending Sellers</span><strong>{{ pending_sellers }}</strong><small>Awaiting seller approval</small></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="users-stat-card h-100">
+                            <span class="users-stat-icon users-stat-icon-purple" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+                            </span>
+                            <div><span class="users-stat-label">Admin Accounts</span><strong>{{ admin_accounts }}</strong><small>System administrator accounts</small></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="users-card">
+                    <form class="users-toolbar" method="get" id="userFilters">
+                        <div class="users-search-field">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                            <input type="search" name="q" value="{{ filters.q }}" placeholder="Search users..." aria-label="Search users">
+                        </div>
+                        <select name="type" aria-label="Filter by account type">
+                            <option value="">All Types</option>
+                            {% for value, label in account_types %}<option value="{{ value }}" {% if filters.type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                        </select>
+                        <select name="role" aria-label="Filter by role">
+                            <option value="">All Roles</option>
+                            {% for role in roles %}<option value="{{ role.role_name }}" {% if filters.role == role.role_name %}selected{% endif %}>{{ role.role_name }}</option>{% endfor %}
+                        </select>
+                        <select name="status" aria-label="Filter by account status">
+                            <option value="">All Status</option>
+                            <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Active</option>
+                            <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>Deactivated</option>
+                            <option value="suspended" {% if filters.status == 'suspended' %}selected{% endif %}>Suspended</option>
+                        </select>
+                        <select name="department" aria-label="Filter by department">
+                            <option value="">All Departments</option>
+                            {% for department in departments %}<option value="{{ department.id }}" {% if filters.department == department.id|stringformat:'s' %}selected{% endif %}>{{ department.name }}</option>{% endfor %}
+                        </select>
+                        <input type="hidden" name="sort" value="{{ filters.sort }}">
+                        <input type="hidden" name="dir" value="{{ filters.dir }}">
+                        <button class="btn-add-user" type="button" data-bs-toggle="modal" data-bs-target="#userEditor" data-mode="add">
+                            <span aria-hidden="true">+</span> Add User
+                        </button>
+                    </form>
+
+                    <div class="users-table-scroll">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th><button class="sort-button" data-sort="name">User <span>&#8597;</span></button></th>
+                                    <th><button class="sort-button" data-sort="username">Username <span>&#8597;</span></button></th>
+                                    <th><button class="sort-button" data-sort="account_type">Account Type <span>&#8597;</span></button></th>
+                                    <th><button class="sort-button" data-sort="role">Role <span>&#8597;</span></button></th>
+                                    <th><button class="sort-button" data-sort="department">Department <span>&#8597;</span></button></th>
+                                    <th><button class="sort-button" data-sort="seller_access">Seller Access <span>&#8597;</span></button></th>
+                                    <th><button class="sort-button" data-sort="status">Status <span>&#8597;</span></button></th>
+                                    <th><button class="sort-button" data-sort="last_login">Last Login <span>&#8597;</span></button></th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>
+                                        <div class="user-cell">
+                                            <span class="user-avatar">{{ user.initials }}</span>
+                                            <span class="user-identity"><strong>{{ user.full_name }}</strong><small title="{{ user.email }}">{{ user.email }}</small></span>
+                                        </div>
+                                    </td>
+                                    <td class="user-username">{{ user.username }}</td>
+                                    <td><span class="type-badge type-{{ user.account_type }}">{{ user.account_type_label }}</span></td>
+                                    <td><span class="role-value">{{ user.role }}</span></td>
+                                    <td><span class="cell-ellipsis" title="{{ user.department }}">{{ user.department }}</span></td>
+                                    <td>{% if user.account_type == 'admin' %}<span class="seller-access-na" title="Seller access does not apply to administrator accounts">&mdash;</span>{% else %}<span class="seller-badge seller-{{ user.seller_access }}">{{ user.seller_access_label }}</span>{% endif %}</td>
+                                    <td><span class="status-badge status-{{ user.status }}"><i></i>{{ user.status_label }}</span></td>
+                                    <td class="last-login">
+                                        {% if user.last_login %}<strong>{{ user.last_login|date:'M d, Y' }}</strong><small>{{ user.last_login|date:'g:i A' }}</small>{% else %}<span class="never-login">Never</span>{% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="user-actions">
+                                            <button type="button" class="icon-action view-user" title="View user"
+                                                data-user='{"ref":"{{ user.ref|escapejs }}","fullName":"{{ user.full_name|escapejs }}","firstName":"{{ user.first_name|escapejs }}","lastName":"{{ user.last_name|escapejs }}","username":"{{ user.username|escapejs }}","email":"{{ user.email|escapejs }}","contact":"{{ user.contact_number|escapejs }}","accountType":"{{ user.account_type|escapejs }}","accountTypeLabel":"{{ user.account_type_label|escapejs }}","role":"{{ user.role|escapejs }}","department":"{{ user.department|escapejs }}","departmentId":"{{ user.department_id|escapejs }}","seller":"{{ user.seller_access_label|escapejs }}","sellerValue":"{{ user.seller_access|escapejs }}","status":"{{ user.status_label|escapejs }}","isActive":{{ user.is_active|yesno:'true,false' }},"joined":"{{ user.date_joined|date:'M d, Y g:i A'|escapejs }}","lastLogin":"{% if user.last_login %}{{ user.last_login|date:'M d, Y g:i A'|escapejs }}{% else %}Never{% endif %}"}'>
+                                                <svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                                            </button>
+                                            <button type="button" class="icon-action edit-action edit-user" title="Edit user" data-user-ref="{{ user.ref }}">
+                                                <svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+                                            </button>
+                                            <div class="dropdown">
+                                                <button class="icon-action more-action" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" title="More actions">&#8942;</button>
+                                                <ul class="dropdown-menu dropdown-menu-end user-action-menu">
+                                                    {% if user.is_active %}
+                                                        {% if user.can_deactivate %}<li><button class="dropdown-item account-action" data-ref="{{ user.ref }}" data-action="deactivate">Deactivate Account</button></li>{% endif %}
+                                                        {% if user.can_deactivate %}<li><button class="dropdown-item account-action text-danger" data-ref="{{ user.ref }}" data-action="suspend">Suspend Account</button></li>{% endif %}
+                                                    {% else %}
+                                                        <li><button class="dropdown-item account-action" data-ref="{{ user.ref }}" data-action="activate">Activate Account</button></li>
+                                                    {% endif %}
+                                                    <li><button class="dropdown-item reset-password" data-ref="{{ user.ref }}" data-name="{{ user.full_name }}">Reset Password</button></li>
+                                                    <li><button class="dropdown-item edit-user" data-user-ref="{{ user.ref }}">Manage Role</button></li>
+                                                    {% if user.account_type != 'admin' %}<li><button class="dropdown-item seller-access" data-ref="{{ user.ref }}" data-name="{{ user.full_name }}" data-status="{{ user.seller_access }}">Manage Seller Access</button></li>{% endif %}
+                                                    <li><button class="dropdown-item view-user" data-user-ref="{{ user.ref }}">View Activity</button></li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="9" class="users-empty">No users match the selected filters.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <footer class="users-pagination">
+                        <span>Showing {% if paginator.count %}{{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ paginator.count }}{% else %}0{% endif %} users</span>
+                        <nav aria-label="Users pagination">
+                            {% if page_obj.has_previous %}<a class="users-page-nav" href="?{% if query_without_page %}{{ query_without_page }}&{% endif %}page={{ page_obj.previous_page_number }}" aria-label="Previous page">&#8249;</a>{% else %}<span class="users-page-nav disabled" aria-label="Previous page">&#8249;</span>{% endif %}
+                            {% for page_number in paginator.page_range %}
+                                {% if page_number == page_obj.number %}<span class="active">{{ page_number }}</span>
+                                {% elif page_number <= 2 or page_number > paginator.num_pages|add:'-2' or page_number >= page_obj.number|add:'-1' and page_number <= page_obj.number|add:'1' %}<a href="?{% if query_without_page %}{{ query_without_page }}&{% endif %}page={{ page_number }}">{{ page_number }}</a>
+                                {% elif page_number == 3 or page_number == paginator.num_pages|add:'-2' %}<span class="ellipsis">&#8230;</span>{% endif %}
+                            {% endfor %}
+                            {% if page_obj.has_next %}<a class="users-page-nav" href="?{% if query_without_page %}{{ query_without_page }}&{% endif %}page={{ page_obj.next_page_number }}" aria-label="Next page">&#8250;</a>{% else %}<span class="users-page-nav disabled" aria-label="Next page">&#8250;</span>{% endif %}
+                        </nav>
+                    </footer>
+                </section>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div class="modal fade" id="userEditor" tabindex="-1" aria-labelledby="userEditorTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable user-editor-dialog">
+        <div class="modal-content users-modal">
+            <form method="post" action="{% url 'admin_users_save' %}" id="userForm" class="user-editor-form">
+                {% csrf_token %}<input type="hidden" name="account_ref" id="accountRef">
+                <input type="hidden" name="account_type" id="accountType" value="admin">
+                <div class="modal-header">
+                    <div><h2 id="userEditorTitle">Add New User</h2><p id="userEditorSubtitle">Create a new administrator account.</p></div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+            <p class="form-section-title">Account Information</p>
+            <div class="row g-3">
+                <div class="col-sm-6"><label for="firstName">First Name <b>*</b></label><input class="form-control" id="firstName" name="first_name" required></div>
+                <div class="col-sm-6"><label for="lastName">Last Name <b>*</b></label><input class="form-control" id="lastName" name="last_name" required></div>
+                <div class="col-12"><label for="username">Username <b>*</b></label><input class="form-control" id="username" name="username" required autocomplete="off"></div>
+                <div class="col-12"><label for="email">Email Address <b>*</b></label><input class="form-control" id="email" name="email" type="email" required></div>
+                <div class="col-12"><label for="contactNumber">Contact Number</label><input class="form-control" id="contactNumber" name="contact_number" type="tel"></div>
+                <div class="col-12"><label for="role">Admin Role <b>*</b></label><select class="form-select" id="role" name="role" required>{% for role in assignable_roles %}<option value="{{ role.role_name }}" data-admin="{% if role.role_name|lower == 'user' %}false{% else %}true{% endif %}">{{ role.role_name }}</option>{% endfor %}</select></div>
+                <div class="col-12" id="departmentGroup"><label for="department">Department</label><select class="form-select" id="department" name="department"><option value="">Select department</option>{% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}</select></div>
+                <div class="col-12"><label for="password">Password <b class="password-required">*</b></label><input class="form-control" id="password" name="password" type="password" autocomplete="new-password"></div>
+                <div class="col-12 password-rules" id="passwordRules" hidden>
+                    <span data-rule="length">At least 8 characters</span><span data-rule="case">Uppercase and lowercase letters</span><span data-rule="number">At least one number</span><span data-rule="special">At least one special character</span><span data-rule="spaces">No spaces</span>
+                </div>
+                <div class="col-12"><label for="confirmPassword">Confirm Password <b class="password-required">*</b></label><input class="form-control" id="confirmPassword" name="confirm_password" type="password" autocomplete="new-password"><small id="passwordMatch"></small></div>
+            </div>
+            <p class="form-section-title account-status-title">Account Status</p>
+            <div class="form-check form-switch account-active-switch"><input class="form-check-input" type="checkbox" role="switch" id="accountActive" name="is_active" checked><label class="form-check-label" for="accountActive">Account Active</label><small>Active accounts can sign in and access allowed modules.</small></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn-cancel" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn-create-user" id="saveUserButton">Create User</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="offcanvas offcanvas-end user-drawer user-view-drawer" tabindex="-1" id="userViewer" aria-labelledby="userViewerTitle">
+    <div class="offcanvas-header"><div><h2 id="userViewerTitle">User Details</h2><p>Account and access information from CampusHub records.</p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
+    <div class="offcanvas-body"><div class="view-profile"><span id="viewInitials" class="user-avatar large"></span><h3 id="viewFullName"></h3><p id="viewEmail"></p></div><dl class="user-details-list" id="userDetailsList"></dl><div class="activity-summary"><h3>Activity Summary</h3><p>No additional activity summary is available for this account.</p></div></div>
+</div>
+
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content users-modal"><form method="post" action="{% url 'admin_users_action' %}">{% csrf_token %}<input type="hidden" name="account_ref" class="modal-account-ref"><input type="hidden" name="action" value="reset_password"><div class="modal-header"><div><h2>Reset Password</h2><p>Set a new secure password for <strong class="modal-user-name"></strong>.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><label>New Password</label><input class="form-control" type="password" name="password" required><label class="mt-3">Confirm Password</label><input class="form-control" type="password" name="confirm_password" required></div><div class="modal-footer"><button type="button" class="btn-cancel" data-bs-dismiss="modal">Cancel</button><button class="btn-create-user" type="submit">Reset Password</button></div></form></div></div></div>
+
+<div class="modal fade" id="sellerAccessModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content users-modal"><form method="post" action="{% url 'admin_users_action' %}">{% csrf_token %}<input type="hidden" name="account_ref" class="modal-account-ref"><input type="hidden" name="action" value="seller_access"><div class="modal-header"><div><h2>Manage Seller Access</h2><p>Update marketplace access for <strong class="modal-user-name"></strong>.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><label for="sellerStatus">Seller Access</label><select class="form-select" name="seller_status" id="sellerStatus" required><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Suspended</option></select></div><div class="modal-footer"><button type="button" class="btn-cancel" data-bs-dismiss="modal">Cancel</button><button class="btn-create-user" type="submit">Save Access</button></div></form></div></div></div>
+
+<form method="post" action="{% url 'admin_users_action' %}" id="quickActionForm" class="d-none">{% csrf_token %}<input type="hidden" name="account_ref"><input type="hidden" name="action"></form>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const rows = Array.from(document.querySelectorAll('.view-user[data-user]')).map(button => JSON.parse(button.dataset.user));
+    const byRef = Object.fromEntries(rows.map(user => [user.ref, user]));
+    const filterForm = document.getElementById('userFilters');
+    let searchTimer;
+    filterForm.querySelectorAll('select').forEach(select => select.addEventListener('change', () => filterForm.submit()));
+    filterForm.querySelector('input[type="search"]').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => filterForm.submit(), 450); });
+    document.querySelectorAll('.sort-button').forEach(button => button.addEventListener('click', function () {
+        const sort = filterForm.querySelector('[name="sort"]'); const direction = filterForm.querySelector('[name="dir"]');
+        direction.value = sort.value === this.dataset.sort && direction.value === 'asc' ? 'desc' : 'asc'; sort.value = this.dataset.sort; filterForm.submit();
+    }));
+
+    const editorElement = document.getElementById('userEditor'); const editor = bootstrap.Modal.getOrCreateInstance(editorElement);
+    const form = document.getElementById('userForm'); const accountType = document.getElementById('accountType'); const role = document.getElementById('role'); const departmentGroup = document.getElementById('departmentGroup');
+    function refreshConditionalFields() { const needsDepartment = accountType.value === 'student' || accountType.value === 'faculty' || role.value === 'Marketplace Admin' || role.value === 'Facilities Admin'; departmentGroup.hidden = !needsDepartment; document.getElementById('department').required = role.value === 'Marketplace Admin'; }
+    function setRoleOptions() { const adminType = accountType.value === 'admin'; Array.from(role.options).forEach(option => { const unavailable = (option.dataset.admin === 'true') !== adminType; option.hidden = unavailable; option.disabled = unavailable; }); const visible = Array.from(role.options).find(option => !option.hidden && !option.disabled); if (role.selectedOptions[0] && role.selectedOptions[0].disabled && visible) role.value = visible.value; refreshConditionalFields(); }
+    role.addEventListener('change', refreshConditionalFields);
+    function resetEditor() { form.reset(); document.getElementById('accountRef').value = ''; document.getElementById('userEditorTitle').textContent = 'Add New User'; document.getElementById('userEditorSubtitle').textContent = 'Create a new administrator account.'; document.getElementById('saveUserButton').textContent = 'Create User'; document.querySelectorAll('.password-required').forEach(node => node.hidden = false); document.getElementById('password').required = true; document.getElementById('confirmPassword').required = true; document.getElementById('accountActive').checked = true; document.getElementById('passwordRules').hidden = true; document.querySelectorAll('#passwordRules span').forEach(node => node.classList.remove('valid')); document.getElementById('passwordMatch').textContent = ''; accountType.value = 'admin'; setRoleOptions(); }
+    document.querySelector('[data-mode="add"]').addEventListener('click', resetEditor);
+    document.querySelectorAll('.edit-user').forEach(button => button.addEventListener('click', function () { const user = byRef[this.dataset.userRef]; if (!user) return; resetEditor(); document.getElementById('accountRef').value = user.ref; document.getElementById('firstName').value = user.firstName; document.getElementById('lastName').value = user.lastName; document.getElementById('username').value = user.username; document.getElementById('email').value = user.email; document.getElementById('contactNumber').value = user.contact; accountType.value = user.accountType; setRoleOptions(); role.value = user.role; document.getElementById('department').value = user.departmentId; document.getElementById('accountActive').checked = user.isActive; document.getElementById('password').required = false; document.getElementById('confirmPassword').required = false; document.querySelectorAll('.password-required').forEach(node => node.hidden = true); document.getElementById('userEditorTitle').textContent = 'Edit User'; document.getElementById('userEditorSubtitle').textContent = 'Update account details and system access.'; document.getElementById('saveUserButton').textContent = 'Save Changes'; refreshConditionalFields(); editor.show(); }));
+
+    const viewer = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('userViewer'));
+    function showUser(user) { if (!user) return; document.getElementById('viewInitials').textContent = user.firstName.slice(0,1) + user.lastName.slice(0,1); document.getElementById('viewFullName').textContent = user.fullName; document.getElementById('viewEmail').textContent = user.email; const sellerAccess = user.accountType === 'admin' ? '\u2014' : user.seller; const details = [['Username', user.username], ['Contact', user.contact || '-'], ['Account Type', user.accountTypeLabel], ['Role', user.role], ['Department', user.department], ['Seller Access', sellerAccess], ['Account Status', user.status], ['Date Joined', user.joined], ['Last Login', user.lastLogin]]; document.getElementById('userDetailsList').innerHTML = details.map(item => `<div><dt>${item[0]}</dt><dd>${item[1]}</dd></div>`).join(''); viewer.show(); }
+    document.querySelectorAll('.view-user').forEach(button => button.addEventListener('click', function () { showUser(this.dataset.user ? JSON.parse(this.dataset.user) : byRef[this.dataset.userRef]); }));
+
+    document.querySelectorAll('.account-action').forEach(button => button.addEventListener('click', function () { const labels = {activate:'activate', deactivate:'deactivate', suspend:'suspend'}; if (!confirm(`Are you sure you want to ${labels[this.dataset.action]} this account?`)) return; const quick = document.getElementById('quickActionForm'); quick.querySelector('[name="account_ref"]').value = this.dataset.ref; quick.querySelector('[name="action"]').value = this.dataset.action; quick.submit(); }));
+    document.querySelectorAll('.reset-password').forEach(button => button.addEventListener('click', function () { const modal = document.getElementById('resetPasswordModal'); modal.querySelector('.modal-account-ref').value = this.dataset.ref; modal.querySelector('.modal-user-name').textContent = this.dataset.name; bootstrap.Modal.getOrCreateInstance(modal).show(); }));
+    document.querySelectorAll('.seller-access').forEach(button => button.addEventListener('click', function () { const modal = document.getElementById('sellerAccessModal'); modal.querySelector('.modal-account-ref').value = this.dataset.ref; modal.querySelector('.modal-user-name').textContent = this.dataset.name; modal.querySelector('select').value = this.dataset.status === 'not_applied' ? 'pending' : this.dataset.status; bootstrap.Modal.getOrCreateInstance(modal).show(); }));
+
+    const password = document.getElementById('password'); const confirmPassword = document.getElementById('confirmPassword'); const passwordRules = document.getElementById('passwordRules');
+    function validatePasswordUI() { const value = password.value; passwordRules.hidden = value.length === 0; const rules = {length:value.length >= 8, case:/[A-Z]/.test(value) && /[a-z]/.test(value), number:/\d/.test(value), special:/[^A-Za-z0-9\s]/.test(value), spaces:value.length > 0 && !(/\s/.test(value))}; Object.entries(rules).forEach(([name, valid]) => document.querySelector(`[data-rule="${name}"]`).classList.toggle('valid', valid)); const match = document.getElementById('passwordMatch'); match.textContent = confirmPassword.value && value !== confirmPassword.value ? 'Passwords do not match.' : ''; match.className = match.textContent ? 'field-error' : ''; }
+    password.addEventListener('input', validatePasswordUI); confirmPassword.addEventListener('input', validatePasswordUI);
+    form.addEventListener('submit', function (event) { if (password.value && password.value !== confirmPassword.value) { event.preventDefault(); validatePasswordUI(); confirmPassword.focus(); return; } document.getElementById('saveUserButton').disabled = true; });
+    const toast = document.getElementById('pageToast'); if (toast) setTimeout(() => toast.classList.remove('show'), 5000);
+    resetEditor();
+});
+</script>
+</body>
+</html>

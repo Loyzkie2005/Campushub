@@ -1,0 +1,26 @@
+{
+    "kiroAgent.configureMCP": "Disabled",
+    "html.autoClosingTags": false,
+    "cmake.sourceDirectory": "C:/Users/leste/Desktop/CAMPUSHUB/campushub/linux",
+    "files.exclude": {
+        "**/.agents": true,
+        "**/.codex": true,
+        "**/.impeccable": true
+    },
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/core/venv/Scripts/python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/backend/core",
+        "${workspaceFolder}/backend/core/venv/Lib/site-packages"
+    ],
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/backend/core",
+        "${workspaceFolder}/backend/core/venv/Lib/site-packages"
+    ],
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportAttributeAccessIssue": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportMissingImports": "none",
+        "reportMissingModuleSource": "none",
+        "reportUnusedImport": "none"
+    }
+}

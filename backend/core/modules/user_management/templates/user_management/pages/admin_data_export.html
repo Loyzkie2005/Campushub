@@ -1,0 +1,98 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | {{ page_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Roboto:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_data_export.css' %}?v=20260904" />
+</head>
+<body>
+<div class="sidebar-section">
+    {% include 'partials/admin_sidebar.html' with active_page='export_data' %}
+
+    <div class="main-wrapper" id="mainWrapper">
+        {% include 'partials/admin_header.html' with page_title=page_title breadcrumb_section='System' breadcrumb_page='Export Data' %}
+
+        <main class="dashboard-content export-page">
+            <header class="export-heading">
+                <h2>{{ page_title }}</h2>
+                <p>{{ subtitle }}</p>
+            </header>
+
+            {% if messages %}
+            <div class="export-messages" role="status">
+                {% for message in messages %}
+                <div class="campushub-toast show {% if 'error' in message.tags %}toast-error{% else %}toast-success{% endif %}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <section class="export-card" aria-labelledby="export-form-title">
+                <div class="export-card-header">
+                    <div>
+                        <h3 id="export-form-title">Create Export</h3>
+                        <p>Generate a structured archive from the current authorized records.</p>
+                    </div>
+                    <span class="export-scope">{{ scope_label }}</span>
+                </div>
+
+                <form method="post" action="{{ download_url }}" class="export-form">
+                    {% csrf_token %}
+                    <div class="export-fields">
+                        <div class="export-field">
+                            <label for="exportScope">Data scope</label>
+                            <input id="exportScope" type="text" value="{{ scope_label }}" readonly />
+                        </div>
+                        <div class="export-field">
+                            <label for="exportFormat">Export format</label>
+                            <input id="exportFormat" type="text" value="{{ export_format }}" readonly />
+                        </div>
+                        <div class="export-field">
+                            <label for="exportDateFrom">From date <span>(optional)</span></label>
+                            <input id="exportDateFrom" name="date_from" type="date" />
+                        </div>
+                        <div class="export-field">
+                            <label for="exportDateTo">To date <span>(optional)</span></label>
+                            <input id="exportDateTo" name="date_to" type="date" />
+                        </div>
+                    </div>
+
+                    <div class="export-counts" aria-label="Current record counts">
+                        {% for label, count in record_counts.items %}
+                        <div class="export-count">
+                            <span>{{ label }}</span>
+                            <strong>{{ count }}</strong>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="export-notice">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M12 9v4m0 4h.01M10.3 3.8 2.6 17.1A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.9L13.7 3.8a2 2 0 0 0-3.4 0Z" />
+                        </svg>
+                        <p>This is a scoped reference export, not a restorable system backup. It excludes passwords, tokens, sessions, login history, permissions, and system configuration.</p>
+                    </div>
+
+                    <div class="export-actions">
+                        <button type="submit" class="export-button">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                            </svg>
+                            Create Export
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </main>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

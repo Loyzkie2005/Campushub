@@ -1,0 +1,597 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_dashboard.css' %}?v=20260823-facility-analytics" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_sales_overview.css' %}?v=20260920-marketplace-panels" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="sidebar-section">
+
+        {% include 'partials/admin_sidebar.html' with active_page='dashboard' %}
+
+        <!-- Main -->
+        <div class="main-wrapper" id="mainWrapper">
+
+            <!-- Header -->
+            {% include 'partials/admin_header.html' with page_title='Dashboard' %}
+
+            <!-- Content -->
+            <main class="dashboard-content">
+                <div class="container-fluid py-4 px-4">
+                    <div class="dashboard-section-heading dashboard-section-heading--first">
+                        <h2>System Overview</h2>
+                        <time datetime="{{ dashboard_updated_at|date:'c' }}">Updated {{ dashboard_updated_at|date:"M d, Y g:i A" }}</time>
+                    </div>
+                    <section class="dashboard-stats-grid row g-3">
+                        {% if not is_marketplace_admin %}
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-blue">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>{{ dashboard_stats.total_users|default:0 }}</strong>
+                                    <span>Total Users</span>
+                                </div>
+                            </article>
+                        </div>
+                        {% endif %}
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-green">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l4.071-4.071A1.5 1.5 0 0 1 9.06 3h5.88a1.5 1.5 0 0 1 1.06.44l4.071 4.071a3 3 0 0 1-.621 4.72" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>{{ dashboard_stats.active_sellers|default:0 }}</strong>
+                                    <span>Active Sellers</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-purple">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>{{ dashboard_stats.total_products|default:0 }}</strong>
+                                    <span>Total Products</span>
+                                </div>
+                            </article>
+                        </div>
+                        {% if not is_marketplace_admin %}
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-amber">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>{{ dashboard_stats.total_facilities|default:0 }}</strong>
+                                    <span>Total Facilities</span>
+                                </div>
+                            </article>
+                        </div>
+                        {% endif %}
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-red">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>{{ dashboard_stats.total_orders|default:0 }}</strong>
+                                    <span>Total Orders</span>
+                                </div>
+                            </article>
+                        </div>
+                        {% if not is_marketplace_admin %}
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-teal">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>{{ dashboard_stats.total_bookings|default:0 }}</strong>
+                                    <span>Total Bookings</span>
+                                </div>
+                            </article>
+                        </div>
+                        {% else %}
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-orange">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>{{ dashboard_stats.low_stock|default:0 }}</strong>
+                                    <span>Low Stock Alerts</span>
+                                </div>
+                            </article>
+                        </div>
+                        {% endif %}
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-emerald">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>&#8369; {{ dashboard_stats.total_revenue|default:"0.00" }}</strong>
+                                    <span>{% if user.is_superuser or user.role|lower == 'super admin' %}Marketplace Revenue{% else %}All-Time Marketplace Revenue{% endif %}</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-orange">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>{{ dashboard_stats.pending_approvals|default:0 }}</strong>
+                                    <span>Pending Approvals</span>
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+                    {% if not is_marketplace_admin %}
+                    <section class="dash-card dashboard-system-services mt-3" aria-labelledby="systemStatusTitle">
+                        <div class="dash-card-header dashboard-system-services-header">
+                            <h2 id="systemStatusTitle">System Status</h2>
+                            <a href="{% url 'admin_settings_page' %}" class="dash-view-all-link">Manage Settings</a>
+                        </div>
+                        <div class="dashboard-service-list">
+                            <div class="dashboard-service-item">
+                                <span class="dashboard-service-icon dashboard-service-icon--database" aria-hidden="true"></span>
+                                <div><strong>Database</strong><span>Connected</span></div>
+                                <span class="dashboard-service-state dashboard-service-state--online">Online</span>
+                            </div>
+                            <div class="dashboard-service-item">
+                                <span class="dashboard-service-icon dashboard-service-icon--chat" aria-hidden="true"></span>
+                                <div><strong>Chat Service</strong><span>FastAPI messaging</span></div>
+                                <span class="dashboard-service-state" id="chatServiceStatus" data-health-url="{{ chat_health_url }}">Checking</span>
+                            </div>
+                            <a class="dashboard-service-item dashboard-service-item--link" href="{% url 'admin_backup_page' %}">
+                                <span class="dashboard-service-icon dashboard-service-icon--backup" aria-hidden="true"></span>
+                                <div><strong>Backup &amp; Restore</strong><span>System data tools</span></div>
+                                <span class="dashboard-service-action">Open</span>
+                            </a>
+                        </div>
+                    </section>
+                    {% endif %}
+
+                    <!-- Row 1: Sales Overview | Top Selling Product | Product Categories -->
+                    {{ revenue_chart|json_script:"revenueChartData" }}
+                    <div class="dashboard-section-heading"><h2>Marketplace Analytics</h2></div>
+                    <section class="row g-3 mt-3 dash-overview-row">
+                        <div class="col-12 col-xl-6">
+                            {% include 'dashboard/partials/sales_overview.html' %}
+                        </div>
+                        <div class="col-12 col-xl-3 d-flex" id="marketplaceAnalyticsSlot">
+                            <div class="dash-card dash-card-overview dashboard-top-selling h-100">
+                                <div class="dash-card-header">
+                                    <h2>Top-Selling Product</h2>
+                                    <a href="{% url 'admin_products_page' %}" class="dash-view-all-link">View Products</a>
+                                </div>
+                                <div class="dashboard-top-selling-body">
+                                    <span class="dashboard-top-selling-icon" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"/></svg>
+                                    </span>
+                                    <span class="dashboard-top-selling-label">Based on completed marketplace sales</span>
+                                    <strong>{{ dashboard_stats.best_selling|default:"—" }}</strong>
+                                    {% if dashboard_stats.best_selling == "—" %}
+                                    <p>No completed product sales yet.</p>
+                                    {% else %}
+                                    <p>Current all-time sales leader</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-3 d-flex" id="productCategoriesSlot">
+                            <div class="dash-card dash-card-categories dash-card-equal h-100">
+                                <div class="dash-card-header"><h2>Product Categories</h2></div>
+                                <div class="top-categories-chart top-categories-stacked">
+                                    <div class="donut-chart">
+                                        <svg viewBox="0 0 120 120" aria-hidden="true">
+                                            {% if top_categories %}
+                                            {% for cat in top_categories %}
+                                            <circle cx="60" cy="60" r="50" fill="none" stroke="{{ cat.color }}" stroke-width="20"
+                                                stroke-dasharray="{{ cat.dasharray }}" stroke-dashoffset="{{ cat.dashoffset }}"
+                                                transform="rotate(-90 60 60)"></circle>
+                                            {% endfor %}
+                                            {% else %}
+                                            <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="20"></circle>
+                                            {% endif %}
+                                        </svg>
+                                        <div class="donut-center-label">
+                                            <strong>{{ category_total|default:0 }}</strong>
+                                            <span>{% if category_total == 1 %}Product{% else %}Products{% endif %}</span>
+                                        </div>
+                                    </div>
+                                    <div class="category-legend category-legend-below">
+                                        {% for cat in top_categories %}
+                                        <div class="legend-item">
+                                            <span class="legend-dot" data-color="{{ cat.color }}"></span>
+                                            <span class="legend-name">{% firstof cat.category cat.name %}</span>
+                                            <strong class="legend-count">{{ cat.count }}</strong>
+                                        </div>
+                                        {% empty %}
+                                        <p class="text-muted" style="font-size:0.82rem; margin:0;">No product categories yet.</p>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {% if not is_marketplace_admin %}
+                    {{ facility_booking_chart|json_script:"facilityBookingChartData" }}
+                    {{ facility_analytics.revenue_chart|json_script:"facilityRevenueChartData" }}
+                    {{ facility_analytics.availability|json_script:"facilityStatusChartData" }}
+                    <div class="dashboard-section-heading dashboard-facilities-heading mt-4">
+                        <h2>Facilities Analytics</h2>
+                        <div class="dashboard-section-actions">
+                            <select class="dash-select" id="facilityPeriodSelect" aria-label="Facility analytics period">
+                                <option value="7"{% if facility_days == 7 %} selected{% endif %}>Last 7 Days</option>
+                                <option value="14"{% if facility_days == 14 %} selected{% endif %}>Last 14 Days</option>
+                                <option value="30"{% if facility_days == 30 %} selected{% endif %}>Last 30 Days</option>
+                            </select>
+                            <a href="{% url 'admin_facility_page' %}" class="dash-view-all-link">Manage Facilities</a>
+                        </div>
+                    </div>
+                    <section class="row g-3 mt-2 facility-analytics-grid">
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-booking-overview h-100">
+                                <div class="dash-card-header"><h2>Booking Overview</h2></div>
+                                <div class="facility-status-summary" aria-label="Booking status totals">
+                                    <span><i class="facility-status-dot facility-status-dot--approved"></i>Approved <strong id="facilityStatusApproved">{{ facility_analytics.status_totals.approved }}</strong></span>
+                                    <span><i class="facility-status-dot facility-status-dot--pending"></i>Pending <strong id="facilityStatusPending">{{ facility_analytics.status_totals.pending }}</strong></span>
+                                    <span><i class="facility-status-dot facility-status-dot--completed"></i>Completed <strong id="facilityStatusCompleted">{{ facility_analytics.status_totals.completed }}</strong></span>
+                                    <span><i class="facility-status-dot facility-status-dot--cancelled"></i>Rejected/Cancelled <strong id="facilityStatusCancelled">{{ facility_analytics.status_totals.cancelled }}</strong></span>
+                                </div>
+                                <div class="facility-booking-chart-wrap"><canvas id="facilityBookingOverviewChart"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-utilization-analytics h-100">
+                                <div class="dash-card-header"><h2>Facility Utilization</h2></div>
+                                <p class="facility-metric-note">Approved and completed reserved hours across {{ facility_operating_hours }} operating hours per day.</p>
+                                <div class="facility-utilization-list" id="facilityUtilizationList">
+                                    {% for facility in facility_analytics.facilities %}
+                                    <div class="facility-utilization-row">
+                                        <div><strong>{{ facility.name }}</strong><span>{{ facility.booked_hours }} booked hours</span></div>
+                                        <div class="facility-utilization-track"><span data-utilization="{{ facility.util_pct }}"></span></div>
+                                        <b>{{ facility.util_pct }}%</b>
+                                    </div>
+                                    {% empty %}
+                                    <p class="facility-analytics-empty">No facility data yet.</p>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-highlight-card h-100">
+                                <div class="dash-card-header"><h2>Most Booked Facility</h2></div>
+                                <div class="facility-highlight-body">
+                                    <span class="facility-highlight-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4Zm0 2H4v2a4 4 0 0 0 4 4m9-6h3v2a4 4 0 0 1-4 4"/></svg>
+                                    </span>
+                                    <strong id="facilityMostBookedName">{% if facility_analytics.most_booked %}{{ facility_analytics.most_booked.name }}{% else %}No bookings yet{% endif %}</strong>
+                                    <span id="facilityMostBookedCount">{% if facility_analytics.most_booked %}{{ facility_analytics.most_booked.bookings }} approved/completed bookings{% else %}Selected period{% endif %}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-upcoming-analytics h-100">
+                                <div class="dash-card-header"><h2>Upcoming Reservations</h2><a href="{% url 'admin_calendar_page' %}" class="dash-view-all-link">View Calendar</a></div>
+                                <div class="facility-upcoming-list">
+                                    {% for booking in upcoming_booking_rows %}
+                                    <a href="{% url 'admin_bookings_page' %}" class="facility-upcoming-item">
+                                        <span class="facility-upcoming-date">{{ booking.date }}</span>
+                                        <div><strong>{{ booking.facility }}</strong><span>{{ booking.time }} &middot; {{ booking.requester }}</span></div>
+                                    </a>
+                                    {% empty %}
+                                    <div class="dashboard-empty-state dashboard-empty-state--compact"><p>No approved upcoming bookings.</p></div>
+                                    {% endfor %}
+                                </div>
+                                <a href="{% url 'admin_bookings_page' %}" class="facility-upcoming-all">View All Bookings</a>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-availability-card h-100">
+                                <div class="dash-card-header"><h2>Facility Status</h2></div>
+                                <div class="facility-status-layout">
+                                    <div class="facility-status-chart-wrap">
+                                        <canvas id="facilityStatusChart"></canvas>
+                                        <div class="facility-status-chart-label"><strong id="facilityStatusTotal">{{ dashboard_stats.total_facilities }}</strong><span>Facilities</span></div>
+                                    </div>
+                                    <div class="facility-availability-list">
+                                        <div><span><i class="facility-availability-dot facility-availability-dot--available"></i>Available</span><strong id="facilityAvailabilityAvailable">{{ facility_analytics.availability.available }}</strong></div>
+                                        <div><span><i class="facility-availability-dot facility-availability-dot--occupied"></i>Occupied</span><strong id="facilityAvailabilityOccupied">{{ facility_analytics.availability.occupied }}</strong></div>
+                                        <div><span><i class="facility-availability-dot facility-availability-dot--maintenance"></i>Maintenance</span><strong id="facilityAvailabilityMaintenance">{{ facility_analytics.availability.maintenance }}</strong></div>
+                                        <div><span><i class="facility-availability-dot facility-availability-dot--blocked"></i>Blocked</span><strong id="facilityAvailabilityBlocked">{{ facility_analytics.availability.blocked }}</strong></div>
+                                    </div>
+                                </div>
+                                <div class="facility-conflict-summary">
+                                    <span>Schedule conflicts</span><strong id="facilityScheduleConflicts">{{ facility_analytics.schedule_conflicts }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            <div class="dash-card facility-revenue-analytics h-100">
+                                <div class="dash-card-header"><h2>Facility Revenue</h2></div>
+                                <div class="facility-revenue-total">
+                                    <strong id="facilityPeriodRevenue">&#8369;{{ facility_analytics.period_revenue }}</strong>
+                                    <span>Paid facility transactions in the selected period</span>
+                                </div>
+                                <div class="facility-revenue-chart-wrap"><canvas id="facilityRevenueChart"></canvas></div>
+                                <a href="{% url 'admin_generate_reports_page' %}" class="facility-report-link">View Facility Reports</a>
+                            </div>
+                        </div>
+                    </section>
+                    {% endif %}
+
+                    <!-- Recent Activities -->
+                    <section class="row g-3 mt-3 dash-row-equal">
+                        <div class="col-12 dashboard-analytics-recent d-flex">
+                            <div class="dash-card dash-card-overview dash-card-equal h-100 d-flex flex-column">
+                                <div class="dash-card-header">
+                                    <h2>Recent Activities</h2>
+                                </div>
+                                <div class="activity-feed flex-grow-1">
+                                    {% for item in recent_activities %}
+                                    <article class="activity-feed-item">
+                                        <span class="activity-feed-icon activity-feed-icon--{{ item.type }}" aria-hidden="true">
+                                            {% if item.type == 'seller' %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l4.071-4.071A1.5 1.5 0 0 1 9.06 3h5.88a1.5 1.5 0 0 1 1.06.44l4.071 4.071a3 3 0 0 1-.621 4.72"/></svg>
+                                            {% elif item.type == 'product' %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z"/></svg>
+                                            {% elif item.type == 'product_pending' %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-6.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75"/></svg>
+                                            {% elif item.type == 'booking' %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                                            {% else %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
+                                            {% endif %}
+                                        </span>
+                                        <div class="activity-feed-body">
+                                            <strong>{{ item.title }}</strong>
+                                            <span>{{ item.subtitle }}</span>
+                                        </div>
+                                        <time class="activity-feed-time">{{ item.time }}</time>
+                                    </article>
+                                    {% empty %}
+                                    <p class="activity-feed-empty">No recent activities yet.</p>
+                                    {% endfor %}
+                                </div>
+                                <div class="activity-view-all-wrap">
+                                    <a href="{% url 'admin_notifications_page' %}" class="activity-view-all-btn">View All Activities</a>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Row 3: Action Center | Low Stock Products -->
+                    <section class="row g-3 mt-3">
+                        <div class="col-12 col-xl-7 d-flex" id="pendingApprovalsSlot">
+                            <div class="dash-card dashboard-action-center h-100">
+                                <div class="dash-card-header">
+                                    <h2>Pending Approvals</h2>
+                                    <a href="{% url 'admin_notifications_page' %}" class="dash-view-all-link">View All</a>
+                                </div>
+                                <div class="approval-summary" aria-label="Pending approval totals">
+                                    <a href="{% url 'admin_products_page' %}" class="approval-summary-item">
+                                        <span class="approval-summary-icon approval-summary-icon--product" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z"/></svg>
+                                        </span>
+                                        <span class="approval-summary-copy"><span>Products</span><small>Pending</small></span>
+                                        <strong>{{ pending_breakdown.product_approvals|default:0 }}</strong>
+                                    </a>
+                                    {% if not is_marketplace_admin %}
+                                    <a href="{% url 'admin_notifications_page' %}" class="approval-summary-item">
+                                        <span class="approval-summary-icon approval-summary-icon--seller" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.118a7.5 7.5 0 0 1 15 0A17.93 17.93 0 0 1 12 21.75c-2.676 0-5.216-.584-7.5-1.632Z"/></svg>
+                                        </span>
+                                        <span class="approval-summary-copy"><span>Sellers</span><small>Pending</small></span>
+                                        <strong>{{ pending_breakdown.seller_requests|default:0 }}</strong>
+                                    </a>
+                                    <a href="{% url 'admin_bookings_page' %}" class="approval-summary-item">
+                                        <span class="approval-summary-icon approval-summary-icon--booking" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 9h18M5.25 5.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25A2.25 2.25 0 0 1 18.75 21H5.25A2.25 2.25 0 0 1 3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25Z"/></svg>
+                                        </span>
+                                        <span class="approval-summary-copy"><span>Bookings</span><small>Pending</small></span>
+                                        <strong>{{ pending_breakdown.facility_bookings|default:0 }}</strong>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                                {% if approval_items %}
+                                <div class="approval-queue">
+                                    {% for item in approval_items %}
+                                    <article class="approval-queue-item">
+                                        <span class="approval-queue-icon approval-queue-icon--{{ item.type }}" aria-hidden="true">
+                                            {% if item.type == 'product' %}
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z"/></svg>
+                                            {% elif item.type == 'seller' %}
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.118a7.5 7.5 0 0 1 15 0A17.93 17.93 0 0 1 12 21.75c-2.676 0-5.216-.584-7.5-1.632Z"/></svg>
+                                            {% else %}
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 9h18M5.25 5.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25A2.25 2.25 0 0 1 18.75 21H5.25A2.25 2.25 0 0 1 3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25Z"/></svg>
+                                            {% endif %}
+                                        </span>
+                                        <div class="approval-queue-body">
+                                            <strong>{{ item.title }}</strong>
+                                            <span>{{ item.subtitle }}</span>
+                                        </div>
+                                        <time>{{ item.time }}</time>
+                                        {% if item.type == 'product' %}
+                                        <a href="{% url 'admin_products_page' %}" class="approval-review-link">Review</a>
+                                        {% elif item.type == 'booking' %}
+                                        <a href="{% url 'admin_bookings_page' %}" class="approval-review-link">Review</a>
+                                        {% else %}
+                                        <a href="{% url 'admin_notifications_page' %}" class="approval-review-link">Review</a>
+                                        {% endif %}
+                                    </article>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-5 d-flex" id="lowStockSlot">
+                            <div class="dash-card dash-card-low-stock h-100">
+                                <div class="dash-card-header">
+                                    <h2>Low Stock Products</h2>
+                                    <a href="{% url 'admin_products_page' %}" class="dash-view-all-link">View All</a>
+                                </div>
+                                <div class="table-responsive low-stock-table-wrap">
+                                    <table class="low-stock-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Product</th>
+                                                <th>Category</th>
+                                                <th class="text-end">Stock Left</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in low_stock_products %}
+                                            <tr>
+                                                <td>
+                                                    <div class="low-stock-product-cell">
+                                                        {% if item.image_url %}
+                                                        <img src="{{ item.image_url }}" alt="" width="36" height="36">
+                                                        {% else %}
+                                                        <span class="low-stock-thumb-empty" aria-hidden="true"></span>
+                                                        {% endif %}
+                                                        <strong>{{ item.name }}</strong>
+                                                    </div>
+                                                </td>
+                                                <td>{{ item.category }}</td>
+                                                <td class="text-end low-stock-qty">{{ item.stock }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr>
+                                                <td colspan="3" class="low-stock-empty">No low stock products.</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Row 4: Recent Orders -->
+                    <section class="row g-3 mt-3">
+                        <div class="col-12 d-flex" id="recentOrdersSlot">
+                            <div class="dash-card dash-card-recent-orders h-100">
+                                <div class="dash-card-header">
+                                    <h2>Recent Orders</h2>
+                                    <a href="{% url 'admin_orders_page' %}" class="dash-view-all-link">View All</a>
+                                </div>
+                                <div class="table-responsive recent-orders-table-wrap">
+                                    <table class="recent-orders-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Order ID</th>
+                                                <th>Product</th>
+                                                <th>Buyer</th>
+                                                <th class="text-end">Amount</th>
+                                                <th>Status</th>
+                                                <th>Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for order in recent_orders %}
+                                            <tr>
+                                                <td class="recent-order-code">{{ order.code }}</td>
+                                                <td>
+                                                    <div class="recent-order-product">
+                                                        {% if order.image_url %}
+                                                        <img class="recent-order-thumb" src="{{ order.image_url }}" alt="" width="38" height="38">
+                                                        {% else %}
+                                                        <span class="recent-order-thumb recent-order-thumb--empty" aria-hidden="true"></span>
+                                                        {% endif %}
+                                                        <strong>{{ order.product_name }}</strong>
+                                                    </div>
+                                                </td>
+                                                <td>{{ order.buyer_name }}</td>
+                                                <td class="text-end recent-order-amount">&#8369;{{ order.total }}</td>
+                                                <td><span class="status-pill status-{{ order.status_key }}">{{ order.status }}</span></td>
+                                                <td class="recent-order-date">{{ order.date }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="6" class="recent-orders-empty">No recent orders yet.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+            </main>
+        </div>
+
+    </div>
+
+    <div class="modal fade logout-modal" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content logout-card">
+                <div class="logout-card-body">
+                    <button type="button" class="logout-close" data-bs-dismiss="modal" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 162 162"
+                            class="logout-close-icon" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-width="17" stroke="currentColor"
+                                d="M9.01074 8.98926L153.021 153"></path>
+                            <path stroke-linecap="round" stroke-width="17" stroke="currentColor"
+                                d="M9.01074 153L153.021 8.98926"></path>
+                        </svg>
+                    </button>
+                    <p class="logout-heading" id="logoutModalLabel">Logout</p>
+                    <p class="logout-copy">
+                        Are you sure you want to logout?
+                    </p>
+                    <div class="logout-actions">
+                        <a href="{% url 'admin_login_page' %}" class="logout-button logout-button-primary">Yes</a>
+                        <button type="button" class="logout-button logout-button-secondary"
+                            data-bs-dismiss="modal">No</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_notifications.js' %}?v=20260726-empty-messages"></script>
+    <script src="{% static 'components/js/admin_dashboard.js' %}?v=20260904-offset-zero"></script>
+    <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20260920-graph-bigger-rect"></script>
+</body>
+
+</html>
+

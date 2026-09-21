@@ -1,0 +1,758 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/static/assets/img/icon.png?v=20260529d" />
+    <title>CampusHub | Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/components/css/admin_layout.css?v=20260728-split" />
+    <link rel="stylesheet" href="/static/components/css/admin_header_menus.css?v=20260728-split" />
+    <link rel="stylesheet" href="/static/components/css/admin_dashboard.css?v=20260823-facility-analytics" />
+    
+    <link rel="stylesheet" href="/static/components/css/admin_super_dashboard.css?v=20260919" />
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body class="super-admin-page">
+    <div class="sidebar-section">
+
+        
+<aside class="sidebar" id="sidebar">
+    <script>
+        if (sessionStorage.getItem('sidebar_collapsed') === 'true') {
+            document.documentElement.classList.add('sidebar-is-collapsed');
+        }
+    </script>
+    <div class="sidebar-logo">
+        <img src="/static/assets/img/icon.png?v=20260912" alt="CampusHub" class="sidebar-icon-img" /><span class="sidebar-logo-text"><span class="logo-campus">Campus</span><span class="logo-hub">Hub</span></span>
+    </div>
+    <hr class="sidebar-divider">
+
+    <nav class="sidebar-nav">
+        <!-- Dashboard (always visible, no group) -->
+        <a href="/admin-dashboard/" class="sidebar-item active">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+            </svg>
+            <span class="item-label">Dashboard</span>
+        </a>
+
+        <!-- Marketplace -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">Marketplace</span>
+            </button>
+            <div class="nav-group-items">
+                
+                <a href="/admin-products/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" />
+                    </svg>
+                    <span class="item-label">Products</span>
+                </a>
+                
+                
+                <a href="/admin-orders/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
+                    </svg>
+                    <span class="item-label">Orders</span>
+                </a>
+                
+                
+                
+            </div>
+        </div>
+        
+
+        <!-- User Management -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">User Management</span>
+            </button>
+            <div class="nav-group-items">
+                
+                <a href="/admin-users/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                    </svg>
+                    <span class="item-label">Users</span>
+                </a>
+                
+                
+                <a href="/admin-roles/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                    </svg>
+                    <span class="item-label">Roles & Permissions</span>
+                </a>
+                
+                
+                <a href="/admin-user-monitoring/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
+                    </svg>
+                    <span class="item-label">User Monitoring</span>
+                </a>
+                
+            </div>
+        </div>
+        
+
+        <!-- Facilities -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">Facilities</span>
+            </button>
+            <div class="nav-group-items">
+                
+                <a href="/admin-facility/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+                    </svg>
+                    <span class="item-label">Facilities</span>
+                </a>
+                
+                
+                <a href="/admin-bookings/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 8.25h18M4.5 5.25h15A1.5 1.5 0 0121 6.75v12A1.5 1.5 0 0119.5 20.25h-15A1.5 1.5 0 013 18.75v-12A1.5 1.5 0 014.5 5.25zM9 13.5l2.25 2.25L15 12" />
+                    </svg>
+                    <span class="item-label">Bookings</span>
+                </a>
+                
+                
+                <a href="/admin-calendar/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 8.25h16.5M5.25 5.25h13.5A1.5 1.5 0 0 1 20.25 6.75v12a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-12a1.5 1.5 0 0 1 1.5-1.5Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 12h.008v.008H8.25V12Zm3.75 0h.008v.008H12V12Zm3.75 0h.008v.008h-.008V12Zm-7.5 3.75h.008v.008H8.25v-.008Zm3.75 0h.008v.008H12v-.008Z" />
+                    </svg>
+                    <span class="item-label">Calendar</span>
+                </a>
+                
+                
+            </div>
+        </div>
+        
+
+        <!-- Reports -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">Reports</span>
+            </button>
+            <div class="nav-group-items">
+                <a href="/admin-generate-reports/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m5.25 10.5H3.75A2.25 2.25 0 0 1 1.5 18V6A2.25 2.25 0 0 1 3.75 3.75h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25Z" />
+                    </svg>
+                    <span class="item-label">
+                        Generate Reports
+                    </span>
+                </a>
+            </div>
+        </div>
+        
+
+        <!-- System Settings -->
+        
+        <div class="nav-group">
+            <button type="button" class="nav-group-toggle" aria-expanded="false">
+                <span class="nav-group-chevron">&#9656;</span>
+                <span class="nav-group-title">System Settings</span>
+            </button>
+            <div class="nav-group-items">
+                
+                <a href="/admin-messages/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72A7.152 7.152 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+                    </svg>
+                    <span class="item-label">Messages</span>
+                </a>
+                
+                
+                <a href="/admin-notifications/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                    </svg>
+                    <span class="item-label">Notifications</span>
+                </a>
+                
+                
+                <a href="/admin-settings/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
+                    <span class="item-label">Settings</span>
+                </a>
+                
+                
+                
+                <a href="/admin-backup/" class="sidebar-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
+                    </svg>
+                    <span class="item-label">Backup & Restore</span>
+                </a>
+                
+                
+            </div>
+        </div>
+        
+    </nav>
+
+    <!-- Bottom -->
+    <div class="sidebar-bottom">
+        <a href="#" class="sidebar-item" data-bs-toggle="modal" data-bs-target="#logoutModal">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+            </svg>
+            <span class="item-label">Logout</span>
+        </a>
+    </div>
+</aside>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var sidebar = document.getElementById('sidebar');
+    var mainWrapper = document.getElementById('mainWrapper');
+    localStorage.removeItem('campushub_sidebar_collapsed');
+    localStorage.removeItem('sidebar_collapsed');
+    document.documentElement.classList.remove('sidebar-is-collapsed', 'sidebar-user-toggling');
+    var isInitiallyCollapsed = sessionStorage.getItem('sidebar_collapsed') === 'true';
+    document.documentElement.classList.toggle('sidebar-is-collapsed', isInitiallyCollapsed);
+    if (sidebar) sidebar.classList.toggle('collapsed', isInitiallyCollapsed);
+    if (mainWrapper) mainWrapper.classList.toggle('expanded', isInitiallyCollapsed);
+
+    // Sidebar collapse toggle
+    var sidebarToggle = document.getElementById('sidebarToggle');
+    if (sidebarToggle) {
+        sidebarToggle.setAttribute('aria-expanded', isInitiallyCollapsed ? 'false' : 'true');
+    }
+    if (sidebarToggle && sidebarToggle.dataset.sidebarBound !== 'true') {
+        sidebarToggle.dataset.sidebarBound = 'true';
+        sidebarToggle.addEventListener('click', function() {
+            document.documentElement.classList.add('sidebar-user-toggling');
+            var isCollapsed = sidebar ? sidebar.classList.toggle('collapsed') : false;
+            if (mainWrapper) mainWrapper.classList.toggle('expanded', isCollapsed);
+            document.documentElement.classList.toggle('sidebar-is-collapsed', isCollapsed);
+            sidebarToggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+            sessionStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
+            setTimeout(function() {
+                document.documentElement.classList.remove('sidebar-user-toggling');
+            }, 300);
+        });
+    }
+
+    // Collapsible sidebar groups
+    document.querySelectorAll('.nav-group-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var group = btn.closest('.nav-group');
+            var isOpen = group.classList.contains('open');
+            if (isOpen) {
+                group.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            } else {
+                group.classList.add('open');
+                btn.setAttribute('aria-expanded', 'true');
+            }
+        });
+    });
+
+    // Restore and save scroll position
+    var sidebarNav = document.querySelector('.sidebar-nav');
+    if (sidebarNav) {
+        var savedScrollTop = sessionStorage.getItem('sidebar_scroll_top');
+        if (savedScrollTop !== null) {
+            sidebarNav.scrollTop = parseInt(savedScrollTop, 10);
+        }
+        var activeItem = sidebarNav.querySelector('.sidebar-item.active');
+        if (activeItem && savedScrollTop === null) {
+            activeItem.scrollIntoView({ block: 'nearest' });
+        }
+        sidebarNav.addEventListener('scroll', function() {
+            sessionStorage.setItem('sidebar_scroll_top', sidebarNav.scrollTop);
+        });
+    }
+});
+</script>
+
+
+        <!-- Main -->
+        <div class="main-wrapper" id="mainWrapper">
+
+            <!-- Header -->
+            
+<header class="dashboard-header" data-admin-user-id="71">
+    <div class="header-left">
+        <button type="button" class="header-hamburger" id="sidebarToggle" aria-label="Toggle sidebar" aria-expanded="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />
+            </svg>
+        </button>
+        <div class="header-title-group">
+            <h1 class="header-page-title">Dashboard</h1>
+            <nav class="admin-breadcrumb" aria-label="Breadcrumb">
+                
+                
+                
+            </nav>
+        </div>
+    </div>
+    <div class="header-right">
+        
+<div class="dropdown chat-header-dropdown">
+    <button class="header-icon-btn message-header-btn" type="button" aria-label="Messages" data-bs-toggle="dropdown"
+        data-bs-auto-close="outside" aria-expanded="false">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+            stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72A7.152 7.152 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+        </svg>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end chat-header-menu">
+        <div class="chat-header-menu-title">
+            <h2>Messages</h2>
+        </div>
+
+        <div class="chat-header-search">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input id="chatHeaderSearch" type="search" placeholder="Search messages" aria-label="Search messages">
+        </div>
+
+        <div class="chat-header-tabs">
+            <button type="button" class="active" data-chat-filter="all">All</button>
+            <button type="button" data-chat-filter="unseen">Unseen</button>
+        </div>
+
+        <div class="chat-header-list" id="chatHeaderList">
+            <div class="chat-header-empty">
+                <span class="chat-header-empty-icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm3.75 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72A7.152 7.152 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" />
+                    </svg>
+                </span>
+                <strong>No messages</strong>
+            </div>
+        </div>
+
+        <a href="/admin-messages/" class="chat-header-see-all">See all Messages</a>
+    </div>
+</div>
+<script defer src="/static/components/js/admin_chat_dropdown.js?v=20260727-chat-auth-fix"></script>
+
+        <div class="dropdown notification-dropdown">
+            <button class="header-icon-btn notif-btn" type="button" aria-label="Notifications"
+                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                </svg>
+                
+            </button>
+            <div class="dropdown-menu dropdown-menu-end notification-menu">
+                <div class="notification-menu-header">
+                    <strong>Notifications</strong>
+                    <div class="notification-tabs" role="tablist" aria-label="Notification filters">
+                        <button type="button" class="notification-tab active" data-notification-filter="all">All</button>
+                        <button type="button" class="notification-tab" data-notification-filter="unseen">Unread</button>
+                    </div>
+                </div>
+                <div class="notification-menu-list">
+                    
+                    <div class="notification-menu-empty">
+                        <span class="notification-menu-empty-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                            </svg>
+                        </span>
+                        <strong>No notifications</strong>
+                        <p>Seller requests, bookings, and system alerts will appear here.</p>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        <div class="header-divider"></div>
+        
+<div class="dropdown header-profile-dropdown">
+    <button class="header-profile border-0 bg-transparent p-0 shadow-none" type="button"
+        data-bs-toggle="dropdown" aria-expanded="false"
+        style="border: 0 !important; outline: 0 !important; box-shadow: none !important;">
+        <img src="/static/assets/img/profile.jpg?v=20260529" alt="super-admin-dedicated"
+            class="border-0 shadow-none" width="34" height="34"
+            style="border: 0 !important; box-shadow: none !important; border-radius: 50%;" />
+    </button>
+    <div class="dropdown-menu dropdown-menu-end admin-profile-menu">
+        <a class="dropdown-item admin-profile-item" href="#">
+            <span>Settings</span>
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item admin-profile-item is-danger" href="/admin-logout/">
+            <span>Logout</span>
+        </a>
+    </div>
+</div>
+
+    </div>
+</header>
+
+<script src="/static/components/js/admin_session.js?v=20260605-multi-tab" defer></script>
+
+
+
+            <!-- Content -->
+            <main class="dashboard-content super-dashboard">
+                <div class="container-fluid py-4 px-4">
+                    <div class="dashboard-section-heading dashboard-section-heading--first">
+                        <h2>System Overview</h2>
+                        <time datetime="2026-09-19T15:29:31.086734+00:00">Updated Sep 19, 2026 3:29 PM</time>
+                    </div>
+                    <section class="dashboard-stats-grid row g-3">
+                        
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-blue">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>4</strong>
+                                    <span>Total Users</span>
+                                </div>
+                            </article>
+                        </div>
+                        
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-green">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l4.071-4.071A1.5 1.5 0 0 1 9.06 3h5.88a1.5 1.5 0 0 1 1.06.44l4.071 4.071a3 3 0 0 1-.621 4.72" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>1</strong>
+                                    <span>Active Sellers</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-purple">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>2</strong>
+                                    <span>Total Products</span>
+                                </div>
+                            </article>
+                        </div>
+                        
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-amber">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>1</strong>
+                                    <span>Total Facilities</span>
+                                </div>
+                            </article>
+                        </div>
+                        
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-red">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>2</strong>
+                                    <span>Total Orders</span>
+                                </div>
+                            </article>
+                        </div>
+                        
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-teal">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>1</strong>
+                                    <span>Total Bookings</span>
+                                </div>
+                            </article>
+                        </div>
+                        
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-emerald">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>&#8369; 300.00</strong>
+                                    <span>Marketplace Revenue</span>
+                                </div>
+                            </article>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <article class="dashboard-stat-card h-100">
+                                <div class="dashboard-stat-icon icon-orange">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <strong>0</strong>
+                                    <span>Pending Approvals</span>
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+
+                    
+                    
+<!-- Action counts reuse the existing dashboard totals. -->
+<section class="overview-section" aria-labelledby="attentionTitle" id="attention-required">
+    <div class="overview-heading"><h2 id="attentionTitle">Attention Required</h2></div>
+    <div class="attention-list">
+        
+        <a href="/admin-products/"><span>Pending Products</span><strong>0</strong></a>
+        
+        
+        <a href="/admin-sellers/?status=pending"><span>Pending Seller Requests</span><strong>0</strong></a>
+        
+        
+        <a href="/admin-bookings/"><span>Pending Bookings</span><strong>0</strong></a>
+        
+        
+        <a href="/admin-products/"><span>Low Stock Products</span><strong>1</strong></a>
+        
+        
+        <a href="/admin-calendar/"><span>Schedule Conflicts</span><strong>0</strong></a>
+        
+    </div>
+</section>
+
+<!-- Summary charts retain the original server-generated time buckets. -->
+<section class="overview-section" aria-labelledby="marketplaceTitle">
+    <div class="overview-heading">
+        <h2 id="marketplaceTitle">Marketplace Overview</h2>
+        <a href="/admin-marketplace-analytics/">Marketplace Analytics &rarr;</a>
+    </div>
+    <div class="overview-columns">
+        <div class="overview-chart" id="sales-overview-card">
+            <div class="overview-heading">
+                <div><h3>Sales Overview</h3><p>Completed and paid Cash on Pickup orders</p></div>
+                <label class="visually-hidden" for="revenuePeriodSelect">Sales grouping</label>
+                <select id="revenuePeriodSelect" class="overview-select">
+                    <option value="daily">Daily</option>
+                    <option value="weekly" selected>Weekly</option>
+                    <option value="monthly">Monthly</option>
+                </select>
+            </div>
+            
+            <script id="superSalesData" type="application/json">{"grouping": "weekly", "labels": ["Jul 06-12", "Jul 13-19", "Jul 20-26", "Jul 27-Aug 02", "Aug 03-09", "Aug 10-16", "Aug 17-23", "Aug 24-30", "Aug 31-Sep 06", "Sep 07-13", "Sep 14-20"], "tooltip_labels": ["Week of Jul 06, 2026", "Week of Jul 13, 2026", "Week of Jul 20, 2026", "Week of Jul 27, 2026", "Week of Aug 03, 2026", "Week of Aug 10, 2026", "Week of Aug 17, 2026", "Week of Aug 24, 2026", "Week of Aug 31, 2026", "Week of Sep 07, 2026", "Week of Sep 14, 2026"], "values": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 300.0], "sales": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 300.0], "order_values": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], "orders": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]}</script>
+            <div class="sales-chart-legend"><span><i class="chart-key"></i>Sales (&#8369;)</span><span><i class="chart-key chart-key--orders"></i>Orders</span></div>
+            <div class="overview-chart-canvas"><canvas id="superSalesChart" role="img" aria-label="Sales amount in pesos and completed paid orders by time period"></canvas></div>
+            
+        </div>
+        <div class="overview-list">
+            <div class="overview-heading"><h3>Top-Selling Products</h3><span class="overview-note">All time &middot; units sold</span></div>
+            <ol class="ranked-products">
+                
+                <li><span>USTP Lanyard</span><strong>2</strong></li>
+                
+            </ol>
+            <a class="overview-footer-link" href="/admin-products/">View Products &rarr;</a>
+        </div>
+    </div>
+</section>
+
+<section class="overview-section" aria-labelledby="facilitiesTitle">
+    <div class="overview-heading">
+        <h2 id="facilitiesTitle">Facilities Overview</h2>
+        <a href="/admin-facility-analytics/">Facilities Analytics &rarr;</a>
+    </div>
+    <div class="overview-columns">
+        <div class="overview-chart">
+            <div class="overview-heading">
+                <div><h3>Booking Trend</h3><p>Bookings by scheduled date, all statuses</p></div>
+                <label class="visually-hidden" for="facilityPeriodSelect">Booking period</label>
+                <select id="facilityPeriodSelect" class="overview-select">
+                    <option value="7">Last 7 Days</option>
+                    <option value="14" selected>Last 14 Days</option>
+                    <option value="30">Last 30 Days</option>
+                </select>
+            </div>
+            
+            <script id="superBookingsData" type="application/json">{"labels": ["Sep 06", "Sep 07", "Sep 08", "Sep 09", "Sep 10", "Sep 11", "Sep 12", "Sep 13", "Sep 14", "Sep 15", "Sep 16", "Sep 17", "Sep 18", "Sep 19"], "approved": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], "pending": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "completed": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "cancelled": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}</script>
+            <div class="overview-chart-canvas"><canvas id="superBookingsChart" role="img" aria-label="Total bookings by scheduled date"></canvas></div>
+            
+        </div>
+        <div class="overview-list">
+            <div class="overview-heading"><h3>Upcoming Reservations</h3><a href="/admin-calendar/">Calendar &rarr;</a></div>
+            <ul class="reservation-list">
+                
+                <li><strong>Covered Court</strong><span>Sep 19, 2026 &middot; 8:00 AM - 12:00 PM</span><span>seller-student</span></li>
+                
+            </ul>
+            <a class="overview-footer-link" href="/admin-bookings/">View All Bookings &rarr;</a>
+        </div>
+    </div>
+</section>
+
+<div class="overview-utilities">
+    <section class="overview-section" aria-labelledby="systemTitle">
+        <div class="overview-heading"><h2 id="systemTitle">System Status</h2></div>
+        <dl class="system-list">
+            <div><dt>Database</dt><dd class="service-state" title="Dashboard records loaded successfully from the database">Online</dd></div>
+            <div><dt>Chat Service</dt><dd class="service-state service-state--checking" id="superChatStatus" data-health-url="http://testserver:8001/health" aria-live="polite">Checking</dd></div>
+            <div><dt><a href="/admin-backup/">Backup &amp; Restore</a></dt><dd class="service-state" title="Backup tools are available to your account; this is not a backup health check">Available</dd></div>
+        </dl>
+    </section>
+    <section class="overview-section" aria-labelledby="quickActionsTitle">
+        <div class="overview-heading"><h2 id="quickActionsTitle">Quick Actions</h2></div>
+        <nav class="quick-actions" aria-label="Quick actions">
+            <a href="#attention-required">Review Approvals</a>
+            <a href="/admin-facility/?action=add">Add Facility</a>
+            <a href="/admin-users/">Manage Users</a>
+            <a href="/admin-generate-reports/">Generate Report</a>
+            <a href="/admin-backup/">Backup System</a>
+        </nav>
+    </section>
+</div>
+
+<section class="overview-section" aria-labelledby="activityTitle">
+    <div class="overview-heading"><h2 id="activityTitle">Recent Activity</h2><a href="/admin-notifications/">View All &rarr;</a></div>
+    <div class="overview-table-wrap">
+        <table class="overview-table activity-table">
+            <thead><tr><th scope="col">Action</th><th scope="col">User</th><th scope="col">Module</th><th scope="col">Timestamp</th></tr></thead>
+            <tbody>
+                
+                <tr><td>New booking for Covered Court</td><td>seller-student</td><td>Facilities</td><td><time datetime="2026-09-19T15:29:31.036205+00:00">Sep 19, 2026 3:29 PM</time></td></tr>
+                
+                <tr><td>New order 2026ORDER002</td><td>Pending Buyer</td><td>Marketplace</td><td><time datetime="2026-09-19T15:29:31.034185+00:00">Sep 19, 2026 3:29 PM</time></td></tr>
+                
+                <tr><td>New order 2026ORDER001</td><td>Kent Nicolas</td><td>Marketplace</td><td><time datetime="2026-09-19T15:29:31.033309+00:00">Sep 19, 2026 3:29 PM</time></td></tr>
+                
+                <tr><td>New product &quot;USTP Notebook&quot; added</td><td>seller-student</td><td>Marketplace</td><td><time datetime="2026-09-19T15:29:31.032310+00:00">Sep 19, 2026 3:29 PM</time></td></tr>
+                
+                <tr><td>New product &quot;USTP Lanyard&quot; added</td><td>seller-student</td><td>Marketplace</td><td><time datetime="2026-09-19T15:29:31.031192+00:00">Sep 19, 2026 3:29 PM</time></td></tr>
+                
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Secondary operational details remain available without dominating the summary. -->
+<details class="overview-details">
+    <summary>Operational Details <span>Approval queue, low stock, recent orders</span></summary>
+    
+    <section class="overview-section" aria-labelledby="queueTitle">
+        <div class="overview-heading"><h3 id="queueTitle">Pending Approvals</h3></div>
+        <ul class="approval-list">
+            <li class="overview-empty">No pending approvals.</li>
+        </ul>
+    </section>
+    
+    
+    <section class="overview-section" aria-labelledby="lowStockTitle">
+        <div class="overview-heading"><h3 id="lowStockTitle">Low Stock Products</h3><a href="/admin-products/">View All &rarr;</a></div>
+        <div class="overview-table-wrap"><table class="overview-table"><thead><tr><th scope="col">Product</th><th scope="col">Seller</th><th scope="col">Stock Left</th></tr></thead><tbody>
+            <tr><td>USTP Notebook</td><td>seller-student</td><td>3</td></tr>
+        </tbody></table></div>
+    </section>
+    
+    
+    <section class="overview-section" aria-labelledby="ordersTitle">
+        <div class="overview-heading"><h3 id="ordersTitle">Recent Orders</h3><a href="/admin-orders/">View All &rarr;</a></div>
+        <div class="overview-table-wrap"><table class="overview-table"><thead><tr><th scope="col">Order</th><th scope="col">Product</th><th scope="col">Buyer</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Date</th></tr></thead><tbody>
+            <tr><td>2026ORDER002</td><td>USTP Notebook</td><td>Pending Buyer</td><td>&#8369;45.00</td><td>Pending</td><td>Sep 19, 2026</td></tr><tr><td>2026ORDER001</td><td>USTP Lanyard</td><td>Kent Nicolas</td><td>&#8369;300.00</td><td>Completed</td><td>Sep 19, 2026</td></tr>
+        </tbody></table></div>
+    </section>
+    
+</details>
+
+                    
+                </div>
+
+            </main>
+        </div>
+
+    </div>
+
+    <div class="modal fade logout-modal" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content logout-card">
+                <div class="logout-card-body">
+                    <button type="button" class="logout-close" data-bs-dismiss="modal" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 162 162"
+                            class="logout-close-icon" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-width="17" stroke="currentColor"
+                                d="M9.01074 8.98926L153.021 153"></path>
+                            <path stroke-linecap="round" stroke-width="17" stroke="currentColor"
+                                d="M9.01074 153L153.021 8.98926"></path>
+                        </svg>
+                    </button>
+                    <p class="logout-heading" id="logoutModalLabel">Logout</p>
+                    <p class="logout-copy">
+                        Are you sure you want to logout?
+                    </p>
+                    <div class="logout-actions">
+                        <a href="/" class="logout-button logout-button-primary">Yes</a>
+                        <button type="button" class="logout-button logout-button-secondary"
+                            data-bs-dismiss="modal">No</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/components/js/admin_notifications.js?v=20260726-empty-messages"></script>
+    
+    <script src="/static/components/js/admin_super_dashboard.js?v=20260919"></script>
+    
+</body>
+
+</html>

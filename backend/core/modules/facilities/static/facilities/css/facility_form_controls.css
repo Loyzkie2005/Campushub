@@ -1,0 +1,89 @@
+.facility-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 4px 20px;
+}
+
+#facilityFormSection .facility-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    margin: 0;
+    color: #1A1851;
+    font-size: 14px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.facility-check input[type="checkbox"] {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    accent-color: #1A1851;
+}
+
+.facility-hours {
+    max-width: 600px;
+}
+
+.facility-hours-row {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    min-height: 52px;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 6px 0;
+}
+
+.facility-hours-times {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+}
+
+.facility-hours-times .form-select {
+    min-width: 0;
+    min-height: 40px;
+    font-variant-numeric: tabular-nums;
+}
+
+.facility-hours-closed {
+    color: #64748b;
+    font-size: 14px;
+}
+
+.facility-other-field {
+    max-width: 420px;
+    margin-top: 8px;
+}
+
+.facility-schedule-notice {
+    color: #1A1851;
+    background: #f8fafc;
+    border: 1px solid #FCB316;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+#facilityFormSection [hidden] {
+    display: none !important;
+}
+
+#facilityFormSection .facility-check input:focus-visible {
+    outline: 2px solid #1A1851;
+    outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+    .facility-hours-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+    .facility-hours-times {
+        gap: 8px;
+    }
+}

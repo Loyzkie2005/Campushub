@@ -1,0 +1,106 @@
+{% load static %}
+<header class="dashboard-header"{% if request.user.is_authenticated %} data-admin-user-id="{{ request.user.id }}"{% endif %}>
+    <div class="header-left">
+        <button type="button" class="header-hamburger" id="sidebarToggle" aria-label="Toggle sidebar" aria-expanded="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />
+            </svg>
+        </button>
+        <div class="header-title-group">
+            <h1 class="header-page-title">{{ page_title }}</h1>
+            <nav class="admin-breadcrumb" aria-label="Breadcrumb">
+                {% if breadcrumb_section or breadcrumb_page %}
+                <span class="breadcrumb-link">Dashboard</span>
+                {% endif %}
+                {% if breadcrumb_section %}
+                <span class="breadcrumb-sep">&rsaquo;</span>
+                <span class="breadcrumb-text">{{ breadcrumb_section }}</span>
+                {% endif %}
+                {% if breadcrumb_page %}
+                <span class="breadcrumb-sep">&rsaquo;</span>
+                <span class="breadcrumb-current">{{ breadcrumb_page }}</span>
+                {% endif %}
+            </nav>
+        </div>
+    </div>
+    <div class="header-right">
+        {% include 'partials/admin_chat_dropdown.html' %}
+        <div class="dropdown notification-dropdown">
+            <button class="header-icon-btn notif-btn" type="button" aria-label="Notifications"
+                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                </svg>
+                {% if pending_seller_requests %}
+                <span class="notif-dot"></span>
+                {% endif %}
+            </button>
+            <div class="dropdown-menu dropdown-menu-end notification-menu">
+                <div class="notification-menu-header">
+                    <strong>Notifications</strong>
+                    <div class="notification-tabs" role="tablist" aria-label="Notification filters">
+                        <button type="button" class="notification-tab active" data-notification-filter="all">All</button>
+                        <button type="button" class="notification-tab" data-notification-filter="unseen">Unread</button>
+                    </div>
+                </div>
+                <div class="notification-menu-list">
+                    {% for seller_request in seller_requests|slice:":3" %}
+                    <div class="notification-menu-item is-unseen">
+                        <button type="button" class="notification-more-btn" data-notification-more
+                            aria-label="Notification options">
+                            <span></span><span></span><span></span>
+                        </button>
+                        <div class="notification-more-menu">
+                            <button type="button" data-mark-seen>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="1.8" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>
+                                Mark as seen
+                            </button>
+                        </div>
+                        <div class="notification-avatar">{{ seller_request.full_name|slice:":1"|upper }}</div>
+                        <div class="notification-menu-content">
+                            <strong>Student Seller Request</strong>
+                            <p>{{ seller_request.message|default:"Requesting seller access."|truncatechars:82 }}</p>
+                            <span>From {{ seller_request.full_name }} &middot; {{ seller_request.created_at|date:"M d, Y h:i A" }}</span>
+                            {% if perms.api.can_approve_seller_requests %}
+                            <div class="notification-menu-actions">
+                                <form method="post" action="{% url 'marketplace_approve_seller_request' seller_request.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="request-action approve-request">Approve</button>
+                                </form>
+                                <form method="post" action="{% url 'marketplace_reject_seller_request' seller_request.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="request-action reject-request">Reject</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="notification-menu-empty">
+                        <span class="notification-menu-empty-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                            </svg>
+                        </span>
+                        <strong>No notifications</strong>
+                        <p>Seller requests, bookings, and system alerts will appear here.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="header-divider"></div>
+        {% include 'partials/admin_profile_dropdown.html' %}
+    </div>
+</header>
+{% if request.user.is_authenticated %}
+<script src="{% static 'components/js/admin_session.js' %}?v=20260605-multi-tab" defer></script>
+{% endif %}

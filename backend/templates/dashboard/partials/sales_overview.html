@@ -1,0 +1,89 @@
+<section class="sales-overview" id="sales-overview-card" aria-labelledby="salesOverviewTitle">
+    <header class="sales-overview__header">
+        <div class="sales-overview__heading">
+            <h2 id="salesOverviewTitle">Sales Overview</h2>
+            <p>Completed and paid Cash on Pickup orders</p>
+        </div>
+        <form method="get" action="#sales-overview-card" id="salesOverviewFilters" class="sales-overview__filters">
+            {% for key, value in sales_filter_parameters %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+            <input type="hidden" name="sales_days" id="salesDaysHidden" value="{{ sales_days }}">
+            <div class="sales-overview__controls-top">
+                <div class="sales-filter-wrap">
+                    <select name="period" id="salesPeriodSelect" aria-label="Date range" class="sales-select sales-select--date-range">
+                        <option value="today"{% if sales_period_key == 'today' %} selected{% endif %}>Today</option>
+                        <option value="7"{% if sales_period_key == '7' %} selected{% endif %}>Last 7 Days</option>
+                        <option value="30"{% if sales_period_key == '30' or not sales_period_key %} selected{% endif %}>Last 30 Days</option>
+                        <option value="month"{% if sales_period_key == 'month' %} selected{% endif %}>This Month</option>
+                        <option value="year"{% if sales_period_key == 'year' %} selected{% endif %}>This Year</option>
+                        <option value="custom"{% if sales_period_key == 'custom' %} selected{% endif %}>Custom</option>
+                    </select>
+                </div>
+                <div class="sales-filter-wrap">
+                    <select name="grouping" id="salesGroupingSelect" aria-label="Sales grouping" class="sales-select">
+                        <option value="daily"{% if sales_grouping == 'daily' or not sales_grouping %} selected{% endif %}>Daily</option>
+                        <option value="weekly"{% if sales_grouping == 'weekly' %} selected{% endif %}>Weekly</option>
+                        <option value="monthly"{% if sales_grouping == 'monthly' %} selected{% endif %}>Monthly</option>
+                    </select>
+                </div>
+            </div>
+            <div class="sales-overview__custom-dates{% if sales_period_key != 'custom' %} d-none{% endif %}" id="salesCustomDates">
+                <label class="sales-date-field">
+                    <span>From</span>
+                    <input type="date" name="date_from" id="salesDateFrom" value="{{ sales_period.start|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
+                </label>
+                <label class="sales-date-field">
+                    <span>To</span>
+                    <input type="date" name="date_to" id="salesDateTo" value="{{ sales_period.end|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
+                </label>
+                <button type="submit" class="sales-date-apply-btn" id="salesApplyCustom">Apply</button>
+            </div>
+            <noscript><button type="submit">Apply</button></noscript>
+        </form>
+    </header>
+    <div class="sales-overview__metrics">
+        {% for metric in sales_overview.metrics %}
+        <article class="sales-overview__metric" data-metric="{{ metric.key }}">
+            <span class="sales-overview__icon{% if metric.key == 'orders' %} sales-overview__icon--gold{% endif %}" aria-hidden="true">
+                {% if metric.key == 'sales' %}&#8369;{% elif metric.key == 'orders' %}{% include 'dashboard/partials/sales_overview_icon.html' with icon='cart' %}{% else %}{% include 'dashboard/partials/sales_overview_icon.html' with icon='receipt' %}{% endif %}
+            </span>
+            <div class="sales-overview__metric-content">
+                <h3>{{ metric.label }}</h3>
+                <strong>{% if metric.currency %}&#8369;{% endif %}{{ metric.value }}</strong>
+                <p><b>{% if '-' not in metric.change and metric.change != 'No change' and metric.change != 'No previous sales' %}&#8599; {% elif '-' in metric.change %}&#8600; {% endif %}{{ metric.change }}</b> <span>vs. previous {% if sales_period_key == 'today' %}day{% elif sales_period_key == 'month' %}month{% elif sales_period_key == 'year' %}year{% else %}{{ sales_days }} days{% endif %}</span></p>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    <div class="sales-overview__trend">
+        <div class="sales-overview__trend-header">
+            <div>
+                <h3>Sales Trend</h3>
+                <p>{{ sales_grouping|capfirst }} sales and completed orders for {% if sales_period_key == 'today' %}today{% elif sales_period_key == 'custom' %}{{ sales_period.label }}{% elif sales_period_key == 'month' %}this month{% elif sales_period_key == 'year' %}this year{% else %}the last {{ sales_days }} days{% endif %}</p>
+            </div>
+            <div class="sales-overview__legend sales-chart-legend" aria-label="Chart legend">
+                <span><i class="sales-overview__swatch" aria-hidden="true"></i>Sales (&#8369;)</span>
+                <span><i class="sales-overview__swatch sales-overview__swatch--orders" aria-hidden="true"></i>Orders</span>
+            </div>
+        </div>
+        {% if not sales_overview.has_sales %}<p class="sales-overview__empty">No completed sales in the selected period.</p>{% endif %}
+        <div class="sales-overview__canvas">
+            <canvas id="salesOverviewChart" role="img" aria-label="Sales amounts and completed order counts by {{ sales_grouping }} period. Detailed values follow in the chart data table."></canvas>
+        </div>
+        <p id="salesOverviewChartError" hidden>Chart unavailable. Sales totals are shown above; period values are available below.</p>
+        <details class="sales-overview__data">
+            <summary>View chart data</summary>
+            <div><table><caption>Sales and orders by period</caption><thead><tr><th scope="col">Period</th><th scope="col">Sales (&#8369;)</th><th scope="col">Orders</th></tr></thead><tbody>
+                {% for row in sales_overview.rows %}<tr><th scope="row">{{ row.label }}</th><td>&#8369;{{ row.sales }}</td><td>{{ row.orders }}</td></tr>{% endfor %}
+            </tbody></table></div>
+        </details>
+    </div>
+    <footer class="sales-overview__footer">
+        <div class="sales-overview__footer-info">
+            <span class="sales-overview__info-icon" aria-hidden="true">i</span>
+            <p>Data is based on completed orders with confirmed payment (Cash on Pickup).</p>
+        </div>
+        {% if perms.accounts.can_view_marketplace_analytics or user.is_staff or user.is_superuser %}
+        <a href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ sales_overview.start|date:'Y-m-d' }}&amp;date_to={{ sales_overview.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}" class="sales-overview__cta-btn">View Detailed Analytics <span aria-hidden="true">&rarr;</span></a>
+        {% endif %}
+    </footer>
+</section>

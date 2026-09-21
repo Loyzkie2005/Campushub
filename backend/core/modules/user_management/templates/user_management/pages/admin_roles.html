@@ -1,0 +1,261 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Roles &amp; Permissions</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_roles.css' %}?v=20260830-table-alignment" />
+</head>
+<body>
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='roles' %}
+
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Roles & Permissions' breadcrumb_section='User Management' breadcrumb_page='Roles & Permissions' %}
+
+            <main class="dashboard-content roles-page-shell">
+                <div class="container-fluid px-0 roles-page"
+                     data-save-url="{% url 'admin_roles_save' %}"
+                     data-permissions-url="{% url 'admin_role_permissions_save' %}"
+                     data-delete-url="{% url 'admin_roles_delete' %}"
+                     data-status-url="{% url 'admin_roles_status' %}">
+                    <div id="rolesToast" class="campushub-toast" role="status" aria-live="polite"></div>
+
+                    <header class="roles-page-intro">
+                        <p>Manage system roles, assigned users, and access permissions.</p>
+                    </header>
+
+                    <section class="roles-stats-grid" aria-label="Role management summary">
+                        <article class="role-stat-card">
+                            <span class="role-stat-icon role-stat-icon-blue" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                            </span>
+                            <span><small>Total Roles</small><strong>{{ total_roles }}</strong><em>All system roles</em></span>
+                        </article>
+                        <article class="role-stat-card">
+                            <span class="role-stat-icon role-stat-icon-green" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8" /></svg>
+                            </span>
+                            <span><small>Assigned Admins</small><strong>{{ assigned_admins }}</strong><em>Admins with a role</em></span>
+                        </article>
+                        <article class="role-stat-card">
+                            <span class="role-stat-icon role-stat-icon-gold" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-2.83 2.83-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21h-4v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06-2.83-2.83.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3v-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06 2.83-2.83.06.06A1.65 1.65 0 0 0 8.92 4a1.65 1.65 0 0 0 1-1.51V2h4v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06 2.83 2.83-.06.06A1.65 1.65 0 0 0 19.4 9c.12.6.65 1.02 1.26 1.02H21v4h-.09A1.65 1.65 0 0 0 19.4 15Z" /></svg>
+                            </span>
+                            <span><small>Permissions</small><strong>{{ total_permission_count }}</strong><em>Available system permissions</em></span>
+                        </article>
+                        <article class="role-stat-card">
+                            <span class="role-stat-icon role-stat-icon-purple" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>
+                            </span>
+                            <span><small>Unassigned Admins</small><strong>{{ unassigned_admins }}</strong><em>Admins needing a role</em></span>
+                        </article>
+                    </section>
+
+                    <section class="roles-management-card">
+                        <div class="roles-card-heading">
+                            <div>
+                                <h2>Roles &amp; Permissions</h2>
+                                <p>Review roles, assigned users, and module-based access.</p>
+                            </div>
+                            <button type="button" class="btn-add-role" id="addRoleButton">Add Custom Role</button>
+                        </div>
+
+                        <div class="roles-rbac-layout" id="rolesRbacLayout">
+                            <section class="roles-table-pane" aria-label="Roles table">
+                                <form class="roles-toolbar" method="get" action="{% url 'admin_roles_page' %}" id="rolesFilterForm">
+                                    <label class="role-search" aria-label="Search roles">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+                                        <input type="search" name="q" value="{{ search_query }}" placeholder="Search roles..." />
+                                    </label>
+                                    <select name="type" aria-label="Filter by role type" class="js-auto-filter">
+                                        <option value="">All Types</option>
+                                        <option value="system" {% if role_type_filter == 'system' %}selected{% endif %}>System</option>
+                                        <option value="custom" {% if role_type_filter == 'custom' %}selected{% endif %}>Custom</option>
+                                    </select>
+                                    <select name="status" aria-label="Filter by status" class="js-auto-filter">
+                                        <option value="">All Status</option>
+                                        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                                        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                                    </select>
+                                </form>
+
+                                <div class="roles-table-wrap">
+                                    <table class="roles-table">
+                                        <thead><tr><th>Role</th><th>Users</th><th>Access Type</th><th>Status</th><th>Actions</th></tr></thead>
+                                        <tbody>
+                                            {% for role in roles %}
+                                            <tr data-role-row="{{ role.id }}">
+                                                <td><strong class="role-table-name">{{ role.display_name }}</strong><small>{{ role.role_type }}</small></td>
+                                                <td><span class="role-user-count">{{ role.user_count }}</span></td>
+                                                <td><span class="permission-set-label">{{ role.permission_summary }}</span></td>
+                                                <td><span class="role-status-badge {% if role.is_active %}is-active{% else %}is-inactive{% endif %}">{{ role.status_label }}</span></td>
+                                                <td>
+                                                    <div class="role-row-actions">
+                                                        <button type="button" class="role-icon-action js-open-role-panel" data-role-id="{{ role.id }}" data-mode="view" title="View permissions" aria-label="View {{ role.display_name }}">
+                                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.75" /></svg>
+                                                        </button>
+                                                        <button type="button" class="role-icon-action role-icon-edit js-open-role-panel" data-role-id="{{ role.id }}" data-mode="edit" title="Edit permissions" aria-label="Edit {{ role.display_name }}">
+                                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.8 4.8L8 20l11-11-4-4L4 16Z" /><path d="m13.5 6.5 4 4" /></svg>
+                                                        </button>
+                                                        <div class="dropdown">
+                                                            <button type="button" class="role-icon-action" data-bs-toggle="dropdown" aria-expanded="false" title="More actions" aria-label="More actions for {{ role.display_name }}">&#8942;</button>
+                                                            <ul class="dropdown-menu dropdown-menu-end role-more-menu">
+                                                                <li><button type="button" class="dropdown-item js-view-assigned-users" data-role-id="{{ role.id }}">View Assigned Users</button></li>
+                                                                {% if not role.is_protected %}
+                                                                <li><button type="button" class="dropdown-item js-duplicate-role" data-role-id="{{ role.id }}">Duplicate Role</button></li>
+                                                                <li><button type="button" class="dropdown-item js-edit-role-details" data-role-id="{{ role.id }}">Edit Role Details</button></li>
+                                                                <li><button type="button" class="dropdown-item js-role-status" data-role-id="{{ role.id }}" data-action="{% if role.is_active %}deactivate{% else %}activate{% endif %}">{% if role.is_active %}Deactivate{% else %}Activate{% endif %}</button></li>
+                                                                <li><hr class="dropdown-divider" /></li>
+                                                                <li><button type="button" class="dropdown-item text-danger js-delete-role" data-role-id="{{ role.id }}">Delete Custom Role</button></li>
+                                                                {% endif %}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="5" class="roles-empty-state">No roles match the selected filters.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <footer class="roles-table-footer">
+                                    <span>Showing {{ page_obj.start_index }}&ndash;{{ page_obj.end_index }} of {{ page_obj.paginator.count }} roles</span>
+                                    {% if page_obj.paginator.num_pages > 1 %}
+                                    <nav class="roles-pagination" aria-label="Roles pagination">
+                                        {% if page_obj.has_previous %}<a class="pagination-arrow" href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" aria-label="Previous page">&lsaquo;</a>{% else %}<span class="pagination-arrow is-disabled">&lsaquo;</span>{% endif %}
+                                        <span class="pagination-page is-current">{{ page_obj.number }}</span>
+                                        {% if page_obj.has_next %}<a class="pagination-arrow" href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page_obj.next_page_number }}" aria-label="Next page">&rsaquo;</a>{% else %}<span class="pagination-arrow is-disabled">&rsaquo;</span>{% endif %}
+                                    </nav>
+                                    {% endif %}
+                                </footer>
+                            </section>
+
+                            <aside class="role-permission-panel" id="rolePermissionPanel" aria-labelledby="permissionPanelTitle" hidden>
+                                <header class="permission-panel-header">
+                                    <div><span id="permissionPanelMode">View Permissions</span><h2 id="permissionPanelTitle">Role</h2><p id="permissionPanelDescription"></p></div>
+                                    <button type="button" class="permission-panel-close js-close-role-panel" aria-label="Close permission panel">&times;</button>
+                                </header>
+                                <form id="permissionPanelForm" method="post" action="{% url 'admin_role_permissions_save' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="role_id" id="permissionPanelRoleId" />
+                                    <div class="permission-panel-body">
+                                        <nav class="permission-module-list" aria-label="Permission modules">
+                                            <h3>Modules</h3>
+                                            {% for group in permission_groups %}
+                                            <button type="button" class="permission-module-button{% if forloop.first %} is-active{% endif %}" data-module="{{ group.key }}">{{ group.name }}<span aria-hidden="true">&rsaquo;</span></button>
+                                            {% endfor %}
+                                        </nav>
+                                        <section class="permission-list-pane">
+                                            <div class="permission-list-heading"><span>Permission</span><span>Allowed</span></div>
+                                            {% for group in permission_groups %}
+                                            <div class="permission-list-group" data-permission-group="{{ group.key }}"{% if not forloop.first %} hidden{% endif %}>
+                                                {% for permission in group.permissions %}
+                                                <label class="permission-list-row">
+                                                    <span>{{ permission.label }}</span>
+                                                    <span class="permission-toggle">
+                                                        <input type="checkbox" name="permissions" value="{{ permission.codename }}" class="js-panel-permission" aria-label="Allow {{ permission.label }}" />
+                                                        <span class="permission-toggle-track" aria-hidden="true"></span>
+                                                    </span>
+                                                </label>
+                                                {% endfor %}
+                                            </div>
+                                            {% endfor %}
+                                        </section>
+                                    </div>
+                                    <p class="permission-panel-note" id="permissionPanelNote" hidden>Super Admin is a protected system role and always retains full CampusHub access.</p>
+                                    <footer class="permission-panel-footer">
+                                        <span id="permissionPanelCount">0 permissions allowed</span>
+                                        <div class="permission-panel-actions">
+                                            <button type="button" class="btn-panel-secondary js-close-role-panel" id="permissionPanelCloseButton">Close</button>
+                                            <button type="button" class="btn-panel-secondary js-cancel-role-panel" id="permissionPanelCancelButton" hidden>Cancel</button>
+                                            <button type="submit" class="btn-panel-primary" id="permissionPanelSaveButton" hidden>Save Changes</button>
+                                        </div>
+                                    </footer>
+                                </form>
+                            </aside>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div class="modal fade" id="roleFormModal" tabindex="-1" aria-labelledby="roleFormTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+            <form class="modal-content roles-modal" id="roleForm" method="post" action="{% url 'admin_roles_save' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="role_id" id="roleIdInput" />
+                    <input type="hidden" name="assigned_users_present" value="1" />
+                    <input type="hidden" name="role_status_present" value="1" />
+                    <div class="modal-header">
+                        <div><h2 class="modal-title" id="roleFormTitle">Add Custom Role</h2><p>Create a custom role and assign administrator accounts.</p></div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="role-form-grid">
+                            <label class="role-form-field"><span>Role Name <b>*</b></span><input class="form-control" type="text" name="role_name" id="roleNameInput" maxlength="100" required placeholder="Enter role name" /></label>
+                            <label class="role-form-field"><span>Role Type</span><input class="form-control" type="text" id="roleTypeInput" value="Custom Role" readonly /></label>
+                        </div>
+                        <label class="role-form-field role-description-field"><span>Description</span><textarea class="form-control" name="description" id="roleDescInput" rows="3" placeholder="Describe this role's responsibilities"></textarea></label>
+
+                        <div class="role-form-permission-note">
+                            Create the role here, then use its pencil action to assign module permissions.
+                        </div>
+                        <div class="system-role-note" id="systemRoleNote" hidden>Built-in system roles are protected. Their name and active status cannot be changed.</div>
+                        <label class="role-form-field assigned-users-field" for="assignedUsersInput">
+                            <span>Assigned Administrators <small>Optional</small></span>
+                            <select class="assigned-users-select" name="assigned_users" id="assignedUsersInput" multiple size="4">
+                                {% for admin in assignable_admins %}
+                                <option value="{{ admin.id }}"
+                                        data-role="{{ admin.role }}"
+                                        data-department="{{ admin.department_id|default:'' }}"
+                                        data-active="{% if admin.is_active %}true{% else %}false{% endif %}">
+                                    {{ admin.full_name }} ({{ admin.username }}) &mdash; {{ admin.display_role }}{% if not admin.is_active %} &mdash; Inactive{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="role-form-help" id="assignedUsersHelp">Use Ctrl or Command to select multiple administrator accounts. Mobile accounts are managed separately.</small>
+                        </label>
+                        <label class="role-active-control"><input type="checkbox" name="is_active" id="roleActiveInput" checked /><span><strong>Role Active</strong><small>Active roles can be assigned to administrator accounts.</small></span></label>
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn-modal-cancel" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn-modal-save" id="saveRoleButton">Save Role</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="viewRoleModal" tabindex="-1" aria-labelledby="viewRoleTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-md modal-dialog-scrollable">
+            <div class="modal-content roles-modal">
+                <div class="modal-header"><div><h2 class="modal-title" id="viewRoleTitle">Assigned Users</h2><p>Administrator accounts currently assigned to this role.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <div class="modal-body">
+                    <section class="role-view-section"><h3 id="viewRoleUserCount">0 assigned users</h3><div class="role-view-list" id="viewAssignedUsers"></div></section>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn-modal-save" data-bs-dismiss="modal">Close</button></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deleteRoleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content roles-modal">
+                <div class="modal-header"><div><h2 class="modal-title">Delete Custom Role</h2><p>This action cannot be undone.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <div class="modal-body"><p>Delete <strong id="deleteRoleName"></strong>? Assigned users will return to the standard User role.</p></div>
+                <div class="modal-footer"><button type="button" class="btn-modal-cancel" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn-modal-danger" id="confirmDeleteRole">Delete Role</button></div>
+            </div>
+        </div>
+    </div>
+
+    {{ roles_json|json_script:"rolesData" }}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_roles.js' %}?v=20260905-super-admin-backup"></script>
+</body>
+</html>

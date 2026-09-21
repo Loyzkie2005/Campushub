@@ -1,0 +1,198 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Marketplace Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_analytics.css' %}?v=20260904-clean-header" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="marketplace-analytics-page">
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='marketplace_analytics' %}
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Marketplace Analytics' breadcrumb_section='Marketplace' breadcrumb_page='Analytics' %}
+
+            <main class="analytics-content">
+                <div class="container-fluid analytics-shell">
+                    <!-- Page controls -->
+                    <section class="analytics-intro">
+                        <form method="get" class="analytics-period-form" id="analyticsPeriodForm">
+                            <label for="analyticsPeriod" class="visually-hidden">Analytics period</label>
+                            <select name="period" id="analyticsPeriod" class="analytics-select">
+                                <option value="7"{% if analytics.period.key == '7' %} selected{% endif %}>Last 7 Days</option>
+                                <option value="30"{% if analytics.period.key == '30' %} selected{% endif %}>Last 30 Days</option>
+                                <option value="month"{% if analytics.period.key == 'month' %} selected{% endif %}>This Month</option>
+                                <option value="semester"{% if analytics.period.key == 'semester' %} selected{% endif %}>Aug - Dec (Semester 1)</option>
+                                <option value="custom"{% if analytics.period.key == 'custom' %} selected{% endif %}>Custom Date Range</option>
+                            </select>
+                            <div class="analytics-custom-dates{% if analytics.period.key != 'custom' %} d-none{% endif %}" id="analyticsCustomDates">
+                                <label>From <input type="date" name="date_from" value="{{ analytics.period.start|date:'Y-m-d' }}" max="{{ analytics.period.end|date:'Y-m-d' }}" /></label>
+                                <label>To <input type="date" name="date_to" value="{{ analytics.period.end|date:'Y-m-d' }}" /></label>
+                                <button type="submit" class="analytics-apply-button">Apply</button>
+                            </div>
+                            <input type="hidden" name="grouping" value="{{ analytics.grouping }}" />
+                        </form>
+                    </section>
+
+                    <!-- Marketplace KPIs -->
+                    <section class="analytics-kpi-grid" aria-label="Marketplace summary">
+                        <article class="analytics-kpi"><span>Total Sales</span><strong>&#8369;{{ analytics.kpis.sales }}</strong><small>Completed and paid Cash on Pickup orders</small></article>
+                        <article class="analytics-kpi"><span>Completed Orders</span><strong>{{ analytics.kpis.completed_orders }}</strong><small>Valid sales in {{ analytics.period.label }}</small></article>
+                        <article class="analytics-kpi"><span>Active Buyers</span><strong>{{ analytics.kpis.active_buyers }}</strong><small>Unique buyer IDs or emails with valid orders</small></article>
+                        <article class="analytics-kpi"><span>Active Sellers</span><strong>{{ analytics.kpis.active_sellers }}</strong><small>Approved sellers with marketplace activity</small></article>
+                    </section>
+
+                    <!-- Sales and category analysis -->
+                    {{ analytics.sales_chart|json_script:"marketplaceSalesChartData" }}
+                    {{ analytics.category_chart|json_script:"marketplaceCategoryChartData" }}
+                    <section class="analytics-grid analytics-grid-main">
+                        <article class="analytics-panel analytics-sales-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    <h2>Sales Overview</h2>
+                                    <p>
+                                        {% if analytics.grouping == 'monthly' %}
+                                            Monthly View (Aug – Dec) &middot; Completed and paid Cash on Pickup orders
+                                        {% elif analytics.grouping == 'weekly' %}
+                                            Weekly View &middot; Completed and paid Cash on Pickup orders
+                                        {% else %}
+                                            Completed and paid Cash on Pickup orders
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <form method="get" class="analytics-inline-form">
+                                    <input type="hidden" name="period" value="{{ analytics.period.key }}" />
+                                    {% if analytics.period.key == 'custom' %}<input type="hidden" name="date_from" value="{{ analytics.period.start|date:'Y-m-d' }}" /><input type="hidden" name="date_to" value="{{ analytics.period.end|date:'Y-m-d' }}" />{% endif %}
+                                    <label for="salesGrouping" class="visually-hidden">Group sales by</label>
+                                    <select name="grouping" id="salesGrouping" class="analytics-select analytics-select-compact">
+                                        <option value="daily"{% if analytics.grouping == 'daily' %} selected{% endif %}>Daily</option>
+                                        <option value="weekly"{% if analytics.grouping == 'weekly' %} selected{% endif %}>Weekly</option>
+                                        <option value="monthly"{% if analytics.grouping == 'monthly' %} selected{% endif %}>Monthly</option>
+                                    </select>
+                                </form>
+                            </header>
+                            <div class="analytics-chart analytics-chart-large"><canvas id="marketplaceSalesChart"></canvas></div>
+                        </article>
+
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header"><div><h2>Sales by Category</h2><p>Share of completed sales</p></div></header>
+                            {% if analytics.category_sales %}
+                            <div class="analytics-donut-layout">
+                                <div class="analytics-donut"><canvas id="marketplaceCategoryChart"></canvas></div>
+                                <div class="analytics-legend">{% for category in analytics.category_sales %}<div><span>{{ category.category }}</span><strong>{{ category.percent }}%</strong></div>{% endfor %}</div>
+                            </div>
+                            {% else %}
+                            <div class="analytics-empty-state"><strong>No completed sales in this period.</strong><span>Category contribution will appear after paid orders are completed.</span></div>
+                            {% endif %}
+                        </article>
+                    </section>
+
+                    <!-- Product performance -->
+                    <section class="analytics-grid analytics-grid-halves">
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header"><div><h2>Top-Selling Products</h2><p>Ranked by completed units sold</p></div><a href="{% url 'admin_products_page' %}">View products</a></header>
+                            <div class="table-responsive"><table class="analytics-table"><thead><tr><th>#</th><th>Product</th><th>Seller</th><th class="number-cell">Units Sold</th><th class="number-cell">Sales</th></tr></thead><tbody>
+                                {% for product in analytics.top_products %}<tr><td>{{ forloop.counter }}</td><td><strong>{{ product.product }}</strong></td><td>{{ product.seller }}</td><td class="number-cell">{{ product.units }}</td><td class="number-cell">&#8369;{{ product.sales }}</td></tr>{% empty %}<tr><td colspan="5"><div class="analytics-table-empty">No completed product sales in this period.</div></td></tr>{% endfor %}
+                            </tbody></table></div>
+                        </article>
+
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header"><div><h2>Slow-Moving Products</h2><p>{{ analytics.slow_moving.rule }}</p></div><a href="{% url 'admin_products_page' %}">View products</a></header>
+                            {% if analytics.slow_moving.sufficient %}
+                            <div class="table-responsive"><table class="analytics-table"><thead><tr><th>Product</th><th class="number-cell">Units Sold</th><th class="number-cell">Current Stock</th><th>Last Sold</th></tr></thead><tbody>
+                                {% for product in analytics.slow_moving.rows %}<tr><td><strong>{{ product.product }}</strong></td><td class="number-cell">{{ product.units }}</td><td class="number-cell">{{ product.stock }}</td><td>{{ product.last_sold }}</td></tr>{% empty %}<tr><td colspan="4"><div class="analytics-table-empty">No products meet the slow-moving rule.</div></td></tr>{% endfor %}
+                            </tbody></table></div>
+                            {% else %}<div class="analytics-empty-state"><strong>Insufficient sales history</strong><span>{{ analytics.slow_moving.rule }}</span></div>{% endif %}
+                        </article>
+                    </section>
+
+                    <!-- Buyer and seller analysis -->
+                    {{ analytics.buyer_activity.purchase_chart|json_script:"buyerPurchaseChartData" }}
+                    <section class="analytics-grid analytics-grid-behavior">
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header"><div><h2>Buyer Activity</h2><p>Marketplace purchases, not authentication activity</p></div></header>
+                            <div class="analytics-metric-strip">
+                                <div><span>Total Buyers</span><strong>{{ analytics.buyer_activity.total }}</strong></div><div><span>New Buyers</span><strong>{{ analytics.buyer_activity.new }}</strong></div><div><span>Repeat Buyers</span><strong>{{ analytics.buyer_activity.repeat }}</strong></div><div><span>Avg. Orders / Buyer</span><strong>{{ analytics.buyer_activity.average_orders }}</strong></div>
+                            </div>
+                            <div class="analytics-chart analytics-chart-medium"><canvas id="buyerPurchaseChart"></canvas></div>
+                            <div class="analytics-category-bars" aria-label="Most purchased categories">
+                                {% for category in analytics.category_sales|slice:':5' %}<div><span>{{ category.category }}</span><div><i data-width="{{ category.percent }}"></i></div><strong>{{ category.percent }}%</strong></div>{% empty %}<p>No purchased categories in this period.</p>{% endfor %}
+                            </div>
+                        </article>
+
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header"><div><h2>Seller Performance</h2><p>Approved sellers with marketplace activity</p></div><a href="{% url 'admin_sellers_page' %}">View sellers</a></header>
+                            <div class="table-responsive"><table class="analytics-table"><thead><tr><th>Seller</th><th class="number-cell">Products</th><th class="number-cell">Completed Orders</th><th class="number-cell">Units Sold</th><th class="number-cell">Sales</th><th class="number-cell">Low Stock</th></tr></thead><tbody>
+                                {% for seller in analytics.seller_performance.rows %}<tr><td><strong>{{ seller.seller }}</strong><small>{{ seller.department }}</small></td><td class="number-cell">{{ seller.products }}</td><td class="number-cell">{{ seller.orders }}</td><td class="number-cell">{{ seller.units }}</td><td class="number-cell">&#8369;{{ seller.sales }}</td><td class="number-cell">{{ seller.low_stock }}</td></tr>{% empty %}<tr><td colspan="6"><div class="analytics-table-empty">No approved seller activity found in this period.</div></td></tr>{% endfor %}
+                            </tbody></table></div>
+                        </article>
+                    </section>
+
+                    <!-- Inventory analysis -->
+                    <section class="analytics-panel analytics-inventory-panel">
+                        <header class="analytics-panel-header"><div><h2>Inventory Insights</h2><p>Current stock compared with completed sales in {{ analytics.period.label }}</p></div><a href="{% url 'admin_products_page' %}">View products</a></header>
+                        <div class="analytics-inventory-layout">
+                            <div class="analytics-inventory-summary">
+                                <div><span>Low Stock Products</span><strong>{{ analytics.inventory.summary.low_stock }}</strong></div><div><span>Out of Stock Products</span><strong>{{ analytics.inventory.summary.out_of_stock }}</strong></div><div><span>Total Products</span><strong>{{ analytics.inventory.summary.total }}</strong></div><div><span>Healthy Stock</span><strong>{{ analytics.inventory.summary.healthy }}</strong></div>
+                            </div>
+                            <div class="table-responsive"><table class="analytics-table"><thead><tr><th>Product</th><th class="number-cell">Current Stock</th><th>Avg. Daily Sales</th><th>Est. Days Left</th><th>Recommended Action</th></tr></thead><tbody>
+                                {% for product in analytics.inventory.rows %}<tr><td><strong>{{ product.product }}</strong><small>{{ product.state }}</small></td><td class="number-cell">{{ product.stock }}</td><td>{{ product.average_daily_sales }}</td><td>{{ product.days_left }}</td><td>{{ product.action }}</td></tr>{% empty %}<tr><td colspan="5"><div class="analytics-table-empty">No approved products are available for inventory analysis.</div></td></tr>{% endfor %}
+                            </tbody></table></div>
+                        </div>
+                    </section>
+
+                    <!-- Decision support -->
+                    <div class="analytics-section-title"><h2>Decision Support</h2><p>Evidence-based planning aids; administrators make the final decision.</p></div>
+                    {% if analytics.forecast.sufficient %}{{ analytics.forecast.chart|json_script:"demandForecastChartData" }}{% endif %}
+                    {{ analytics.peak_sales.chart|json_script:"peakSalesChartData" }}
+                    <section class="analytics-grid analytics-grid-dss">
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header"><div><h2>Demand Forecast</h2><p>Simple moving-average stock guidance</p></div></header>
+                            <form method="get" class="analytics-forecast-form">
+                                <input type="hidden" name="period" value="{{ analytics.period.key }}" /><input type="hidden" name="grouping" value="{{ analytics.grouping }}" />
+                                {% if analytics.period.key == 'custom' %}<input type="hidden" name="date_from" value="{{ analytics.period.start|date:'Y-m-d' }}" /><input type="hidden" name="date_to" value="{{ analytics.period.end|date:'Y-m-d' }}" />{% endif %}
+                                <label for="forecastProduct">Product</label><select name="forecast_product" id="forecastProduct" class="analytics-select">{% for product in analytics.product_options %}<option value="{{ product.id }}"{% if product.id == analytics.forecast.product_id %} selected{% endif %}>{{ product.name }}</option>{% empty %}<option value="">No approved products</option>{% endfor %}</select>
+                                <label for="forecastHorizon">Forecast</label><select name="forecast_horizon" id="forecastHorizon" class="analytics-select"><option value="7"{% if analytics.forecast.horizon == 7 %} selected{% endif %}>Next 7 Days</option><option value="30"{% if analytics.forecast.horizon == 30 %} selected{% endif %}>Next 30 Days</option></select>
+                            </form>
+                            {% if analytics.forecast.sufficient %}
+                            <div class="analytics-chart analytics-chart-dss"><canvas id="demandForecastChart"></canvas></div>
+                            <div class="analytics-dss-summary"><div><span>Current Stock</span><strong>{{ analytics.forecast.current_stock }}</strong></div><div><span>Forecast Demand</span><strong>{{ analytics.forecast.forecast_total }}</strong></div><div><span>Suggested Preparation</span><strong>{{ analytics.forecast.suggested_preparation }}</strong></div></div>
+                            <p class="analytics-method-note">Method: {{ analytics.forecast.method }}. Suggested preparation is forecast demand minus current stock, never below zero.</p>
+                            {% else %}<div class="analytics-empty-state analytics-empty-compact"><strong>{{ analytics.forecast.message }}</strong><span>Requires at least {{ analytics.forecast.minimum.days|default:14 }} days, {{ analytics.forecast.minimum.nonzero_days|default:3 }} sales days, and {{ analytics.forecast.minimum.units|default:7 }} completed units.</span></div>{% endif %}
+                        </article>
+
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header"><div><h2>Frequently Bought Together</h2><p>Association rules from completed multi-item transactions</p></div></header>
+                            {% if analytics.market_basket.sufficient %}
+                            <div class="table-responsive"><table class="analytics-table analytics-table-compact"><thead><tr><th>Product A</th><th>Product B</th><th class="number-cell">Support</th><th class="number-cell">Confidence</th><th class="number-cell">Lift</th></tr></thead><tbody>{% for pair in analytics.market_basket.rows %}<tr><td>{{ pair.product_a }}</td><td>{{ pair.product_b }}</td><td class="number-cell">{{ pair.support }}%</td><td class="number-cell">{{ pair.confidence }}%</td><td class="number-cell">{{ pair.lift }}</td></tr>{% endfor %}</tbody></table></div>
+                            <p class="analytics-method-note">Consider offering strong product pairs as a bundle. No bundle is created automatically.</p>
+                            {% else %}<div class="analytics-empty-state"><strong>{{ analytics.market_basket.message }}</strong><span>CampusHub needs completed orders that share a real checkout transaction identifier before association rules can be calculated.</span></div>{% endif %}
+                        </article>
+
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header"><div><h2>Peak Sales Period</h2><p>Completed sales by day and three-hour interval</p></div></header>
+                            {% if analytics.peak_sales.sufficient %}
+                            <div class="analytics-peak-summary"><div><span>Day of Week</span><strong>{{ analytics.peak_sales.day }}</strong><small>&#8369;{{ analytics.peak_sales.day_sales }} sales</small></div><div><span>Time of Day</span><strong>{{ analytics.peak_sales.time }}</strong><small>&#8369;{{ analytics.peak_sales.time_sales }} sales</small></div></div>
+                            <div class="analytics-chart analytics-chart-dss"><canvas id="peakSalesChart"></canvas></div>
+                            {% else %}<div class="analytics-empty-state"><strong>{{ analytics.peak_sales.message }}</strong><span>Peak periods will appear after completed paid orders are available.</span></div>{% endif %}
+                        </article>
+                    </section>
+
+                    <footer class="analytics-footer">All sales metrics are based on completed and paid Cash-on-Pickup orders in the selected period.</footer>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    {% include 'partials/admin_logout_modal.html' %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_marketplace_analytics.js' %}?v=20260904-offset-zero"></script>
+</body>
+</html>
