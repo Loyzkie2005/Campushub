@@ -2,11 +2,13 @@ import 'package:campushub/module_app/screens/dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets(
     'Dashboard has white circle with navy + in navbar, removes messages from appbar, and moves messages to sidebar',
     (tester) async {
+      SharedPreferences.setMockInitialValues({});
       const screenWidth = 390.0;
       const screenHeight = 844.0;
       tester.view.physicalSize = const Size(screenWidth, screenHeight);
@@ -45,7 +47,7 @@ void main() {
       );
       expect(icon.color, const Color(0xFF1A1851));
 
-      const navLabels = ['Home', 'Shop', 'Facilities', 'Profile'];
+      const navLabels = ['Home', 'Marketplace', 'Facilities', 'Profile'];
       for (final label in navLabels) {
         expect(
           find.descendant(of: navbarPillFinder, matching: find.text(label)),
@@ -62,19 +64,30 @@ void main() {
         findsNothing,
       );
 
+      expect(find.byType(AppBar), findsNothing);
+      expect(
+        find.byKey(const ValueKey('dashboard-brand-logo')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('dashboard-brand-name')),
+        findsOneWidget,
+      );
+      expect(find.text('Welcome Back'), findsOneWidget);
       expect(
         find.descendant(
-          of: find.byType(AppBar),
+          of: find.byKey(const ValueKey('dashboard-brand-header')),
           matching: find.textContaining('Welcome Back'),
         ),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.byTooltip('Messages'), findsNothing);
 
       await tester.tap(find.byKey(const ValueKey('navbar-item-1')));
       await tester.pump(const Duration(milliseconds: 350));
+      expect(find.byType(AppBar), findsNothing);
       expect(
-        find.descendant(of: find.byType(AppBar), matching: find.text('Shop')),
+        find.byKey(const ValueKey('dashboard-brand-name')),
         findsOneWidget,
       );
 

@@ -64,7 +64,10 @@ class FloatingBottomNavbar extends StatelessWidget {
   /// Default 5 items when no center action button is embedded.
   static const List<FloatingBottomNavbarItem> default5Items = [
     FloatingBottomNavbarItem(label: 'Home', icon: LucideIcons.home),
-    FloatingBottomNavbarItem(label: 'Shop', icon: LucideIcons.shoppingBag),
+    FloatingBottomNavbarItem(
+      label: 'Marketplace',
+      icon: LucideIcons.shoppingBag,
+    ),
     FloatingBottomNavbarItem(label: 'Facilities', icon: LucideIcons.building2),
     FloatingBottomNavbarItem(
       label: 'Messages',
@@ -73,10 +76,12 @@ class FloatingBottomNavbar extends StatelessWidget {
     FloatingBottomNavbarItem(label: 'Profile', icon: LucideIcons.user),
   ];
 
-  /// Default 4 destination items when the center action '+' is embedded inside the navbar.
   static const List<FloatingBottomNavbarItem> defaultCenterActionItems = [
     FloatingBottomNavbarItem(label: 'Home', icon: LucideIcons.home),
-    FloatingBottomNavbarItem(label: 'Shop', icon: LucideIcons.shoppingBag),
+    FloatingBottomNavbarItem(
+      label: 'Marketplace',
+      icon: LucideIcons.shoppingBag,
+    ),
     FloatingBottomNavbarItem(label: 'Facilities', icon: LucideIcons.building2),
     FloatingBottomNavbarItem(label: 'Profile', icon: LucideIcons.user),
   ];

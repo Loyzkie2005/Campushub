@@ -1,8 +1,27 @@
 import 'package:campushub/module_app/widgets/navigation/floating_bottom_navbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 void main() {
+  test('both navbar configurations use Lucide icons', () {
+    expect(FloatingBottomNavbar.default5Items.map((item) => item.icon), [
+      LucideIcons.home,
+      LucideIcons.shoppingBag,
+      LucideIcons.building2,
+      LucideIcons.messageSquare,
+      LucideIcons.user,
+    ]);
+    expect(
+      FloatingBottomNavbar.defaultCenterActionItems.map((item) => item.icon),
+      [
+        LucideIcons.home,
+        LucideIcons.shoppingBag,
+        LucideIcons.building2,
+        LucideIcons.user,
+      ],
+    );
+  });
   for (final width in [320.0, 390.0, 768.0]) {
     testWidgets('Floating navbar fits and switches tabs at width $width', (
       tester,
@@ -41,7 +60,13 @@ void main() {
       );
 
       // Verify text labels are shown
-      const labels = ['Home', 'Products', 'Facilities', 'Messages', 'Profile'];
+      const labels = [
+        'Home',
+        'Marketplace',
+        'Facilities',
+        'Messages',
+        'Profile',
+      ];
       for (final label in labels) {
         expect(find.text(label), findsOneWidget);
       }
@@ -51,6 +76,21 @@ void main() {
         await tester.tap(find.byKey(ValueKey('navbar-item-$index')));
         await tester.pumpAndSettle();
         expect(selectedIndex, index);
+        for (var itemIndex = 0; itemIndex < 5; itemIndex++) {
+          final icon = tester.widget<Icon>(
+            find.descendant(
+              of: find.byKey(ValueKey('navbar-item-$itemIndex')),
+              matching: find.byType(Icon),
+            ),
+          );
+          expect(icon.icon, FloatingBottomNavbar.default5Items[itemIndex].icon);
+          expect(
+            icon.color,
+            itemIndex == index
+                ? const Color(0xFF1A1851)
+                : const Color(0xFF64748B),
+          );
+        }
         expect(tester.getRect(pillFinder), initialRect);
         expect(tester.takeException(), isNull);
       }

@@ -53,7 +53,7 @@ void main() {
     final msgRect = tester.getRect(find.text('Add note'));
     final payRect = tester.getRect(find.text('Payment Methods'));
     final orderSummaryRect = tester.getRect(find.text('Order Summary'));
-    final subtotalRect = tester.getRect(find.text('Subtotal'));
+    final subtotalRect = tester.getRect(find.text('Product Subtotal'));
 
     expect(payRect.top, greaterThan(msgRect.bottom));
     expect(orderSummaryRect.top, greaterThan(payRect.bottom));
@@ -62,7 +62,7 @@ void main() {
     await tester.tap(find.text('Add note'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Add an optional note for the seller'), findsOneWidget);
+    expect(find.text('Leave an optional message for the seller.'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'No ketchup, please.');
     expect(messageController.text, 'No ketchup, please.');
   });

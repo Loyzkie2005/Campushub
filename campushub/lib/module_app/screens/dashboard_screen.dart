@@ -27,7 +27,9 @@ class DashboardScreen extends StatefulWidget {
   static const Color primaryBlue = Color(0xFF1A56DB);
   static const Color webBrandBlue = Color(0xFF0175C2);
   static const Color campusGold = Color(0xFFFCB316);
-  static const Color pageBackground = Color(0xFFF8FAFD);
+  static const Color pageBackground = Colors.white;
+  static const Color headerNavy = Color(0xFF1A1851);
+  static const Color headerTint = Colors.white;
   static const Color borderBlue = Color(0xFFBFD7FF);
   static String get apiBaseUrl => ApiConfig.baseUrl;
   static List<String> get apiBaseUrls => ApiConfig.serverBaseUrls;
@@ -37,8 +39,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  static const Color pageBackground = DashboardScreen.pageBackground;
-
   final PageController _pageController = PageController();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -151,175 +151,207 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const appBarForeground = Color(0xFF1A1851);
-    final pageTitle = switch (_currentIndex) {
-      1 => 'Shop',
-      2 => 'Facilities',
-      3 => 'Profile',
-      _ => _firstName.isNotEmpty ? 'Welcome Back, $_firstName' : 'Welcome Back',
-    };
-    return Scaffold(
-      backgroundColor: pageBackground,
-      drawer: _DashboardDrawer(
-        currentIndex: _currentIndex,
-        onSelectTab: _goToTab,
-        onOpenMessages: _openMessages,
-      ),
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: pageBackground,
-        foregroundColor: appBarForeground,
-        surfaceTintColor: Colors.transparent,
-        scrolledUnderElevation: 0,
-        systemOverlayStyle: SystemUiOverlayStyle.dark.copyWith(
-          statusBarColor: Colors.white,
-          systemNavigationBarColor: Colors.white,
-          systemNavigationBarIconBrightness: Brightness.dark,
-        ),
-        elevation: 0,
-        toolbarHeight: 56,
-        leading: _isSearchOpen
-            ? IconButton(
-                onPressed: _closeSearch,
-                icon: const Icon(
-                  LucideIcons.arrowLeft,
-                  color: appBarForeground,
-                ),
-                tooltip: 'Back',
-              )
-            : Builder(
-                builder: (context) => IconButton(
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                  icon: const Icon(LucideIcons.menu, color: appBarForeground),
-                  tooltip: 'Menu',
-                ),
-              ),
-        titleSpacing: 0,
-        title: _isSearchOpen
-            ? Container(
-                height: 42,
-                margin: const EdgeInsets.only(right: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    const Icon(
-                      LucideIcons.search,
-                      size: 20,
-                      color: Color(0xFF94A3B8),
+    const appBarForeground = DashboardScreen.headerNavy;
+    final header = Material(
+      key: const ValueKey('dashboard-brand-header'),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            _isSearchOpen
+                ? IconButton(
+                    onPressed: _closeSearch,
+                    icon: Icon(LucideIcons.arrowLeft, color: appBarForeground),
+                    tooltip: 'Back',
+                  )
+                : Builder(
+                    builder: (context) => IconButton(
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                      icon: Icon(LucideIcons.menu, color: appBarForeground),
+                      tooltip: 'Menu',
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        autofocus: true,
-                        textInputAction: TextInputAction.search,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF1A1851),
-                          fontWeight: FontWeight.w500,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: 'Search products, facilities...',
-                          hintStyle: TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10),
-                        ),
-                        onSubmitted: _handleSearchSubmit,
+                  ),
+            Expanded(
+              child: _isSearchOpen
+                  ? Container(
+                      height: 42,
+                      margin: const EdgeInsets.only(right: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
-                    ),
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _searchController,
-                      builder: (context, value, _) {
-                        if (value.text.isEmpty) return const SizedBox.shrink();
-                        return GestureDetector(
-                          onTap: () => _searchController.clear(),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 4),
-                            child: Icon(
-                              LucideIcons.x,
-                              size: 18,
-                              color: Color(0xFF94A3B8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            LucideIcons.search,
+                            size: 20,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              autofocus: true,
+                              textInputAction: TextInputAction.search,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF1A1851),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              decoration: const InputDecoration(
+                                hintText: 'Search products, facilities...',
+                                hintStyle: TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                              ),
+                              onSubmitted: _handleSearchSubmit,
                             ),
                           ),
-                        );
-                      },
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: _searchController,
+                            builder: (context, value, _) {
+                              if (value.text.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return GestureDetector(
+                                onTap: () => _searchController.clear(),
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 4),
+                                  child: Icon(
+                                    LucideIcons.x,
+                                    size: 18,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Image.asset(
+                          'assets/img/logo_light.png',
+                          key: const ValueKey('dashboard-brand-logo'),
+                          width: 32,
+                          height: 36,
+                          fit: BoxFit.contain,
+                          semanticLabel: 'CampusHub logo',
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text.rich(
+                              const TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Campus',
+                                    style: TextStyle(
+                                      color: DashboardScreen.campusGold,
+                                    ),
+                                  ),
+                                  TextSpan(text: 'Hub'),
+                                ],
+                              ),
+                              key: ValueKey('dashboard-brand-name'),
+                              style: TextStyle(
+                                color: appBarForeground,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              )
-            : Text(
-                pageTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: appBarForeground,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                ),
+            ),
+            if (!_isSearchOpen) ...[
+              IconButton(
+                onPressed: _openSearch,
+                icon: Icon(LucideIcons.search, color: appBarForeground),
+                tooltip: 'Search',
+                visualDensity: VisualDensity.compact,
               ),
-        actions: _isSearchOpen
-            ? null
-            : [
-                IconButton(
-                  onPressed: _openSearch,
-                  icon: const Icon(LucideIcons.search, color: appBarForeground),
-                  tooltip: 'Search',
-                  visualDensity: VisualDensity.compact,
-                ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(LucideIcons.bell, color: appBarForeground),
-                  tooltip: 'Notifications',
-                  visualDensity: VisualDensity.compact,
-                ),
-                const SizedBox(width: 4),
-              ],
-      ),
-      body: PopScope(
-        canPop: !_isSearchOpen,
-        onPopInvokedWithResult: (didPop, result) {
-          if (didPop) return;
-          if (_isSearchOpen) {
-            _closeSearch();
-          }
-        },
-        child: SafeArea(
-          top: false,
-          child: PageView(
-            controller: _pageController,
-            onPageChanged: (index) {
-              FocusManager.instance.primaryFocus?.unfocus();
-              setState(() => _currentIndex = index);
-            },
-            children: [
-              _HomePage(
-                onProductsTap: () => _goToTab(1),
-                onFacilitiesTap: () => _goToTab(2),
-                onRefresh: _refreshHome,
+              IconButton(
+                onPressed: () {},
+                icon: Icon(LucideIcons.bell, color: appBarForeground),
+                tooltip: 'Notifications',
+                visualDensity: VisualDensity.compact,
               ),
-              const _MarketplacePage(),
-              const FacilitiesPage(),
-              const ProfilePage(),
+              const SizedBox(width: 4),
             ],
-          ),
+          ],
         ),
       ),
-      bottomNavigationBar: FloatingBottomNavbar(
-        currentIndex: _currentIndex,
-        onTap: _goToTab,
-        onCenterActionTap: _openAddProductForm,
+    );
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: Colors.white,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        drawer: _DashboardDrawer(
+          currentIndex: _currentIndex,
+          onSelectTab: _goToTab,
+          onOpenMessages: _openMessages,
+        ),
+        body: PopScope(
+          canPop: !_isSearchOpen,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            if (_isSearchOpen) {
+              _closeSearch();
+            }
+          },
+          child: SafeArea(
+            child: Column(
+              children: [
+                header,
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      setState(() => _currentIndex = index);
+                    },
+                    children: [
+                      _HomePage(
+                        firstName: _firstName,
+                        onProductsTap: () => _goToTab(1),
+                        onFacilitiesTap: () => _goToTab(2),
+                        onRefresh: _refreshHome,
+                      ),
+                      const _MarketplacePage(),
+                      const FacilitiesPage(),
+                      const ProfilePage(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: FloatingBottomNavbar(
+          currentIndex: _currentIndex,
+          onTap: _goToTab,
+          onCenterActionTap: _openAddProductForm,
+        ),
       ),
     );
   }
@@ -327,11 +359,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 class _HomePage extends StatefulWidget {
   const _HomePage({
+    required this.firstName,
     required this.onProductsTap,
     required this.onFacilitiesTap,
     required this.onRefresh,
   });
 
+  final String firstName;
   final VoidCallback onProductsTap;
   final VoidCallback onFacilitiesTap;
   final Future<void> Function() onRefresh;
@@ -429,6 +463,7 @@ class _HomePageState extends State<_HomePage> {
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
         children: [
           _HeroCarousel(
+            firstName: widget.firstName,
             onExploreTap: widget.onProductsTap,
             onBookTap: widget.onFacilitiesTap,
             onBrowseTap: widget.onProductsTap,
@@ -483,7 +518,7 @@ class _DashboardProductsPreview extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 245,
+      height: 220,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: products.length,
@@ -877,11 +912,13 @@ IconData _iconForDashboardFacility(String value) {
 
 class _HeroCarousel extends StatefulWidget {
   const _HeroCarousel({
+    required this.firstName,
     required this.onExploreTap,
     required this.onBookTap,
     required this.onBrowseTap,
   });
 
+  final String firstName;
   final VoidCallback onExploreTap;
   final VoidCallback onBookTap;
   final VoidCallback onBrowseTap;
@@ -895,9 +932,9 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   int _index = 0;
   Timer? _autoTimer;
 
-  static const List<_HeroSlideData> _slides = [
+  List<_HeroSlideData> get _slides => [
     _HeroSlideData(
-      title: 'Your Campus Essentials,\nSimplified',
+      title: 'Explore Campus\nServices',
       subtitle:
           'Book facilities, explore products, and access campus services in one platform.',
       buttonLabel: 'Explore Now',
@@ -948,11 +985,36 @@ class _HeroCarouselState extends State<_HeroCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final displayName = widget.firstName.trim();
+    final welcomeTitle = displayName.isEmpty
+        ? 'Welcome Back'
+        : 'Welcome Back, $displayName';
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, right: 2, bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                welcomeTitle,
+                style: const TextStyle(
+                  color: DashboardScreen.primaryNavy,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+            ],
+          ),
+        ),
         SizedBox(
           height: 224,
           child: PageView.builder(
+            key: const ValueKey('home-carousel'),
             controller: _controller,
             itemCount: _slides.length,
             onPageChanged: (index) => setState(() => _index = index),
@@ -1001,22 +1063,16 @@ class _HeroSlideCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8F9FB),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: DashboardScreen.primaryNavy.withValues(alpha: 0.07),
+              color: DashboardScreen.primaryNavy.withValues(alpha: 0.05),
               blurRadius: 14,
-              offset: const Offset(0, 8),
+              offset: const Offset(0, 4),
             ),
           ],
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFFFFF), Color(0xFFF1F5FF), Color(0xFFFFF7DE)],
-            stops: [0.0, 0.62, 1.0],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
@@ -1089,6 +1145,178 @@ class _MarketplacePageState extends State<_MarketplacePage> {
   String? _error;
   List<ProductItem> _products = const [];
   List<ProductItem> _recommended = const [];
+  String _selectedCategory = 'All';
+
+  static const List<String> _webCategories = [
+    'All',
+    'Rice Meals',
+    'Snacks',
+    'Desserts',
+    'Beverages',
+    'Combo Meals',
+    'Breakfast',
+    'School Supplies',
+    'Electronics',
+    'Clothing',
+    'Accessories',
+    'Personal Care',
+    'Services',
+    'Stationery',
+    'Books',
+    'Home & Living',
+    'Sports',
+    'Others',
+  ];
+
+  List<String> get _categories {
+    final list = List<String>.from(_webCategories);
+    for (final p in _products) {
+      final cat = p.category.trim();
+      if (cat.isNotEmpty &&
+          !list.any((c) => c.toLowerCase() == cat.toLowerCase())) {
+        list.add(cat);
+      }
+    }
+    return list;
+  }
+
+  List<ProductItem> get _filteredCategoryProducts {
+    if (_selectedCategory.toLowerCase() == 'all') {
+      return _products;
+    }
+    return _products
+        .where((p) =>
+            p.category.trim().toLowerCase() ==
+            _selectedCategory.toLowerCase())
+        .toList(growable: false);
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'all':
+        return Icons.grid_view_rounded;
+      case 'rice meals':
+        return Icons.restaurant_rounded;
+      case 'snacks':
+        return Icons.cookie_outlined;
+      case 'desserts':
+        return Icons.cake_outlined;
+      case 'beverages':
+        return Icons.local_cafe_outlined;
+      case 'combo meals':
+        return Icons.fastfood_rounded;
+      case 'breakfast':
+        return Icons.breakfast_dining_rounded;
+      case 'school supplies':
+        return Icons.backpack_outlined;
+      case 'electronics':
+        return Icons.devices_rounded;
+      case 'clothing':
+        return Icons.checkroom_rounded;
+      case 'accessories':
+        return Icons.watch_outlined;
+      case 'personal care':
+        return Icons.clean_hands_outlined;
+      case 'services':
+        return Icons.build_outlined;
+      case 'stationery':
+        return Icons.edit_note_rounded;
+      case 'books':
+        return Icons.menu_book_rounded;
+      case 'home & living':
+        return Icons.home_outlined;
+      case 'sports':
+        return Icons.sports_basketball_rounded;
+      case 'others':
+      default:
+        return Icons.category_outlined;
+    }
+  }
+
+  Widget _buildCategoryCards() {
+    final categories = _categories;
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: categories.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final cat = categories[index];
+          final isSelected =
+              _selectedCategory.toLowerCase() == cat.toLowerCase();
+          final icon = _getCategoryIcon(cat);
+
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedCategory = cat;
+                });
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? DashboardScreen.primaryNavy
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected
+                        ? DashboardScreen.primaryNavy
+                        : const Color(0xFFE2E8F0),
+                    width: isSelected ? 1.4 : 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isSelected
+                          ? DashboardScreen.primaryNavy.withValues(alpha: 0.16)
+                          : Colors.black.withValues(alpha: 0.03),
+                      blurRadius: isSelected ? 4 : 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 15,
+                      color: isSelected
+                          ? DashboardScreen.campusGold
+                          : DashboardScreen.primaryNavy,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      cat,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF1E293B),
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -1172,6 +1400,7 @@ class _MarketplacePageState extends State<_MarketplacePage> {
         : (_products.length > 4
               ? _products.skip(4).toList(growable: false)
               : const <ProductItem>[]);
+    final filteredCategoryProducts = _filteredCategoryProducts;
 
     return RefreshIndicator(
       onRefresh: _fetchApprovedProducts,
@@ -1179,22 +1408,58 @@ class _MarketplacePageState extends State<_MarketplacePage> {
         cacheExtent: 700,
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
-          const _PageTitle('Recently Added'),
-          const SizedBox(height: 14),
-          _buildProductsSection(
-            products: recentlyAdded,
-            emptyMessage: 'New approved products will appear here.',
+          _buildCategoryCards(),
+          const SizedBox(height: 18),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _selectedCategory.toLowerCase() == 'all'
+                    ? 'Products'
+                    : _selectedCategory,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                '${filteredCategoryProducts.length} ${filteredCategoryProducts.length == 1 ? 'item' : 'items'}',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          const _PageTitle('Recommended For You'),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           _buildProductsSection(
-            products: popular,
-            emptyMessage:
-                'Browse products to get personalized recommendations.',
-            // While loading we already showed a spinner above, avoid double spinner.
-            showLoadingPlaceholder: false,
+            products: filteredCategoryProducts,
+            emptyMessage: _selectedCategory.toLowerCase() == 'all'
+                ? 'No products found.'
+                : 'No products found in $_selectedCategory.',
+            showLoadingPlaceholder: true,
           ),
+          if (_selectedCategory.toLowerCase() == 'all') ...[
+            const SizedBox(height: 24),
+            const _PageTitle('Recently Added'),
+            const SizedBox(height: 14),
+            _buildProductsSection(
+              products: recentlyAdded,
+              emptyMessage: 'New approved products will appear here.',
+              showLoadingPlaceholder: false,
+            ),
+            const SizedBox(height: 24),
+            const _PageTitle('Recommended For You'),
+            const SizedBox(height: 14),
+            _buildProductsSection(
+              products: popular,
+              emptyMessage:
+                  'Browse products to get personalized recommendations.',
+              showLoadingPlaceholder: false,
+            ),
+          ],
         ],
       ),
     );
@@ -1342,12 +1607,16 @@ class _SectionHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.black,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         TextButton(
