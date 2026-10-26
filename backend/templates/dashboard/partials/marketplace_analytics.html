@@ -1,0 +1,10 @@
+<section class="dashboard-marketplace" aria-labelledby="marketplaceAnalyticsTitle">
+    <div class="dashboard-section-heading">
+        <h2 id="marketplaceAnalyticsTitle">Marketplace Analytics</h2>
+        <a href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ sales_overview.start|date:'Y-m-d' }}&amp;date_to={{ sales_overview.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}" class="dash-view-all-link sales-overview__cta-btn">View Detailed Analytics {% include 'dashboard/partials/marketplace_icon.html' with icon='arrow' %}</a>
+    </div>
+    <div class="dashboard-marketplace-grid">
+        {% include 'dashboard/partials/sales_overview.html' %}
+        {% include 'dashboard/partials/marketplace_product_stack.html' %}
+    </div>
+</section>

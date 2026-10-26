@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.contrib.auth.models import AnonymousUser
 
 from .admin_tab_auth import get_tab_token_from_request, get_user_for_tab_token
 
@@ -20,6 +21,8 @@ class AdminTabAuthMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        if getattr(request.user, "is_suspended", False):
+            request.user = AnonymousUser()
         token = get_tab_token_from_request(request)
         if token:
             user = get_user_for_tab_token(token)

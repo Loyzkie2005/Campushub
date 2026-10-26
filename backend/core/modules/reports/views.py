@@ -1,20 +1,25 @@
+from modules.facilities.services.schedules import schedule_blocks_q
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from io import BytesIO, StringIO
 import csv
 import json
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import PermissionDenied
+from django.db import DatabaseError
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import Coalesce, TruncDate
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET
 
 from accounts.models import User
 from accounts.views import dashboard_required, get_notification_context
@@ -25,8 +30,12 @@ from modules.marketplace.services.analytics import (
 )
 from modules.reports.models import GeneratedReport
 from modules.reports.reporting import REPORT_GROUPS, REPORT_TITLES, build_report
+from modules.reports.dashboard_periods import build_dashboard_data, resolve_dashboard_period
+from modules.marketplace.services.bundle_suggestions import (
+    can_view_bundle_suggestions, dashboard_bundle_suggestions,
+)
 
-CATEGORY_COLORS = ("#2563eb", "#16a34a", "#f59e0b", "#7c3aed", "#ea580c")
+CATEGORY_COLORS = ("#1A1851", "#FCB315", "#626781", "#9396ac", "#d5d7e0")
 REPORT_GROUP_PERMISSIONS = {
     "Marketplace": "accounts.can_view_marketplace_reports",
     "Facilities": "accounts.can_view_facility_reports",
@@ -51,10 +60,17 @@ def _require_report_type_permission(user, report_type):
     raise PermissionDenied
 
 
+def _aware_dashboard_datetime(value):
+    """Read legacy timezone-free values using Django's configured default zone."""
+    if value is not None and timezone.is_naive(value):
+        return timezone.make_aware(value, timezone.get_default_timezone())
+    return value
+
+
 def _format_activity_time(dt):
     if not dt:
         return ""
-    local = timezone.localtime(dt)
+    local = timezone.localtime(_aware_dashboard_datetime(dt))
     today = timezone.localdate()
     if local.date() == today:
         return local.strftime("%I:%M %p").lstrip("0")
@@ -143,7 +159,7 @@ def _requested_analytics_days(request, parameter_name):
     return days if days in {7, 14, 30} else 7
 
 
-def _revenue_orders(department_id=None):
+def _revenue_orders(department_id=None, user=None):
     """Completed and paid Cash on Pickup orders counted as marketplace sales."""
     from api.models import MarketplaceOrder
 
@@ -153,10 +169,13 @@ def _revenue_orders(department_id=None):
     )
     if department_id:
         qs = qs.filter(product__seller__department_id=department_id)
+    if user is not None:
+        from accounts.academic import scope_products
+        qs = scope_products(qs, user, prefix="product__")
     return qs
 
 
-def _sales_overview_summary(orders, period, total, count):
+def _sales_overview_summary(orders, period, total, count, *, marketplace=False):
     previous_end = period.start - timedelta(days=1)
     previous_start = previous_end - timedelta(days=period.days - 1)
     previous = orders.filter(
@@ -183,7 +202,7 @@ def _sales_overview_summary(orders, period, total, count):
             "value": f"{value:,.2f}" if currency else f"{value:,}",
             "currency": currency, "change": change,
         })
-    return {
+    summary = {
         "metrics": metrics,
         "has_sales": count > 0,
         "days": period.days,
@@ -192,6 +211,22 @@ def _sales_overview_summary(orders, period, total, count):
         "start": period.start,
         "end": period.end,
     }
+    if marketplace:
+        # Reuse the aggregate above; legacy/shared callers retain their output.
+        summary["comparison"] = {"start": previous_start, "end": previous_end, "days": period.days}
+        for metric, baseline in zip(metrics, (previous_total, previous_count, previous_average)):
+            defined = metric["key"] != "average" or count > 0
+            previous_defined = metric["key"] != "average" or previous_count > 0
+            value = {"sales": total, "orders": count, "average": average}[metric["key"]]
+            percentage = (Decimal(value) - Decimal(baseline)) / Decimal(baseline) * 100 if defined and baseline else None
+            metric["comparison"] = {
+                "defined": defined,
+                "previous": (f"{baseline:,.2f}" if metric["currency"] else f"{baseline:,}") if previous_defined else None,
+                "change": f"{percentage:+.1f}%" if percentage else "0.0%" if percentage is not None else None,
+                "note": ("No eligible completed and paid orders are available for this average." if not defined else
+                         "Previous period value is zero; percentage change is unavailable." if not baseline else ""),
+            }
+    return summary
 
 
 def _dashboard_top_products(orders):
@@ -211,7 +246,7 @@ def _dashboard_product_categories(products):
     categories = [{"name": row["category"] or "Uncategorized", "count": row["count"]} for row in rows[:5]]
     if len(rows) > 5:
         categories.append({"name": "Other categories", "count": sum(row["count"] for row in rows[5:])})
-    colors = ("#1A1851", "#FCB316", "#787878", "#b5b5b5", "#dedede", "#f8fafc")
+    colors = ("#1A1851", "#FCB315", "#787878", "#b5b5b5", "#dedede", "#f8fafc")
     circumference = 2 * 3.141592653589793 * 50
     offset = 0
     for category, color in zip(categories, colors):
@@ -249,7 +284,7 @@ def _resolve_sales_period(request, today: date):
     raw_days = (request.GET.get("sales_days") or "").strip()
 
     # Prioritize explicit sales_days parameter for backwards compatibility (e.g. tests)
-    if raw_days in {"7", "14", "30"}:
+    if raw_days in {"7", "14", "30", "90"}:
         days = int(raw_days)
         start = today - timedelta(days=days - 1)
         return AnalyticsPeriod(str(days), f"Last {days} Days", start, today), str(days), days
@@ -260,6 +295,8 @@ def _resolve_sales_period(request, today: date):
         return AnalyticsPeriod("7", "Last 7 Days", today - timedelta(days=6), today), "7", 7
     elif raw_period == "14":
         return AnalyticsPeriod("14", "Last 14 Days", today - timedelta(days=13), today), "14", 14
+    elif raw_period in {"90", "last_90_days"}:
+        return AnalyticsPeriod("90", "Last 90 Days", today - timedelta(days=89), today), "90", 90
     elif raw_period in {"30", "last_30_days"}:
         return AnalyticsPeriod("30", "Last 30 Days", today - timedelta(days=29), today), "30", 30
     elif raw_period in {"month", "this_month"}:
@@ -287,26 +324,49 @@ def _resolve_sales_period(request, today: date):
     return AnalyticsPeriod("30", "Last 30 Days", start, today), "30", days
 
 
-def _booking_reserved_hours(booking, operating_hours_per_day):
+def _resolve_marketplace_sales_period(request, today):
+    """Validate custom input only for Marketplace; keep existing valid presets."""
+    key = (request.GET.get("period") or request.GET.get("sales_period") or request.GET.get("date_range") or "").strip().lower()
+    legacy_days = (request.GET.get("sales_days") or "").strip()
+    if key == "custom" and legacy_days not in {"7", "14", "30", "90"}:
+        try:
+            # Existing documented dashboard bounds: <=3,661 days, from 1900.
+            resolve_dashboard_period({"period": "custom", "date_from": request.GET.get("date_from"),
+                                      "date_to": request.GET.get("date_to")}, today=today)
+        except ValueError as error:
+            period = AnalyticsPeriod("30", "Last 30 Days", today - timedelta(days=29), today)
+            return period, "30", 30, str(error)
+    period, key, days = _resolve_sales_period(request, today)
+    return period, key, days, ""
+
+
+def _booking_reserved_hours(booking, operating_hours_per_day, *, period_start=None, period_end=None):
     """Return the reserved hours represented by one approved booking."""
     if booking.start_time and booking.end_time:
         start = datetime.combine(booking.booking_date or timezone.localdate(), booking.start_time)
         end = datetime.combine(booking.booking_date or timezone.localdate(), booking.end_time)
         if end <= start:
             end += timedelta(days=1)
+        if period_start and period_end:
+            start = max(start, datetime.combine(period_start, datetime.min.time()))
+            end = min(end, datetime.combine(period_end + timedelta(days=1), datetime.min.time()))
         return max(0.0, (end - start).total_seconds() / 3600)
 
     if booking.check_in_date and booking.check_out_date:
-        reserved_days = max(1, (booking.check_out_date - booking.check_in_date).days)
+        start = max(booking.check_in_date, period_start) if period_start else booking.check_in_date
+        end = min(booking.check_out_date, period_end + timedelta(days=1)) if period_end else booking.check_out_date
+        reserved_days = max(0, (end - start).days)
         return float(reserved_days * operating_hours_per_day)
 
     return 0.0
 
 
-def _facility_dashboard_analytics(today, days):
-    from api.models import Booking, Facility, FacilityPayment
+def _facility_dashboard_analytics(today, days, *, period_start=None, revenue_previous_range=None):
+    from api.models import Booking, Facility
+    from modules.facilities.revenue import facility_revenue_summary
+    from .dashboard_facility_status import facility_operational_status
 
-    period_start = today - timedelta(days=days - 1)
+    period_start = period_start or today - timedelta(days=days - 1)
     operating_hours = float(
         getattr(settings, "FACILITY_OPERATING_HOURS_PER_DAY", 8)
     )
@@ -314,10 +374,11 @@ def _facility_dashboard_analytics(today, days):
     facility_ids = [facility.id for facility in facilities]
     period_filter = Q(booking_date__range=(period_start, today)) | Q(
         booking_date__isnull=True,
-        check_in_date__range=(period_start, today),
+        check_in_date__lte=today,
+        check_out_date__gt=period_start,
     )
     period_bookings = list(
-        Booking.objects.filter(period_filter, facility_id__in=facility_ids)
+        Booking.objects.exclude(schedule_blocks_q()).filter(period_filter, facility_id__in=facility_ids)
         .select_related("facility")
         .order_by("booking_date", "start_time")
     )
@@ -337,7 +398,7 @@ def _facility_dashboard_analytics(today, days):
     booked_hours = {facility_id: 0.0 for facility_id in facility_ids}
 
     for booking in period_bookings:
-        booking_day = booking.booking_date or booking.check_in_date
+        booking_day = booking.booking_date or max(booking.check_in_date, period_start)
         status_key = next(
             (key for key, value in chart_statuses.items() if booking.status == value),
             "cancelled" if booking.status in {Booking.STATUS_CANCELLED, Booking.STATUS_REJECTED} else None,
@@ -349,48 +410,11 @@ def _facility_dashboard_analytics(today, days):
         if booking.status in active_statuses and booking.facility_id:
             booking_counts[booking.facility_id] += 1
             booked_hours[booking.facility_id] += _booking_reserved_hours(
-                booking, operating_hours
+                booking, operating_hours, period_start=period_start, period_end=today
             )
 
-    revenue_by_facility = {facility_id: Decimal("0") for facility_id in facility_ids}
-    daily_revenue = {
-        period_start + timedelta(days=offset): Decimal("0")
-        for offset in range(days)
-    }
-    try:
-        paid_payments = (
-            FacilityPayment.objects.filter(
-                payment_status=FacilityPayment.PAYMENT_PAID,
-                booking__facility_id__in=facility_ids,
-            )
-            .filter(
-                Q(paid_at__date__range=(period_start, today))
-                | Q(
-                    paid_at__isnull=True,
-                    created_at__date__range=(period_start, today),
-                )
-            )
-            .select_related("booking")
-        )
-        for payment in paid_payments:
-            facility_id = payment.booking.facility_id
-            if facility_id:
-                amount = payment.paid_amount or Decimal("0")
-                revenue_by_facility[facility_id] += amount
-                paid_on = payment.paid_at or payment.created_at
-                if paid_on:
-                    if timezone.is_aware(paid_on):
-                        paid_on = timezone.localtime(paid_on)
-                    if paid_on.date() in daily_revenue:
-                        daily_revenue[paid_on.date()] += amount
-    except Exception:
-        for booking in period_bookings:
-            if booking.status in active_statuses and booking.facility_id:
-                amount = booking.total_amount or Decimal("0")
-                revenue_by_facility[booking.facility_id] += amount
-                booking_day = booking.booking_date or booking.check_in_date
-                if booking_day in daily_revenue:
-                    daily_revenue[booking_day] += amount
+    revenue = facility_revenue_summary(period_start, today, revenue_previous_range)
+    revenue_by_facility = revenue["by_facility"]
 
     capacity_hours = max(1.0, days * operating_hours)
     facility_rows = []
@@ -458,459 +482,192 @@ def _facility_dashboard_analytics(today, days):
         },
         "status_totals": status_totals,
         "availability": availability,
+        "operational_status": facility_operational_status(facilities),
         "facilities": facility_rows,
         "most_booked": most_booked,
-        "period_revenue": f"{sum(revenue_by_facility.values(), Decimal('0')):.2f}",
-        "revenue_chart": {
-            "labels": labels,
-            "values": [
-                float(daily_revenue[period_start + timedelta(days=offset)])
-                for offset in range(days)
-            ],
-        },
+        "period_revenue": revenue["total"],
+        "revenue_chart": revenue["chart"],
+        "revenue_overview": {key: value for key, value in revenue.items() if key != "by_facility"},
         "schedule_conflicts": schedule_conflicts,
     }
 
 
+@timezone.override("Asia/Manila")
 def _marketplace_operational_dashboard_data(request, user):
+    """Dedicated marketplace data; all resources use canonical academic boundaries."""
     from api.models import MarketplaceOrder, Product, SellerRequest
-    from django.db.models.functions import Coalesce
-    from modules.marketplace.services.analytics import AnalyticsPeriod, _sales_time_series
+    from accounts.academic import scope_products, scope_seller_requests
+    from accounts.activity_service import format_activities
+    from accounts.models import AccountActivity
+    from accounts.support_scope import scope_marketplace_activity
+    from modules.marketplace.services.inventory import (
+        low_stock_inventory_rows, active_inventory_reservations, get_product_inventory_snapshot,
+    )
+    from modules.marketplace.services.inventory_monitor import inventory_url
+    from modules.marketplace.services.order_access import admin_order_queryset
+    from modules.marketplace.services.analytics import valid_sales_queryset
+    from .dashboard_marketplace import category_sales_chart, recent_marketplace_orders, sales_by_product_category, top_selling_products
 
     today = timezone.localdate()
-    grouping = (
-        request.GET.get("grouping")
-        or request.GET.get("sales_grouping")
-        or "daily"
-    ).strip().lower()
+    grouping = (request.GET.get("grouping") or request.GET.get("sales_grouping") or "daily").strip().lower()
     if grouping not in {"daily", "weekly", "monthly"}:
         grouping = "daily"
-
-    period, sales_period_key, sales_days = _resolve_sales_period(request, today)
-
-    department_id = (
-        getattr(user, "department_id", None) if _is_marketplace_admin(user) else None
-    )
-    active_products_qs = Product.objects.filter(is_archived=False)
-    if department_id:
-        active_products_qs = active_products_qs.filter(
-            seller__department_id=department_id
-        )
-
-    total_products = active_products_qs.count()
-    pending_listings = active_products_qs.filter(
-        approval_status=Product.STATUS_PENDING
-    ).count()
-
-    order_qs = MarketplaceOrder.objects.all()
-    if department_id:
-        order_qs = order_qs.filter(product__seller__department_id=department_id)
-    total_orders = order_qs.count()
-
-    completed_orders_qs = _revenue_orders(department_id=department_id).annotate(
-        analytics_at=Coalesce("completed_at", "paid_at", "created_at")
-    )
-    total_sales_sum = (
-        completed_orders_qs.aggregate(total=Sum("total_price"))["total"]
-        or Decimal("0.00")
-    )
-
-    period_completed_orders = completed_orders_qs.filter(
-        analytics_at__date__gte=period.start,
-        analytics_at__date__lte=period.end,
-    )
-    period_completed_count = period_completed_orders.count()
-    period_sales_sum = (
-        period_completed_orders.aggregate(total=Sum("total_price"))["total"]
-        or Decimal("0.00")
-    )
-
-    time_series = _sales_time_series(period_completed_orders, period, grouping)
-    sales_labels = time_series["labels"]
-    sales_tooltip_labels = time_series.get("tooltip_labels", [])
-    sales_values = time_series["sales"]
-    sales_order_values = time_series["orders"]
-    sales_overview = _sales_overview_summary(completed_orders_qs, period, period_sales_sum, period_completed_count)
-    sales_overview["rows"] = [
-        {"label": label, "sales": f"{sales:,.2f}", "orders": orders}
-        for label, sales, orders in zip(sales_tooltip_labels or sales_labels, sales_values, sales_order_values)
-    ]
-
-    recent_orders = []
-    for o in order_qs.select_related("product").order_by("-created_at")[:8]:
-        recent_orders.append(
-            {
-                "id": o.id,
-                "code": o.order_code or f"#{o.id}",
-                "buyer_name": (o.buyer_name or "").strip() or "—",
-                "product_name": o.product_name,
-                "quantity": o.quantity,
-                "total": f"{o.total_price:.2f}",
-                "status": o.get_status_display(),
-                "status_key": (o.status or "pending").lower(),
-                "payment_status": (o.payment_status or "unpaid").capitalize(),
-                "payment_key": (o.payment_status or "unpaid").lower(),
-                "date": (
-                    timezone.localtime(o.created_at).strftime("%b %d, %Y")
-                    if o.created_at
-                    else "—"
-                ),
-            }
-        )
-
-    pending_approvals = []
-    for p in (
-        active_products_qs.filter(approval_status=Product.STATUS_PENDING)
-        .select_related("seller")
-        .order_by("-submitted_at")[:6]
-    ):
-        pending_approvals.append(
-            {
-                "id": p.id,
-                "name": p.name,
-                "seller": _seller_label(p.seller),
-                "category": p.category or "Not Assigned",
-                "submitted": (
-                    timezone.localtime(p.submitted_at).strftime("%b %d, %Y")
-                    if p.submitted_at
-                    else "—"
-                ),
-            }
-        )
-
-    low_stock = []
-    for p in active_products_qs.select_related("seller")[:100]:
+    period, sales_period_key, sales_days, date_range_error = _resolve_marketplace_sales_period(request, today)
+    products = scope_products(Product.objects.filter(is_archived=False), user)
+    product_counts = products.aggregate(total=Count("pk"), pending=Count("pk", filter=Q(approval_status=Product.STATUS_PENDING)),
+        approved=Count("pk", filter=Q(approval_status=Product.STATUS_APPROVED)),
+        rejected=Count("pk", filter=Q(approval_status=Product.STATUS_REJECTED)))
+    # Also retains Orders' protection against legacy multi-owner item snapshots.
+    orders = admin_order_queryset(user)
+    period_orders = orders.filter(created_at__date__gte=period.start, created_at__date__lte=period.end)
+    total_orders = period_orders.count()
+    revenue_orders = valid_sales_queryset(user)
+    period_revenue = revenue_orders.filter(analytics_at__date__gte=period.start, analytics_at__date__lte=period.end)
+    revenue = period_revenue.aggregate(total=Sum("total_price"), count=Count("pk"))
+    total_sales = revenue["total"] or Decimal("0")
+    completed_count = revenue["count"]
+    chart = _sales_time_series(period_revenue, period, grouping)
+    overview = _sales_overview_summary(revenue_orders, period, total_sales, completed_count, marketplace=True)
+    overview["rows"] = [{"label": label, "sales": f"{sales:,.2f}", "orders": count}
+                        for label, sales, count in zip(chart.get("tooltip_labels") or chart["labels"], chart["sales"], chart["orders"])]
+    pending = [{"id": p.pk, "name": p.name, "seller": _seller_label(p.owner),
+                "category": p.category or "Not Assigned", "submitted": _format_activity_time(p.submitted_at),
+                "url": reverse("admin_products_page") + f"?status=pending&product_id={p.pk}"}
+               for p in products.filter(approval_status=Product.STATUS_PENDING).select_related("seller", "mobile_seller").order_by("-submitted_at", "-pk")[:6]]
+    inventory_rows = low_stock_inventory_rows(products, limit=5, today=today, include_out_of_stock=True)
+    # The shortlist intentionally loads minimal fields. Resolve all seller labels once.
+    alert_products = {p.pk: p for p in products.filter(
+        pk__in={row["product"].pk for row in inventory_rows}).select_related(
+            "seller", "mobile_seller").prefetch_related("inventory_skus")}
+    reservations = {pk: [] for pk in alert_products}
+    for reservation in active_inventory_reservations(product_ids=alert_products):
+        reservations[reservation["product_id"]].append(reservation)
+    snapshots = {pk: get_product_inventory_snapshot(product, reservation_rows=reservations[pk])
+                 for pk, product in alert_products.items()}
+    def reserved_quantity(row):
+        snapshot = snapshots[row["product"].pk]
+        if snapshot is None:
+            return None  # Unresolvable historical selections must never become a fake zero.
+        if row["variant_key"]:
+            return next((variant["reserved"] for variant in snapshot["variant_thresholds"]
+                         if variant["variant_key"] == row["variant_key"]), None)
+        return snapshot["reserved"]
+    low_stock = [{"id": row["product"].pk, "name": row["product"].name,
+                  "variant_name": row["variant_name"], "seller": _seller_label(alert_products[row["product"].pk].owner),
+                  "reserved": reserved_quantity(row),
+                  "stock": row["available"], "threshold": row["threshold"], "is_out_of_stock": row["available"] == 0,
+                  "url": inventory_url({"view": "inventory", "product_id": row["product"].pk})}
+                 for row in inventory_rows]
+    top_products = top_selling_products(period_revenue)
+    from modules.marketplace.services.product_access import admin_product_queryset
+    from django.db.models import Exists, OuterRef
+    top_records = {p.pk: p for p in admin_product_queryset(user).filter(
+        pk__in=[row["id"] for row in top_products if row["id"]]).select_related("seller", "mobile_seller").annotate(
+            has_recorded_seller=Exists(period_revenue.filter(product_id=OuterRef("pk")).exclude(seller_name="")))}
+    for row in top_products:
+        product = top_records.get(row["id"])
+        row["product_url"] = row["product_url"] if product else ""
+        if product and not product.has_recorded_seller:
+            owner = product.owner
+            row["seller_name"] = ((owner.get_full_name() or owner.username).strip() if owner else "") or "Not recorded"
+    categories = _dashboard_product_categories(products)
+    category_sales = sales_by_product_category(period_revenue)
+    sales_by_name = {row["name"]: Decimal(row["sales"].replace(",", "")) for row in category_sales["categories"]}
+    shown = {row["name"] for row in categories["categories"] if row["name"] != "Other categories"}
+    for row in categories["categories"]:
+        amount = (sum((value for key, value in sales_by_name.items() if key not in shown), Decimal("0"))
+                  if row["name"] == "Other categories" else sales_by_name.get(row["name"], Decimal("0")))
+        row.update(sales=f"{amount:,.2f}", sales_share=round(amount / total_sales * 100, 1) if total_sales else 0)
+    applications = scope_seller_requests(SellerRequest.objects.all(), user)
+    seller_counts = applications.aggregate(
+        approved=Count("pk", filter=Q(status=SellerRequest.STATUS_APPROVED, is_suspended=False)),
+        pending=Count("pk", filter=Q(status=SellerRequest.STATUS_PENDING)),
+        suspended=Count("pk", filter=Q(status=SellerRequest.STATUS_APPROVED, is_suspended=True)))
+    status_counts = dict(orders.values("status").annotate(count=Count("pk")).values_list("status", "count"))
+    status_total = sum(status_counts.values())
+    from .dashboard_attention import build_attention_required
+    attention = build_attention_required(
+        today=today, products=products, pending_products=product_counts["pending"],
+        pending_sellers=seller_counts["pending"], pending_orders=status_counts.get(MarketplaceOrder.STATUS_PENDING, 0),
+        pending_bookings=0, booking_conflicts=0, maintenance_facilities=0, unavailable_facilities=0)
+    status_rows = [{"key": key, "label": label, "count": status_counts.get(key, 0),
+                    "percent": round(status_counts.get(key, 0) / status_total * 100) if status_total else 0}
+                   for key, label in MarketplaceOrder.STATUS_CHOICES]
+    # A created-order cohort measures fulfillment, independently of collected sales.
+    period_status_counts = dict(period_orders.values("status").annotate(count=Count("pk")).values_list("status", "count"))
+    period_status_rows = [{"key": key, "label": label, "count": period_status_counts.get(key, 0)}
+                          for key, label in MarketplaceOrder.STATUS_CHOICES]
+    completion_rate = round(period_status_counts.get(MarketplaceOrder.STATUS_COMPLETED, 0) / total_orders * 100, 1) if total_orders else None
+    show_bundle_suggestions = can_view_bundle_suggestions(user)
+    bundle_analysis = dashboard_bundle_suggestions(user) if show_bundle_suggestions else None
+    if bundle_analysis and bundle_analysis.get('unsent_count'):
+        attention['items'].append({'key': 'unsent_recommendations', 'count': bundle_analysis['unsent_count'],
+            'label': 'Unshared Bundle Suggestions', 'action': 'Review Recommendations',
+            'url': reverse('bundle_monitor_list'), 'severity': 'attention'})
+    scoped_events = scope_marketplace_activity(AccountActivity.objects.all(), user)
+    if show_bundle_suggestions and not bundle_analysis['activity']['error']:
+        from modules.marketplace.services.bundle_monitoring import activity_events_for
+        from django.db import DatabaseError
         try:
-            stock_left = (
-                p.get_total_stock() if hasattr(p, "get_total_stock") else p.stock
-            )
-        except Exception:
-            stock_left = p.stock or 0
-        if stock_left <= 5:
-            low_stock.append(
-                {
-                    "id": p.id,
-                    "name": p.name,
-                    "seller": _seller_label(p.seller),
-                    "stock": stock_left,
-                    "is_out_of_stock": stock_left == 0,
-                }
-            )
-        if len(low_stock) >= 6:
-            break
-
-    top_selling = _dashboard_top_products(completed_orders_qs)
-    best_selling = top_selling[0]["product_name"] if top_selling else "—"
-
-    top_categories_raw = list(
-        active_products_qs.exclude(category="")
-        .values("category")
-        .annotate(count=Count("id"))
-        .order_by("-count")[:5]
-    )
-    category_total = sum(row["count"] for row in top_categories_raw) or 0
-    top_categories = []
-    circumference = 2 * 3.141592653589793 * 50
-    offset = 0.0
-    for index, row in enumerate(top_categories_raw):
-        count = row["count"]
-        pct = (count / category_total) if category_total else 0
-        length = circumference * pct
-        color = CATEGORY_COLORS[index % len(CATEGORY_COLORS)]
-        top_categories.append(
-            {
-                "name": row["category"],
-                "category": row["category"],
-                "count": count,
-                "percentage": round(pct * 100),
-                "color": color,
-                "dasharray": f"{length:.2f} {circumference:.2f}",
-                "dashoffset": f"{-offset:.2f}",
-            }
-        )
-        offset += length
-
-    seller_users = User.objects.filter(role="Seller")
-    seller_requests = SellerRequest.objects.all()
-    if department_id:
-        seller_users = seller_users.filter(department_id=department_id)
-        seller_requests = seller_requests.filter(user__department_id=department_id)
-
-    order_status = {
-        "pending": order_qs.filter(status=MarketplaceOrder.STATUS_PENDING).count(),
-        "processing": order_qs.filter(
-            status=MarketplaceOrder.STATUS_PROCESSING
-        ).count(),
-        "ready": order_qs.filter(
-            status=MarketplaceOrder.STATUS_READY_FOR_PICKUP
-        ).count(),
-        "completed": order_qs.filter(
-            status=MarketplaceOrder.STATUS_COMPLETED
-        ).count(),
-        "cancelled": order_qs.filter(
-            status=MarketplaceOrder.STATUS_CANCELLED
-        ).count(),
-    }
-    order_status_rows = [
-        {"key": key, "label": label, "count": order_status[key],
-         "percent": round(order_status[key] / total_orders * 100) if total_orders else 0}
-        for key, label in (
-            ("pending", "Pending"), ("processing", "Processing"),
-            ("ready", "Ready for Pickup"), ("completed", "Completed"),
-            ("cancelled", "Cancelled"),
-        )
-    ]
-
-    seller_summary = {
-        "active": seller_users.filter(is_active=True, is_suspended=False).count(),
-        "pending": seller_requests.filter(status=SellerRequest.STATUS_PENDING).count(),
-        "suspended": seller_users.filter(is_suspended=True).count(),
-    }
-
-    return {
-        "total_products": total_products,
-        "pending_listings": pending_listings,
-        "total_orders": total_orders,
-        "total_sales": f"{total_sales_sum:.2f}",
-        "sales_grouping": grouping,
-        "sales_days": sales_days,
-        "sales_period": period,
-        "sales_period_key": sales_period_key,
-        "today": today,
-        "period_sales_sum": f"{period_sales_sum:.2f}",
-        "period_completed_count": period_completed_count,
-        "sales_overview": sales_overview,
-        "product_categories": _dashboard_product_categories(active_products_qs),
-        "sales_chart": {
-            "grouping": grouping,
-            "labels": sales_labels,
-            "tooltip_labels": sales_tooltip_labels,
-            "values": sales_values,
-            "sales": sales_values,
-            "order_values": sales_order_values,
-            "orders": sales_order_values,
-        },
-        "recent_orders": recent_orders,
-        "pending_approvals": pending_approvals,
-        "low_stock_products": low_stock,
-        "top_selling_products": top_selling,
-        "best_selling": best_selling,
-        "top_categories": top_categories,
-        "category_total": category_total,
-        "dashboard_stats": {
-            "best_selling": best_selling,
-        },
-        "order_status": order_status_rows,
-        "seller_overview": seller_summary,
-    }
+            recommendation_event_ids = list(activity_events_for(user).values_list('pk', flat=True)[:5])
+        except DatabaseError:
+            recommendation_event_ids = []
+        scoped_events = AccountActivity.objects.filter(
+            Q(pk__in=scoped_events.values('pk')) | Q(pk__in=recommendation_event_ids))
+    events = list(scoped_events.order_by("-created_at", "-pk")[:5])
+    def event_reference(event, key):
+        value = event.metadata.get(key) if isinstance(event.metadata, dict) else None
+        text = str(value)
+        return int(text) if text.isascii() and text.isdigit() and len(text) < 19 else None
+    event_order_ids = set(orders.filter(pk__in=[event_reference(event, "order_id") for event in events
+        if event_reference(event, "order_id") is not None]).values_list("pk", flat=True))
+    event_product_ids = set(products.filter(pk__in=[event_reference(event, "product_id") for event in events
+        if event_reference(event, "product_id") is not None]).values_list("pk", flat=True))
+    def activity_link(event):
+        order_id = event_reference(event, "order_id")
+        product_id = event_reference(event, "product_id")
+        if order_id in event_order_ids:
+            return reverse("admin_orders_page") + f"?order={order_id}"
+        if order_id is None and product_id in event_product_ids and (
+            user.has_perm("accounts.can_view_products") or user.has_perm("accounts.can_manage_products")
+        ):
+            return inventory_url({"product_id": product_id})
+        return ""
+    activity_details = format_activities(events, scoped=True, include_targets=False)
+    def activity_date(dt):
+        local = timezone.localtime(dt)
+        date = f"{local.strftime('%b')} {local.day}"
+        if local.year != today.year:
+            date += f", {local.year}"
+        return f"{date}, {local.strftime('%I:%M %p').lstrip('0')}"
+    activities = [{"message": event.activity, "type": detail["action"],
+                   "performed_by": detail["performed_by"]["name"], "date": activity_date(event.created_at),
+                   "url": activity_link(event)}
+                  for event, detail in zip(events, activity_details)]
+    best = top_products[0]["product_name"] if top_products else "\u2014"
+    return {"total_products": product_counts["total"], "pending_listings": product_counts["pending"],
+            "total_orders": total_orders, "total_sales": f"{total_sales:,.2f}",
+            "sales_grouping": grouping, "sales_days": sales_days, "sales_period": period, "date_range_error": date_range_error,
+            "sales_period_key": sales_period_key, "today": today,
+            "period_sales_sum": f"{total_sales:.2f}", "period_completed_count": completed_count,
+            "sales_overview": overview, "product_categories": categories, "category_sales_chart": category_sales_chart(category_sales),
+            "sales_chart": {"grouping": grouping, "labels": chart["labels"],
+                            "tooltip_labels": chart.get("tooltip_labels", []), "values": chart["sales"],
+                            "sales": chart["sales"], "order_values": chart["orders"], "orders": chart["orders"]},
+            "recent_orders": recent_marketplace_orders(period_orders, limit=5), "pending_approvals": pending,
+            "low_stock_products": low_stock, "top_selling_products": top_products, "best_selling": best,
+            "top_categories": categories["categories"], "category_total": categories["total"],
+            "dashboard_stats": {"best_selling": best}, "order_status": status_rows,
+            "order_status_total": status_total, "period_order_status": period_status_rows,
+            "order_completion_rate": completion_rate, "product_approval_summary": product_counts,
+            "seller_overview": seller_counts, "activities": activities,
+            "attention_required": attention, "show_bundle_suggestions": show_bundle_suggestions,
+            "bundle_analysis": bundle_analysis}
 
 
 def _facilities_operational_dashboard_data(request, user):
-    from api.models import Booking, Facility, FacilityPayment
-
-    today = timezone.localdate()
-    try:
-        booking_days = int(request.GET.get("booking_days", 7))
-    except (TypeError, ValueError):
-        booking_days = 7
-    if booking_days not in {7, 14, 30}:
-        booking_days = 7
-
-    all_facilities_qs = Facility.objects.all()
-    total_facilities = all_facilities_qs.count()
-    pending_bookings_qs = Booking.objects.filter(status=Booking.STATUS_PENDING)
-    pending_bookings_count = pending_bookings_qs.count()
-
-    upcoming_reservations_qs = (
-        Booking.objects.filter(
-            status=Booking.STATUS_APPROVED,
-            booking_date__gte=today,
-        )
-        .select_related("facility", "user")
-        .order_by("booking_date", "start_time")
-    )
-    upcoming_count = upcoming_reservations_qs.count()
-    maintenance_count = all_facilities_qs.filter(
-        availability_status=Facility.STATUS_MAINTENANCE
-    ).count()
-    bookings_today = Booking.objects.filter(
-        booking_date=today,
-        status__in=(Booking.STATUS_APPROVED, Booking.STATUS_COMPLETED),
-    ).count()
-
-    booking_start = today - timedelta(days=booking_days - 1)
-    booking_daily = (
-        Booking.objects.filter(created_at__date__gte=booking_start)
-        .annotate(day=TruncDate("created_at"))
-        .values("day")
-        .annotate(total=Count("id"))
-        .order_by("day")
-    )
-    daily_booking_map = {row["day"]: int(row["total"] or 0) for row in booking_daily}
-
-    booking_labels = []
-    booking_values = []
-    for offset in range(booking_days):
-        day = booking_start + timedelta(days=offset)
-        booking_labels.append(day.strftime("%b %d"))
-        booking_values.append(daily_booking_map.get(day, 0))
-    period_bookings_sum = sum(booking_values)
-
-    upcoming_list = []
-    for b in upcoming_reservations_qs[:6]:
-        time_label = "Time not set"
-        if b.start_time and b.end_time:
-            time_label = (
-                f"{b.start_time.strftime('%I:%M %p').lstrip('0')} - "
-                f"{b.end_time.strftime('%I:%M %p').lstrip('0')}"
-            )
-        upcoming_list.append(
-            {
-                "id": b.id,
-                "facility_name": (
-                    b.facility.facility_name if b.facility else "Facility"
-                ),
-                "requester": _seller_label(b.user),
-                "date": (
-                    b.booking_date.strftime("%b %d, %Y") if b.booking_date else "—"
-                ),
-                "time": time_label,
-                "status": b.get_status_display(),
-                "status_key": (b.status or "pending").lower(),
-            }
-        )
-
-    pending_requests = []
-    for b in (
-        pending_bookings_qs.select_related("facility", "user")
-        .order_by("-created_at")[:6]
-    ):
-        pending_requests.append(
-            {
-                "id": b.id,
-                "requester": _seller_label(b.user),
-                "facility_name": (
-                    b.facility.facility_name if b.facility else "Facility"
-                ),
-                "requested_date": (
-                    b.booking_date.strftime("%b %d, %Y") if b.booking_date else "—"
-                ),
-                "purpose": b.purpose or "—",
-                "submitted": (
-                    timezone.localtime(b.created_at).strftime("%b %d, %Y")
-                    if b.created_at
-                    else "—"
-                ),
-            }
-        )
-
-    facility_list = [
-        {
-            "id": f.id,
-            "name": f.facility_name,
-            "type": (
-                f.get_facility_type_display()
-                if hasattr(f, "get_facility_type_display")
-                else f.facility_type
-            ),
-            "status": (
-                f.get_availability_status_display()
-                if hasattr(f, "get_availability_status_display")
-                else f.availability_status
-            ),
-            "status_key": (f.availability_status or "available").lower(),
-        }
-        for f in all_facilities_qs[:8]
-    ]
-
-    conflict_slots = Booking.objects.filter(
-        status__in=(Booking.STATUS_PENDING, Booking.STATUS_APPROVED),
-        booking_date__gte=today,
-        facility_id__isnull=False,
-    ).values("id", "facility_id", "booking_date", "start_time", "end_time")
-    conflicts = _count_booking_conflicts(conflict_slots)
-
-    schedule_overview = {
-        "bookings_today": bookings_today,
-        "detected_conflicts": conflicts,
-        "maintenance_count": maintenance_count,
-        "unavailable_count": all_facilities_qs.filter(
-            availability_status=Facility.STATUS_UNAVAILABLE
-        ).count(),
-    }
-
-    payment_stats = {
-        "total_collected": "0.00",
-        "pending_payments": 0,
-        "recent_receipts": [],
-    }
-    try:
-        paid_payments_qs = FacilityPayment.objects.filter(
-            payment_status=FacilityPayment.PAYMENT_PAID
-        )
-        total_collected = (
-            paid_payments_qs.aggregate(total=Sum("paid_amount"))["total"]
-            or Decimal("0.00")
-        )
-        payment_stats["total_collected"] = f"{total_collected:.2f}"
-
-        recorded_booking_ids = (
-            paid_payments_qs.filter(official_receipt_no__isnull=False)
-            .exclude(official_receipt_no="")
-            .values_list("booking_id", flat=True)
-        )
-        payment_stats["pending_payments"] = (
-            Booking.objects.filter(
-                status__in=(Booking.STATUS_APPROVED, Booking.STATUS_COMPLETED),
-                total_amount__gt=0,
-            )
-            .exclude(id__in=recorded_booking_ids)
-            .count()
-        )
-        for fp in paid_payments_qs.select_related(
-            "booking", "booking__facility"
-        ).order_by("-paid_at", "-created_at")[:5]:
-            payment_stats["recent_receipts"].append(
-                {
-                    "id": fp.id,
-                    "or_number": fp.official_receipt_no or "—",
-                    "booking_id": fp.booking_id or "—",
-                    "facility_name": (
-                        fp.booking.facility.facility_name
-                        if (fp.booking and fp.booking.facility)
-                        else "Facility"
-                    ),
-                    "amount": f"{fp.paid_amount:.2f}",
-                    "date": (
-                        timezone.localtime(fp.paid_at or fp.created_at).strftime(
-                            "%b %d, %Y"
-                        )
-                        if (fp.paid_at or fp.created_at)
-                        else "—"
-                    ),
-                }
-            )
-    except Exception:
-        pass
-
-    return {
-        "total_facilities": total_facilities,
-        "pending_bookings": pending_bookings_count,
-        "upcoming_reservations_count": upcoming_count,
-        "maintenance_facilities": maintenance_count,
-        "booking_days": booking_days,
-        "period_bookings_sum": period_bookings_sum,
-        "booking_chart": {
-            "labels": booking_labels,
-            "values": booking_values,
-        },
-        "upcoming_reservations": upcoming_list,
-        "pending_requests": pending_requests,
-        "facilities_list": facility_list,
-        "schedule_overview": schedule_overview,
-        "payment_stats": payment_stats,
-    }
-
+    from .dashboard_facilities import facility_admin_dashboard
+    return facility_admin_dashboard(request, user)
 
 @dashboard_required
 @never_cache
@@ -921,6 +678,8 @@ def admin_dashboard_page(request):
             request, request.user
         )
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            if marketplace_data["date_range_error"]:
+                return JsonResponse({"error": marketplace_data["date_range_error"]}, status=400)
             return JsonResponse(
                 {
                     "sales_grouping": marketplace_data["sales_grouping"],
@@ -939,6 +698,7 @@ def admin_dashboard_page(request):
             "marketplace/pages/admin_marketplace_dashboard.html",
             {
                 "marketplace": marketplace_data,
+                "bundle_analysis": marketplace_data["bundle_analysis"],
                 "dashboard_stats": marketplace_data["dashboard_stats"],
                 "best_selling": marketplace_data["best_selling"],
                 "top_categories": marketplace_data["top_categories"],
@@ -952,10 +712,10 @@ def admin_dashboard_page(request):
                 "sales_filter_parameters": _sales_filter_parameters(request),
                 "overview_top_products": marketplace_data["top_selling_products"],
                 "overview_categories": marketplace_data["product_categories"],
-                "chat_health_url": _chat_health_url(request),
                 "dashboard_updated_at": timezone.localtime(timezone.now()),
-                **get_notification_context(),
+                **get_notification_context(user=request.user),
             },
+            status=400 if marketplace_data["date_range_error"] else 200,
         )
 
     # 2. Facilities Admin (Account 2023304610) -> Dedicated Template
@@ -967,6 +727,8 @@ def admin_dashboard_page(request):
             return JsonResponse(
                 {
                     "booking_days": facilities_data["booking_days"],
+                    "booking_grouping": facilities_data["booking_grouping"],
+                    "booking_period_label": facilities_data["booking_period_label"],
                     "booking_chart": facilities_data["booking_chart"],
                     "period_bookings_sum": facilities_data["period_bookings_sum"],
                 }
@@ -978,7 +740,7 @@ def admin_dashboard_page(request):
                 "facilities": facilities_data,
                 "chat_health_url": _chat_health_url(request),
                 "dashboard_updated_at": timezone.localtime(timezone.now()),
-                **get_notification_context(),
+                **get_notification_context(user=request.user),
             },
         )
 
@@ -998,6 +760,14 @@ def admin_dashboard_page(request):
         )
 
     today = timezone.localdate()
+    global_dashboard = request.user.is_superuser or (request.user.role or "").strip().lower() == "super admin"
+    global_data = None
+    if global_dashboard:
+        try:
+            today = timezone.localdate(timezone=ZoneInfo("Asia/Manila"))
+            global_data = build_dashboard_data(request.GET, today=today, legacy=True)
+        except ValueError as error:
+            return HttpResponse(str(error), status=400)
     sales_grouping = (
         request.GET.get("grouping")
         or request.GET.get("sales_grouping")
@@ -1016,7 +786,20 @@ def admin_dashboard_page(request):
     booking_days = requested_chart_days("booking_days")
     facility_days = requested_chart_days("facility_days")
 
-    sales_period, sales_period_key, sales_days = _resolve_sales_period(request, today)
+    if global_data:
+        meta = global_data["period"]
+        sales_period_key = {
+            "last_7_days": "7", "last_14_days": "14", "last_30_days": "30",
+            "this_month": "month", "this_year": "year",
+        }.get(meta["type"], meta["type"])
+        sales_period = AnalyticsPeriod(
+            sales_period_key, meta["label"],
+            date.fromisoformat(meta["start_date"]), date.fromisoformat(meta["end_date"]),
+        )
+        sales_days = sales_period.days
+        facility_days = booking_days = sales_days
+    else:
+        sales_period, sales_period_key, sales_days = _resolve_sales_period(request, today)
     use_sales_overview = True
 
     booking_start = today - timedelta(days=booking_days - 1)
@@ -1024,74 +807,79 @@ def admin_dashboard_page(request):
     facility_analytics = (
         None
         if is_marketplace_admin
-        else _facility_dashboard_analytics(today, facility_days)
+        else (global_data["facilities"] if global_data else _facility_dashboard_analytics(today, facility_days))
     )
     department_id = getattr(request.user, "department_id", None) if is_marketplace_admin else None
     department_name = ""
     if is_marketplace_admin and getattr(request.user, "department", None):
         department_name = request.user.department.name
 
-    active_products = Product.objects.filter(is_archived=False)
+    from accounts.academic import scope_products, scope_users
+    active_products = scope_products(Product.objects.filter(is_archived=False), request.user)
     if department_id:
         active_products = active_products.filter(seller__department_id=department_id)
 
-    revenue_orders = _revenue_orders(department_id=department_id).annotate(
+    revenue_orders = _revenue_orders(department_id=department_id, user=request.user).annotate(
         analytics_at=Coalesce("completed_at", "paid_at", "created_at")
     )
 
-    order_qs = MarketplaceOrder.objects.all()
+    order_qs = scope_products(MarketplaceOrder.objects.all(), request.user, prefix="product__")
     if department_id:
         order_qs = order_qs.filter(product__seller__department_id=department_id)
 
-    total_orders = order_qs.count()
-    total_revenue = revenue_orders.aggregate(total=Sum("total_price"))["total"] or Decimal("0")
     period_revenue_orders = revenue_orders.filter(
         analytics_at__date__gte=sales_period.start,
         analytics_at__date__lte=sales_period.end,
     )
-    week_revenue = (
-        period_revenue_orders.aggregate(total=Sum("total_price"))["total"]
-        or Decimal("0")
-    )
-    period_completed_orders = period_revenue_orders.count()
-    sales_overview = _sales_overview_summary(
-        revenue_orders, sales_period, week_revenue, period_completed_orders
-    )
-    total_bookings = 0 if is_marketplace_admin else Booking.objects.count()
-
-    overview_top_products = _dashboard_top_products(revenue_orders)
+    if global_data:
+        kpis = global_data["kpis"]
+        total_orders = int(kpis["total_orders"]["value"])
+        total_bookings = int(kpis["total_bookings"]["value"])
+        total_revenue = Decimal(str(kpis["marketplace_revenue"]["value"]))
+        week_revenue = total_revenue
+        period_completed_orders = global_data["marketplace"]["completed_orders"]
+        sales_overview = global_data["marketplace"]["sales_overview"]
+        leader = global_data["marketplace"]["top_selling_product"]
+        overview_top_products = [leader] if leader else []
+        pending_sellers = global_data["pending_breakdown"]["seller_requests"]
+        pending_products = global_data["pending_breakdown"]["product_approvals"]
+        pending_bookings = global_data["pending_breakdown"]["facility_bookings"]
+        snapshot_stats = {
+            key: kpis[key]["value"] for key in
+            ("total_users", "active_sellers", "total_products", "total_facilities")
+        }
+    else:
+        total_orders = order_qs.count()
+        total_bookings = 0 if is_marketplace_admin else Booking.objects.exclude(schedule_blocks_q()).count()
+        total_revenue = revenue_orders.aggregate(total=Sum("total_price"))["total"] or Decimal("0")
+        week_revenue = period_revenue_orders.aggregate(total=Sum("total_price"))["total"] or Decimal("0")
+        period_completed_orders = period_revenue_orders.count()
+        sales_overview = _sales_overview_summary(revenue_orders, sales_period, week_revenue, period_completed_orders)
+        overview_top_products = _dashboard_top_products(revenue_orders)
+        pending_sellers = 0 if is_marketplace_admin else SellerRequest.objects.filter(status=SellerRequest.STATUS_PENDING).count()
+        pending_products = active_products.filter(approval_status=Product.STATUS_PENDING).count()
+        pending_bookings = 0 if is_marketplace_admin else Booking.objects.exclude(schedule_blocks_q()).filter(status=Booking.STATUS_PENDING).count()
+        snapshot_stats = {
+            "total_users": 0 if is_marketplace_admin else User.objects.count(),
+            "active_sellers": User.objects.filter(role="Seller", department_id=department_id).count()
+            if department_id else (0 if is_marketplace_admin else User.objects.filter(role="Seller").count()),
+            "total_products": active_products.count(),
+            "total_facilities": 0 if is_marketplace_admin else Facility.objects.count(),
+        }
     best_selling = overview_top_products[0] if overview_top_products else None
 
-    pending_sellers = (
-        0
-        if is_marketplace_admin
-        else SellerRequest.objects.filter(status=SellerRequest.STATUS_PENDING).count()
-    )
-    pending_products = active_products.filter(approval_status=Product.STATUS_PENDING).count()
-    pending_bookings = (
-        0
-        if is_marketplace_admin
-        else Booking.objects.filter(status=Booking.STATUS_PENDING).count()
-    )
-
-    low_stock_count = 0
-    for product in active_products:
-        try:
-            if get_product_inventory_status(product) == INVENTORY_STATUS_LOW_STOCK:
-                low_stock_count += 1
-        except Exception:
-            if (product.get_total_stock() if hasattr(product, "get_total_stock") else product.stock) <= low_stock_threshold():
-                low_stock_count += 1
+    low_stock_count = global_data["attention_required"]["low_stock_products"] if global_data else 0
+    if not global_data:
+        for product in active_products:
+            try:
+                if get_product_inventory_status(product) == INVENTORY_STATUS_LOW_STOCK:
+                    low_stock_count += 1
+            except Exception:
+                if (product.get_total_stock() if hasattr(product, "get_total_stock") else product.stock) <= low_stock_threshold():
+                    low_stock_count += 1
 
     dashboard_stats = {
-        "total_users": 0 if is_marketplace_admin else User.objects.count(),
-        "active_sellers": (
-            User.objects.filter(role="Seller", department_id=department_id).count()
-            if department_id
-            else (0 if is_marketplace_admin else User.objects.filter(role="Seller").count())
-        ),
-        "total_products": active_products.count(),
-        "total_facilities": 0 if is_marketplace_admin else Facility.objects.count(),
+        **snapshot_stats,
         "total_orders": total_orders,
         "total_bookings": total_bookings,
         "total_revenue": f"{total_revenue:.2f}",
@@ -1108,7 +896,7 @@ def admin_dashboard_page(request):
         "facility_bookings": pending_bookings,
     }
 
-    time_series = _sales_time_series(period_revenue_orders, sales_period, sales_grouping)
+    time_series = global_data["marketplace"]["sales_trend"] if global_data else _sales_time_series(period_revenue_orders, sales_period, sales_grouping)
     revenue_labels = time_series["labels"]
     revenue_tooltip_labels = time_series.get("tooltip_labels", [])
     revenue_values = time_series["sales"]
@@ -1132,7 +920,7 @@ def admin_dashboard_page(request):
     }
 
     booking_daily = (
-        Booking.objects.filter(created_at__date__gte=booking_start)
+        Booking.objects.exclude(schedule_blocks_q()).filter(created_at__date__gte=booking_start)
         .annotate(day=TruncDate("created_at"))
         .values("day")
         .annotate(total=Count("id"))
@@ -1147,6 +935,8 @@ def admin_dashboard_page(request):
         booking_values.append(booking_map.get(day, 0))
 
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        if global_data and request.GET.get("period"):
+            return JsonResponse(global_data)
         return JsonResponse(
             {
                 "sales_grouping": sales_grouping,
@@ -1187,9 +977,9 @@ def admin_dashboard_page(request):
         )
 
     upcoming_booking_rows = []
-    if not is_marketplace_admin:
+    if not is_marketplace_admin and not global_dashboard:
         for b in (
-            Booking.objects.filter(
+            Booking.objects.exclude(schedule_blocks_q()).filter(
                 status=Booking.STATUS_APPROVED,
                 booking_date__gte=today,
             )
@@ -1221,14 +1011,14 @@ def admin_dashboard_page(request):
         "active_maintenance": Facility.objects.filter(
             availability_status=Facility.STATUS_MAINTENANCE
         ).count(),
-        "today_bookings": Booking.objects.filter(
+        "today_bookings": Booking.objects.exclude(schedule_blocks_q()).filter(
             booking_date=today,
             status__in=(Booking.STATUS_APPROVED, Booking.STATUS_COMPLETED),
         ).count(),
         "pending_payments": (
             0
             if is_marketplace_admin
-            else Booking.objects.filter(
+            else Booking.objects.exclude(schedule_blocks_q()).filter(
                 status__in=(Booking.STATUS_APPROVED, Booking.STATUS_COMPLETED),
                 total_amount__gt=0,
             )
@@ -1249,15 +1039,15 @@ def admin_dashboard_page(request):
     approval_items = []
     for req in SellerRequest.objects.filter(
         status=SellerRequest.STATUS_PENDING
-    ).order_by("-created_at")[:4]:
+    ).select_related("user__department").order_by("-created_at")[:4]:
         approval_items.append(
             {
                 "type": "seller",
                 "id": req.id,
                 "title": f"Seller Request: {(req.full_name or '').strip() or 'Applicant'}",
                 "subtitle": (
-                    f"Department: {req.department.name}"
-                    if req.department_id
+                    f"Department: {req.user.department.name}"
+                    if req.user_id and req.user.department_id
                     else "Department not set"
                 ),
                 "time": _format_activity_time(req.created_at),
@@ -1280,7 +1070,7 @@ def admin_dashboard_page(request):
         )
 
     if not is_marketplace_admin:
-        for b in Booking.objects.filter(status=Booking.STATUS_PENDING).order_by(
+        for b in Booking.objects.exclude(schedule_blocks_q()).filter(status=Booking.STATUS_PENDING).order_by(
             "-created_at"
         )[:4]:
             facility_name = (
@@ -1316,42 +1106,43 @@ def admin_dashboard_page(request):
         )
 
     low_stock_products = []
-    for product in active_products:
-        try:
-            status = get_product_inventory_status(product)
-            if status == INVENTORY_STATUS_LOW_STOCK:
-                low_stock_products.append(
-                    {
-                        "id": product.id,
-                        "name": product.name,
-                        "seller": _seller_label(product.seller),
-                        "stock": (
-                            product.get_total_stock()
-                            if hasattr(product, "get_total_stock")
-                            else product.stock
-                        ),
-                    }
+    if not global_data:
+        for product in active_products:
+            try:
+                status = get_product_inventory_status(product)
+                if status == INVENTORY_STATUS_LOW_STOCK:
+                    low_stock_products.append(
+                        {
+                            "id": product.id,
+                            "name": product.name,
+                            "seller": _seller_label(product.seller),
+                            "stock": (
+                                product.get_total_stock()
+                                if hasattr(product, "get_total_stock")
+                                else product.stock
+                            ),
+                        }
+                    )
+            except Exception:
+                stock_left = (
+                    product.get_total_stock()
+                    if hasattr(product, "get_total_stock")
+                    else product.stock
                 )
-        except Exception:
-            stock_left = (
-                product.get_total_stock()
-                if hasattr(product, "get_total_stock")
-                else product.stock
-            )
-            if stock_left <= low_stock_threshold():
-                low_stock_products.append(
-                    {
-                        "id": product.id,
-                        "name": product.name,
-                        "seller": _seller_label(product.seller),
-                        "stock": stock_left,
-                    }
-                )
-        if len(low_stock_products) >= 6:
-            break
+                if stock_left <= low_stock_threshold():
+                    low_stock_products.append(
+                        {
+                            "id": product.id,
+                            "name": product.name,
+                            "seller": _seller_label(product.seller),
+                            "stock": stock_left,
+                        }
+                    )
+            if len(low_stock_products) >= 6:
+                break
 
-    recent_orders = []
-    for order in order_qs.order_by("-created_at")[:6]:
+    recent_orders = global_data["operations"]["recent_orders"] if global_data else []
+    for order in ([] if global_data else order_qs.order_by("-created_at")[:6]):
         image = None
         if order.product_id and getattr(order.product, "image", None):
             image = _product_image_url(order.product)
@@ -1424,7 +1215,7 @@ def admin_dashboard_page(request):
             )
 
     if not is_marketplace_admin:
-        for booking in Booking.objects.select_related("facility", "user").order_by(
+        for booking in Booking.objects.exclude(schedule_blocks_q()).select_related("facility", "user").order_by(
             "-created_at"
         )[:8]:
             facility_name = (
@@ -1463,7 +1254,7 @@ def admin_dashboard_page(request):
             }
         )
 
-    activities.sort(key=lambda item: item["sort"], reverse=True)
+    activities.sort(key=lambda item: _aware_dashboard_datetime(item["sort"]), reverse=True)
     activities = activities[:10]
 
     top_booked = sorted(
@@ -1499,10 +1290,21 @@ def admin_dashboard_page(request):
         )
         offset += length
 
+    show_bundle_suggestions = can_view_bundle_suggestions(request.user)
     return render(
         request,
         "dashboard/pages/admin_dashboard.html",
         {
+            "show_bundle_suggestions": show_bundle_suggestions,
+            "bundle_analysis": dashboard_bundle_suggestions(request.user, limit=2) if show_bundle_suggestions else None,
+            "global_dashboard": global_dashboard,
+            "executive": global_data['executive'] if global_data else None,
+            "dashboard_period": global_data["period"] if global_data else None,
+            "dashboard_kpis": global_data["kpis"] if global_data else None,
+            "attention_required": global_data["attention_required"] if global_data else None,
+            "dashboard_marketplace": global_data["marketplace"] if global_data else None,
+            "services_overview": global_data["services_overview"] if global_data else None,
+            "accounts_overview": global_data["accounts_overview"] if global_data else None,
             "dashboard_stats": dashboard_stats,
             "pending_breakdown": pending_breakdown,
             "is_marketplace_admin": is_marketplace_admin,
@@ -1538,27 +1340,69 @@ def admin_dashboard_page(request):
             "pending_product_rows": pending_product_rows,
             "approval_items": approval_items,
             "low_stock_products": low_stock_products,
+            "dashboard_low_stock": global_data["low_stock"] if global_data else None,
             "recent_orders": recent_orders,
             "facility_operations": facility_operations,
             "upcoming_booking_rows": upcoming_booking_rows,
             "has_facilities": dashboard_stats["total_facilities"] > 0,
             "has_bookings": total_bookings > 0,
             "chat_health_url": _chat_health_url(request),
-            "dashboard_updated_at": timezone.localtime(timezone.now()),
-            **get_notification_context(),
+            "dashboard_updated_at": timezone.localtime(timezone.now(), ZoneInfo("Asia/Manila")) if global_dashboard else timezone.localtime(timezone.now()),
+            **get_notification_context(user=request.user),
         },
     )
 
 
-@permission_required("accounts.can_view_marketplace_analytics", raise_exception=True)
+@require_GET
+@never_cache
+def admin_dashboard_api(request):
+    user = request.user
+    if not user.is_authenticated:
+        return JsonResponse({"error": "Authentication required."}, status=401)
+    from accounts.views import can_access_dashboard
+    if not user.is_active or not can_access_dashboard(user) or not (
+        user.is_superuser or (user.role or "").strip().lower() == "super admin"
+    ):
+        return JsonResponse({"error": "Super Admin access required."}, status=403)
+    if request.GET.get("system_status_only") == "1":
+        # Independent health data remains usable when dashboard analytics fail.
+        from .dashboard_health import build_system_status
+        return JsonResponse({"system_status": build_system_status()})
+    try:
+        return JsonResponse(build_dashboard_data(request.GET))
+    except ValueError as error:
+        return JsonResponse({"error": str(error)}, status=400)
+    except DatabaseError:
+        return JsonResponse({"error": "Dashboard data is unavailable. Please retry."}, status=503)
+
+
+@login_required(login_url="admin_login_page")
 def admin_marketplace_analytics_page(request):
-    analytics = build_marketplace_analytics(request.GET)
+    module = request.GET.get('module', 'marketplace')
+    if module != 'marketplace':
+        from .analytics_sections import render_domain_analytics
+        return render_domain_analytics(request, module)
+    if not request.user.has_perm('accounts.can_view_marketplace_analytics'):
+        raise PermissionDenied
+    try:
+        analytics = build_marketplace_analytics(request.GET, user=request.user)
+    except ValueError as error:
+        return HttpResponseBadRequest(str(error))
+    from .analytics_sections import module_links
+    from .superadmin_analytics import is_super_analytics, enrich_marketplace
+    super_analytics = is_super_analytics(request.user)
+    if super_analytics:
+        enrich_marketplace(analytics, request.user)
     return render(
         request,
         "reports/pages/admin_marketplace_analytics.html",
         {
             "analytics": analytics,
-            **get_notification_context(),
+            "super_analytics": super_analytics,
+            "analytics_period": analytics['period'],
+            "analytics_module": 'marketplace',
+            "analytics_links": module_links(analytics['period']),
+            **get_notification_context(user=request.user),
         },
     )
 
@@ -1566,62 +1410,8 @@ def admin_marketplace_analytics_page(request):
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_view_facility_analytics", raise_exception=True)
 def admin_facility_analytics_page(request):
-    from api.models import Booking, Facility
-
-    today = timezone.localdate()
-    facility_days = _requested_analytics_days(request, "facility_days")
-    analytics = _facility_dashboard_analytics(today, facility_days)
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return JsonResponse(
-            {
-                "facility_days": facility_days,
-                "facility_analytics": analytics,
-            }
-        )
-
-    upcoming_rows = []
-    upcoming = (
-        Booking.objects.filter(
-            status=Booking.STATUS_APPROVED,
-            booking_date__gte=today,
-        )
-        .select_related("facility", "user")
-        .order_by("booking_date", "start_time")[:4]
-    )
-    for booking in upcoming:
-        time_label = "Time not set"
-        if booking.start_time and booking.end_time:
-            time_label = (
-                f"{booking.start_time.strftime('%I:%M %p').lstrip('0')} - "
-                f"{booking.end_time.strftime('%I:%M %p').lstrip('0')}"
-            )
-        upcoming_rows.append(
-            {
-                "facility": (
-                    booking.facility.facility_name if booking.facility else "Facility"
-                ),
-                "requester": _seller_label(booking.user),
-                "date": (
-                    booking.booking_date.strftime("%b %d, %Y")
-                    if booking.booking_date
-                    else "—"
-                ),
-                "time": time_label,
-            }
-        )
-    return render(
-        request,
-        "reports/pages/admin_facility_analytics.html",
-        {
-            "facility_days": facility_days,
-            "facility_analytics": analytics,
-            "facility_booking_chart": analytics["chart"],
-            "facility_operating_hours": analytics["operating_hours"],
-            "upcoming_booking_rows": upcoming_rows,
-            "total_facilities": Facility.objects.count(),
-            **get_notification_context(),
-        },
-    )
+    from .analytics_sections import render_facility_analytics
+    return render_facility_analytics(request)
 
 
 def _report_parameters(request):
@@ -1629,6 +1419,8 @@ def _report_parameters(request):
     file_format = request.GET.get("format", "csv").strip().lower()
     date_from = parse_date(request.GET.get("date_from", ""))
     date_to = parse_date(request.GET.get("date_to", ""))
+    if (request.GET.get("date_from") and date_from is None) or (request.GET.get("date_to") and date_to is None):
+        raise ValueError("Enter valid report dates.")
     if report_type not in REPORT_TITLES:
         raise ValueError("Choose a valid report type.")
     if file_format not in {"csv", "pdf"}:
@@ -1641,7 +1433,10 @@ def _report_parameters(request):
 def _csv_response(report, filename):
     stream = StringIO()
     writer = csv.writer(stream)
-    writer.writerow([report["title"], report["range"]])
+    header = [report["title"], report["range"]]
+    if report.get("description"):
+        header.append(report["description"])
+    writer.writerow(header)
     writer.writerow(report["columns"])
     for row in report["rows"]:
         writer.writerow([row.get(column, "") for column in report["columns"]])
@@ -1661,6 +1456,8 @@ def _pdf_response(report, filename):
     document = SimpleDocTemplate(stream, pagesize=landscape(A4), leftMargin=12 * mm, rightMargin=12 * mm)
     styles = getSampleStyleSheet()
     body: list = [Paragraph(report["title"], styles["Title"]), Paragraph(report["range"], styles["Normal"]), Spacer(1, 8)]
+    if report.get("description"):
+        body.extend([Paragraph(report["description"], styles["Normal"]), Spacer(1, 8)])
     data = [report["columns"]] + [
         [str(row.get(column, "")) for column in report["columns"]]
         for row in report["rows"]
@@ -1693,15 +1490,25 @@ def admin_generate_reports_page(request):
         (report_type for options in report_groups.values() for report_type in options),
         None,
     )
-    initial_report = build_report(first_report_type) if first_report_type else None
+    date_from = date_to = None
+    if request.GET.get("report_type"):
+        try:
+            first_report_type, _, date_from, date_to = _report_parameters(request)
+        except ValueError as exc:
+            return HttpResponse(str(exc), status=400)
+        _require_report_type_permission(request.user, first_report_type)
+    initial_report = build_report(first_report_type, date_from, date_to, user=request.user) if first_report_type else None
     return render(
         request,
         "reports/pages/admin_generate_reports.html",
         {
             "initial_report": initial_report,
             "report_groups": report_groups,
-            "recent_reports": GeneratedReport.objects.select_related("generated_by")[:6],
-            **get_notification_context(),
+            "selected_report_type": first_report_type,
+            "report_date_from": date_from,
+            "report_date_to": date_to,
+            "recent_reports": (GeneratedReport.objects.all() if request.user.is_superuser else GeneratedReport.objects.filter(generated_by=request.user)).select_related("generated_by")[:6],
+            **get_notification_context(user=request.user),
         },
     )
 
@@ -1712,7 +1519,7 @@ def admin_report_preview(request):
     try:
         report_type, _, date_from, date_to = _report_parameters(request)
         _require_report_type_permission(request.user, report_type)
-        return JsonResponse(build_report(report_type, date_from, date_to))
+        return JsonResponse(build_report(report_type, date_from, date_to, user=request.user))
     except ValueError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 
@@ -1723,7 +1530,7 @@ def admin_report_download(request):
     try:
         report_type, file_format, date_from, date_to = _report_parameters(request)
         _require_report_type_permission(request.user, report_type)
-        report = build_report(report_type, date_from, date_to)
+        report = build_report(report_type, date_from, date_to, user=request.user)
     except ValueError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 

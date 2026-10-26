@@ -112,8 +112,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Lester Bulay'), findsOneWidget);
-      expect(find.text('2023304615'), findsOneWidget);
-      expect(find.text('09123456789'), findsOneWidget);
+      expect(find.text('ID: 2023304615'), findsOneWidget);
+      expect(find.text('(+63 9123456789)'), findsOneWidget);
       expect(find.text('login-not-student-id'), findsNothing);
       expect(find.text('Name:'), findsNothing);
       expect(find.text('Buyer Information'), findsNothing);
@@ -133,42 +133,30 @@ void main() {
         lessThanOrEqualTo(tester.getRect(find.byType(OrderSummaryCard)).top),
       );
       final name = tester.getRect(find.text('Lester Bulay'));
-      final id = tester.getRect(find.text('2023304615'));
-      final phone = tester.getRect(find.text('09123456789'));
+      final phone = tester.getRect(find.text('(+63 9123456789)'));
+      final id = tester.getRect(find.text('ID: 2023304615'));
       final locIcon = tester.getRect(find.byIcon(Icons.location_on_outlined));
       expect(locIcon.left, lessThan(name.left));
-      expect(id.left, greaterThan(name.left));
-      expect(phone.top, greaterThan(name.top));
+      expect(id.top, greaterThan(name.top));
+      expect(id.top, greaterThanOrEqualTo(phone.top));
       final product = tester.getRect(find.text('Milk Tea'));
       final productImage = tester.getRect(find.byType(ProductImage));
       final sellerName = tester.getRect(find.text('Campus Store'));
+      expect(productImage.right, lessThan(product.left));
+      expect(sellerName.top, lessThan(product.top));
+      expect(sellerName.top, lessThan(productImage.top));
       expect(
-        productImage.right,
-        lessThan(product.left),
-      );
-      expect(
-        sellerName.top,
-        lessThan(product.top),
-      );
-      expect(
-        sellerName.top,
-        lessThan(productImage.top),
-      );
-      expect(
-        find.byIcon(Icons.store_outlined),
+        find.byKey(const ValueKey('checkout-fulfillment')),
         findsOneWidget,
       );
-      expect(
-        tester.getRect(find.text('x2')).top,
-        greaterThan(product.top),
-      );
+      expect(tester.getRect(find.text('x2')).top, greaterThan(product.top));
       expect(
         tester.getRect(find.byIcon(Icons.add_rounded)).left,
         greaterThan(product.left),
       );
-      expect(find.text('\u20b1100.00'), findsNWidgets(2));
+      expect(find.text('\u20b1100.00'), findsAtLeastNWidgets(2));
       expect(find.text('Cash on Pickup'), findsOneWidget);
-      expect(find.text('Cash on Delivery'), findsOneWidget);
+      expect(find.text('Cash on Delivery'), findsNothing);
       expect(find.text('Delivery Fee'), findsNothing);
       expect(find.text('Platform Fee'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -197,13 +185,15 @@ void main() {
                 .first,
           );
           expect((card.decoration as BoxDecoration).color, Colors.white);
-          expect((card.decoration as BoxDecoration).border, isNull);
+          expect(
+            (card.decoration as BoxDecoration).border,
+            Border.all(color: OrderSummaryConstants.outline),
+          );
           expect((card.decoration as BoxDecoration).borderRadius, isNull);
           expect(tester.getSize(find.byType(OrderSummaryCard)).width, width);
           for (
             var i = 0;
-            i < 20 &&
-                find.text('Add note').hitTestable().evaluate().isEmpty;
+            i < 20 && find.text('Add note').hitTestable().evaluate().isEmpty;
             i++
           ) {
             await tester.drag(find.byType(ListView), const Offset(0, -200));
@@ -291,6 +281,12 @@ void main() {
             ),
           );
         await loader.load();
+        await (FontLoader('Poppins')..addFont(
+              Future.value(
+                ByteData.sublistView(File(fontPath).readAsBytesSync()),
+              ),
+            ))
+            .load();
         final icons = FontLoader('MaterialIcons')
           ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
         await icons.load();

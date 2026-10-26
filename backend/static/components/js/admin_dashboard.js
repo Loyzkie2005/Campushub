@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', function () {
+    const paletteRoot = document.querySelector('[data-dashboard-palette]') || document.documentElement;
+    const paletteStyle = getComputedStyle(paletteRoot);
+    const palette = {
+        navy: paletteStyle.getPropertyValue('--dashboard-navy').trim() || '#1A1851',
+        gold: paletteStyle.getPropertyValue('--dashboard-gold').trim() || '#FCB315',
+        muted: paletteStyle.getPropertyValue('--dashboard-muted').trim() || '#626781',
+        grayLight: paletteStyle.getPropertyValue('--dashboard-gray-light').trim() || '#d5d7e0',
+    };
     document.querySelectorAll('.legend-dot[data-color]').forEach((dot) => {
         const color = dot.dataset.color;
         if (color && CSS.supports('color', color)) {
@@ -34,29 +42,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     applyFacilityUtilizationBars();
 
-    const chatStatus = document.getElementById('chatServiceStatus');
-    const chatHealthUrl = chatStatus?.dataset.healthUrl;
-    if (chatStatus && chatHealthUrl) {
-        const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), 2500);
-        fetch(chatHealthUrl, {
-            cache: 'no-store',
-            signal: controller.signal,
-        })
-            .then((response) => {
-                if (!response.ok) throw new Error('Chat service unavailable');
-                chatStatus.textContent = 'Online';
-                chatStatus.classList.add('dashboard-service-state--online');
-                chatStatus.classList.remove('dashboard-service-state--offline');
-            })
-            .catch(() => {
-                chatStatus.textContent = 'Offline';
-                chatStatus.classList.add('dashboard-service-state--offline');
-                chatStatus.classList.remove('dashboard-service-state--online');
-            })
-            .finally(() => window.clearTimeout(timeoutId));
-    }
-
+    let revenueChart = null;
+    let facilityBookingChart = null;
+    let facilityRevenueChart = null;
+    let facilityStatusChart = null;
+    document.addEventListener('campushub:dashboard-data', (event) => {
+        updateFacilityAnalytics(event.detail.facilities);
+    });
     if (typeof Chart === 'undefined') return;
 
     function parseChartData(elementId) {
@@ -121,11 +113,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    let revenueChart = null;
-    let facilityBookingChart = null;
-    let facilityRevenueChart = null;
-    let facilityStatusChart = null;
-
     const revenueCanvas = document.getElementById('revenueOverviewChart');
     if (revenueCanvas) {
         const { labels, values, orderValues } = parseChartData('revenueChartData');
@@ -159,12 +146,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         label: 'Orders',
                         data: orderValues,
                         yAxisID: 'yOrders',
-                        borderColor: '#FCB316',
-                        backgroundColor: '#FCB316',
+                        borderColor: '#FCB315',
+                        backgroundColor: '#FCB315',
                         borderWidth: 2.5,
                         pointRadius: 4,
                         pointHoverRadius: 6,
-                        pointBackgroundColor: '#FCB316',
+                        pointBackgroundColor: '#FCB315',
                         pointBorderColor: '#ffffff',
                         pointBorderWidth: 2,
                         tension: 0.35,
@@ -211,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         offset: false,
                         ticks: {
                             color: '#94a3b8',
-                            font: { family: 'Montserrat', size: 9, weight: '600' },
+                            font: { family: 'Inter, sans-serif', size: 12, weight: '600' },
                         },
                     },
                     ySales: {
@@ -227,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         },
                         ticks: {
                             color: '#94a3b8',
-                            font: { family: 'Montserrat', size: 9, weight: '600' },
+                            font: { family: 'Inter, sans-serif', size: 12, weight: '600' },
                             callback: (value) => `₱${Number(value).toLocaleString()}`,
                         },
                     },
@@ -246,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const facilityBookingCanvas = document.getElementById('facilityBookingOverviewChart');
-    if (facilityBookingCanvas) {
+    if (facilityBookingCanvas && !document.querySelector('[data-booking-overview]')) {
         const chartData = parseFacilityChartData('facilityBookingChartData');
         const ctx = facilityBookingCanvas.getContext('2d');
 
@@ -258,28 +245,30 @@ document.addEventListener('DOMContentLoaded', function () {
                     {
                         label: 'Approved',
                         data: chartData.approved,
-                        backgroundColor: '#16a34a',
+                        backgroundColor: palette.navy,
                         borderRadius: 3,
                         maxBarThickness: 28,
                     },
                     {
                         label: 'Pending',
                         data: chartData.pending,
-                        backgroundColor: '#f59e0b',
+                        backgroundColor: palette.gold,
                         borderRadius: 3,
                         maxBarThickness: 28,
                     },
                     {
                         label: 'Completed',
                         data: chartData.completed,
-                        backgroundColor: '#2563eb',
+                        backgroundColor: palette.muted,
                         borderRadius: 3,
                         maxBarThickness: 28,
                     },
                     {
                         label: 'Rejected / Cancelled',
                         data: chartData.cancelled,
-                        backgroundColor: '#dc2626',
+                        backgroundColor: palette.grayLight,
+                        borderColor: palette.muted,
+                        borderWidth: 1,
                         borderRadius: 3,
                         maxBarThickness: 28,
                     },
@@ -308,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         grid: { display: false },
                         ticks: {
                             color: '#94a3b8',
-                            font: { family: 'Montserrat', size: 9, weight: '600' },
+                            font: { family: 'Inter, sans-serif', size: 12, weight: '600' },
                         },
                     },
                     y: {
@@ -319,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             stepSize: 1,
                             precision: 0,
                             color: '#94a3b8',
-                            font: { family: 'Montserrat', size: 9, weight: '600' },
+                            font: { family: 'Inter, sans-serif', size: 12, weight: '600' },
                         },
                         grid: {
                             color: '#eef2f7',
@@ -335,9 +324,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (facilityRevenueCanvas) {
         const chartData = parseSingleSeriesChartData('facilityRevenueChartData');
         const ctx = facilityRevenueCanvas.getContext('2d');
-        const fill = ctx.createLinearGradient(0, 0, 0, 150);
-        fill.addColorStop(0, 'rgba(22, 163, 74, 0.22)');
-        fill.addColorStop(1, 'rgba(22, 163, 74, 0)');
 
         facilityRevenueChart = new Chart(ctx, {
             type: 'line',
@@ -346,16 +332,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 datasets: [{
                     label: 'Facility revenue',
                     data: chartData.values,
-                    borderColor: '#16a34a',
-                    backgroundColor: fill,
+                    borderColor: palette.navy,
+                    backgroundColor: 'transparent',
                     borderWidth: 2,
                     pointRadius: 2.5,
                     pointHoverRadius: 5,
-                    pointBackgroundColor: '#16a34a',
+                    pointBackgroundColor: palette.navy,
                     pointBorderColor: '#ffffff',
                     pointBorderWidth: 1.5,
                     tension: 0.35,
-                    fill: true,
+                    fill: false,
                 }],
             },
             options: {
@@ -382,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         ticks: {
                             color: '#94a3b8',
                             maxTicksLimit: 5,
-                            font: { family: 'Montserrat', size: 8, weight: '600' },
+                            font: { family: 'Inter, sans-serif', size: 12, weight: '600' },
                         },
                     },
                     y: {
@@ -409,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         Number(availability.maintenance || 0),
                         Number(availability.blocked || 0),
                     ],
-                    backgroundColor: ['#16a34a', '#2563eb', '#f59e0b', '#dc2626'],
+                    backgroundColor: [palette.navy, palette.muted, palette.gold, palette.grayLight],
                     borderColor: '#ffffff',
                     borderWidth: 2,
                     hoverOffset: 2,
@@ -495,7 +481,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateFacilityUtilization(rows) {
         const list = document.getElementById('facilityUtilizationList');
-        if (!list) return;
+        if (!list || list.closest('[data-facility-utilization]')) return;
         list.replaceChildren();
 
         if (!Array.isArray(rows) || rows.length === 0) {

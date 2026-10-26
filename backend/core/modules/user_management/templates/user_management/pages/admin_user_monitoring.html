@@ -8,29 +8,43 @@
     <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
     <title>CampusHub | User Monitoring</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap"
-        rel="stylesheet" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_monitoring.css' %}?v=20260830-activity-log" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_monitoring.css' %}?v=20261011-monitoring-final" />
+{% include 'partials/web_typography.html' %}
 </head>
 
-<body>
+<body class="admin-module-shell">
     <div class="sidebar-section">
         {% include 'partials/admin_sidebar.html' with active_page='monitoring' %}
         <div class="main-wrapper" id="mainWrapper">
             {% include 'partials/admin_header.html' with page_title='User Monitoring' breadcrumb_section='User Management' breadcrumb_page='User Monitoring' %}
             <main class="dashboard-content monitoring-page-shell">
                 <div class="container-fluid px-0 monitoring-page">
-                    <div class="monitoring-range-summary"><span>Monitoring period</span><strong>{{ filters.date_from }}
-                            to {{ filters.date_to }}</strong></div>
+                    {% if monitoring_error %}
+                    <section class="monitor-panel monitoring-load-error" role="alert">
+                        <h2>Unable to load user monitoring.</h2>
+                        <p>Monitoring data could not be retrieved. Try again.</p>
+                        <a class="monitor-reset" href="{{ request.path }}">Retry</a>
+                    </section>
+                    {% else %}
+                    <div class="monitoring-range-summary">
+                        <label for="monitorPeriod">Monitoring Period</label>
+                        <select id="monitorPeriod" name="period" form="monitorFilters">
+                            <option value="today" {% if filters.period == 'today' %}selected{% endif %}>Today</option>
+                            <option value="last7" {% if filters.period == 'last7' %}selected{% endif %}>Last 7 Days</option>
+                            <option value="last30" {% if filters.period == 'last30' %}selected{% endif %}>Last 30 Days</option>
+                            <option value="custom" {% if filters.period == 'custom' %}selected{% endif %}>Custom Date Range</option>
+                        </select>
+                        <strong>{{ filters.date_from }} to {{ filters.date_to }}</strong>
+                    </div>
 
                     <section class="monitor-stats-grid" aria-label="User monitoring summary">
                         <article class="monitor-stat-card stat-blue"><span class="monitor-stat-icon"
                                 aria-hidden="true"><svg viewBox="0 0 24 24">
                                     <path
                                         d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-                                </svg></span><span><small>Total Active Users</small><strong>{{ total_active_users }}</strong><em>Active CampusHub accounts</em></span></article>
+                                </svg></span><span><small>Active Accounts</small><strong>{{ total_active_users }}</strong><em>Enabled user accounts</em></span></article>
                         <article class="monitor-stat-card stat-green"><span class="monitor-stat-icon"
                                 aria-hidden="true"><svg viewBox="0 0 24 24">
                                     <circle cx="12" cy="12" r="9" />
@@ -40,47 +54,38 @@
                                 aria-hidden="true"><svg viewBox="0 0 24 24">
                                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
                                     <path d="m9 9 6 6m0-6-6 6" />
-                                </svg></span><span><small>Failed Login Attempts</small><strong>{{ failed_login_attempts }}</strong><em>Selected monitoring period</em></span></article>
+                                </svg></span><span><small>{% if scoped_monitor %}Marketplace Activities{% else %}Failed Login Attempts{% endif %}</small><strong>{% if scoped_monitor %}{{ marketplace_activity_count }}{% else %}{{ failed_login_attempts }}{% endif %}</strong><em>{% if not scoped_monitor and not failed_login_attempts %}No failed login attempts in selected period.{% else %}Selected monitoring period{% endif %}</em></span></article>
                         <article class="monitor-stat-card stat-purple"><span class="monitor-stat-icon"
                                 aria-hidden="true"><svg viewBox="0 0 24 24">
                                     <rect x="3" y="4" width="18" height="13" rx="2" />
                                     <path d="M8 21h8m-4-4v4" />
-                                </svg></span><span><small>Active Sessions</small><strong>{{ active_sessions }}</strong><em>Unexpired admin sessions</em></span></article>
+                                </svg></span><span><small>{% if scoped_monitor %}Accounts with Activity{% else %}Active Web Sessions{% endif %}</small><strong>{% if scoped_monitor %}{{ accounts_with_activity }}{% else %}{{ active_sessions }}{% endif %}</strong><em>{% if scoped_monitor %}Selected monitoring period{% else %}Currently authenticated web sessions{% endif %}</em></span></article>
                     </section>
 
+                    <p class="monitor-coverage">{{ presence_coverage }}{% if not scoped_monitor %} {{ session_coverage }}{% endif %}</p>
                     <section class="monitor-charts-grid" aria-label="Authentication analytics">
                         <article class="monitor-panel monitor-chart-card">
                             <header>
-                                <h2>User Login Trend</h2><select id="trendPeriod" aria-label="Login trend grouping">
+                                <h2>{% if scoped_monitor %}Marketplace Activity Trend{% else %}User Login Trend{% endif %}</h2><select id="trendPeriod" aria-label="Login trend grouping">
                                     <option value="daily">Daily</option>
                                     <option value="weekly">Weekly</option>
                                     <option value="monthly">Monthly</option>
                                 </select>
                             </header>
-                            <div class="chart-canvas-wrap"><canvas id="loginTrendChart"></canvas></div>
+                            <div class="chart-canvas-wrap"><canvas id="loginTrendChart" aria-label="Successful login counts for selected monitoring period" role="img"></canvas></div><p class="monitor-chart-state" data-chart-state="trend" aria-live="polite">Loading chart...</p>
                         </article>
                         <article class="monitor-panel monitor-chart-card peak-hours-card">
                             <header>
-                                <h2>Peak Login Hours</h2><select id="peakPeriod" aria-label="Peak login period">
-                                    <option value="today" {% if filters.period == 'today' %}selected{% endif %}>Today</option>
-                                    <option value="last7" {% if filters.period == 'last7' %}selected{% endif %}>Last 7 Days</option>
-                                    <option value="last30" {% if filters.period == 'last30' %}selected{% endif %}>Last 30 Days</option>
-                                    <option value="custom" {% if filters.period == 'custom' %}selected{% endif %}>Custom Date Range</option>
-                                </select>
+                                <h2>{% if scoped_monitor %}Peak Activity Hours{% else %}Peak Login Hours{% endif %}</h2>
                             </header>
-                            <div class="peak-custom-dates" id="peakCustomDates" {% if filters.period != 'custom' %}hidden{% endif %}>
-                                <input type="date" id="peakDateFrom" value="{{ filters.date_from }}" aria-label="Custom start date" />
-                                <input type="date" id="peakDateTo" value="{{ filters.date_to }}" aria-label="Custom end date" />
-                                <button type="button" id="applyPeakDates">Apply</button>
-                            </div>
-                            <div class="chart-canvas-wrap"><canvas id="peakLoginChart"></canvas></div>
+                            <div class="chart-canvas-wrap"><canvas id="peakLoginChart" aria-label="Hourly counts for selected monitoring period" role="img"></canvas></div><p class="monitor-chart-state" data-chart-state="peak" aria-live="polite">Loading chart...</p>
                         </article>
                         <article class="monitor-panel monitor-chart-card online-users-card">
                             <header>
                                 <h2>Online Users Now</h2><span class="online-count">{{ online_now }} online</span>
                             </header>
                             <div class="online-users-head"><span>User</span><span>Account
-                                    Type</span><span>Role</span><span>Last Activity</span><span></span></div>
+                                    Type</span><span>Role</span><span>Last Seen</span><span></span></div>
                             <div class="online-users-list">
                                 {% for user in online_users %}
                                 <div class="online-user-row">
@@ -108,11 +113,13 @@
 
                     <section class="monitor-panel monitor-users-panel">
                         <form class="monitor-filters" method="get" id="monitorFilters">
+                            {% if activity_module_filter %}<input type="hidden" name="module" value="{{ activity_module_filter }}">{% endif %}
+                            {% if selected_account_ref %}<input type="hidden" name="account_ref" value="{{ selected_account_ref }}" />{% endif %}
                             <label class="monitor-search"><svg viewBox="0 0 24 24" aria-hidden="true">
                                     <circle cx="11" cy="11" r="7" />
                                     <path d="m20 20-4-4" />
                                 </svg><input type="search" name="q" value="{{ filters.q }}"
-                                    placeholder="Search users..." /></label>
+                                    placeholder="Search users..." aria-label="Search users" /></label>
                             <select name="type" aria-label="Account type">
                                 <option value="">All Account Types</option>{% for value, label in account_types %}
                                 <option value="{{ value }}" {% if filters.type == value %}selected{% endif %}>{{ label }}
@@ -122,7 +129,7 @@
                                 <option value="">All Roles</option>
                                 {% for role_name in role_choices %}
                                 <option value="{{ role_name }}" {% if filters.role == role_name %}selected{% endif %}>
-                                    {% if role_name == 'User' %}Standard User{% else %}{{ role_name }}{% endif %}
+                                    {{ role_name }}
                                 </option>
                                 {% endfor %}
                             </select>
@@ -130,7 +137,7 @@
                                 <option value="">All Status</option>
                                 <option value="online" {% if filters.status == 'online' %}selected{% endif %}>Online</option>
                                 <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>Offline</option>
-                                <option value="suspended" {% if filters.status == 'suspended' %}selected{% endif %}>Suspended</option>
+
                             </select>
                             <select name="activity" aria-label="Activity type">
                                 <option value="">All Activity Types</option>{% for value, label in activity_types %}
@@ -140,12 +147,11 @@
                                     value="{{ filters.date_from }}" /></label>
                             <label class="date-filter"><span>To</span><input type="date" name="date_to"
                                     value="{{ filters.date_to }}" /></label>
-                            <input type="hidden" name="period" value="{{ filters.period }}" />
-                            <a class="monitor-reset" href="{% url 'admin_user_monitoring_page' %}">Reset</a>
+                            <a class="monitor-reset" href="{% url 'admin_user_monitoring_page' %}">Clear Filters</a>
                         </form>
 
                         <div class="monitor-panel-heading">
-                            <h2>User Activity</h2>
+                            <div><h2>User Session Overview</h2><p class="monitor-supporting">Review account status, login activity, and recent system activity.</p></div>
                         </div>
                         <div class="monitor-table-scroll">
                             <table class="monitor-table">
@@ -184,8 +190,8 @@
                                             {% endif %}
                                         </td>
                                         <td><button type="button" class="monitor-view js-monitor-view"
-                                                data-account-ref="{{ user.ref }}" title="View user activity"
-                                                aria-label="View activity for {{ user.full_name }}"><svg
+                                                data-account-ref="{{ user.ref }}" title="View Monitoring Details"
+                                                aria-label="View Monitoring Details for {{ user.full_name }}"><svg
                                                     viewBox="0 0 24 24">
                                                     <path
                                                         d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
@@ -219,9 +225,9 @@
                         </footer>
                     </section>
 
-                    <section class="monitor-panel recent-activity-panel">
+                    <section class="monitor-panel recent-activity-panel" id="recent-user-activity">
                         <div class="monitor-panel-heading">
-                            <h2>Recent User Activity Log</h2><span>Newest first</span>
+                            <h2>{% if activity_module_filter %}Facilities Activity Log{% else %}Recent User Activity Log{% endif %}</h2><span>Newest first</span>
                         </div>
                         <div class="monitor-table-scroll">
                             <table class="recent-activity-table">
@@ -229,8 +235,7 @@
                                     <tr>
                                         <th>Time</th>
                                         <th>User</th>
-                                        <th>Account Type / Role</th>
-                                        <th>Activity</th>
+                                        <th>Action</th>
                                         <th>Module</th>
                                         <th>Result</th>
                                         <th>Actions</th>
@@ -239,40 +244,43 @@
                                 <tbody>
                                     {% for activity in recent_activities %}<tr>
                                         <td>{{ activity.time }}</td>
-                                        <td>
-                                            <div class="recent-user"><strong>{{ activity.user }}</strong><small>{{ activity.identity }}</small></div>
-                                        </td>
-                                        <td>
-                                            <div class="recent-account"><span
-                                                    class="account-type-badge type-{{ activity.account_type_value }}">{{ activity.account_type }}</span><small>{{ activity.role }}</small>
-                                            </div>
-                                        </td>
-                                        <td>{{ activity.activity }}</td>
+                                        <td>{{ activity.actor }}</td>
+                                        <td>{{ activity.action }}</td>
                                         <td>{{ activity.module }}</td>
                                         <td><span class="result-badge result-{{ activity.result_value }}">{{ activity.result }}</span></td>
                                         <td><button type="button" class="monitor-view js-activity-view"
-                                                data-activity-id="{{ activity.id }}" title="View activity details"
-                                                aria-label="View details for {{ activity.activity }}"><svg
+                                                data-activity-id="{{ activity.id }}" title="View Activity Details"
+                                                aria-label="View details for {{ activity.action }}"><svg
                                                     viewBox="0 0 24 24">
                                                     <path
                                                         d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
                                                     <circle cx="12" cy="12" r="2.75" />
                                                 </svg></button></td>
                                     </tr>{% empty %}<tr>
-                                        <td colspan="7" class="monitor-no-data">No recorded activities for this period.
+                                        <td colspan="6" class="monitor-no-data">No activities found for selected filters.
                                         </td>
                                     </tr>{% endfor %}
                                 </tbody>
                             </table>
                         </div>
+                        <footer class="monitor-pagination">
+                            <span>{% if activity_page_obj.paginator.count %}{{ activity_page_obj.start_index }} to {{ activity_page_obj.end_index }} of {{ activity_page_obj.paginator.count }} events{% else %}No recorded events{% endif %}</span>
+                            <nav aria-label="Activity log pagination">
+                                {% if activity_page_obj.has_previous %}<a class="page-arrow" href="?{{ activity_query }}&amp;activity_page={{ activity_page_obj.previous_page_number }}" aria-label="Previous activity page">&lsaquo;</a>{% endif %}
+                                <span class="page-number active">{{ activity_page_obj.number }}</span>
+                                {% if activity_page_obj.has_next %}<a class="page-arrow" href="?{{ activity_query }}&amp;activity_page={{ activity_page_obj.next_page_number }}" aria-label="Next activity page">&rsaquo;</a>{% endif %}
+                            </nav>
+                        </footer>
                     </section>
+                    <p id="monitorLoadStatus" class="visually-hidden" role="status" aria-live="polite"></p>
+                    {% endif %}
                 </div>
             </main>
         </div>
     </div>
 
     <div class="monitor-drawer-backdrop" id="monitorDrawerBackdrop" hidden></div>
-    <aside class="monitor-drawer" id="monitorDrawer" aria-labelledby="drawerUserName" hidden>
+    <aside class="monitor-drawer" id="monitorDrawer" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="drawerUserName" hidden>
         <header>
             <div class="drawer-identity"><span class="monitor-avatar" id="drawerInitials">U</span><span>
                     <h2 id="drawerUserName">User</h2>
@@ -280,9 +288,9 @@
                 </span></div><button type="button" class="drawer-close" id="drawerClose"
                 aria-label="Close">&times;</button>
         </header>
-        <nav class="drawer-tabs"><button type="button" class="active" data-tab="overview">Overview</button><button
-                type="button" data-tab="logins">Login History</button><button type="button" data-tab="activity">Activity
-                Log</button><button type="button" data-tab="sessions">Sessions</button></nav>
+        <nav class="drawer-tabs{% if scoped_monitor %} scoped{% endif %}"><button type="button" class="active" data-tab="overview">Account Info</button><button
+                type="button" data-tab="logins" {% if scoped_monitor %}hidden{% endif %}>Login History</button><button type="button" data-tab="activity">Activity
+                Log</button><button type="button" data-tab="sessions" {% if scoped_monitor %}hidden{% endif %}>Sessions</button></nav>
         <div class="drawer-body">
             <section class="drawer-tab active" data-panel="overview">
                 <dl id="drawerOverview"></dl>
@@ -292,6 +300,15 @@
             </section>
             <section class="drawer-tab" data-panel="activity">
                 <div class="drawer-list" id="drawerActivities"></div>
+                {% if history_page_obj %}
+                <nav class="monitor-pagination" aria-label="Account activity history pagination">
+                    <span>All recorded activity · Page {{ history_page_obj.number }} of {{ history_page_obj.paginator.num_pages }}</span>
+                    <div class="pagination-controls">
+                        {% if history_page_obj.has_previous %}<a class="monitor-reset" href="?{{ history_query }}&amp;history_page={{ history_page_obj.previous_page_number }}">Previous</a>{% endif %}
+                        {% if history_page_obj.has_next %}<a class="monitor-reset" href="?{{ history_query }}&amp;history_page={{ history_page_obj.next_page_number }}">Next</a>{% endif %}
+                    </div>
+                </nav>
+                {% endif %}
             </section>
             <section class="drawer-tab" data-panel="sessions">
                 <div class="drawer-list" id="drawerSessions"></div>
@@ -310,6 +327,8 @@
                 aria-label="Close">&times;</button>
         </header>
         <dl id="activityDetailList"></dl>
+        <h3 id="activityConnectionTitle" hidden>Connection Information</h3>
+        <dl id="activityConnectionList" hidden></dl>
         <footer><button type="button" id="activityDetailDone">Close</button></footer>
     </section>
 
@@ -318,92 +337,8 @@
     {{ recent_activities|json_script:"recentActivityData" }}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script>
-        (function () {
-            "use strict";
-            function jsonData(id, fallback) { try { return JSON.parse(document.getElementById(id).textContent || "") } catch (_error) { return fallback } }
-            var chartData = jsonData("monitorChartData", {}), users = jsonData("monitorUsersData", []), usersByRef = new Map(users.map(function (user) { return [user.ref, user] })), recentActivities = jsonData("recentActivityData", []), activitiesById = new Map(recentActivities.map(function (activity) { return [activity.id, activity] })), chartFont = { family: "Montserrat", size: 9, weight: "600" };
-            function periodData(period) { return chartData[period] || { labels: [], tooltipLabels: [], success: [] } }
-            function yAxisRange(values) {
-                var highest = Math.max.apply(null, [0].concat(values.map(Number)));
-                if (highest <= 5) return { max: 5, step: 1 };
-                var step = Math.max(1, Math.ceil(highest / 5));
-                return { max: Math.ceil(highest / step) * step, step: step };
-            }
-            function commonScales(data) {
-                var range = yAxisRange(data.success);
-                return {
-                    x: {
-                        grid: { display: false },
-                        ticks: { autoSkip: data.labels.length > 14, maxTicksLimit: 14, color: "#8794aa", font: chartFont }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        max: range.max,
-                        title: { display: true, text: "Number of Successful Logins", color: "#64748b", font: chartFont },
-                        ticks: {
-                            stepSize: range.step,
-                            precision: 0,
-                            color: "#8794aa",
-                            font: chartFont,
-                            callback: function (value) { return Number.isInteger(Number(value)) ? value : "" }
-                        },
-                        grid: { color: "#edf1f6" }
-                    }
-                };
-            }
-            function trendTooltipTitle(items) {
-                if (!items.length || !trendChart) return "";
-                return trendChart.$tooltipLabels[items[0].dataIndex] || items[0].label;
-            }
-            function trendTooltipLabel(context) {
-                var value = Number(context.parsed.y || 0);
-                return value + " " + (value === 1 ? "login" : "logins");
-            }
-            var trendChart = null, trendCanvas = document.getElementById("loginTrendChart"), initialPeriod = "daily", initial = periodData(initialPeriod);
-            if (trendCanvas && window.Chart) {
-                trendChart = new Chart(trendCanvas, {
-                    type: "line",
-                    data: {
-                        labels: initial.labels,
-                        datasets: [{
-                            label: "Successful Logins",
-                            data: initial.success,
-                            borderColor: "#1A1851",
-                            backgroundColor: "rgba(26,24,81,.08)",
-                            borderWidth: 2.5,
-                            tension: .35,
-                            fill: true,
-                            spanGaps: false,
-                            pointRadius: 3,
-                            pointHoverRadius: 5,
-                            pointBackgroundColor: "#1A1851",
-                            pointBorderColor: "#FFFFFF"
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: { callbacks: { title: trendTooltipTitle, label: trendTooltipLabel } }
-                        },
-                        scales: commonScales(initial)
-                    }
-                });
-                trendChart.$tooltipLabels = initial.tooltipLabels;
-            }
-            var peakData = chartData.peakHours || { labels: [], values: [] }, peakCanvas = document.getElementById("peakLoginChart"); if (peakCanvas && window.Chart) { new Chart(peakCanvas, { type: "bar", data: { labels: peakData.labels, datasets: [{ label: "Successful Logins", data: peakData.values, backgroundColor: "#1A1851", borderRadius: 3, maxBarThickness: 20 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { autoSkip: true, maxTicksLimit: 8, color: "#8794aa", font: chartFont } }, y: { beginAtZero: true, ticks: { precision: 0, color: "#8794aa", font: chartFont }, grid: { color: "#edf1f6" } } } } }) }
-            function updatePeriod(chart, period) { var data = periodData(period); if (!chart) return; chart.data.labels = data.labels; chart.data.datasets[0].data = data.success; chart.$tooltipLabels = data.tooltipLabels; chart.options.scales = commonScales(data); chart.update() }
-            document.getElementById("trendPeriod").addEventListener("change", function () { updatePeriod(trendChart, this.value) });
-            var peakPeriod = document.getElementById("peakPeriod"), peakCustomDates = document.getElementById("peakCustomDates"); function peakUrl(period, from, to) { var url = new URL(window.location.href); url.searchParams.set("period", period); url.searchParams.delete("page"); if (period === "custom") { url.searchParams.set("date_from", from); url.searchParams.set("date_to", to) } else { url.searchParams.delete("date_from"); url.searchParams.delete("date_to") } window.location.href = url.toString() } peakPeriod.addEventListener("change", function () { if (this.value === "custom") { peakCustomDates.hidden = false; document.getElementById("peakDateFrom").focus(); return } peakUrl(this.value, "", "") }); document.getElementById("applyPeakDates").addEventListener("click", function () { var from = document.getElementById("peakDateFrom").value, to = document.getElementById("peakDateTo").value; if (from && to) peakUrl("custom", from, to) });
-            var filterForm = document.getElementById("monitorFilters"), searchTimer = 0; filterForm.querySelector('input[name="q"]').addEventListener("input", function () { clearTimeout(searchTimer); searchTimer = setTimeout(function () { filterForm.submit() }, 450) }); filterForm.querySelectorAll("select,input[type=date]").forEach(function (control) { control.addEventListener("change", function () { if (control.type === "date") filterForm.querySelector('[name="period"]').value = "custom"; filterForm.submit() }) });
-            var drawer = document.getElementById("monitorDrawer"), backdrop = document.getElementById("monitorDrawerBackdrop"); function empty(message) { var node = document.createElement("p"); node.className = "drawer-empty"; node.textContent = message; return node } function renderEvents(target, events, predicate) { target.replaceChildren(); var selected = events.filter(predicate); if (!selected.length) { target.appendChild(empty("No recorded data.")); return } selected.forEach(function (event) { var item = document.createElement("article"), title = document.createElement("strong"), meta = document.createElement("small"); title.textContent = event.activity; meta.textContent = [event.time, event.module, event.result, event.ip].filter(Boolean).join(" | "); item.append(title, meta); target.appendChild(item) }) }
-            function openDrawer(user) { document.getElementById("drawerInitials").textContent = user.initials; document.getElementById("drawerUserName").textContent = user.fullName; document.getElementById("drawerUserEmail").textContent = user.email || user.username; var overview = [["Username", user.username], ["Account Type", user.accountType], ["Role", user.role], ["Status", user.status], ["Last Login", user.lastLogin || "—"], ["Last Activity", user.lastActivity || "—"], ["Last Activity Time", user.lastActivityAt || "—"], ["IP Address", user.ip || "—"], ["Device / Browser", user.device || "—"]], dl = document.getElementById("drawerOverview"); dl.replaceChildren(); overview.forEach(function (pair) { var row = document.createElement("div"), dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = pair[0]; dd.textContent = pair[1]; row.append(dt, dd); dl.appendChild(row) }); renderEvents(document.getElementById("drawerLogins"), user.events, function (event) { return event.type === "login_success" || event.type === "login_failed" }); renderEvents(document.getElementById("drawerActivities"), user.events, function () { return true }); var sessions = document.getElementById("drawerSessions"); sessions.replaceChildren(); if (!user.sessions.length) { sessions.appendChild(empty("No recorded sessions for this account.")) } else { user.sessions.forEach(function (session) { var item = document.createElement("article"), title = document.createElement("strong"), meta = document.createElement("small"); title.textContent = session.active ? "Active session" : "Expired session"; meta.textContent = "Created: " + session.created + " | Last seen: " + (session.last_seen || "—") + " | Expires: " + session.expires; item.append(title, meta); sessions.appendChild(item) }) } drawer.hidden = false; backdrop.hidden = false; requestAnimationFrame(function () { drawer.classList.add("open"); backdrop.classList.add("open") }) }
-            function closeDrawer() { drawer.classList.remove("open"); backdrop.classList.remove("open"); setTimeout(function () { drawer.hidden = true; backdrop.hidden = true }, 180) } document.querySelectorAll(".js-monitor-view").forEach(function (button) { button.addEventListener("click", function () { var user = usersByRef.get(button.dataset.accountRef); if (user) openDrawer(user) }) }); document.getElementById("drawerClose").addEventListener("click", closeDrawer); backdrop.addEventListener("click", closeDrawer); document.querySelectorAll(".drawer-tabs button").forEach(function (button) { button.addEventListener("click", function () { document.querySelectorAll(".drawer-tabs button").forEach(function (item) { item.classList.toggle("active", item === button) }); document.querySelectorAll(".drawer-tab").forEach(function (panel) { panel.classList.toggle("active", panel.dataset.panel === button.dataset.tab) }) }) });
-            var activityModal = document.getElementById("activityDetailModal"), activityBackdrop = document.getElementById("activityDetailBackdrop"), activityList = document.getElementById("activityDetailList"); function openActivityDetail(activity) { var details = [["Time", activity.time], ["User", activity.user], ["Account", activity.identity], ["Account Type", activity.account_type], ["Role", activity.role], ["Activity", activity.activity], ["Module", activity.module], ["Result", activity.result], ["IP Address", activity.ip || "—"], ["Device / Browser", activity.device || "—"]]; activityList.replaceChildren(); details.forEach(function (pair) { var row = document.createElement("div"), dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = pair[0]; dd.textContent = pair[1]; row.append(dt, dd); activityList.appendChild(row) }); activityModal.hidden = false; activityBackdrop.hidden = false; requestAnimationFrame(function () { activityModal.classList.add("open"); activityBackdrop.classList.add("open") }) } function closeActivityDetail() { activityModal.classList.remove("open"); activityBackdrop.classList.remove("open"); setTimeout(function () { activityModal.hidden = true; activityBackdrop.hidden = true }, 180) } document.querySelectorAll(".js-activity-view").forEach(function (button) { button.addEventListener("click", function () { var activity = activitiesById.get(button.dataset.activityId); if (activity) openActivityDetail(activity) }) }); document.getElementById("activityDetailClose").addEventListener("click", closeActivityDetail); document.getElementById("activityDetailDone").addEventListener("click", closeActivityDetail); activityBackdrop.addEventListener("click", closeActivityDetail); document.addEventListener("keydown", function (event) { if (event.key === "Escape" && !activityModal.hidden) closeActivityDetail() });
-        })();
-    </script>
+    {{ monitor_config|json_script:"monitorConfig" }}
+    <script src="{% static 'components/js/admin_monitoring.js' %}?v=20261011-monitoring-final"></script>
 </body>
 
 </html>

@@ -1,0 +1,20 @@
+<div class="dashboard-domain-grid">
+<section aria-labelledby="servicesOverviewTitle" class="dashboard-domain-overview">
+    <div class="dashboard-section-heading"><h2 id="servicesOverviewTitle">Services Overview</h2></div>
+    <div class="dash-card dashboard-domain-summary">
+        <div><strong data-dashboard-summary="services_overview.total">{{ services_overview.total }}</strong><span>Configured Services</span></div>
+        <div><strong data-dashboard-summary="services_overview.open">{{ services_overview.open }}</strong><span>Open Services</span></div>
+        <div><strong data-dashboard-summary="services_overview.pending">{{ services_overview.pending }}</strong><span>Pending Service Requests</span></div>
+        {% if perms.accounts.can_view_facilities or perms.accounts.can_manage_facilities %}<a href="{% url 'admin_services_page' %}" class="dash-view-all-link">View Services &rarr;</a>{% endif %}
+    </div>
+</section>
+<section aria-labelledby="accountsOverviewTitle" class="dashboard-domain-overview">
+    <div class="dashboard-section-heading"><h2 id="accountsOverviewTitle">User / Account Overview</h2></div>
+    <div class="dash-card dashboard-domain-summary">
+        <div><strong data-dashboard-summary="accounts_overview.total">{{ accounts_overview.total }}</strong><span>Total Accounts</span></div>
+        <div><strong data-dashboard-summary="accounts_overview.enabled">{{ accounts_overview.enabled }}</strong><span>Enabled Accounts</span></div>
+        <div><strong data-dashboard-summary="accounts_overview.restricted">{{ accounts_overview.restricted }}</strong><span>Inactive / Suspended Accounts</span></div>
+        {% if perms.accounts.can_manage_users %}<a href="{% url 'admin_users_page' %}" class="dash-view-all-link">View Users &rarr;</a>{% endif %}
+    </div>
+</section>
+</div>

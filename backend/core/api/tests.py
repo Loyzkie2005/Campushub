@@ -168,16 +168,16 @@ class FacilityConfigurationTests(SimpleTestCase):
 
     def test_incompatible_booking_mode_is_rejected(self):
         payload = self.valid_payload("covered_court")
-        payload["mode"] = "room"
+        payload["mode"] = "lease"
 
-        with self.assertRaisesMessage(ValidationError, "must use Slot-Based"):
+        with self.assertRaisesMessage(ValidationError, "Select Slot-Based, Room / Stay-Based, Daily or Custom"):
             validate_facility_payload(payload)
 
     def test_incompatible_price_type_is_rejected(self):
         payload = self.valid_payload("hostel")
-        payload["price_type"] = "hour"
+        payload["price_type"] = "unsupported"
 
-        with self.assertRaisesMessage(ValidationError, "supports only: Per Night"):
+        with self.assertRaisesMessage(ValidationError, "Select a valid pricing method"):
             validate_facility_payload(payload)
 
     def test_type_specific_required_field_is_rejected(self):

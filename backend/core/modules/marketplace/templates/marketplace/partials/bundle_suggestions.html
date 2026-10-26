@@ -1,0 +1,25 @@
+<section class="dash-card bundle-dss bundle-dashboard-card{% if compact %} bundle-summary-section{% endif %}" id="bundleSuggestions" data-monitor-preview aria-labelledby="bundleSuggestionsTitle">
+    <header class="bundle-panel-heading">{% if compact %}<h3 id="bundleSuggestionsTitle">Suggested Product Bundles</h3>{% else %}<h2 id="bundleSuggestionsTitle">Suggested Product Bundles</h2>
+        <a class="bundle-view-all" href="{% url 'bundle_monitor_list' %}">View All</a>{% endif %}</header>
+    {% if not compact %}<p class="bundle-dashboard-description">Apriori-based product combinations identified from completed marketplace transactions.</p>{% endif %}
+    {% if compact and not bundle_analysis.monitor_error %}<p class="bundle-preview-count">Available in this preview: <strong>{{ bundle_analysis.monitor_rows|length }}</strong></p>{% endif %}
+    <div class="bundle-pair-list" aria-live="polite">
+        {% for row in bundle_analysis.monitor_rows %}
+        {% if not compact or forloop.counter <= 2 %}
+        <article class="bundle-pair" data-recommendation-id="{{ row.id }}">
+            {% if not compact %}
+            <div class="bundle-pair-images">{% include 'marketplace/partials/bundle_photo.html' with product=row.products.0 %}
+                <span class="bundle-pair-plus" aria-hidden="true">+</span>
+                {% include 'marketplace/partials/bundle_photo.html' with product=row.products.1 %}</div>{% endif %}
+            <div class="bundle-suggestion-summary">{% if compact %}<h4><a href="{% url 'bundle_monitor_detail' row.id %}">{{ row.product_a }} + {{ row.product_b }}</a></h4>{% else %}<h3>{{ row.product_a }} + {{ row.product_b }}</h3>{% endif %}
+            <p class="bundle-pair-seller">Seller: {{ row.seller }}</p>
+            <p class="bundle-pair-seller">Seller Response: {{ row.response }}</p>
+            {% if not compact %}<a class="bundle-review-button" href="{% url 'bundle_monitor_detail' row.id %}">View Details</a>{% endif %}</div>
+        </article>
+        {% endif %}
+        {% empty %}
+        {% if bundle_analysis.monitor_error %}<div class="bundle-dashboard-state" role="alert"><h3>Unable to load bundle suggestions</h3><p>Please retry.</p><a href="{% url 'admin_dashboard_page' %}">Retry</a></div>
+        {% else %}<div class="bundle-dashboard-state">{% if global_dashboard %}{% include 'dashboard/partials/empty_state.html' with title='No Bundle Suggestions Yet' description='Suggested product combinations will appear here when eligible purchasing patterns are identified from completed marketplace orders.' icon='bag' %}{% else %}{% include 'marketplace/partials/bundle_state_icon.html' with kind='suggestions' %}<h3>No Bundle Suggestions Yet</h3><p>Suggested product combinations will appear here when eligible purchasing patterns are identified from completed marketplace orders.</p>{% endif %}</div>{% endif %}
+        {% endfor %}
+    </div>
+</section>

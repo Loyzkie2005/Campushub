@@ -11,7 +11,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import dj_database_url
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -58,7 +60,10 @@ ALLOWED_HOSTS = [
     "192.168.1.187",
     "192.168.1.169",
     "192.168.0.154",
+    "192.168.0.183",
     "192.168.56.1",
+    "192.168.137.1",
+    "192.168.137.100",
     "*",                 # Allow local development connections across any adapter or emulator
 ]
 
@@ -73,13 +78,16 @@ CSRF_TRUSTED_ORIGINS = [
     "http://192.168.1.169:8000",
     "http://192.168.0.154:8000",
     "http://192.168.56.1:8000",
+    "http://192.168.137.100:8000",
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
+AUTHENTICATION_BACKENDS = ['accounts.authentication.RoleScopeBackend', 'django.contrib.auth.backends.ModelBackend']
 # Application definition
 
 INSTALLED_APPS = [
     'corsheaders',
+    'rest_framework',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -154,16 +162,17 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# Loaded from the private .env above; SSH forwarding is managed separately.
+# A missing URL must not silently switch the app to a different database.
+_database_url = os.environ.get('DATABASE_URL', '').strip()
+if not _database_url:
+    raise ImproperlyConfigured('Set DATABASE_URL in backend/core/.env or the process environment.')
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'campushub',
-        'USER': 'postgres',
-        'PASSWORD': 'CampusHub2026',
-        'HOST': 'localhost',
-        'PORT': '5432',
-
-    },
+    'default': dj_database_url.parse(
+        _database_url,
+        conn_max_age=60,
+        conn_health_checks=True,
+    ),
 }
 
 
@@ -191,11 +200,33 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Manila'
 
 USE_I18N = True
 
 USE_TZ = True
+
+# Optional absolute Chrome/Chromium path; otherwise use the installed browser.
+BOOKING_PDF_BROWSER_BINARY = os.getenv('BOOKING_PDF_BROWSER_BINARY', '')
+
+# Separate read-only Apriori demonstration; never imported into marketplace orders.
+CAMPUSHUB_SYNTHETIC_ORDER_ITEMS_PATH = os.getenv('CAMPUSHUB_SYNTHETIC_ORDER_ITEMS_PATH', '')
+CAMPUSHUB_BUNDLE_MIN_SUPPORT = os.getenv('CAMPUSHUB_BUNDLE_MIN_SUPPORT', '0.02')
+CAMPUSHUB_BUNDLE_MIN_CONFIDENCE = os.getenv('CAMPUSHUB_BUNDLE_MIN_CONFIDENCE', '0.30')
+CAMPUSHUB_BUNDLE_MIN_LIFT = os.getenv('CAMPUSHUB_BUNDLE_MIN_LIFT', '1')
+
+# Printed official signatories are independent of the admin who records approval.
+# Names/titles below come from the supplied official slip and can change via .env.
+BOOKING_SLIP_SIGNATORIES = {
+    'reviewer': {
+        'name': os.getenv('BOOKING_SLIP_REVIEWER_NAME', ''),
+        'title': os.getenv('BOOKING_SLIP_REVIEWER_TITLE', 'Campus Admin / Facility In-Charge'),
+    },
+    'approver': {
+        'name': os.getenv('BOOKING_SLIP_APPROVER_NAME', 'Dr. Glorimer L. Clarin'),
+        'title': os.getenv('BOOKING_SLIP_APPROVER_TITLE', 'Acting Campus Director'),
+    },
+}
 
 
 # Static files (CSS, JavaScript, Images)
@@ -228,11 +259,20 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = CAMPUSHUB_SMTP_HOST
 EMAIL_PORT = CAMPUSHUB_SMTP_PORT
 EMAIL_USE_TLS = True
+EMAIL_TIMEOUT = 15  # Bound each SMTP network operation instead of hanging indefinitely.
 EMAIL_HOST_USER = CAMPUSHUB_GMAIL_USER
 EMAIL_HOST_PASSWORD = CAMPUSHUB_GMAIL_APP_PASSWORD
 DEFAULT_FROM_EMAIL = CAMPUSHUB_GMAIL_USER or 'noreply@campushub.local'
 PASSWORD_RESET_CODE_MINUTES = 15
+CAMPUSHUB_PUBLIC_BASE_URL = os.environ.get("CAMPUSHUB_PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+PASSWORD_RESET_TIMEOUT = 3600  # Account-owner web links expire after one hour.
 
 # Marketplace inventory automation (no per-product reorder level field)
 CAMPUSHUB_LOW_STOCK_THRESHOLD = 5
 CAMPUSHUB_EXPIRY_WARNING_DAYS = 7
+# Enable only after the separately approved schema migration and FIFO cutover.
+CAMPUSHUB_FIFO_ENABLED = os.environ.get('CAMPUSHUB_FIFO_ENABLED', 'false').lower() == 'true'
+
+# Firebase Admin uses server-side Application Default Credentials only.
+CAMPUSHUB_FIREBASE_PROJECT_ID = os.getenv("CAMPUSHUB_FIREBASE_PROJECT_ID", "campushub-ebff5")
+CAMPUSHUB_FCM_ENABLED = os.getenv("CAMPUSHUB_FCM_ENABLED", "false").lower() in {"1", "true", "yes"}

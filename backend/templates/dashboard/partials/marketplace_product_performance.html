@@ -1,0 +1,34 @@
+<h2 class="marketplace-section-title mt-4" id="productPerformanceTitle">Product Performance</h2>
+<section class="row g-3" aria-labelledby="productPerformanceTitle">
+    <div class="col-12 col-xl-6 d-flex">
+        <article class="dash-card w-100">
+            <div class="dash-card-header"><h3 id="topProductsTitle">Top-Selling Products</h3>{% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}<a href="{% url 'admin_products_page' %}" class="dash-view-all-link">View Products</a>{% endif %}</div>
+            <p class="dash-card-subtitle">Top products by units sold in the selected period.</p>
+            <div class="table-responsive"><table class="table dashboard-table dashboard-table--compact align-middle mb-0">
+                <thead><tr><th scope="col">Product</th><th scope="col" class="text-end">Units Sold</th><th scope="col" class="text-end">Sales</th></tr></thead>
+                <tbody>{% for product in overview_top_products %}<tr>
+                    <td><div class="marketplace-ranked-product"><span class="marketplace-product-rank">{{ product.rank }}</span>{% if product.image_url %}<img src="{{ product.image_url }}" alt="" width="36" height="36" loading="lazy">{% endif %}<div><strong>{{ product.product_name }}</strong><small>{{ product.category }}</small></div></div></td>
+                    <td class="text-end fw-semibold">{{ product.units_sold }}</td><td class="text-end fw-semibold">&#8369;{{ product.sales }}</td>
+                </tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-4">No completed product sales in selected period.</td></tr>{% endfor %}</tbody>
+            </table></div>
+        </article>
+    </div>
+    <div class="col-12 col-xl-6 d-flex">
+        <article class="dash-card w-100">
+            <div class="dash-card-header"><h3 id="productCategoriesTitle">Product Categories</h3></div>
+            <p class="dash-card-subtitle">Current product counts and completed sales in the selected period.</p>
+            <div class="marketplace-categories-layout">
+                <div class="donut-chart" role="img" aria-label="Distribution of {{ category_total }} current products by category">
+                    <svg viewBox="0 0 120 120" aria-hidden="true">{% for cat in top_categories %}
+                        <circle cx="60" cy="60" r="50" fill="none" stroke="{{ cat.color }}" stroke-width="20" stroke-dasharray="{{ cat.dasharray }}" stroke-dashoffset="{{ cat.dashoffset }}" transform="rotate(-90 60 60)"></circle>
+                    {% empty %}<circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="20"></circle>{% endfor %}</svg>
+                    <div class="donut-center-label"><strong>{{ category_total }}</strong><span>Product{{ category_total|pluralize }}</span></div>
+                </div>
+                <div class="table-responsive"><table class="table dashboard-table dashboard-table--compact mb-0">
+                    <thead><tr><th scope="col">Category</th><th scope="col" class="text-end">Products</th><th scope="col" class="text-end">Sales share</th><th scope="col" class="text-end">Sales</th></tr></thead>
+                    <tbody>{% for cat in top_categories %}<tr><td>{{ cat.name }}</td><td class="text-end">{{ cat.count }}</td><td class="text-end">{{ cat.sales_share }}%</td><td class="text-end">&#8369;{{ cat.sales }}</td></tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-4">No product categories yet.</td></tr>{% endfor %}</tbody>
+                </table></div>
+            </div>
+        </article>
+    </div>
+</section>

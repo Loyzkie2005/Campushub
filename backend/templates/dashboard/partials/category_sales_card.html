@@ -1,0 +1,40 @@
+{% with distribution=dashboard_marketplace.product_categories %}
+<article class="marketplace-summary-card marketplace-category-card" id="categorySalesCard" aria-labelledby="categorySalesTitle">
+    <h2 id="categorySalesTitle">Sales by Product Categories</h2>
+    <p class="marketplace-card-note">Distribution of completed sales by category</p>
+    <div class="marketplace-category-content" data-category-content{% if not distribution.total %} hidden{% endif %}>
+        <figure class="marketplace-category-chart">
+            <svg viewBox="0 0 240 240" role="group" aria-labelledby="categoryChartTitle categoryChartDescription">
+                <title id="categoryChartTitle">Sales share of completed paid sales by category</title>
+                <desc id="categoryChartDescription">Percentages are based on sales amount. Hover, tap or focus a segment for its sales and sales share. Exact values also appear in the category table.</desc>
+                <circle class="marketplace-category-ring" cx="120" cy="120" r="88" fill="none" stroke-width="38" />
+                <g data-category-segments transform="rotate(-90 120 120)">
+                    {% for category in distribution.categories %}{% if category.chart.share > 0 %}
+                    <circle cx="120" cy="120" r="88" fill="none" stroke="{{ category.chart.color }}" stroke-width="38" pathLength="100" stroke-dasharray="{{ category.chart.share }} 100" stroke-dashoffset="{{ category.chart.offset }}" data-category-name="{{ category.name }}" data-category-sales="{{ category.sales }}" data-category-share="{{ category.percentage|floatformat:'-1' }}" data-category-start="{{ category.chart.offset }}" data-category-length="{{ category.chart.share }}" tabindex="0" role="img" aria-label="{{ category.name }}. Sales: &#8369;{{ category.sales }}. Sales share: {{ category.percentage|floatformat:'-1' }}%." />
+                    {% endif %}{% endfor %}
+                </g>
+                <g data-category-chart-labels aria-hidden="true">
+                    {% for category in distribution.categories %}{% if category.chart.share >= 4 %}
+                    <text x="{{ category.chart.label_x }}" y="{{ category.chart.label_y }}" fill="{{ category.chart.label_color }}" text-anchor="middle" dominant-baseline="central">{{ category.percentage|floatformat:'-1' }}%</text>
+                    {% endif %}{% endfor %}
+                </g>
+            </svg>
+            <figcaption class="marketplace-category-total"><span>Total sales</span><strong data-category-total>&#8369;{{ distribution.total_sales }}</strong></figcaption>
+        </figure>
+        <div class="marketplace-category-table-wrap" tabindex="0" aria-label="Category sales table; scroll for more categories">
+            <table class="marketplace-category-table">
+                <caption class="marketplace-visually-hidden">Completed paid marketplace sales by category in the selected period</caption>
+                <thead><tr><th scope="col">Category</th><th scope="col">Sales share</th><th scope="col">Sales</th></tr></thead>
+                <tbody data-marketplace-categories>
+                    {% for category in distribution.categories %}
+                    <tr><th scope="row"><span class="marketplace-category-name"><i class="marketplace-category-dot" style="background: {{ category.chart.color }}" aria-hidden="true"></i><span title="{{ category.name }}">{{ category.name }}</span></span></th><td class="marketplace-category-share">{{ category.percentage|floatformat:'-1' }}%</td><td class="marketplace-category-sales">&#8369;{{ category.sales }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="marketplace-category-tooltip" role="tooltip" data-category-tooltip hidden><strong data-category-tooltip-name></strong><span data-category-tooltip-sales></span><span data-category-tooltip-share></span></div>
+    <div class="marketplace-card-empty" data-category-empty{% if distribution.total %} hidden{% endif %}>{% include 'dashboard/partials/marketplace_icon.html' with icon='categories' %}<p>No category sales data yet.</p></div>
+    <p class="marketplace-category-loading" data-category-loading role="status">Loading category sales…</p>
+</article>
+{% endwith %}

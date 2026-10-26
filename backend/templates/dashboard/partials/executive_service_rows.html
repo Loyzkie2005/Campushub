@@ -1,0 +1,1 @@
+{% for row in rows %}<li><a href="{{ row.url }}">{{ row.service }}</a><span>{{ row.requester }} · {{ row.status }}</span></li>{% empty %}<li class="executive-empty">{{ empty_text }}</li>{% endfor %}

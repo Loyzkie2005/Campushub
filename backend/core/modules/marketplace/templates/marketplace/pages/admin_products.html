@@ -8,20 +8,22 @@
     <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
     <title>CAMPUSHUB | Products</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_products.css' %}?v=20260915-stat-card-fix" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_product_details.css' %}?v=20260718-inv-action" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_products.css' %}?v=20261022-inter" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_product_details.css' %}?v=20261007-variant-inventory" />
     <meta name="current-user" content="{{ request.user.get_full_name|default:request.user.username|escapejs }}" />
+    <meta name="current-user-id" content="{{ request.user.pk }}" />
     <meta name="is-superuser" content="{{ request.user.is_superuser|yesno:'true,false' }}" />
     <meta name="can-manage-products" content="{{ can_manage_products|yesno:'true,false' }}" />
     <meta name="can-approve-products" content="{{ can_approve_products|yesno:'true,false' }}" />
-    <meta name="low-stock-threshold" content="{{ low_stock_threshold|default:5 }}" />
+    <meta name="low-stock-threshold" content="{{ low_stock_threshold }}" />
     <meta name="expiry-warning-days" content="{{ expiry_warning_days|default:7 }}" />
+{% include 'partials/web_typography.html' %}
+    <link rel="stylesheet" href="{% static 'components/css/admin_products_refinement.css' %}?v=20261024-product-layout" />
 </head>
 
-<body>
+<body class="admin-module-shell products-management">
     <div class="sidebar-section">
         {% include 'partials/admin_sidebar.html' with active_page='products' %}
 
@@ -30,31 +32,41 @@
             <!-- Header -->
             {% include 'partials/admin_header.html' with page_title='Products' breadcrumb_section='Marketplace' breadcrumb_page='Products' %}
 
-            <main class="dashboard-content p-4">
-                <section class="products-page-shell container-fluid px-0">
-                    <div class="product-stats-grid" id="productStatsGrid" aria-label="Product summary">
-                        <button type="button" class="product-stat-card product-stat-card-filter" id="totalStatCard"
+            <main class="dashboard-content admin-module-page">
+                <section class="products-page-shell container-fluid px-0 admin-page-content">
+                    <div class="admin-page-intro">
+                        <p class="admin-page-description">Manage and monitor marketplace product listings, approvals, inventory availability, and listing status.</p>
+                        <button type="button" class="admin-page-action" id="addProductButton">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                            Add Product
+                        </button>
+                    </div>
+
+                    <div class="product-stats-grid admin-kpi-grid" id="productStatsGrid" aria-label="Product summary">
+                        <button type="button" class="product-stat-card product-stat-card-filter admin-kpi-card" id="totalStatCard"
                             data-stat-filter="all" aria-pressed="false" title="Show all products">
                             <div class="product-stat-icon product-stat-icon-blue">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="24" height="24" style="width:24px;height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>
                             </div>
                             <div><span class="product-stat-label">Total Products</span><strong>{{ product_stats.total|default:0 }}</strong></div>
                         </button>
-                        <button type="button" class="product-stat-card product-stat-card-filter" id="pendingStatCard"
+                        <button type="button" class="product-stat-card product-stat-card-filter admin-kpi-card" id="pendingStatCard"
                             data-stat-filter="pending" aria-pressed="false" title="Filter pending listings">
                             <div class="product-stat-icon product-stat-icon-amber">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="24" height="24" style="width:24px;height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                             </div>
                             <div><span class="product-stat-label">Pending Listings</span><strong>{{ product_stats.pending|default:0 }}</strong></div>
                         </button>
-                        <button type="button" class="product-stat-card product-stat-card-filter" id="approvedStatCard"
+                        <button type="button" class="product-stat-card product-stat-card-filter admin-kpi-card" id="approvedStatCard"
                             data-stat-filter="approved" aria-pressed="false" title="Filter approved products">
                             <div class="product-stat-icon product-stat-icon-green">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="24" height="24" style="width:24px;height:24px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                             </div>
                             <div><span class="product-stat-label">Approved Products</span><strong>{{ product_stats.approved|default:0 }}</strong></div>
                         </button>
-                        <button type="button" class="product-stat-card product-stat-card-filter" id="lowStockStatCard"
+                        <button type="button" class="product-stat-card product-stat-card-filter admin-kpi-card" id="lowStockStatCard"
                             data-stat-filter="low_stock" data-inventory-filter="low_stock" aria-pressed="false"
                             title="Filter low stock products">
                             <div class="product-stat-icon product-stat-icon-red">
@@ -64,53 +76,27 @@
                         </button>
                     </div>
 
-                    <div class="seller-products-panel" id="productsListSection">
-                        <div class="product-list-toolbar">
-                            <div class="product-list-heading">
+                    <div class="seller-products-panel admin-list-panel" id="productsListSection">
+                        <div class="admin-list-heading">
+                            <div>
                                 <h2>Products List</h2>
-                                <p>Manage and monitor all products in the marketplace.</p>
-                            </div>
-                            <div class="products-panel-tools">
-                                <div class="products-search">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                        stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                                    </svg>
-                                    <input type="search" id="productsSearchInput" placeholder="Search by name, seller..."
-                                        aria-label="Search products">
-                                </div>
-
-                                <select class="products-inline-filter" id="productsStatusFilter" aria-label="Filter by status">
-                                    <option value="">All Status</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="approved">Approved</option>
-                                    <option value="rejected">Rejected</option>
-                                </select>
-
-                                <select class="products-inline-filter" id="productsCategoryFilter" aria-label="Filter by category">
-                                    <option value="">All Categories</option>
-                                    <option value="Rice Meals">Rice Meals</option>
-                                    <option value="Snacks">Snacks</option>
-                                    <option value="Desserts">Desserts</option>
-                                    <option value="Beverages">Beverages</option>
-                                    <option value="Combo Meals">Combo Meals</option>
-                                    <option value="Breakfast">Breakfast</option>
-                                </select>
-
-                                <button type="button" class="primary-action" id="addProductButton">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" style="width:16px;height:16px;">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                    </svg>
-                                    Add Product
-                                </button>
+                                <p>Review, filter, and manage marketplace product listings.</p>
                             </div>
                         </div>
-                        <div class="table-responsive" id="productsTableWrap" {% if not seller_products %}style="display:none"{% endif %}>
+                        <div class="product-catalog-filters admin-list-filters" data-academic-pair>
+                            <label>Search<input class="form-control" type="search" id="productsSearchInput" placeholder="Search by product, seller, or SKU..."></label>
+                            <label>Approval Status<select class="form-select" id="productsStatusFilter"><option value="">All Approval Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
+                            <label>Listing Status<select class="form-select" id="productsArchiveFilter"><option value="">All Listing Status</option><option value="active" selected>Active</option><option value="archived">Archived</option></select></label>
+                            <label>Program<select class="form-select" id="productsDepartmentFilter" data-program-select><option value="">All Programs</option>{% for program in programs %}<option value="{{ program.pk }}">{{ program.code }}</option>{% endfor %}</select></label>
+                            <label>Major<select class="form-select" id="productsMajorFilter" data-major-select><option value="">All Majors</option>{% for major in majors %}<option data-program="{{ major.program_id }}" value="{{ major.pk }}">{{ major.name }}</option>{% endfor %}</select></label>
+                            <label>Category<select class="form-select" id="productsCategoryFilter"><option value="">All Categories</option>{% for category in product_categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select></label>
+                            <button type="button" class="inventory-product-link catalog-clear-filters" id="productsClearFilters">Clear Filters</button>
+                        </div>
+                        <div class="table-responsive admin-list-table" id="productsTableWrap" tabindex="0" role="region" aria-label="Products list" {% if not seller_products %}style="display:none"{% endif %}>
                             <div class="products-table-container">
                             <table class="seller-products-table" id="productsTable">
                                 <colgroup>
-                                    <col style="width:4%">
+                                    <col class="table-col-index">
                                     <col class="table-col-name">
                                     <col class="table-col-seller">
                                     <col class="table-col-category">
@@ -123,12 +109,12 @@
                                 <thead>
                                     <tr>
                                         <th>#</th>
-                                        <th class="col-product-name">Product Name</th>
-                                        <th class="col-seller">Seller</th>
+                                        <th class="col-product-name">Product</th>
+                                        <th class="col-seller">Seller &amp; Program</th>
                                         <th>Category</th>
                                         <th class="col-price">Price</th>
                                         <th class="col-inventory">Inventory</th>
-                                        <th class="col-status">Status</th>
+                                        <th class="col-status">Approval Status</th>
                                         <th class="col-date">Date Added</th>
                                         <th class="col-action">Actions</th>
                                     </tr>
@@ -139,33 +125,57 @@
                                         data-product-status="{{ product.approval_status|lower }}"
                                         data-is-archived="{% if product.is_archived %}1{% else %}0{% endif %}"
                                         data-product-description="{{ product.description|default:''|escapejs }}"
+                                        data-seller-id="{{ product.owner_key }}"
                                         data-product-image-url="{{ product.image_url|default:''|escape }}"
                                         data-product-images="{{ product.get_images_json|escapejs }}"
                                         data-product-expiry="{{ product.expiry_date|date:'Y-m-d'|default:'' }}"
                                         data-inventory-status="{{ product.get_inventory_status }}"
+                                        data-product-stock="{{ product.admin_total_stock }}"
+                                        data-product-type="{{ product.product_type }}"
+                                        data-bundle="{{ product.admin_bundle_json|escapejs }}"
+                                        data-product-tags="{{ product.admin_tags_json|escapejs }}"
+                                        data-department-id="{{ product.admin_academic.program_id|default_if_none:'' }}" data-major-id="{{ product.admin_academic.major_id|default_if_none:'' }}" data-program-label="{{ product.admin_academic.program }}" data-major-label="{{ product.admin_academic.major }}" data-program-major="{{ product.admin_academic.program_major }}" data-sku="{{ product.admin_sku }}"
+                                        data-low-stock-threshold="{{ product.admin_threshold|default_if_none:'' }}"
+                                        data-product-base-price="{{ product.price }}"
+                                        data-product-submitted-at="{{ product.submitted_at|date:'c' }}"
+                                        data-product-updated-at="{{ product.updated_at|date:'c' }}"
+                                        data-seller-department="{% if product.department_id %}{{ product.department }}{% else %}{{ product.owner.department|default:'' }}{% endif %}"
+                                        data-variant-count="{{ product.admin_variant_count }}"
+                                        data-has-low-stock="{{ product.admin_has_low_stock|yesno:'1,0' }}"
                                         data-product-category="{{ product.category|default:''|escape }}"
                                         data-customization-enabled="{% if product.customization_enabled %}1{% else %}0{% endif %}"
                                         data-customization-options="{{ product.get_customization_json|escapejs }}">
                                         <td class="col-num">{{ forloop.counter }}</td>
                                         <td class="col-product-name">
                                             <div class="product-name-cell">
-                                                <img src="/api/products/{{ product.id }}/image/" alt="{{ product.name }}"
+                                                <img src="{% url 'product_image' product.id %}{% if request.admin_tab_token %}?__at={{ request.admin_tab_token|urlencode }}{% endif %}" alt="{{ product.name }}"
                                                     class="product-table-image"
-                                                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-                                                <span class="product-table-image product-table-image-empty" style="display:none;">
+                                                    referrerpolicy="no-referrer">
+                                                <span class="product-table-image product-table-image-empty" hidden>
                                                     {{ product.name|slice:":1"|upper }}
                                                 </span>
                                                 <div class="product-name-meta">
                                                     <strong title="{{ product.name }}">{{ product.name }}</strong>
-                                                    <span class="product-id-label">ID: 2026{{ product.id|stringformat:"05d" }}</span>
+                                                    <span class="product-id-label">{{ product.admin_sku }}</span>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="col-seller">{{ product.seller.get_full_name|default:product.seller.username }}</td>
+                                        <td class="col-seller"><strong>{{ product.owner.get_full_name|default:product.owner.username }}</strong><span>{{ product.admin_academic.program_major }}</span></td>
                                         <td>{{ product.category|default:"Uncategorized" }}</td>
                                         <td class="col-price">&#8369; {{ product.price }}</td>
                                         <td class="col-inventory">
-                                            <span class="inventory-pill inventory-{{ product.get_inventory_status }}">{{ product.get_inventory_status_label }}</span>
+                                            <div class="inventory-summary-clean">
+                                                <span class="inventory-number">{{ product.admin_total_stock }} {% if product.product_type == 'bundle' %}bundle{{ product.admin_total_stock|pluralize }} available{% else %}pc{{ product.admin_total_stock|pluralize }}{% endif %}</span>
+                                                {% if product.product_type == 'bundle' %}<span class="inventory-threshold">Derived from components</span>{% endif %}
+                                                {% if product.admin_threshold != None %}<span class="inventory-threshold">Threshold: {{ product.admin_threshold }}</span>{% endif %}
+                                                {% if product.admin_variant_count or product.admin_quantity_status != 'in_stock' %}
+                                                <span class="inventory-secondary{% if product.admin_variant_count %} inventory-secondary--variants{% endif %}">
+                                                    {% if product.admin_variant_count %}<span class="inventory-variant-sub">{{ product.admin_variant_count }} variant{{ product.admin_variant_count|pluralize }}</span>{% endif %}
+                                                    {% if product.admin_quantity_status == 'low_stock' %}<span class="inventory-warning low-stock"><span class="inventory-warning-dot" aria-hidden="true"></span>{% if product.admin_low_stock_variant_count %}{{ product.admin_low_stock_variant_count }} variant{{ product.admin_low_stock_variant_count|pluralize }} Low Stock{% else %}Low Stock{% endif %}</span>
+                                                    {% elif product.admin_quantity_status == 'out_of_stock' %}<span class="inventory-warning out-of-stock"><span class="inventory-warning-dot" aria-hidden="true"></span>Out of Stock</span>{% endif %}
+                                                </span>
+                                                {% endif %}
+                                            </div>
                                         </td>
                                         <td class="col-status">
                                             <span class="status-pill status-{{ product.approval_status|lower }}">{{ product.approval_status|title }}</span>
@@ -174,49 +184,7 @@
                                             <strong>{{ product.submitted_at|date:"M d, Y" }}</strong>
                                             <span>{{ product.submitted_at|date:"g:i A" }}</span>
                                         </td>
-                                        <td class="col-action">
-                                            <div class="action-row">
-                                                {% if product.approval_status|lower == 'pending' %}
-                                                {% if can_approve_products %}
-                                                <button type="button" class="btn-user-action btn-approve-product" title="Approve Product" aria-label="Approve product">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="16" height="16">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                                                    </svg>
-                                                </button>
-                                                <button type="button" class="btn-user-action btn-reject-product" title="Reject Product" aria-label="Reject product">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="16" height="16">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
-                                                {% endif %}
-                                                {% else %}
-                                                <button type="button" class="btn-user-action btn-view-product" title="View" aria-label="View product">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                                    </svg>
-                                                </button>
-                                                <button type="button" class="btn-user-action btn-edit-product" title="Edit" aria-label="Edit product">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                                                    </svg>
-                                                </button>
-                                                {% if product.is_archived %}
-                                                <button type="button" class="btn-user-action btn-restore-product" title="Restore" aria-label="Restore product">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                                    </svg>
-                                                </button>
-                                                {% else %}
-                                                <button type="button" class="btn-user-action btn-archive-product" title="Archive" aria-label="Archive product">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
-                                                    </svg>
-                                                </button>
-                                                {% endif %}
-                                                {% endif %}
-                                            </div>
-                                        </td>
+                                        {% include "marketplace/partials/product_actions.html" %}
                                     </tr>
                                     {% empty %}
                                     {% endfor %}
@@ -234,7 +202,7 @@
                             <p id="productsEmptyStateTitle" class="{% if seller_products %}d-none{% endif %}">{% if seller_products %}{% else %}No Products Found{% endif %}</p>
                             <span id="productsEmptyStateHint" class="d-none"></span>
                         </div>
-                        <div class="products-table-footer" id="productsTableFooter" {% if not seller_products %}style="display:none"{% endif %}>
+                        <div class="products-table-footer admin-list-footer" id="productsTableFooter" {% if not seller_products %}style="display:none"{% endif %}>
                             <span class="products-showing-text" id="productsShowingText">Showing 1 to 10 of {{ product_stats.total|default:0 }} entries</span>
                             <div class="products-pagination" id="productsPagination"></div>
                         </div>
@@ -263,6 +231,7 @@
                     </div>
 
                     <section class="product-form-section d-none" id="productFormSection">
+                        <p id="productFormError" class="product-form-error" role="alert" hidden></p>
                         <div class="create-product-body">
                             <div class="create-product-layout">
                                 <div class="create-product-row create-product-row-top">
@@ -278,7 +247,7 @@
                                         </div>
                                         <div class="create-product-field create-product-field-plain">
                                             <label for="productImageUpload" class="create-upload-dropzone"
-                                                id="productImageDropzone">
+                                                id="productImageDropzone" tabindex="0" role="button" aria-label="Upload up to six product images" aria-describedby="productImageHelp">
                                                 <span class="upload-default-state">
                                                     <span class="create-upload-icon" aria-hidden="true">
                                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
@@ -307,7 +276,7 @@
                                                 </span>
                                             </label>
                                             <input type="file" class="create-upload-input" id="productImageUpload"
-                                                accept="image/*" multiple>
+                                                accept="image/jpeg,image/png,image/webp,image/gif" multiple>
                                             <div class="product-image-slots" id="productImageSlots" aria-label="Product image previews">
                                                 <div class="product-image-slot" data-slot-index="0" role="button" tabindex="0" aria-label="Image slot 1">
                                                     <span class="product-image-slot-empty" aria-hidden="true">
@@ -376,7 +345,7 @@
                                                     <button type="button" class="product-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
                                                 </div>
                                             </div>
-                                            <span class="create-product-help">Supported: JPG, PNG. Up to 6 images.</span>
+                                            <span class="create-product-help" id="productImageHelp">JPG, PNG, WebP or GIF. Up to 6 images, 5 MB each.</span>
                                         </div>
                                     </section>
 
@@ -384,10 +353,38 @@
                                     <section class="create-product-section create-product-section-basic" aria-labelledby="createSectionBasic">
                                         <h3 class="create-product-section-title" id="createSectionBasic">2. Basic Information</h3>
                                         <div class="create-product-section-fields">
+                                            <fieldset class="create-product-field create-product-field-plain" id="productTypeField">
+                                                <legend class="form-label">Product Type <span class="required-asterisk">*</span></legend>
+                                                <div class="d-flex flex-wrap gap-3">
+                                                    <label class="d-flex align-items-center gap-2" for="productTypeSingle">
+                                                        <input type="radio" id="productTypeSingle" name="productType" value="single" checked required>
+                                                        Single Product
+                                                    </label>
+                                                    <label class="d-flex align-items-center gap-2" for="productTypeBundle">
+                                                        <input type="radio" id="productTypeBundle" name="productType" value="bundle" required>
+                                                        Combo / Bundle Product
+                                                    </label>
+                                                </div>
+                                            </fieldset>
+                                            {% if can_manage_products %}
+                                            <div class="create-product-field create-product-field-plain" id="productSellerFieldWrap">
+                                                <label for="productOwner" class="form-label">Seller / Product Owner <span class="required-asterisk">*</span></label>
+                                                <select class="form-select" id="productOwner" required>
+                                                    <option value="">Select Seller</option>
+                                                    <option value="{{ request.user.pk }}" data-program="{{ request.user.department_id|default_if_none:'' }}" data-major="{{ request.user.major_id|default_if_none:'' }}">{{ request.user.get_full_name|default:request.user.username }} (CampusHub-owned listing)</option>
+                                                    <optgroup label="Approved Sellers">{% for seller in approved_sellers %}
+                                                    <option value="{{ seller.id }}" data-program="{{ seller.department_id|default_if_none:'' }}" data-major="{{ seller.major_id|default_if_none:'' }}">{{ seller.get_full_name|default:seller.username }} ({{ seller.username }})</option>
+                                                    {% empty %}
+                                                    <option value="" disabled>No approved sellers available</option>
+                                                    {% endfor %}
+                                                {% for seller in approved_mobile_sellers %}<option value="mobile:{{ seller.id }}" data-program="{{ seller.department_id|default_if_none:'' }}" data-major="{{ seller.major_id|default_if_none:'' }}">{{ seller.get_full_name|default:seller.username }} ({{ seller.username }})</option>{% endfor %}</optgroup>
+                                                </select>
+                                            </div>
+                                            {% endif %}
                                             <div class="create-product-field create-product-field-plain">
-                                                <label for="productName" class="form-label">Product Name <span class="required-asterisk">*</span></label>
+                                                <label for="productName" class="form-label" id="productNameLabel">Product Name <span class="required-asterisk">*</span></label>
                                                 <div class="category-combobox" id="productNameCombobox">
-                                                    <input type="text" class="form-control" id="productName"
+                                                    <input type="text" class="form-control" id="productName" maxlength="150" required
                                                         placeholder="Enter product name" autocomplete="off" spellcheck="false">
                                                     <div class="category-dropdown" id="productNameDropdown"></div>
                                                 </div>
@@ -401,19 +398,22 @@
                                                     <div class="category-dropdown" id="categoryDropdown"></div>
                                                 </div>
                                             </div>
+                                            <div class="academic-form-pair" data-academic-pair>
                                             <div class="create-product-field create-product-field-plain">
-                                                <label for="productDepartment" class="form-label">Department <span class="required-asterisk">*</span></label>
-                                                <select class="form-select" id="productDepartment">
-                                                    <option value="">Select department</option>
+                                                <label for="productDepartment" class="form-label">Program <span class="required-asterisk">*</span></label>
+                                                <select class="form-select" id="productDepartment" required data-program-select>
+                                                    <option value="">Select program</option>
                                                     {% for dept in departments %}
                                                     <option value="{{ dept.id }}"
                                                         {% if request.user.department_id == dept.id %}selected{% endif %}>
-                                                        {{ dept.name }}
+                                                        {{ dept.code }}
                                                     </option>
                                                     {% empty %}
-                                                    <option value="" disabled>No departments available</option>
+                                                    <option value="" disabled>No programs available</option>
                                                     {% endfor %}
                                                 </select>
+                                            </div>
+                                            <div class="create-product-field create-product-field-plain"><label for="productMajor" class="form-label">Major</label><select class="form-select" id="productMajor" data-major-select data-required="true"><option value="">Select major</option>{% for major in majors %}<option data-program="{{ major.program_id }}" value="{{ major.pk }}">{{ major.name }}</option>{% endfor %}</select></div>
                                             </div>
                                             <div class="create-product-field create-product-field-plain">
                                                 <label for="productTags" class="form-label">Tags</label>
@@ -424,26 +424,13 @@
                                                        autocomplete="off">
                                                 <span class="create-product-help">Example: snack, homemade, healthy</span>
                                             </div>
-                                            <div class="create-product-field create-product-field-plain{% if not approved_sellers %} d-none{% endif %}" id="productSellerFieldWrap">
-                                                <label for="productSeller" class="form-label">Seller / Owner</label>
-                                                <select class="form-select" id="productSeller">
-                                                    <optgroup label="Approved Sellers">
-                                                        {% for seller in approved_sellers %}
-                                                        <option value="{{ seller.id }}" {% if seller.id == request.user.id %}selected{% endif %}>
-                                                            {{ seller.get_full_name|default:seller.username }} ({{ seller.username }})
-                                                        </option>
-                                                        {% endfor %}
-                                                    </optgroup>
-                                                </select>
-                                                <span class="create-product-help">Select the seller who owns this product listing.</span>
-                                            </div>
                                             <div class="create-product-field create-product-field-plain d-none" id="productStatusFieldWrap">
                                                 <label for="productStatus" class="form-label">Listing Status</label>
                                                 <select class="form-select" id="productStatus">
                                                     <option value="approved" selected>Approved</option>
                                                     <option value="rejected">Rejected</option>
                                                 </select>
-                                                <span class="create-product-help">Set whether this product is visible in the marketplace.</span>
+                                                <span class="create-product-help">Approval status records the review decision. Listing status separately controls archiving.</span>
                                             </div>
                                         </div>
                                     </section>
@@ -455,17 +442,25 @@
                                     <h3 class="create-product-section-title" id="createSectionPricing">3. Pricing &amp; Inventory</h3>
                                     <div class="create-product-pricing-grid">
                                         <div class="create-product-field create-product-field-plain">
-                                            <label for="productPrice" class="form-label">Price (&#8369;) <span class="required-asterisk">*</span></label>
+                                            <label for="productPrice" class="form-label" id="productPriceLabel">Price (&#8369;) <span class="required-asterisk">*</span></label>
                                     <div class="price-input-wrap">
                                         <span class="price-currency">&#8369;</span>
-                                        <input type="number" class="form-control" id="productPrice"
+                                        <input type="number" class="form-control" id="productPrice" min="0" max="99999999.99" step="0.01" required
                                                     placeholder="0.00" autocomplete="off">
                                     </div>
+                                    <span class="create-product-help" id="variantPriceHelper" hidden>Use the lowest variant price as the base price. Each variant below shows its full price.</span>
                                 </div>
                                         <div class="create-product-field create-product-field-plain" id="productStockFieldWrap">
                                             <label for="productStock" class="form-label">Stock Quantity <span class="required-asterisk">*</span></label>
                                             <input type="number" class="form-control" id="productStock" min="0"
-                                                placeholder="0" autocomplete="off">
+                                                step="1" required placeholder="0" autocomplete="off">
+                                        </div>
+                                        <div class="create-product-field create-product-field-plain create-product-threshold-field" id="productThresholdFieldWrap">
+                                            <label for="productLowStockThreshold" class="form-label">Low Stock Threshold <span class="required-asterisk">*</span></label>
+                                            <input type="number" class="form-control" id="productLowStockThreshold" min="0" step="1"
+                                                value="{{ low_stock_threshold }}" required aria-describedby="productThresholdHelp">
+                                            <span class="create-product-help" id="productThresholdHelp">You will be alerted when available stock reaches this amount or lower.</span>
+                                            <span class="create-product-help" id="productThresholdError" role="status" aria-live="polite"></span>
                                         </div>
                                         <div class="create-product-field create-product-field-plain d-none" id="productExpiryFieldWrap">
                                             <label for="productExpiryDate" class="form-label">Expiry Date</label>
@@ -477,14 +472,24 @@
                                 </section>
                                 </div>
 
-                                <div class="create-product-row create-product-row-variants">
+                                <div class="create-product-row" id="bundleComponentsSection" hidden>
+                                    <section class="create-product-section bundle-components-section" aria-labelledby="bundleComponentsTitle">
+                                        <div class="bundle-section-heading"><h3 class="create-product-section-title" id="bundleComponentsTitle">Bundle Components</h3><button type="button" class="product-suggest-link" id="addBundleProducts">+ Add Products</button></div>
+                                        <div class="bundle-table-scroll" tabindex="0" aria-label="Selected bundle components"><table class="table bundle-components-table"><thead><tr><th>Product / Variant</th><th>Price</th><th>Available</th><th>Required Quantity</th><th><span class="visually-hidden">Remove</span></th></tr></thead><tbody id="bundleComponentsBody"></tbody></table></div>
+                                        <p class="create-product-help" id="bundleComponentsMessage" role="status" aria-live="polite">Select approved products from the same owner.</p>
+                                        <dl class="bundle-price-summary"><div><dt>Regular Combined Price</dt><dd id="bundleRegularPrice">—</dd></div><div><dt>Customer Savings</dt><dd id="bundleSavings">—</dd></div><div><dt>Available Bundles</dt><dd id="bundleAvailable">—</dd></div></dl>
+                                        <span class="create-product-help">Availability is calculated from component stock. Stock alerts belong to the components.</span>
+                                    </section>
+                                </div>
+
+                                <div class="create-product-row create-product-row-variants" id="singleProductVariantsSection">
                                     <!-- 4. Variants (full width, below 3) -->
                                     <section class="create-product-section create-product-section-variants" aria-labelledby="createSectionVariants">
                                         <h3 class="create-product-section-title" id="createSectionVariants">4. Variants (e.g., Size, Flavor)</h3>
                                         <div class="create-product-field create-product-field-plain product-customization-panel" id="productCustomizationPanel">
                                     <div class="customization-panel-top">
                                         <div class="product-customization-head">
-                                                    <span class="create-product-help">Add options such as size or flavor. Each option has its own stock and image.</span>
+                                                    <span class="create-product-help">Each option has its own available stock, low-stock threshold, price and image.</span>
                                         </div>
                                                 <button type="button" class="customization-add-group-top" id="addCustomizationGroupBtn">+ Add variant</button>
                                     </div>
@@ -503,7 +508,7 @@
                                         <h3 class="create-product-section-title" id="createSectionDescription">5. Description</h3>
                                         <div class="create-product-field create-product-field-plain">
                                             <label for="productDescription" class="form-label">Description</label>
-                                            <textarea class="form-control" id="productDescription" rows="6"
+                                            <textarea class="form-control" id="productDescription" rows="3"
                                                 placeholder="Describe your product, ingredients, features, etc."
                                                 maxlength="1000"></textarea>
                                             <span class="create-product-help" id="productDescriptionCount">0 / 1000 characters</span>
@@ -525,11 +530,11 @@
                                         <div class="customization-group-head">
                                             <div>
                                                 <label>Group Name</label>
-                                                <input type="text" class="customization-group-name" placeholder="e.g. Size, Sugar Level">
+                                                <input type="text" class="customization-group-name" placeholder="e.g. Size, Sugar Level" aria-label="Group name">
                                             </div>
                                             <div>
                                                 <label>Selection</label>
-                                                <select class="customization-group-selection">
+                                                <select class="customization-group-selection" aria-label="Selection">
                                                     <option value="single" selected>Single Select</option>
                                                     <option value="multiple">Multiple Select</option>
                                                 </select>
@@ -538,8 +543,8 @@
                                         <div class="customization-options-header">
                                             <span></span>
                                             <span>Option Name</span>
-                                        <span>Stock</span>
-                                            <span>Additional Price (&#8369;)</span>
+                                        <span>Stock / Threshold</span>
+                                        <span>Price (&#8369;)</span>
                                         <span>Image</span>
                                             <span></span>
                                         </div>
@@ -552,14 +557,18 @@
                                 <template id="variantOptionTemplate">
                                     <div class="customization-option-row">
                                         <span class="customization-option-drag" aria-hidden="true">&#9776;</span>
-                                    <input type="text" class="customization-option-name" placeholder="e.g. Vanilla">
-                                    <input type="number" class="customization-option-stock" placeholder="0" min="0" value="0">
-                                        <input type="number" class="customization-option-price" placeholder="0" min="0" value="0">
-                                    <label class="customization-option-image">
+                                        <label class="customization-option-name-field"><span>Option Name</span><input type="text" class="customization-option-name" placeholder="e.g. Vanilla" aria-label="Variant name"></label>
+                                        <div class="customization-option-inventory">
+                                            <label><span>Stock</span><input type="number" class="customization-option-stock" placeholder="0" min="0" step="1" value="0"></label>
+                                            <label><span>Low Stock Threshold <span class="required-asterisk">*</span></span><input type="number" class="customization-option-threshold" min="0" step="1" required value="{{ low_stock_threshold }}"></label>
+                                            <span class="customization-option-state"></span>
+                                        </div>
+                                        <label class="customization-option-price-field"><span>Price (₱)</span><input type="number" class="customization-option-price" placeholder="0" min="0" step="0.01" required value="0"><small>Base price + additional amount</small></label>
+                                        <div class="customization-option-image-field"><span>Image</span><label class="customization-option-image">
                                         <img class="customization-option-image-preview" alt="" hidden>
-                                        <span class="customization-option-image-placeholder" aria-hidden="true">+</span>
-                                        <input type="file" class="customization-option-image-input" accept="image/*">
-                                    </label>
+                                        <span class="customization-option-image-placeholder" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.5" /><path stroke-linecap="round" stroke-linejoin="round" d="m3 17 5-5 4 4 4-6 5 7" /></svg></span>
+                                        <input type="file" class="customization-option-image-input" accept="image/*" aria-label="Upload variant image">
+                                        </label></div>
                                         <button type="button" class="customization-option-remove" aria-label="Remove option">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M4.772 5.79c.34-.059.68-.114 1.022-.165m0 0L6.56 19.673A2.25 2.25 0 0 0 8.806 21h6.388a2.25 2.25 0 0 0 2.245-2.077l.767-13.298m-12.412 0A48.108 48.108 0 0 1 12 5.25c2.094 0 4.152.134 6.206.375m-9.956 0V4.875c0-.621.504-1.125 1.125-1.125h3.25c.621 0 1.125.504 1.125 1.125v.75" />
@@ -602,8 +611,8 @@
                                         </svg>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end pd-more-menu-dropdown" aria-labelledby="pdMoreMenuBtn">
-                                        <li><button type="button" class="dropdown-item" id="pdMenuUpdateStock">Update Stock</button></li>
-                                        <li><button type="button" class="dropdown-item" id="pdMenuArchiveProduct">Archive</button></li>
+
+                                        <li><button type="button" class="dropdown-item" id="pdMenuArchiveProduct">Archive Product</button></li><li><button type="button" class="dropdown-item d-none" id="pdMenuRestoreProduct">Restore Product</button></li>
                                     </ul>
                                 </div>
                             </div>
@@ -648,7 +657,6 @@
                                                     <div class="pd-overview-info">
                                         <div class="pd-title-row">
                                                             <h2 id="pdName" class="pd-hero-title mb-0"></h2>
-                                            <span id="pdStatusText" class="pd-active-badge">Active</span>
                                                         </div>
                                                         <div id="pdTags" class="pd-tags" aria-label="Product tags"></div>
                                                         <div class="table-responsive">
@@ -656,11 +664,12 @@
                                                                 <tbody>
                                                                     <tr><td>Product ID:</td><td><strong id="pdMeta"></strong></td></tr>
                                                                     <tr><td>Category:</td><td><strong id="pdCategory"></strong></td></tr>
-                                                                    <tr><td>Department:</td><td><strong id="pdDeptHero"></strong></td></tr>
+                                                                    <tr><td>Program:</td><td><strong id="pdDeptHero"></strong></td></tr><tr><td>Major:</td><td><strong id="pdMajorHero"></strong></td></tr>
                                                                     <tr><td>Seller:</td><td><strong id="pdSeller"></strong></td></tr>
                                                                     <tr><td>Price:</td><td><strong id="pdPrice" class="pd-price-value"></strong></td></tr>
-                                                                    <tr><td>Status:</td><td><span id="pdInventoryStatus" class="inventory-pill inventory-in_stock pd-detail-value">In Stock</span></td></tr>
-                                                                    <tr><td>Stock Quantity:</td><td><strong id="pdDetailStock">0</strong></td></tr>
+                                                                    <tr><td>Approval Status:</td><td><span id="pdStatusText" class="pd-active-badge"></span></td></tr>
+                                                                    <tr><td>Listing Status:</td><td><span id="pdListingStatus" class="pd-listing-status"></span></td></tr>
+                                                                    <tr><td>Inventory Status:</td><td><span id="pdInventoryStatus" class="pd-inventory-state">Loading…</span></td></tr>
                                                                     <tr><td>Created Date:</td><td><strong id="pdCreatedAt"></strong></td></tr>
                                                                     <tr><td>Last Updated:</td><td><strong id="pdUpdated"></strong></td></tr>
                                                                 </tbody>
@@ -733,24 +742,34 @@
                                         <div class="card-header">
                                             <h4 class="mb-0 pd-card-heading">
                                                 <span class="pd-card-heading-icon pd-card-heading-icon--purple" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg></span>
-                                                Inventory Information
+                                                <span id="pdInventoryHeading">Inventory Information</span>
                                             </h4>
                                         </div>
                                         <div class="card-body">
-                                            <div class="pd-inventory-kpi-grid">
+                                            <p class="pd-inventory-sku">SKU: <strong id="pdInventorySku">Loading…</strong></p><div class="pd-inventory-kpi-grid" id="pdInventorySummary">
                                                 <div class="pd-inventory-kpi-card">
-                                                    <p class="pd-inventory-kpi-label">Current Stock</p>
-                                                    <p class="pd-inventory-kpi-value" id="pdKpiTotal">0 <span class="pd-inventory-unit">units</span></p>
+                                                    <p class="pd-inventory-kpi-label">On Hand</p>
+                                                    <p class="pd-inventory-kpi-value" id="pdKpiTotal">Loading…</p>
                                                 </div>
                                                 <div class="pd-inventory-kpi-card">
                                                     <p class="pd-inventory-kpi-label">Reserved</p>
-                                                    <p class="pd-inventory-kpi-value" id="pdKpiReserved">0 <span class="pd-inventory-unit">units</span></p>
+                                                    <p class="pd-inventory-kpi-value" id="pdKpiReserved">Loading…</p>
                                                 </div>
                                                 <div class="pd-inventory-kpi-card pd-inventory-kpi-card--available">
-                                                    <p class="pd-inventory-kpi-label">Available Stock</p>
-                                                    <p class="pd-inventory-kpi-value" id="pdKpiAvailable">0 <span class="pd-inventory-unit">units</span></p>
+                                                    <p class="pd-inventory-kpi-label">Available</p>
+                                                    <p class="pd-inventory-kpi-value" id="pdKpiAvailable">Loading…</p>
+                                                </div>
+                                                <div class="pd-inventory-kpi-card">
+                                                    <p class="pd-inventory-kpi-label">Low Stock Threshold</p>
+                                                    <p class="pd-inventory-kpi-value" id="pdKpiThreshold">Loading…</p>
+                                                </div>
+                                                <div class="pd-inventory-kpi-card">
+                                                    <p class="pd-inventory-kpi-label">Inventory Status</p>
+                                                    <p class="pd-inventory-state" id="pdKpiStatus">Loading…</p>
                                                 </div>
                                             </div>
+                                            <div id="pdVariantThresholds" class="pd-variant-thresholds d-none"></div>
+                                            <p id="pdInventoryFeedback" class="pd-inventory-feedback" role="status" aria-live="polite">Loading inventory…</p>
                                             <h5 class="pd-subsection-title">Inventory History</h5>
                                             <div class="table-responsive pd-table-scroll pd-inventory-history-wrap">
                                                 <table class="table mb-0 pd-inventory-history-table" aria-label="Inventory history">
@@ -760,7 +779,7 @@
                                                         <col class="pd-inv-col-qty">
                                                         <col class="pd-inv-col-before">
                                                         <col class="pd-inv-col-after">
-                                                        <col class="pd-inv-col-user">
+                                                        <col class="pd-inv-col-reference"><col class="pd-inv-col-user">
                                                     </colgroup>
                                         <thead>
                                             <tr>
@@ -769,11 +788,11 @@
                                                             <th class="col-qty">Quantity</th>
                                                             <th class="col-num">Before</th>
                                                             <th class="col-num">After</th>
-                                                            <th class="col-user">User</th>
+                                                            <th>Reference</th><th class="col-user">User</th>
                                             </tr>
                                         </thead>
                                                     <tbody id="pdInventoryHistoryBody">
-                                                        <tr><td colspan="6" class="pd-empty-cell"></td></tr>
+                                                        <tr><td colspan="7" class="pd-empty-cell"></td></tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -931,13 +950,37 @@
                     <p class="mb-1" style="font-size:0.84rem;color:#64748b;">Product</p>
                     <strong id="updateStockProductName" style="color:#1A1851;display:block;margin-bottom:12px;">—</strong>
                     <p class="mb-2" style="font-size:0.84rem;color:#64748b;">Current stock: <strong id="updateStockCurrent" style="color:#1A1851;">0</strong></p>
-                    <label for="updateStockInput" class="form-label" style="font-size:0.84rem;">New stock quantity</label>
+                    <div id="updateStockVariantWrap" hidden><label for="updateStockVariant" class="form-label">Variant</label><select class="form-select mb-3" id="updateStockVariant"></select></div>
+                    <label for="updateStockInput" class="form-label" style="font-size:0.84rem;">New available quantity</label>
                     <input type="number" class="form-control" id="updateStockInput" min="0" step="1" placeholder="0">
                     <p id="updateStockHint" class="mt-2 mb-0" style="font-size:0.75rem;color:#94a3b8;"></p>
                 </div>
                 <div class="modal-footer border-0 justify-content-center gap-2">
                     <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="delete-product-confirm" id="confirmUpdateStockButton">Save Stock</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="productDecisionModal" tabindex="-1" aria-labelledby="productDecisionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content delete-product-card product-decision-card">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title" id="productDecisionModalLabel">Approve Product</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-2">
+                    <p id="productDecisionMessage" class="product-decision-message">Approve this listing and make it available in the marketplace?</p>
+                    <strong id="productDecisionName" class="product-decision-name">Selected product</strong>
+                    <div id="productDecisionReasonGroup" class="d-none mt-3">
+                        <label for="productDecisionReason" class="form-label">Rejection reason <span aria-hidden="true">*</span></label>
+                        <textarea id="productDecisionReason" class="form-control" rows="3" placeholder="Explain what the seller needs to correct." aria-required="true"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 justify-content-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="delete-product-confirm" id="confirmProductDecisionButton">Approve</button>
                 </div>
             </div>
         </div>
@@ -969,7 +1012,18 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'components/js/admin_notifications.js' %}?v=20260523-3"></script>
     <script src="{% static 'components/js/local_autocomplete.js' %}?v=20260726-local-only"></script>
-    <script src="{% static 'components/js/admin_products.js' %}?v=20260727-direct-add-product"></script>
+    <div class="modal fade" id="bundleProductModal" tabindex="-1" aria-labelledby="bundleProductModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header"><h2 class="modal-title fs-5" id="bundleProductModalTitle">Add Bundle Products</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body"><label class="form-label" for="bundleProductSearch">Search products</label><input type="search" class="form-control mb-3" id="bundleProductSearch" placeholder="Product name">
+                <p id="bundleSelectionMessage" role="status" aria-live="polite"></p><button type="button" class="product-suggest-link" id="bundleSelectionRetry" hidden>Retry</button>
+                <div class="bundle-table-scroll" tabindex="0" aria-label="Eligible bundle products"><table class="table bundle-components-table"><thead><tr><th>Product / Variant</th><th>Price</th><th>Available Stock</th><th>Required Quantity</th><th><span class="visually-hidden">Add</span></th></tr></thead><tbody id="bundleSelectionBody"></tbody></table></div>
+            </div><div class="modal-footer"><button type="button" class="btn" data-bs-dismiss="modal">Done</button></div>
+        </div></div>
+    </div>
+    <script src="{% static 'components/js/admin_bundle_products.js' %}?v=20261007-component-bundles"></script>
+    <script src="{% static 'components/js/admin_academic_controls.js' %}?v=20261008-programs"></script>
+    <script src="{% static 'components/js/admin_products.js' %}?v=20261024-product-layout"></script>
 </body>
 
 </html>

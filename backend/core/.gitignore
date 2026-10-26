@@ -3,3 +3,4 @@
 __pycache__/
 venv/
 core/gmail_local.py
+.cache/

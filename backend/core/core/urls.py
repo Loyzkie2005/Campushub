@@ -1,7 +1,15 @@
+from modules.facilities import admin_booking_views
+from modules.facilities import booking_workflow_views
+from modules.marketplace.bundle_suggestion_views import bundle_suggestions_api
+from modules.marketplace import bundle_monitoring_views as bundle_monitoring
+from modules.marketplace.inventory_views import receive_stock
 from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
+from api.activity_api import ActivityDetailView, ActivityListView
+from modules.facilities.service_views import admin_services_page, admin_service_requests_page
+from modules.facilities import mobile_services
 from api.views import (
     admin_login,
     admin_session_status,
@@ -27,6 +35,8 @@ from api.views import (
     marketplace_orders,
     mobile_login,
     mobile_complete_profile,
+    mobile_profile_photo,
+    mobile_academic_options,
     mobile_signup,
     mobile_password_reset,
     mobile_password_reset_confirm,
@@ -39,6 +49,7 @@ from api.views import (
     seller_submit_product,
     remove_product_background,
 )
+from accounts.password_support import account_password_reset_confirm, account_recovery, account_recovery_start
 from accounts.views import (
     admin_bookings_page,
     admin_calendar_page,
@@ -69,6 +80,7 @@ from accounts.views import (
     admin_facility_export_download,
 )
 from modules.reports.views import (
+    admin_dashboard_api,
     admin_dashboard_page,
     admin_facility_analytics_page,
     admin_generate_reports_page,
@@ -78,8 +90,14 @@ from modules.reports.views import (
 )
 
 from modules.facilities import mobile_views as mobile_facilities
+from modules.marketplace import mobile_seller_views
+from modules.notifications import mobile_views as mobile_notifications
 
 urlpatterns = [
+    path("api/mobile/push/device/", mobile_notifications.device_registration, name="mobile_push_device"),
+    path("api/mobile/seller/workspace/", mobile_seller_views.workspace, name="mobile_seller_workspace"),
+    path("api/mobile/seller/orders/<int:order_id>/progress/", mobile_seller_views.order_progress, name="mobile_seller_order_progress"),
+    path("api/mobile/seller/suggestions/<str:pair_id>/", mobile_seller_views.suggestion_choice, name="mobile_seller_suggestion_choice"),
     path("api/mobile/facilities/contact/", mobile_facilities.contact),
     path("api/mobile/facilities/<str:facility_id>/availability/", mobile_facilities.availability),
     path("api/mobile/facilities/<str:facility_id>/quote/", mobile_facilities.quote),
@@ -89,7 +107,9 @@ urlpatterns = [
     path("", admin_login_page, name="admin_login_page"),
     path("admin-logout/", admin_logout_page, name="admin_logout_page"),
     path("admin-dashboard/", admin_dashboard_page, name="admin_dashboard_page"),
+    path("api/admin/dashboard/", admin_dashboard_api, name="admin_dashboard_api"),
     path("admin-products/", admin_products_page, name="admin_products_page"),
+    path("admin-products/inventory/receive/", receive_stock, name="admin_receive_stock"),
     path("admin-orders/", admin_orders_page, name="admin_orders_page"),
     path("admin-sellers/", admin_sellers_page, name="admin_sellers_page"),
     path(
@@ -105,6 +125,17 @@ urlpatterns = [
     path("admin-orders/<int:order_id>/update/", admin_order_update, name="admin_order_update"),
     path("admin-messages/", admin_messages_page, name="admin_messages_page"),
     path("admin-notifications/", admin_notifications_page, name="admin_notifications_page"),
+    path("api/marketplace/bundle-suggestions/", bundle_suggestions_api, name="bundle_suggestions_api"),
+    path("admin-bundle-suggestions/", bundle_monitoring.suggestion_list, name="bundle_monitor_list"),
+    path("admin-bundle-suggestions/activity/", bundle_monitoring.recommendation_activity, name="bundle_monitor_activity"),
+    path("admin-bundle-suggestions/research/", bundle_monitoring.research, name="bundle_monitor_research"),
+    path("admin-bundle-suggestions/research/run/", bundle_monitoring.run_research, name="bundle_monitor_research_run"),
+    path("admin-bundle-suggestions/<int:pk>/", bundle_monitoring.suggestion_detail, name="bundle_monitor_detail"),
+    path("admin-bundle-suggestions/<int:pk>/highlight/", bundle_monitoring.suggestion_highlight, name="bundle_monitor_highlight"),
+    path("admin-bundle-suggestions/<int:pk>/<str:section>/", bundle_monitoring.suggestion_detail, name="bundle_monitor_section"),
+    path("account/recovery/", account_recovery_start, name="account_recovery_start"),
+    path("account/recovery/<token>/", account_recovery, name="account_recovery"),
+    path("account/password-reset/<uidb64>/<token>/", account_password_reset_confirm, name="account_password_reset_confirm"),
     path("admin-users/", admin_users_page, name="admin_users_page"),
     path("admin-users/save/", admin_users_save, name="admin_users_save"),
     path("admin-users/delete/", admin_users_delete, name="admin_users_delete"),
@@ -115,9 +146,13 @@ urlpatterns = [
     path("admin-roles/delete/", admin_roles_delete, name="admin_roles_delete"),
     path("admin-roles/status/", admin_roles_status, name="admin_roles_status"),
     path("admin-user-monitoring/", admin_user_monitoring_page, name="admin_user_monitoring_page"),
+    path("api/activity-logs/", ActivityListView.as_view(), name="activity_log_list"),
+    path("api/activity-logs/<int:pk>/", ActivityDetailView.as_view(), name="activity_log_detail"),
     path("admin-facility/", admin_facility_page, name="admin_facility_page"),
     path("admin-bookings/", admin_bookings_page, name="admin_bookings_page"),
     path("admin-calendar/", admin_calendar_page, name="admin_calendar_page"),
+    path("admin-services/", admin_services_page, name="admin_services_page"),
+    path("admin-service-requests/", admin_service_requests_page, name="admin_service_requests_page"),
     path("admin-settings/", admin_settings_page, name="admin_settings_page"),
     path("admin-backup/", admin_backup_page, name="admin_backup_page"),
     path(
@@ -149,6 +184,8 @@ urlpatterns = [
     path("api/chat/", include("modules.messages.urls")),
     path("api/mobile/login/", mobile_login, name="mobile_login"),
     path("api/mobile/signup/", mobile_signup, name="mobile_signup"),
+    path("api/mobile/academic-options/", mobile_academic_options, name="mobile_academic_options"),
+    path("api/mobile/profile/photo/", mobile_profile_photo, name="mobile_profile_photo"),
     path(
         "api/mobile/profile/complete/",
         mobile_complete_profile,
@@ -171,6 +208,8 @@ urlpatterns = [
         track_product_interaction,
         name="track_product_interaction",
     ),
+    path("api/mobile/services/", mobile_services.service_list, name="mobile_service_list"),
+    path("api/mobile/services/<str:service_id>/", mobile_services.service_detail, name="mobile_service_detail"),
     path("api/facilities/", facilities_list, name="facilities_list"),
     path("api/facilities/create/", facilities_create, name="facilities_create"),
     path("api/facilities/<str:facility_id>/update/", facilities_update, name="facilities_update"),
@@ -178,6 +217,21 @@ urlpatterns = [
     path("api/facilities/<str:facility_id>/restore/", facilities_restore, name="facilities_restore"),
     path("api/facilities/<str:facility_id>/delete/", facilities_delete, name="facilities_delete"),
     path("api/bookings/create/", bookings_create, name="bookings_create"),
+    path("api/bookings/preview/", admin_booking_views.preview, name="admin_booking_preview"),
+    path('api/bookings/', booking_workflow_views.listing, name='admin_booking_list'),
+    path('api/bookings/<str:booking_id>/update/', booking_workflow_views.update, name='admin_booking_update'),
+    path('api/bookings/<str:booking_id>/documents/<str:kind>/', booking_workflow_views.document, name='admin_booking_document'),
+    path('api/bookings/<str:booking_id>/attachments/<str:key>/', booking_workflow_views.attachment, name='admin_booking_attachment'),
+    path('api/mobile/bookings/<str:booking_id>/slip/', mobile_facilities.slip, name='mobile_booking_slip'),
+    path("admin-bookings/<str:booking_id>/slip/", admin_booking_views.booking_slip, name="admin_booking_slip"),
+    path("admin-bookings/<str:booking_id>/", booking_workflow_views.detail_page, name="admin_booking_details_page"),
+    path("api/bookings/clients/", admin_booking_views.clients, name="admin_booking_clients"),
+    path("api/bookings/facilities/<str:facility_id>/options/", admin_booking_views.options, name="admin_booking_options"),
+    path('api/bookings/<str:booking_id>/', booking_workflow_views.detail, name='admin_booking_detail'),
+    path("api/facility-calendar/", admin_booking_views.calendar, name="admin_facility_calendar_events"),
+    path("api/facility-schedules/", admin_booking_views.schedules, name="admin_facility_schedules"),
+    path("api/facility-schedules/<str:booking_id>/update/", admin_booking_views.schedule_update, name="admin_facility_schedule_update"),
+    path("api/facility-schedules/<str:booking_id>/attachment/", admin_booking_views.attachment, name="admin_facility_schedule_attachment"),
     path("api/products/approved/", approved_products, name="approved_products"),
     path("api/orders/", marketplace_orders, name="marketplace_orders"),
     path("api/products/<int:product_id>/image/", product_image, name="product_image"),

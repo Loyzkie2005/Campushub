@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 import uuid
 from datetime import timedelta
 from decimal import Decimal
@@ -94,12 +95,17 @@ class MobileFacilityBookingTests(TestCase):
     def test_approved_progress_payment_and_cancellation_rules(self):
         booking_id = self.post().json()["booking"]["id"]
         Booking.objects.filter(pk=booking_id).update(status="approved")
-        self.assertEqual(self.post(f"/api/mobile/bookings/{booking_id}/cancel/", {}).status_code, 409)
+        self.assertTrue(self.client.get(f"/api/mobile/bookings/{booking_id}/", **self.auth).json()['booking']['can_cancel'])
         FacilityPayment.objects.create(id="PAY-TEST", booking_id=booking_id, payment_status="paid", paid_amount=2000, official_receipt_no="OR-TEST")
         response = self.client.get(f"/api/mobile/bookings/{booking_id}/", **self.auth).json()["booking"]
         self.assertTrue(response["can_view_slip"])
         self.assertEqual(response["payment_status"], "paid")
         self.assertEqual(response["receipts"][0]["number"], "OR-TEST")
+        payment_before=FacilityPayment.objects.filter(booking_id=booking_id).values().get()
+        result=self.post(f"/api/mobile/bookings/{booking_id}/cancel/", {})
+        self.assertEqual(result.status_code,200)
+        self.assertFalse(result.json()['booking']['can_cancel'])
+        self.assertEqual(FacilityPayment.objects.filter(booking_id=booking_id).values().get(),payment_before)
 
     def test_session_rate_and_specialized_flow(self):
         self.facility.price_type = "session"
@@ -110,13 +116,40 @@ class MobileFacilityBookingTests(TestCase):
         self.facility.save()
         self.assertEqual(self.post().status_code, 400)
 
+    def test_mobile_cancellation_reuses_start_gate_and_preserves_partial_payments(self):
+        from modules.facilities.services.booking_workflow import reservation_start
+        booking_id=self.post().json()['booking']['id']
+        booking=Booking.objects.get(pk=booking_id)
+        FacilityPayment.objects.create(id='PAY-CANCEL-PARTIAL',booking=booking,payment_status='paid',paid_amount=500,official_receipt_no='OR-PARTIAL')
+        paid_before=FacilityPayment.objects.filter(booking=booking).values().get()
+        start=reservation_start(booking);assert start is not None
+        for status in ('pending','approved'):
+            Booking.objects.filter(pk=booking_id).update(status=status)
+            for instant in (start,start+timedelta(hours=6)):
+                with patch('modules.facilities.services.booking_workflow.timezone.now',return_value=instant):
+                    self.assertFalse(self.client.get(f'/api/mobile/bookings/{booking_id}/',**self.auth).json()['booking']['can_cancel'])
+                    response=self.post(f'/api/mobile/bookings/{booking_id}/cancel/',{})
+                    self.assertEqual(response.status_code,409)
+                    self.assertIn('already started',response.json()['error'])
+        with patch('modules.facilities.services.booking_workflow.timezone.now',return_value=start-timedelta(seconds=1)):
+            self.assertTrue(self.client.get(f'/api/mobile/bookings/{booking_id}/',**self.auth).json()['booking']['can_cancel'])
+            self.assertEqual(self.post(f'/api/mobile/bookings/{booking_id}/cancel/',{}).status_code,200)
+        self.assertEqual(FacilityPayment.objects.filter(booking=booking).values().get(),paid_before)
+        booking.refresh_from_db()
+        saved_cancel=booking.mobile_request.details['cancel']
+        self.assertEqual(saved_cancel['by']['id'],booking.user_id)
+        self.assertTrue(saved_cancel['by']['name'])
+        self.assertTrue(saved_cancel['at'])
+        self.assertNotIn('reason',saved_cancel)  # The mobile form did not collect one.
+        self.assertEqual(self.post(f'/api/mobile/bookings/{booking_id}/cancel/',{}).status_code,409)
+
     def test_admin_cannot_create_overlapping_schedule(self):
         self.post()
         admin = User.objects.create_user(username="booking-admin-" + uuid.uuid4().hex[:8], role="Facilities Admin", is_staff=True)
         sync_user_admin_permissions(admin)
         self.client.force_login(admin)
         response = self.client.post("/api/bookings/create/", json.dumps({"facility_id": self.facility.pk,
-            "date": self.day.isoformat(), "start": "14:00", "end": "16:00", "type": "class"}), content_type="application/json")
+            "date": self.day.isoformat(), "start": "14:00", "end": "16:00", "type": "class", "purpose": "Academic class"}), content_type="application/json")
         self.assertEqual(response.status_code, 409, response.content)
 
     def test_weekly_hours_enforced_on_availability_quote_and_submit(self):

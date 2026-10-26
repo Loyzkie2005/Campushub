@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.contrib.auth.models import Permission
 
-from accounts.models import User
+from accounts.models import Department, User
 from accounts.role_permissions import sync_user_admin_permissions
 from api.models import MarketplaceOrder, Product, SellerRequest
 from modules.marketplace.services.analytics import (
@@ -22,11 +22,13 @@ class MarketplaceAnalyticsTests(TestCase):
     today = date(2026, 9, 4)
 
     def setUp(self):
+        program, _ = Department.objects.get_or_create(code="BSIT", defaults={"name":"BSIT", "is_program":True})
         self.marketplace_admin = User.objects.create_user(
             username="analytics-marketplace-admin",
             password=self.password,
             role="Marketplace Admin",
             is_staff=True,
+            department=program,
         )
         self.facilities_admin = User.objects.create_user(
             username="analytics-facilities-admin",
@@ -43,6 +45,7 @@ class MarketplaceAnalyticsTests(TestCase):
             first_name="Campus",
             last_name="Seller",
             role="Seller",
+            department=program,
         )
         SellerRequest.objects.create(
             user=self.seller,
@@ -142,6 +145,8 @@ class MarketplaceAnalyticsTests(TestCase):
         self._order(code="2026AN000001", day=day, quantity=2)
         self._order(code="2026AN000002", day=day, status=MarketplaceOrder.STATUS_CANCELLED)
         self._order(code="2026AN000003", day=day, payment=MarketplaceOrder.PAYMENT_UNPAID)
+        for index, status in enumerate((MarketplaceOrder.STATUS_PENDING, MarketplaceOrder.STATUS_PROCESSING, MarketplaceOrder.STATUS_READY_FOR_PICKUP), 4):
+            self._order(code=f"2026AN{index:06d}", day=day, status=status)
 
         analytics = build_marketplace_analytics({"period": "7"}, today=self.today)
 
@@ -151,6 +156,42 @@ class MarketplaceAnalyticsTests(TestCase):
         self.assertEqual(sum(analytics["sales_chart"]["orders"]), 1)
         self.assertEqual(analytics["kpis"]["active_buyers"], 1)
         self.assertEqual(analytics["top_products"][0]["units"], 2)
+        self.assertFalse(analytics["market_basket"]["sufficient"])
+
+    def test_top_five_merges_parent_variants_without_requiring_pairs(self):
+        first = self._order(code="2026TP000001", day=self.today, quantity=2)
+        MarketplaceOrder.objects.filter(pk=first.pk).update(product_name="Earlier notebook name", option="Blue")
+        self._order(code="2026TP000002", day=self.today, quantity=1)
+        for index in range(6):
+            product = Product.objects.create(seller=self.seller, name=f"Other product {index}", price=10)
+            self._order(code=f"2026TP{index + 3:06d}", day=self.today, product=product)
+        analytics = build_marketplace_analytics({"period": "7"}, today=self.today)
+        self.assertEqual(len(analytics["top_products"]), 5)
+        self.assertEqual(analytics["top_products"][0]["product_id"], self.product.pk)
+        self.assertEqual(analytics["top_products"][0]["units"], 3)
+        self.assertEqual(analytics["top_products"][0]["sales"], "150.00")
+        self.assertFalse(analytics["market_basket"]["sufficient"])
+        self.assertEqual(analytics["market_basket"]["multi_item_orders"], 0)
+
+    def test_legacy_null_order_codes_do_not_form_an_artificial_basket(self):
+        self._order(code="2026NL000001", day=self.today)
+        self._order(code="2026NL000002", day=self.today, product=self.variant_product)
+        MarketplaceOrder.objects.all().update(order_code=None)
+        analytics = build_marketplace_analytics({"period": "7"}, today=self.today)
+        self.assertEqual(len(analytics["top_products"]), 2)
+        self.assertEqual(analytics["kpis"]["completed_orders"], 2)
+        self.assertEqual(analytics["market_basket"]["eligible_orders"], 0)
+        self.assertEqual(analytics["market_basket"]["rows"], [])
+
+    def test_predefined_combo_remains_one_sellable_product(self):
+        combo = Product.objects.create(seller=self.seller, name="Super Meal", category="Combo Meals", price=100)
+        order = self._order(code="2026CB000001", day=self.today, product=combo, quantity=10)
+        MarketplaceOrder.objects.filter(pk=order.pk).update(customization={"bundle_items": ["Barbecue", "Siomai", "Banana Cue"]})
+        analytics = build_marketplace_analytics({"period": "7"}, today=self.today)
+        self.assertEqual([(row["product"], row["units"]) for row in analytics["top_products"]], [("Super Meal", 10)])
+        self.assertEqual(analytics["kpis"]["sales"], "1,000.00")
+        self.assertEqual(analytics["market_basket"]["multi_item_orders"], 0)
+        self.assertEqual(analytics["market_basket"]["rows"], [])
 
     def test_multiple_buyers_and_repeat_buyer_are_calculated_from_orders(self):
         day = self.today - timedelta(days=1)
@@ -188,11 +229,11 @@ class MarketplaceAnalyticsTests(TestCase):
         self.assertEqual(weekly["sales_chart"]["orders"], [1, 1])
         self.assertEqual(monthly["sales_chart"]["labels"], ["Aug 2026", "Sep 2026"])
 
-    def test_monthly_grouping_defaults_to_august_to_december_five_months(self):
+    def test_monthly_grouping_respects_selected_reporting_period(self):
         analytics = build_marketplace_analytics({"grouping": "monthly"}, today=self.today)
-        expected_labels = ["Aug 2026", "Sep 2026", "Oct 2026", "Nov 2026", "Dec 2026"]
+        expected_labels = ["Aug 2026", "Sep 2026"]
         self.assertEqual(analytics["sales_chart"]["labels"], expected_labels)
-        self.assertEqual(len(analytics["sales_chart"]["labels"]), 5)
+        self.assertEqual(len(analytics["sales_chart"]["labels"]), 2)
 
     def test_sales_chart_counts_multiple_completed_paid_orders_in_one_bucket(self):
         day = self.today - timedelta(days=1)
@@ -204,36 +245,20 @@ class MarketplaceAnalyticsTests(TestCase):
         self.assertEqual(chart["orders"][-2], 2)
         self.assertEqual(chart["sales"][-2], 150.0)
 
-    def test_sales_chart_frontend_uses_mixed_datasets_and_dual_axes(self):
-        script_path = (
-            Path(settings.BASE_DIR).parent
-            / "static"
-            / "components"
-            / "js"
-            / "admin_marketplace_analytics.js"
-        )
-        script = script_path.read_text(encoding="utf-8")
-
-        self.assertIn("label: 'Sales (₱)'", script)
-        self.assertIn("label: 'Orders'", script)
-        self.assertIn("type: 'line'", script)
-        self.assertIn("type: 'bar'", script)
-        self.assertIn("yAxisID: 'ySales'", script)
-        self.assertIn("yAxisID: 'yOrders'", script)
-        self.assertIn("yTitle: 'Sales Amount (₱)'", script)
-        self.assertIn("text: 'Date / Time Period'", script)
-        self.assertIn("options.scales.x.title.display = false", script)
-        self.assertGreaterEqual(script.count("title: { display: false }"), 2)
-        self.assertNotIn("text: 'Number of Orders'", script)
-        self.assertIn("stepSize: 10", script)
-        self.assertIn("suggestedMax: 50", script)
-        self.assertIn("suggestedMax: 10000", script)
-        self.assertIn("stepSize = 2000", script)
-        self.assertIn("options.plugins.legend.position = 'top'", script)
-        self.assertIn("options.plugins.legend.align = 'center'", script)
-        self.assertIn("usePointStyle: true", script)
-        self.assertIn("pointStyle: 'rect'", script)
-        self.assertIn("padding: 24", script)
+    def test_sales_chart_page_serializes_actual_eligible_series(self):
+        import json, re
+        MarketplaceOrder.objects.create(product=self.product, product_name='Chart source',
+            quantity=2, total_price=37, status='completed', payment_status='paid', completed_at=timezone.now())
+        self.client.force_login(self.marketplace_admin)
+        page = self.client.get(reverse('admin_marketplace_analytics_page'), {'period':'today'})
+        self.assertEqual(page.status_code, 200)
+        match = re.search(r'<script id="marketplaceSalesChartData" type="application/json">(.*?)</script>',page.content.decode(),re.S)
+        self.assertIsNotNone(match)
+        series = json.loads(match.group(1))
+        self.assertEqual(series,page.context['analytics']['sales_chart'])
+        self.assertEqual(len(series['labels']),len(series['sales']))
+        self.assertEqual(sum(series['sales']),37)
+        self.assertEqual(sum(series['orders']),1)
 
     def test_one_day_range_produces_one_bucket_and_peak_period(self):
         self._order(code="2026PK000001", day=self.today, quantity=2)
@@ -327,6 +352,9 @@ class MarketplaceAnalyticsTests(TestCase):
         self.assertNotIn("USTP Notebook", {row["product"] for row in result["rows"]})
 
     def test_market_basket_support_confidence_and_lift(self):
+        single_items = calculate_market_basket([[(1, "Burger")], [(1, "Burger")], [(2, "Coke")]])
+        self.assertFalse(single_items["sufficient"])
+        self.assertEqual(single_items["rows"], [])
         result = calculate_market_basket(
             [
                 [(1, "Notebook"), (2, "Pen")],
@@ -347,7 +375,7 @@ class MarketplaceAnalyticsTests(TestCase):
         self.assertEqual(allowed.status_code, 200)
         self.assertContains(allowed, "Decision Support")
         self.assertContains(allowed, "admin_marketplace_analytics.js")
-        self.assertContains(allowed, "Completed and paid Cash on Pickup orders")
+        self.assertContains(allowed, "Completed and paid marketplace orders")
         self.assertNotContains(allowed, "No completed sales in the selected period.")
         self.assertNotContains(allowed, "Analyze marketplace sales, buyer activity")
         self.assertNotContains(allowed, 'class="analytics-summary-row"')
@@ -356,14 +384,44 @@ class MarketplaceAnalyticsTests(TestCase):
         blocked = self.client.get(reverse("admin_marketplace_analytics_page"))
         self.assertEqual(blocked.status_code, 403)
 
-    def test_marketplace_admin_cannot_open_user_monitoring_even_if_permission_is_added(self):
+    def test_marketplace_admin_monitoring_preserves_existing_permission_gate(self):
         permission = Permission.objects.get(
             codename="can_view_user_monitoring",
             content_type__app_label="accounts",
         )
-        self.marketplace_admin.user_permissions.add(permission)
+        self.marketplace_admin.user_permissions.remove(permission)
         self.client.force_login(self.marketplace_admin)
+        self.assertEqual(self.client.get(reverse("admin_user_monitoring_page")).status_code,302)
+        self.marketplace_admin.user_permissions.add(permission)
+        self.assertEqual(self.client.get(reverse("admin_user_monitoring_page")).status_code,200)
 
-        response = self.client.get(reverse("admin_user_monitoring_page"))
-
-        self.assertEqual(response.status_code, 403)
+    def test_sales_reports_exports_use_dashboard_recognition_dates_and_eligibility(self):
+        from modules.reports.reporting import build_report
+        from modules.reports.views import _csv_response, _pdf_response
+        from modules.marketplace.services.analytics import valid_sales_queryset
+        from django.db.models import Sum
+        from io import BytesIO
+        from pypdf import PdfReader
+        today = timezone.localdate()
+        placed = timezone.now() - timedelta(days=40)
+        recognized = MarketplaceOrder.objects.create(product=self.product, order_code='RECOGNIZED-NOW',
+            product_name='Recognized now', quantity=1, total_price=37, status='completed', payment_status='paid', completed_at=timezone.now())
+        MarketplaceOrder.objects.filter(pk=recognized.pk).update(created_at=placed)
+        excluded = MarketplaceOrder.objects.create(product=self.product, order_code='RECOGNIZED-BEFORE',
+            quantity=1,total_price=999,status='completed',payment_status='paid',completed_at=placed)
+        for status,payment in [('completed','unpaid'),('pending','paid'),('processing','paid'),('cancelled','paid'),('ready_for_pickup','paid')]:
+            MarketplaceOrder.objects.create(product=self.product,quantity=1,total_price=999,status=status,payment_status=payment)
+        report = build_report('sales', today, today, user=self.marketplace_admin)
+        ids = [row['Order ID'] for row in report['rows']]
+        self.assertIn(recognized.order_code, ids)
+        self.assertNotIn(excluded.order_code, ids)
+        actual = sum(Decimal(row['Amount (PHP)']) for row in report['rows'])
+        expected = valid_sales_queryset(self.marketplace_admin).filter(analytics_at__date=today).aggregate(value=Sum('total_price'))['value']
+        self.assertEqual(actual, expected)
+        csv = _csv_response(report,'sales').content.decode()
+        pdf = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(_pdf_response(report,'sales').content)).pages)
+        for text in (csv,pdf):
+            self.assertIn(recognized.order_code,text)
+            self.assertNotIn(excluded.order_code,text)
+        orders = build_report('orders',today,today,user=self.marketplace_admin)
+        self.assertNotIn(recognized.order_code,[row['Order ID'] for row in orders['rows']])

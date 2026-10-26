@@ -1,0 +1,3 @@
+# Database exports contain private application records. Keep new backups local.
+*
+!.gitignore

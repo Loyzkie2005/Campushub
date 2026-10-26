@@ -43,6 +43,7 @@ def _from_database() -> _SmtpConfig | None:
         gmail_app_password=row.gmail_app_password.replace(" ", ""),
         smtp_host=row.smtp_host,
         smtp_port=row.smtp_port,
+        use_ssl=row.smtp_port == 465,
     )
 
 
@@ -55,22 +56,15 @@ def is_gmail_configured() -> bool:
 
 
 def _send_with_config(config: _SmtpConfig, *, to_email: str, subject: str, body: str) -> None:
-    if config.use_ssl:
-        connection = get_connection(
-            host=config.smtp_host,
-            port=config.smtp_port,
-            username=config.gmail_user,
-            password=config.gmail_app_password,
-            use_ssl=True,
-        )
-    else:
-        connection = get_connection(
-            host=config.smtp_host,
-            port=config.smtp_port,
-            username=config.gmail_user,
-            password=config.gmail_app_password,
-            use_tls=True,
-        )
+    connection = get_connection(
+        host=config.smtp_host,
+        port=config.smtp_port,
+        username=config.gmail_user,
+        password=config.gmail_app_password,
+        use_ssl=config.use_ssl,
+        use_tls=not config.use_ssl,
+        timeout=settings.EMAIL_TIMEOUT,
+    )
 
     email = EmailMessage(
         subject=subject,
@@ -79,56 +73,27 @@ def _send_with_config(config: _SmtpConfig, *, to_email: str, subject: str, body:
         to=[to_email],
         connection=connection,
     )
-    email.send(fail_silently=False)
+    if email.send(fail_silently=False) != 1:
+        raise RuntimeError("SMTP did not accept the recovery email.")
 
 
 def send_password_reset_email(*, to_email: str, code: str, full_name: str = "") -> bool:
+    """Compatibility sender: use the same code-only recovery template."""
+    return send_account_recovery_email(to_email=to_email, code=code, purpose="password", full_name=full_name)
+
+
+def send_account_recovery_email(*, to_email, code, purpose, full_name=""):
+    """Deliver a code privately; never create or email recovery URLs."""
     config = get_smtp_config()
     if config is None:
-        logger.warning(
-            "Gmail not configured. Edit backend/core/core/gmail_local.py "
-            "and set CAMPUSHUB_GMAIL_APP_PASSWORD"
-        )
         return False
-
-    greeting = f"Hi {full_name}," if full_name else "Hi,"
-    subject = "CampusHub Password Reset Code"
-    body = (
-        f"{greeting}\n\n"
-        f"Your CampusHub password reset code is: {code}\n\n"
-        f"This code expires in {settings.PASSWORD_RESET_CODE_MINUTES} minutes.\n"
-        f"If you did not request this, you can ignore this email.\n\n"
-        f"— CampusHub Team"
-    )
-
-    # Try STARTTLS on 587, then SSL on 465 (some networks block one port).
-    attempts = [
-        _SmtpConfig(
-            config.gmail_user,
-            config.gmail_app_password,
-            config.smtp_host,
-            587,
-            use_ssl=False,
-        ),
-        _SmtpConfig(
-            config.gmail_user,
-            config.gmail_app_password,
-            config.smtp_host,
-            465,
-            use_ssl=True,
-        ),
-    ]
-
-    last_error = None
-    for attempt in attempts:
-        try:
-            _send_with_config(attempt, to_email=to_email, subject=subject, body=body)
-            logger.info("Password reset email sent to %s", to_email)
-            return True
-        except Exception as exc:
-            last_error = exc
-            logger.warning("Gmail send failed on port %s: %s", attempt.smtp_port, exc)
-
-    if last_error:
-        raise last_error
-    return False
+    verification = purpose == "email_verification"
+    subject = "CampusHub Email Verification Code" if verification else "CampusHub Account Recovery Code"
+    label = "email verification" if verification else "account recovery"
+    body = (f"Hi {full_name.split()[0] if full_name else 'CampusHub user'},\n\n"
+            f"Your CampusHub {'email' if verification else label} verification code is:\n\n{code}\n\n"
+            f"This code expires in {settings.PASSWORD_RESET_CODE_MINUTES} minutes and can only be used once.\n"
+            f"Enter this code in the CampusHub app to continue {label}.\n\n"
+            "If you did not request this, you may ignore this email.\n\nCampusHub")
+    _send_with_config(config, to_email=to_email, subject=subject, body=body)
+    return True

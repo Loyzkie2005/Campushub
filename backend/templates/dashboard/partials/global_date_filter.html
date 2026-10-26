@@ -1,0 +1,31 @@
+{% load tz %}
+<div class="dashboard-global-controls" id="dashboardGlobalControls" data-api-url="{% url 'admin_dashboard_api' %}">
+    <form id="dashboardGlobalFilter" method="get">
+        <label class="visually-hidden" for="dashboardPeriod">Dashboard period</label>
+        <div class="dashboard-global-actions">
+            <select id="dashboardPeriod" name="period" class="dash-select">
+                <option value="today"{% if dashboard_period.type == 'today' %} selected{% endif %}>Today</option>
+                <option value="last_7_days"{% if dashboard_period.type == 'last_7_days' %} selected{% endif %}>Last 7 Days</option>
+                <option value="last_30_days"{% if dashboard_period.type == 'last_30_days' %} selected{% endif %}>Last 30 Days</option>
+                <option value="this_month"{% if dashboard_period.type == 'this_month' %} selected{% endif %}>This Month</option>
+                <option value="previous_month"{% if dashboard_period.type == 'previous_month' %} selected{% endif %}>Previous Month</option>
+                <option value="this_year"{% if dashboard_period.type == 'this_year' %} selected{% endif %}>This Year</option>
+                <option value="custom"{% if dashboard_period.type == 'custom' %} selected{% endif %}>Custom Range</option>
+            </select>
+            <button type="button" id="dashboardRefresh" class="dashboard-filter-button" aria-label="Refresh dashboard data">
+                <svg class="dashboard-refresh-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg>
+                <span>Refresh</span>
+            </button>
+            <noscript><button type="submit">Apply</button></noscript>
+        </div>
+        <div id="dashboardCustomRange" class="dashboard-custom-range" hidden>
+            <label for="dashboardStartDate">Start Date<input type="date" id="dashboardStartDate" name="start_date" value="{{ dashboard_period.start_date }}" max="{{ today|date:'Y-m-d' }}" required></label>
+            <label for="dashboardEndDate">End Date<input type="date" id="dashboardEndDate" name="end_date" value="{{ dashboard_period.end_date }}" max="{{ today|date:'Y-m-d' }}" required></label>
+            <button type="submit" class="dashboard-filter-button dashboard-filter-button--apply">Apply</button>
+            <button type="button" class="dashboard-filter-button" id="dashboardCancelRange">Cancel</button>
+            <p id="dashboardDateError" role="alert" hidden></p>
+        </div>
+    </form>
+    <span id="dashboardSelectedRange">{{ dashboard_period.start_date }} – {{ dashboard_period.end_date }}</span>
+    {% timezone "Asia/Manila" %}<time id="dashboardUpdatedAt" datetime="{{ dashboard_updated_at|date:'c' }}">Updated {{ dashboard_updated_at|date:"M d, Y g:i A" }}</time>{% endtimezone %}
+</div>

@@ -1,0 +1,67 @@
+{% if executive_mode %}
+<div class="dash-card dash-card-recent-orders" id="recentOrdersSlot" data-empty-region="orders">
+    <header class="dash-card-header"><div><h3 id="recentOrdersTitle">Recent Orders</h3><p>Latest marketplace transactions.</p></div><a href="{% url 'admin_orders_page' %}" class="dash-view-all-link">View All</a></header>
+    <div class="table-responsive recent-orders-table-wrap" tabindex="0" role="region" aria-labelledby="recentOrdersTitle"{% if not recent_orders %} hidden{% endif %}>
+        <table class="recent-orders-table" role="table"><caption class="visually-hidden">Latest five actual marketplace orders, newest first.</caption>
+            <thead><tr><th scope="col">Order ID</th><th scope="col">Date</th><th scope="col">Buyer</th><th scope="col">Seller</th><th scope="col" class="text-center">Items</th><th scope="col" class="text-end">Total</th><th scope="col">Order Status</th><th scope="col">Payment</th><th scope="col">Action</th></tr></thead>
+            <tbody data-recent-order-rows>{% for order in recent_orders %}<tr><th scope="row"><a class="recent-order-link" href="{{ order.url }}">{{ order.code }}</a></th><td>{{ order.date }}</td><td class="recent-orders-person">{{ order.buyer_name }}</td><td class="recent-orders-person">{{ order.seller_name }}</td><td class="text-center">{{ order.item_count|default_if_none:'Not recorded' }}</td><td class="text-end">&#8369;{{ order.total }}</td><td><span class="status-pill recent-orders-status status-{{ order.status_key }}">{{ order.status }}</span></td><td><span class="status-pill recent-orders-payment" data-payment-status="{{ order.payment_key }}">{{ order.payment_status }}</span></td><td><a class="recent-order-details" href="{{ order.url }}" aria-label="View details for order {{ order.code }}">View Details</a></td></tr>{% endfor %}</tbody>
+        </table>
+    </div>
+    <div data-recent-orders-empty{% if recent_orders %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Recent Orders' description='New marketplace orders will appear here once customers begin placing orders.' icon='orders' %}</div>
+    <div class="recent-orders-loading" data-recent-orders-loading role="status"><span class="visually-hidden">Loading recent orders.</span><span></span><span></span><span></span></div>
+    <div class="recent-orders-error" data-recent-orders-error role="alert" hidden><p>Unable to load recent orders.</p><button type="button" id="recentOrdersRetry">Retry</button></div>
+</div>
+{% else %}
+<div class="dash-card dash-card-recent-orders h-100" id="recentOrdersSlot">
+    <div class="dash-card-header">
+        <h2 id="recentOrdersTitle">Recent Orders</h2>
+        <a href="{% url 'admin_orders_page' %}" class="dash-view-all-link">View All</a>
+    </div>
+    <div class="table-responsive recent-orders-table-wrap" tabindex="0" role="region" aria-labelledby="recentOrdersTitle">
+        <table class="recent-orders-table">
+            <caption class="visually-hidden">Recent marketplace orders, newest first.</caption>
+            <colgroup><col class="recent-orders-col-code"><col class="recent-orders-col-product"><col class="recent-orders-col-buyer"><col class="recent-orders-col-amount"><col class="recent-orders-col-status"><col class="recent-orders-col-payment"><col class="recent-orders-col-date"></colgroup>
+            <thead>
+                <tr>
+                    <th scope="col">Order ID</th>
+                    <th scope="col">Items</th>
+                    <th scope="col">Customer</th>
+                    <th scope="col" class="text-end">Total</th>
+                    <th scope="col">Order Status</th>
+                    <th scope="col">Payment Status</th>
+                    <th scope="col">Date</th>
+                </tr>
+            </thead>
+            <tbody{% if global_dashboard %} data-recent-order-rows{% endif %}>
+                {% for order in recent_orders %}
+                <tr>
+                    <td class="recent-order-code">{{ order.code }}</td>
+                    <td class="recent-order-items">
+                        <div class="recent-order-product">
+                            {% if order.image_url %}
+                            <img class="recent-order-thumb" src="{{ order.image_url }}" alt="" width="38" height="38">
+                            {% else %}
+                            <span class="recent-order-thumb recent-order-thumb--empty" aria-hidden="true"></span>
+                            {% endif %}
+                            <span class="recent-order-item"><strong>{{ order.product_name }}</strong><small>{{ order.quantity }} unit{{ order.quantity|pluralize }}</small></span>
+                        </div>
+                    </td>
+                    <td class="recent-order-customer">{{ order.buyer_name }}</td>
+                    <td class="text-end recent-order-amount">&#8369;{{ order.total }}</td>
+                    <td class="recent-order-status"><span class="status-pill status-{{ order.status_key }}">{{ order.status }}</span></td>
+                    <td class="recent-order-payment">{{ order.payment_status }}</td>
+                    <td class="recent-order-date">{{ order.date }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="recent-orders-empty">No recent orders yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if global_dashboard %}
+    <div class="recent-orders-loading" data-recent-orders-loading role="status"><span class="visually-hidden">Loading recent orders.</span><span></span><span></span></div>
+    <div class="recent-orders-error" data-recent-orders-error role="alert" hidden><p>Unable to load recent orders.</p><button type="button" id="recentOrdersRetry">Retry</button></div>
+    {% endif %}
+</div>
+
+{% endif %}

@@ -1,0 +1,12 @@
+<article class="marketplace-chart-card" id="topSellingProductsCard" data-empty-region="products" aria-labelledby="topSellingProductsTitle">
+    <header><h3 id="topSellingProductsTitle">Top-Selling Products</h3><p>Best-performing products based on units sold.</p></header>
+    {{ dashboard_marketplace.top_products|json_script:'topSellingProductsData' }}
+    <div class="marketplace-products-canvas" data-products-content{% if not dashboard_marketplace.top_products %} hidden{% endif %}>
+        <canvas id="topSellingProductsChart" role="img" tabindex="0" aria-label="Top five products by units sold. Use left and right arrow keys to inspect each product." aria-describedby="topSellingProductsDescription"></canvas>
+    </div>
+    <div class="marketplace-empty" data-products-empty{% if dashboard_marketplace.top_products %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Top-Selling Products Yet' description='Product rankings will appear when completed marketplace orders contain eligible product sales.' icon='products' %}</div>
+    <p data-products-error role="alert" hidden>Unable to load top-selling products. <button type="button" id="topProductsRetry">Retry</button></p>
+    <p data-products-chart-error role="alert" hidden>Chart unavailable. Product quantities are listed below.</p>
+    <ul class="visually-hidden" id="topSellingProductsDescription" data-products-description>{% for product in dashboard_marketplace.top_products %}<li>{{ product.product_name }}: {{ product.units_sold }} units sold.</li>{% endfor %}</ul>
+    <span class="visually-hidden" data-products-live aria-live="polite"></span>
+</article>

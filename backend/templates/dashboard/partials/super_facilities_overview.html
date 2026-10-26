@@ -1,0 +1,44 @@
+<section class="executive-section executive-facilities" aria-labelledby="facilitiesOverviewTitle">
+    <div class="dashboard-section-heading executive-section-header">
+        <div><h2 id="facilitiesOverviewTitle">Facilities Overview</h2><p class="facilities-note executive-section-subtitle">Monitor facility bookings, demand, and availability.</p></div>
+        <a class="dash-view-all-link" data-executive-analytics="facilities" href="{{ executive.analytics_urls.facilities }}">View Analytics <span aria-hidden="true">&rarr;</span></a>
+    </div>
+    <div id="bookingOverviewCard" data-booking-overview aria-labelledby="bookingOverviewTitle">
+        <div data-booking-content>
+            <h3 id="bookingOverviewTitle" class="facilities-summary-title">Booking Summary</h3>
+            <div class="booking-overview__metrics">
+                <div class="booking-overview__metric"><h3>Bookings in Selected Period</h3><strong data-booking-total>{{ overview.total }}</strong><p data-booking-comparison>{{ overview.comparison.comparison_text }}</p></div>
+                <a href="{% url 'admin_bookings_page' %}?status=approved" class="booking-overview__metric" data-booking-status="approved"><h3>Approved Bookings</h3><strong>{{ overview.approved }}</strong><p>Current approved status, submitted in this period</p></a>
+                <a href="{% url 'admin_bookings_page' %}?status=pending" class="booking-overview__metric" data-booking-status="pending"><h3>Pending Bookings</h3><strong>{{ overview.pending }}</strong><p>Awaiting review, submitted in this period</p></a>
+            </div>
+        </div>
+            <div class="facilities-chart-grid">
+                <article class="dash-card facilities-trend" data-empty-region="bookings" aria-labelledby="bookingTrendTitle">
+                    <div class="facilities-card-heading"><h3 id="bookingTrendTitle">Booking Trend</h3><label class="visually-hidden" for="bookingGroupingSelect">Booking trend grouping</label><select id="bookingGroupingSelect" name="booking_grouping" class="sales-select"><option value="daily"{% if overview.grouping == 'daily' %} selected{% endif %}>Daily</option><option value="weekly"{% if overview.grouping == 'weekly' %} selected{% endif %}>Weekly</option><option value="monthly"{% if overview.grouping == 'monthly' %} selected{% endif %}>Monthly</option></select></div>
+                    <div data-booking-trend-content>
+                    <p class="facilities-note" data-booking-period>{{ overview.grouping|title }} requests submitted &middot; {{ overview.start_date }} &ndash; {{ overview.end_date }}</p>
+                    <div class="facility-booking-chart-wrap"{% if not overview.total %} hidden{% endif %}><canvas id="facilityBookingOverviewChart" tabindex="0" role="img" aria-label="Booking requests over time" aria-describedby="bookingTrendDescription"></canvas></div>
+                    <div class="facilities-empty" data-booking-empty{% if overview.total %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Booking Data Yet' description='Booking activity will appear when facility requests are submitted in the selected period.' icon='trend' %}</div>
+                    <p class="facilities-note" data-booking-chart-error hidden>Chart unavailable. Booking totals and the text summary remain available.</p>
+                    <div class="visually-hidden" id="bookingTrendDescription"><ul data-booking-trend-description>{% for item in overview.trend %}<li>{{ item.label }}: {{ item.count }} bookings.</li>{% endfor %}</ul><span data-booking-chart-live aria-live="polite"></span></div>
+                    <a class="dash-view-all-link" href="{{ overview.view_all_url }}" data-booking-view-all>View All Bookings</a>
+                    </div>
+                    <div data-booking-error role="alert" hidden><p>Unable to load booking summary and trend.</p><button type="button" class="dashboard-filter-button" id="bookingOverviewRetry">Retry</button></div>
+                </article>
+                {% include 'dashboard/partials/most_booked_facilities.html' with executive_mode=True %}
+            </div>
+        {{ overview|json_script:"bookingOverviewData" }}
+    </div>
+    <div class="facilities-operations-grid">
+        {% include 'dashboard/partials/upcoming_reservations.html' with executive_mode=True %}
+        <article class="dash-card" aria-labelledby="facilityAttentionTitle" data-empty-region="facility-attention">
+            <h3 id="facilityAttentionTitle">Facility Attention</h3><p class="facilities-note">Facility availability issues requiring attention.</p>
+            <ul class="facilities-attention" data-facility-attention>
+                <li{% if not executive.facility_attention.maintenance %} hidden{% endif %}><a href="{% url 'admin_facility_page' %}?status=maintenance"><span>Under Maintenance</span><strong data-facility-attention-count="maintenance">{{ executive.facility_attention.maintenance }}</strong></a></li>
+                <li{% if not executive.facility_attention.unavailable %} hidden{% endif %}><a href="{% url 'admin_facility_page' %}?status=unavailable"><span>Temporarily Unavailable</span><strong data-facility-attention-count="unavailable">{{ executive.facility_attention.unavailable }}</strong></a></li>
+            </ul>
+            <div data-facility-attention-empty{% if executive.facility_attention.maintenance or executive.facility_attention.unavailable %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Facility Attention Needed' description='Unavailable or maintenance-related facility issues will appear here.' icon='facilities' %}</div>
+            <p class="facilities-note" data-facility-attention-error role="alert" hidden>Unable to load facility attention. Use Refresh above to retry.</p>
+        </article>
+    </div>
+</section>

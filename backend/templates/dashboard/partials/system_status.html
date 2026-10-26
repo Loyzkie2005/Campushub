@@ -1,0 +1,61 @@
+{% if top %}{% elif compact %}<h2 id="systemStatusTitle" class="visually-hidden">System Status</h2>{% else %}
+<div class="dashboard-section-heading dashboard-system-services-heading">
+    <h2 id="systemStatusTitle">System Status</h2>
+    {% if footer %}<p class="audit-note">Current status of core CampusHub services.</p><button type="button" class="dashboard-filter-button" id="systemStatusRetry">Check status</button>{% endif %}
+</div>
+{% endif %}
+<section class="{% if top %}dashboard-system-top{% elif compact %}dashboard-system-inline{% else %}dash-card dashboard-system-services{% endif %}" id="dashboardSystemStatus" aria-labelledby="systemStatusTitle" data-api-url="{% url 'admin_dashboard_api' %}" aria-busy="false"{% if compact %} data-status-inline aria-live="polite"{% endif %}{% if footer %} data-status-footer{% endif %}{% if top %} data-status-top{% endif %}>
+    {% if top %}<h2 id="systemStatusTitle">System Health</h2>{% endif %}
+    <div class="dashboard-service-list"{% if top %} tabindex="0" role="region" aria-label="System health checks"{% endif %}{% if footer %} hidden{% endif %}>
+        <article class="dashboard-service-item" data-system-service="database">
+            <div class="dashboard-service-header">
+            <span class="dashboard-service-icon-wrap">
+            <svg class="dashboard-service-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path stroke-linecap="round" d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg>
+            </span>
+                <h3>Database</h3>
+                <span class="dashboard-service-state" data-system-state="unknown">Unknown</span>
+            </div>
+            <div class="dashboard-service-content">
+                <p data-system-message>Not checked yet.</p>
+            </div>
+            <div class="dashboard-service-footer">
+                <time data-system-checked hidden></time>
+            </div>
+        </article>
+        <article class="dashboard-service-item" data-system-service="chat_service">
+            <div class="dashboard-service-header">
+            <span class="dashboard-service-icon-wrap">
+            <svg class="dashboard-service-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 2V11.5A8.5 8.5 0 0 1 9.5 3h3a8.5 8.5 0 0 1 8.5 8.5ZM7 11h.01M11 11h.01M15 11h.01"/></svg>
+            </span>
+                <h3>Chat Service</h3>
+                <span class="dashboard-service-state" data-system-state="unknown">Unknown</span>
+            </div>
+            <div class="dashboard-service-content">
+                <p data-system-message>Not checked yet.</p>
+            </div>
+            <div class="dashboard-service-footer">
+                <time data-system-checked hidden></time>
+            </div>
+        </article>
+        <article class="dashboard-service-item" data-system-service="backup">
+            <div class="dashboard-service-header">
+            <span class="dashboard-service-icon-wrap">
+            <svg class="dashboard-service-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3h14v18H5V3Zm3 0v6h8V3M8 21v-7h8v7"/></svg>
+            </span>
+                <h3>Backup</h3>
+                <span class="dashboard-service-state" data-system-state="unknown">Unknown</span>
+            </div>
+            <div class="dashboard-service-content">
+                <p data-system-message>Not checked yet.</p>
+                <time data-system-last-backup hidden>Last backup not verified.</time>
+            </div>
+            <div class="dashboard-service-footer">
+                <time data-system-checked hidden></time>
+                <a href="{% url 'admin_backup_page' %}" class="dashboard-service-action">Open Backup <span aria-hidden="true">&rarr;</span></a>
+            </div>
+        </article>
+    </div>
+    {% if footer %}<div data-system-unavailable role="status" hidden>{% if top %}<p><strong>System Status Unavailable</strong><span class="visually-hidden">Live system health information is not currently available.</span></p>{% else %}{% include 'dashboard/partials/empty_state.html' with title='System Status Unavailable' description='Live system health information is not currently available.' icon='info' %}{% endif %}</div>{% endif %}
+    <p class="dashboard-system-checking" role="status"{% if not footer %} hidden{% endif %}>Checking system status&hellip;</p>
+    {% if top %}<button type="button" class="dashboard-filter-button" id="systemStatusRetry" aria-label="Check system health">Check status</button>{% endif %}
+</section>

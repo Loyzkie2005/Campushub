@@ -244,14 +244,15 @@ DEFAULT_CONFIG = {
 }
 
 
-def get_auto_backup_config():
+def get_auto_backup_config(*, strict=False):
     """Load auto backup settings."""
     if AUTO_BACKUP_CONFIG.exists():
         try:
             with open(AUTO_BACKUP_CONFIG) as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
-            pass
+            if strict:
+                raise
     return DEFAULT_CONFIG.copy()
 
 

@@ -1,0 +1,26 @@
+<article id="mostBookedFacilitiesCard" class="marketplace-summary-card facility-most-booked h-100" data-most-booked-facilities aria-labelledby="mostBookedFacilitiesTitle">
+    <h2 id="mostBookedFacilitiesTitle">{% if not executive_mode %}<span class="marketplace-card-symbol" aria-hidden="true">{% include 'dashboard/partials/marketplace_icon.html' with icon='products' %}</span>{% endif %}<span>{% if executive_mode %}Most-Booked Facilities{% else %}Most Booked Facilities{% endif %}</span></h2>
+    <p class="marketplace-card-note">{% if executive_mode %}Top 5 by approved/completed bookings scheduled in the selected period{% else %}Facilities ranked by valid booking count{% endif %}</p>
+    {% if executive_mode %}
+    <div class="facilities-ranking-chart" data-facility-ranking-chart-wrap{% if not facility_analytics.most_booked_facilities %} hidden{% endif %}><canvas data-facility-ranking-chart tabindex="0" role="img" aria-label="Most-booked facilities" aria-describedby="facilityRankingDescription"></canvas></div>
+    <p class="facilities-note" data-facility-ranking-chart-error hidden>Chart unavailable. Ranked facility counts are listed below.</p>
+    <span id="facilityRankingDescription" class="visually-hidden" data-facility-ranking-live aria-live="polite"></span>
+    {{ facility_analytics.most_booked_facilities|json_script:'facilityRankingData' }}
+    {% endif %}
+    <div class="marketplace-product-columns{% if executive_mode %} visually-hidden{% endif %}" data-facility-ranking-heading{% if not facility_analytics.most_booked_facilities %} hidden{% endif %}><span>Facility</span><span>Bookings</span></div>
+    <ol class="marketplace-product-list{% if executive_mode %} visually-hidden{% endif %}" data-facility-ranking-list tabindex="0" aria-label="Facilities ranked by valid booking count; scroll for more facilities"{% if not facility_analytics.most_booked_facilities %} hidden{% endif %}>
+        {% for facility in facility_analytics.most_booked_facilities %}
+        <li>
+            <span class="facility-ranking-image" aria-hidden="true">
+                {% if facility.image_url %}<img src="{{ facility.image_url }}" alt="" loading="lazy" width="40" height="40">{% endif %}
+                <span data-facility-image-fallback{% if facility.image_url %} hidden{% endif %}>{% include 'dashboard/partials/booking_overview_icon.html' with icon='total' %}</span>
+            </span>
+            <div class="marketplace-product-details"><strong><span class="marketplace-product-rank" aria-hidden="true">{{ facility.rank }}.</span> {{ facility.name }}</strong></div>
+            <div class="marketplace-product-stats"><span class="marketplace-product-units">{{ facility.bookings }} booking{{ facility.bookings|pluralize }}</span></div>
+        </li>
+        {% endfor %}
+    </ol>
+    <div class="marketplace-card-empty" data-facility-ranking-empty{% if facility_analytics.most_booked_facilities %} hidden{% endif %}>{% if executive_mode %}{% include 'dashboard/partials/empty_state.html' with title='No Booked Facilities Yet' description='Facility rankings will appear after approved or completed bookings are recorded.' icon='facilities' %}{% else %}{% include 'dashboard/partials/booking_overview_icon.html' with icon='total' %}<p>No booked facilities in selected period.</p>{% endif %}</div>
+    <p class="facility-ranking-loading" data-facility-ranking-loading role="status" hidden>Loading booked facilities.</p>
+    <div class="facility-ranking-error" data-facility-ranking-error role="alert" hidden><p>Unable to load booked facilities.</p><button type="button" data-facility-ranking-retry>Retry</button></div>
+</article>

@@ -1,0 +1,34 @@
+<section class="dash-card bundle-dss marketplace-recommendation-summary super-recommendation-preview" aria-labelledby="marketplaceRecommendationsTitle">
+    <header>
+        <h2 id="marketplaceRecommendationsTitle">Suggested Product Bundles</h2>
+        <p class="super-recommendation-subtitle">Overview of marketplace product bundle recommendations.</p>
+    </header>
+    <div>
+        {% if bundle_analysis.monitor_error %}
+        <p class="marketplace-recommendation-note" role="alert">Unable to load bundle suggestions. Reload the dashboard to retry.</p>
+        {% else %}
+        <div class="super-recommendation-list">
+            {% for row in bundle_analysis.monitor_rows|slice:':2' %}
+            <article class="super-recommendation-item" data-recommendation-id="{{ row.id }}">
+                <div class="super-recommendation-products">
+                    <div class="super-recommendation-product">
+                        {% include 'marketplace/partials/bundle_photo.html' with product=row.products.0 %}
+                        <span>{{ row.products.0.name }}</span>
+                    </div>
+                    <span class="super-recommendation-plus" aria-hidden="true">+</span>
+                    <span class="visually-hidden">paired with</span>
+                    <div class="super-recommendation-product">
+                        {% include 'marketplace/partials/bundle_photo.html' with product=row.products.1 %}
+                        <span>{{ row.products.1.name }}</span>
+                    </div>
+                </div>
+                <p class="super-recommendation-seller">Seller: {{ row.seller }}</p>
+                <span class="super-recommendation-status">{% if row.response == 'Awaiting Response' %}Awaiting Seller Response{% elif row.response == 'Not Applicable' %}{{ row.delivery }}{% else %}{{ row.response }}{% endif %}</span>
+            </article>
+            {% empty %}
+            {% include 'dashboard/partials/empty_state.html' with title='No Bundle Suggestions Yet' description='Saved product combinations will appear here when available.' icon='bag' %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</section>

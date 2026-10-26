@@ -1,0 +1,145 @@
+/* Shared institutional document: embedded preview, standalone print and A4 rules. */
+.bk-official-slip { box-sizing: border-box; width: 100%; max-width: 210mm; aspect-ratio: 210 / 297; margin: 16px auto; padding: 28px 32px; color: #1A1851; background: #fff; border: 1px solid rgba(26,24,81,.22); font: 13px/1.5 'Roboto', Arial, sans-serif; overflow-wrap: anywhere; text-align: left; }
+.bk-official-slip * { box-sizing: border-box; }
+.bk-official-header { text-align: center; padding-bottom: 18px; border-bottom: 2px solid #1A1851; }
+.bk-official-header img { object-fit: contain; }
+.bk-official-institution { margin: 0 0 14px; font-weight: 700; letter-spacing: .025em; }
+.bk-official-campus { margin: 0 0 6px; font-weight: 600; }
+.bk-official-header h2 { margin: 0; font: 700 17px/1.4 'Montserrat', Arial, sans-serif; }
+.bk-official-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; margin: 18px 0; }
+.bk-official-meta dt, .bk-official-fields dt { font-weight: 600; }
+.bk-official-fields dt, .bk-official-fields dd { display: inline; }
+.bk-official-fields dt::after { content: ': '; }
+.bk-official-meta dd, .bk-official-fields dd { margin: 3px 0 0; min-width: 0; white-space: normal; }
+.bk-official-section { margin: 0 0 16px; }
+.bk-official-section h3 { margin: 0 0 8px; padding: 6px 0; font-size: 13px; font-weight: 700; border-bottom: 1px solid rgba(26,24,81,.22); }
+.bk-official-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; margin: 0; }
+.bk-official-fields > div { padding: 6px 0; border-bottom: 1px solid rgba(26,24,81,.12); min-width: 0; }
+.bk-official-fields .bk-official-wide { grid-column: 1 / -1; }
+.bk-official-choices { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; padding: 0; margin: 8px 0; }
+.bk-official-choices li { display: inline-flex; align-items: center; gap: 7px; }
+.bk-slip-checkbox { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid #1A1851; font-size: 11px; font-weight: 700; }
+.bk-official-signatories { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; }
+.bk-official-signatories h4 { margin: 4px 0 6px; font-size: 13px; font-weight: 700; }
+.bk-official-signatories p { margin: 0 0 3px; }
+.bk-signatory-role { font-size: 12px; }
+.bk-signature-line { display: block; margin-top: 24px; padding-top: 4px; border-top: 1px solid #1A1851; font-size: 11px; }
+.bk-official-note { margin: 16px 0 0; font-size: 11px; }
+.bk-slip-toolbar, .bk-form-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.bk-slip-toolbar { justify-content: flex-start; }
+.bk-slip-toolbar a, .bk-slip-toolbar button, .bk-form-toolbar a, .bk-form-toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 9px 16px; border: 1px solid #1A1851; border-radius: 6px; color: #1A1851; background: #fff; font: 600 13px/1.4 'Montserrat', Arial, sans-serif; text-decoration: none; cursor: pointer; }
+.bk-slip-toolbar .bk-slip-print, .bk-form-toolbar .bk-slip-print { color: #fff; background: #1A1851; }
+.bk-slip-toolbar svg, .bk-form-toolbar svg { width: 18px; height: 18px; flex-shrink: 0; }
+.bk-slip-toolbar a:hover, .bk-slip-toolbar button:hover, .bk-form-toolbar a:hover, .bk-form-toolbar button:hover { box-shadow: inset 0 0 0 1px currentColor; }
+.bk-slip-toolbar a:focus-visible, .bk-slip-toolbar button:focus-visible, .bk-form-toolbar a:focus-visible, .bk-form-toolbar button:focus-visible { outline: 2px solid #FCB315; outline-offset: 3px; }
+.bk-form-toolbar button:disabled { opacity: .6; cursor: not-allowed; }
+.bk-official-print-page { margin: 0; padding: 16px; background: #f8fafc; font: 13px/1.5 Arial, sans-serif; }
+.bk-official-print-page .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.bk-detail-content .bk-official-slip h2 { font-size: 17px; }
+.bk-detail-content .bk-official-slip h3 { font-size: 13px; margin: 0 0 8px; }
+.bk-detail-content .bk-official-slip p { font-size: inherit; line-height: inherit; }
+/* The rental paper uses a vertical sequence, not two-column dashboard cells. */
+.bk-official-slip--rental .bk-official-header, .bk-official-slip--rental .bk-official-section h3 { border: 0; }
+/* Explicit slip title exception to the admin shell's important navy text rule. */
+.bk-official-slip--rental .bk-official-header h2 { color: #B42318 !important; text-align: center; }
+.bk-official-slip--rental .bk-official-meta, .bk-official-slip--rental .bk-official-fields,
+.bk-official-slip--rental .bk-official-signatories { grid-template-columns: minmax(0,1fr); gap: 4px; }
+.bk-official-slip--rental .bk-official-meta, .bk-official-slip--rental .bk-official-fields { gap: 0; }
+.bk-official-slip--rental .bk-official-fields > div { padding: 0; }
+.bk-official-slip--rental .bk-official-meta > div, .bk-official-slip--rental .bk-official-fields > div,
+.bk-signatory-fields dl > div { display: flex; gap: 4px; align-items: baseline; border: 0; }
+.bk-official-slip--rental dt { flex: 0 1 auto; }
+.bk-official-slip--rental .bk-official-fields dt::after, .bk-official-slip--rental .bk-official-meta dt::after { content: '\2060:'; }
+.bk-official-slip--rental .bk-official-fields dd, .bk-official-slip--rental .bk-official-meta dd,
+.bk-signatory-fields dd { display: block; flex: 1 1 0; margin: 0; min-width: 0; min-height: 20px; border-bottom: 1px solid rgba(26,24,81,.3); }
+.bk-official-slip--rental .bk-official-fields dd, .bk-official-slip--rental .bk-official-meta dd { max-width: 90mm; }
+.bk-official-slip--rental .bk-official-choices { display: grid; gap: 0; }
+.bk-official-slip--rental .bk-official-choices li { min-height: 20px; }
+.bk-official-choices .bk-choice-write-in { align-items: baseline; }
+.bk-choice-value { flex: 1 1 0; min-width: 0; max-width: 90mm; min-height: 20px; border-bottom: 1px solid rgba(26,24,81,.3); }
+.bk-official-slip--rental .bk-official-signatories { gap: 14px; }
+.bk-signatory-fields { margin: 0; font-size: 12px; }
+.bk-signatory-fields dt { font-weight: 400; }
+.bk-signatory-fields dd:not(.bk-blank-line) { max-width: 90mm; }
+.bk-signatory-fields dl { margin: 4px 0 0; }
+.bk-signing-line { display: block; min-height: 20px; border-bottom: 1px solid rgba(26,24,81,.3); }
+.bk-signatory-name { font-weight: 600; }
+.bk-approved-heading { display: grid; grid-template-columns: max-content minmax(0,1fr); column-gap: 3ch; align-items: start; }
+.bk-approved-heading h4 { margin: 0; }
+.bk-approved-heading .bk-signatory-name { padding-top: 2lh; }
+.bk-approved-heading .bk-signatory-role { grid-column: 2; }
+.bk-approved-heading .bk-approved-date-label { grid-column: 1; text-align: right; margin-right: -3ch; }
+.bk-approved-date-value { grid-column: 2; }
+.bk-blank-line { max-width: 55mm; }
+@media (max-width: 620px) {
+ .bk-official-slip { padding: 18px 14px; }
+ .bk-official-meta, .bk-official-fields, .bk-official-signatories { grid-template-columns: minmax(0,1fr); }
+ .bk-official-signatories { gap: 16px; }
+ .bk-official-header h2 { font-size: 15px; }
+ .bk-official-slip--rental .bk-official-meta dt, .bk-official-slip--rental .bk-official-fields dt { max-width: 45%; }
+}
+/* Chrome puts its date/title/URL in page margins. Padding keeps the paper
+   inset on every page without leaving a margin box for browser metadata. */
+@page { size: A4 portrait; margin: 0; padding: 12mm; }
+@media print {
+ .campushub-bookings-page, .campushub-bookings-page .sidebar-section,
+ .campushub-bookings-page .main-wrapper, .campushub-bookings-page .dashboard-content { background: #fff !important; }
+ .campushub-bookings-page { min-height: 0; overflow: visible; }
+ .campushub-bookings-page > :not(.sidebar-section), .campushub-bookings-page .sidebar,
+ .campushub-bookings-page .dashboard-header { display: none !important; }
+ .campushub-bookings-page .sidebar-section { display: block; min-height: 0; }
+ /* Normal document flow avoids a trailing blank page from the dashboard flex shell. */
+ .campushub-bookings-page .main-wrapper { display: block; flex: none; width: 100% !important; min-height: 0; margin: 0 !important; padding: 0; }
+ .campushub-bookings-page .dashboard-content { flex: none; min-height: 0; padding: 0 !important; }
+ .bk-detail-page > :not(.bk-detail-content), .bk-detail-content > :not(#bkPanelBookingForm),
+ #bkPanelBookingForm > :not(.bk-official-slip) { display: none !important; }
+ .bk-detail-content #bkPanelBookingForm[hidden] { display: block !important; }
+ .bk-detail-content { padding: 0; border: 0; box-shadow: none; background: #fff; }
+ .bk-detail-content #bkPanelBookingForm { padding: 0; }
+ .bk-official-print-page { padding: 0; background: #fff; }
+ .bk-slip-toolbar { display: none !important; }
+ .bk-official-slip { width: 100%; max-width: none; aspect-ratio: auto; margin: 0; padding: 0; border: 0; font-size: 12px; line-height: 1.35; }
+ /* Isolate paper typography from dashboard styles and remote font loading. */
+ .bk-official-slip, .bk-official-slip * { font-family: var(--ch-font-ui, 'Inter', sans-serif) !important; print-color-adjust: exact; }
+ .bk-official-slip h2, .bk-official-slip h3, .bk-official-slip h4 { font-weight: 700 !important; }
+ .bk-official-slip p { font-size: inherit !important; line-height: inherit !important; }
+ .bk-official-slip p.bk-official-note { font-size: 9px !important; }
+ .bk-official-slip .visually-hidden { display: none !important; }
+ .bk-official-meta, .bk-official-fields { grid-template-columns: 1fr 1fr; }
+ .bk-official-signatories { grid-template-columns: repeat(3,minmax(0,1fr)); }
+ .bk-official-section { break-inside: avoid; margin-bottom: 6px; }
+ .bk-official-fields > div { padding: 3px 0; }
+ .bk-official-header { padding-bottom: 8px; }
+ .bk-official-header h2 { font-size: 16px; }
+ .bk-official-institution { margin-bottom: 8px; }
+ .bk-official-campus { margin-bottom: 4px; }
+ .bk-official-meta { margin: 12px 0; gap: 6px 24px; }
+ .bk-official-section h3 { break-after: avoid; font-size: 12px; padding: 4px 0; margin-bottom: 4px; }
+ .bk-official-signatories h4 { font-size: 12px; margin-bottom: 3px; }
+ .bk-signature-line { margin-top: 18px; font-size: 10px; }
+ .bk-official-note { font-size: 9px; margin-top: 8px; }
+ .bk-detail-content .bk-official-slip h2 { font-size: 16px; }
+ .bk-detail-content .bk-official-slip h3 { font-size: 12px; margin-bottom: 4px; font-weight: 700; }
+ .bk-detail-content .bk-official-slip p.bk-official-note { font-size: 9px; margin-top: 8px; }
+ /* Give the rental paper more writing/reading space in both Print and PDF. */
+ .bk-official-slip--rental { font-size: 11px; line-height: 1.25; font-family: Arial, sans-serif; }
+ .bk-official-slip--rental * { line-height: 1.25; }
+ .bk-official-slip--rental dt, .bk-official-slip--rental dd, .bk-official-slip--rental li { font-size: 11px; }
+ .bk-official-slip--rental .bk-official-meta dt, .bk-official-slip--rental .bk-official-fields dt { max-width: none; }
+ .bk-official-slip--rental .bk-official-meta > div, .bk-official-slip--rental .bk-official-fields > div,
+ .bk-official-slip--rental .bk-signatory-fields dl > div { flex-wrap: nowrap; gap: 4px; padding: 0; }
+ .bk-official-slip--rental .bk-official-meta dd, .bk-official-slip--rental .bk-official-fields dd { flex-basis: 0; }
+ .bk-official-slip--rental .bk-official-meta, .bk-official-slip--rental .bk-official-fields { gap: 0; }
+ .bk-official-slip--rental .bk-official-meta { margin: 8px 0; }
+ .bk-official-slip--rental .bk-official-fields dd, .bk-official-slip--rental .bk-official-meta dd { min-height: 17px; }
+ .bk-official-slip--rental .bk-signatory-fields dd { min-height: 17px; }
+ .bk-official-slip--rental .bk-official-signatories { gap: 8px; }
+ .bk-official-slip--rental .bk-official-signatories h4 { margin-top: 2px; margin-bottom: 2px; }
+ .bk-official-slip--rental .bk-signatory-fields { font-size: 11px; }
+ .bk-official-slip--rental .bk-signing-line { min-height: 17px; }
+ .bk-official-slip--rental .bk-signatory-fields dl { margin-top: 1px; }
+ .bk-official-slip--rental .bk-official-section { margin-bottom: 6px; }
+ .bk-official-slip--rental .bk-official-section h3, .bk-detail-content .bk-official-slip--rental h3 { padding: 1px 0; margin-bottom: 2px; line-height: 1.25; }
+ .bk-official-slip--rental .bk-official-choices { gap: 0; margin: 4px 0; }
+ .bk-official-slip--rental .bk-choice-value, .bk-official-slip--rental .bk-official-choices li { min-height: 16px; }
+}

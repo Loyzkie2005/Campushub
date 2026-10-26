@@ -1,0 +1,34 @@
+<section class="executive-section executive-users" aria-labelledby="usersOverviewTitle" data-users-overview aria-busy="false">
+    <div class="dashboard-section-heading executive-section-header">
+        <div><h2 id="usersOverviewTitle">Users Overview</h2><p class="executive-section-subtitle">Monitor user growth and account activity across CampusHub.</p></div>
+        <a class="dash-view-all-link" data-executive-analytics="users" href="{{ executive.analytics_urls.users }}">View User Analytics <span aria-hidden="true">&rarr;</span></a>
+    </div>
+    <div class="users-summary-grid">
+        <article class="dash-card"><h3>New Users in Selected Period</h3><strong data-user-metric="new_registrations">{{ executive.users.new_registrations }}</strong><p>Recorded web and mobile account registrations.</p></article>
+        <article class="dash-card"><h3>Verified Users</h3><strong data-user-metric="verified_users">{{ executive.users.verified_users }}</strong><p>Accounts with verified email, current snapshot.</p></article>
+    </div>
+    <div class="users-chart-grid" data-users-content>
+        <article class="dash-card" aria-labelledby="userRegistrationTrendTitle">
+            <div class="user-trend-heading">
+                <h3 id="userRegistrationTrendTitle">User Registration Trend</h3>
+                <div class="user-trend-view-control"><label for="userRegistrationView">Group by:</label><select id="userRegistrationView" class="dash-select" aria-controls="userRegistrationTrendChart userRegistrationData" disabled><option value="daily" selected>Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
+            </div>
+            <p data-user-trend-subtitle>Daily new registrations in the selected period.</p>
+            <div class="users-chart" data-user-trend-wrap{% if not executive.users.new_registrations %} hidden{% endif %}><canvas id="userRegistrationTrendChart" role="img" aria-label="Number of new registrations by date. Exact values follow in the chart data table."></canvas></div>
+            <div data-user-trend-empty{% if executive.users.new_registrations %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No User Registration Data Yet' description='User registration trends will appear when new accounts are created in the selected period.' icon='trend' %}</div>
+            <p data-user-trend-fallback hidden>Chart unavailable. Registration counts remain available below.</p>
+            <details><summary>View chart data</summary><table class="users-data-table" id="userRegistrationData"><caption data-user-trend-caption>New registrations by date</caption><thead><tr><th scope="col" data-user-trend-date-column>Date</th><th scope="col" data-user-trend-column>Daily Registrations</th></tr></thead><tbody data-user-trend-rows>{% for row in executive.users.trend %}<tr><th scope="row">{{ row.label }}</th><td>{{ row.count }}</td></tr>{% endfor %}</tbody></table></details>
+        </article>
+        <article class="dash-card" aria-labelledby="usersByTypeTitle">
+            <h3 id="usersByTypeTitle">Users by Type</h3><p>Current mobile accounts with a recorded account type.</p>
+            <div class="users-type-layout">
+            <div class="users-chart" data-user-distribution-wrap{% if not executive.users.distribution %} hidden{% endif %}><canvas id="usersByTypeChart" role="img" aria-label="Distribution by recorded mobile account type. Counts and shares follow below."></canvas></div>
+            <div data-user-distribution-empty{% if executive.users.distribution %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No User Distribution Data' description='User distribution will appear when user account data is available.' icon='users' %}</div>
+            <p data-user-distribution-fallback hidden>Chart unavailable. Account-type counts remain available below.</p>
+            <table class="users-data-table" data-user-distribution-table{% if not executive.users.distribution %} hidden{% endif %}><caption class="visually-hidden">Recorded mobile account types</caption><thead><tr><th scope="col">Type</th><th scope="col">Accounts</th><th scope="col">Share</th></tr></thead><tbody data-user-distribution-rows>{% for row in executive.users.distribution %}<tr><th scope="row">{{ row.name }}</th><td>{{ row.count }}</td><td>{{ row.percentage }}%</td></tr>{% endfor %}</tbody></table>
+            </div>
+            <p data-user-untyped-note{% if not executive.users.untyped %} hidden{% endif %}>Account type is unavailable for {{ executive.users.untyped }} mobile accounts.</p>
+        </article>
+    </div>
+    <p role="alert" data-users-error hidden>Unable to update user summaries. Use Refresh above to retry.</p>
+</section>

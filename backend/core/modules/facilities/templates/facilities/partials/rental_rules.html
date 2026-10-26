@@ -1,0 +1,18 @@
+<div class="facility-form-field facility-form-field-wide" data-rental-field="rules">
+    <div class="facility-rules-grid">
+        <label class="facility-check"><input type="checkbox" id="facilityRequiresApproval" checked>Requires Approval</label>
+        <label class="facility-check"><input type="checkbox" id="facilityPreInspection">Requires Pre-Use Inspection</label>
+        <label class="facility-check"><input type="checkbox" id="facilityPostInspection">Requires Post-Use Inspection</label>
+        <label class="facility-check"><input type="checkbox" id="facilityDepositApplicable">Damage Deposit Applicable</label>
+    </div>
+    <span class="facility-form-help">These settings define facility rules. Inspections, deposits and approvals belong to booking transactions.</span>
+</div>
+<div class="facility-form-field" data-rental-field="form_type">
+    <label for="facilityBookingFormDisplay" class="form-label" id="facilityBookingFormLabel">Booking Slip</label>
+    <output class="form-control" id="facilityBookingFormDisplay" aria-live="polite">Select Facility Category first.</output>
+    <select class="form-select" id="facilityBookingFormType" hidden disabled></select>
+    <span class="facility-form-help" id="facilityBookingFormHelp">Automatically assigned based on Facility Category.</span>
+</div>
+<div class="facility-form-field facility-form-field-wide" id="facilityRoomsNotice" hidden>
+    <p class="facility-form-help">Rooms / Units can be configured after saving this facility. No rooms are created automatically.</p>
+</div>

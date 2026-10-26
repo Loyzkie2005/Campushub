@@ -11,6 +11,7 @@ class ProductImage extends StatelessWidget {
     required this.imageUrl,
     this.fallbackIcon = Icons.lunch_dining_outlined,
     this.fallbackColor = const Color(0xFF94A3B8),
+    this.fallbackSize = 40,
     this.backgroundColor,
     this.fit = BoxFit.cover,
   });
@@ -18,6 +19,7 @@ class ProductImage extends StatelessWidget {
   final String imageUrl;
   final IconData fallbackIcon;
   final Color fallbackColor;
+  final double fallbackSize;
   final Color? backgroundColor;
   final BoxFit fit;
 
@@ -60,18 +62,43 @@ class ProductImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolved = resolveUrl(imageUrl);
 
+    final content = resolved.isEmpty
+        ? Center(child: _fallback())
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              final ratio = MediaQuery.devicePixelRatioOf(context);
+              // Decode thumbnails at screen resolution, not camera resolution.
+              // Network images in similar cards can share 64px cache buckets.
+              int? decodeExtent(double extent) => extent.isFinite && extent > 0
+                  ? ((extent * ratio / 64).ceil() * 64).clamp(64, 2048)
+                  : null;
+              return _buildImage(
+                resolved,
+                decodeExtent(constraints.maxWidth),
+                decodeExtent(constraints.maxHeight),
+              );
+            },
+          );
     return ColoredBox(
-      // Keep background transparent so images have no tint.
       color: backgroundColor ?? Colors.transparent,
-      child: resolved.isEmpty
-          ? Center(child: _fallback())
-          : _buildImage(resolved),
+      child: content,
     );
   }
 
-  Widget _fallback() => Icon(fallbackIcon, color: fallbackColor, size: 40);
+  Widget _fallback() =>
+      Icon(fallbackIcon, color: fallbackColor, size: fallbackSize);
 
-  Widget _buildImage(String resolved) {
+  Widget _buildImage(String resolved, int? width, int? height) {
+    ImageProvider sized(ImageProvider source) {
+      // The cap also applies when the caller has an unconstrained dimension.
+      return ResizeImage(
+        source,
+        width: width ?? 2048,
+        height: height ?? 2048,
+        policy: ResizeImagePolicy.fit,
+      );
+    }
+
     if (resolved.startsWith('data:image/')) {
       final commaIndex = resolved.indexOf(',');
       if (commaIndex == -1) {
@@ -79,8 +106,8 @@ class ProductImage extends StatelessWidget {
       }
       try {
         final bytes = base64Decode(resolved.substring(commaIndex + 1));
-        return Image.memory(
-          bytes,
+        return Image(
+          image: sized(MemoryImage(bytes)),
           key: ValueKey(resolved.hashCode),
           fit: fit,
           width: double.infinity,
@@ -93,8 +120,8 @@ class ProductImage extends StatelessWidget {
       }
     }
 
-    return Image.network(
-      resolved,
+    return Image(
+      image: sized(NetworkImage(resolved)),
       key: ValueKey(resolved),
       fit: fit,
       width: double.infinity,
@@ -111,7 +138,7 @@ class ProductImage extends StatelessWidget {
               strokeWidth: 2,
               value: progress.expectedTotalBytes != null
                   ? progress.cumulativeBytesLoaded /
-                      progress.expectedTotalBytes!
+                        progress.expectedTotalBytes!
                   : null,
             ),
           ),

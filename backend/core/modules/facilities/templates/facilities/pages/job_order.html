@@ -1,0 +1,17 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampusHub | Job Order Request</title>
+<link rel="stylesheet" href="{% static 'components/css/job_order.css' %}?v=20261017-job-paper">
+{% include 'partials/web_typography.html' %}
+</head><body class="beu-job-print-page">
+<main data-job-order-standalone>
+    <header class="beu-job-panel-heading"><h1>Job Order</h1><nav class="beu-job-panel-actions" aria-label="Job Order actions">
+        <button type="button" class="beu-job-print" data-job-print disabled>Print</button>
+        <div data-job-export data-pdf-url="{{ pdf_url }}" data-docx-url="{{ docx_url }}"></div>
+    </nav></header>
+    <div class="beu-job-preview" data-job-preview data-pdf-url="{{ preview_url }}"></div>
+</main>
+<script src="{% static 'components/js/admin_session.js' %}?v=20260708"></script>
+<script src="{% static 'components/js/job_order_preview.js' %}?v=20261017-job-preload"></script>
+</body></html>

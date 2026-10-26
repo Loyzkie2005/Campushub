@@ -1,7 +1,8 @@
 from decimal import Decimal, InvalidOperation
+import uuid
 
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 
@@ -34,6 +35,8 @@ class CampusHubUser(models.Model):
     )
     institutional_id = models.CharField(max_length=50, blank=True, default="")
     contact_number = models.CharField(max_length=30, blank=True, default="")
+    year_section = models.CharField(max_length=120, blank=True, default="")
+    profile_photo = models.ImageField(upload_to="profile-photos/", max_length=255, blank=True, default="")
     role = models.CharField(max_length=100, blank=True, default="User")
     department = models.ForeignKey(
         "accounts.Department",
@@ -44,8 +47,10 @@ class CampusHubUser(models.Model):
         on_delete=models.SET_NULL,
         related_name="mobile_users",
     )
+    major = models.ForeignKey("accounts.ProgramMajor", db_constraint=False, null=True, blank=True, on_delete=models.SET_NULL, related_name="mobile_users")
     is_active = models.BooleanField(default=True)
     is_suspended = models.BooleanField(default=False)
+    email_verified = models.BooleanField(default=False)
     profile_completed = models.BooleanField(default=False)
     last_login = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -58,8 +63,41 @@ class CampusHubUser(models.Model):
     def __str__(self):
         return self.username
 
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
+
+    @property
+    def owner_ref(self):
+        return f"mobile:{self.pk}"
+
+
+class ProductQuerySet(models.QuerySet):
+    """Bulk quantity writes bypass Product.save and are unsafe after FIFO cutover."""
+    def update(self, **kwargs):
+        if {"stock", "customization_options", "product_type"}.intersection(kwargs):
+            from modules.marketplace.services.fifo import enabled, FIFOError
+            if enabled():
+                raise FIFOError("Use audited Product.save or inventory services for FIFO stock changes.")
+        return super().update(**kwargs)
+
+    def bulk_create(self, objs, *args, **kwargs):
+        from modules.marketplace.services.fifo import enabled, FIFOError
+        if enabled():
+            raise FIFOError("Create products through the audited save workflow while FIFO is active.")
+        return super().bulk_create(objs, *args, **kwargs)
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        if {"stock", "customization_options", "product_type"}.intersection(fields):
+            from modules.marketplace.services.fifo import enabled, FIFOError
+            if enabled():
+                raise FIFOError("Use audited Product.save or inventory services for FIFO stock changes.")
+        return super().bulk_update(objs, fields, batch_size=batch_size)
+
 
 class Product(models.Model):
+    objects = ProductQuerySet.as_manager()
+    TYPE_SINGLE = "single"
+    TYPE_BUNDLE = "bundle"
     STATUS_PENDING = "pending"
     STATUS_APPROVED = "approved"
     STATUS_REJECTED = "rejected"
@@ -74,13 +112,24 @@ class Product(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="seller_products",
+        null=True,
+        blank=True,
     )
+    mobile_seller = models.ForeignKey(CampusHubUser, on_delete=models.CASCADE,
+        null=True, blank=True, db_constraint=False, related_name="seller_products")
     product_code = models.CharField(max_length=13, unique=True, blank=True, null=True)
     name = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=80, blank=True)
+    product_type = models.CharField(max_length=12, choices=((TYPE_SINGLE, "Single Product"), (TYPE_BUNDLE, "Combo / Bundle Product")), default=TYPE_SINGLE)
+    department = models.ForeignKey("accounts.Department", null=True, blank=True, on_delete=models.SET_NULL, related_name="listed_products")
+    major = models.ForeignKey("accounts.ProgramMajor", null=True, blank=True, on_delete=models.SET_NULL, related_name="products")
+    tags = models.JSONField(default=list, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveIntegerField(default=0)
+    # Null preserves the configured default on legacy/simple listings.
+    # Separately tracked options keep their thresholds in customization_options.
+    low_stock_threshold = models.PositiveIntegerField(null=True, blank=True)
     expiry_date = models.DateField(null=True, blank=True)
     image_url = models.TextField(blank=True)
     customization_enabled = models.BooleanField(default=False)
@@ -109,9 +158,14 @@ class Product(models.Model):
         blank=True,
         related_name="created_products",
     )
+    source_recommendation = models.ForeignKey("BundleRecommendation", null=True, blank=True,
+        on_delete=models.PROTECT, related_name="created_bundles")
 
     class Meta:
         db_table = "campushub_product"
+        constraints = [models.CheckConstraint(condition=(
+            models.Q(seller__isnull=False, mobile_seller__isnull=True) |
+            models.Q(seller__isnull=True, mobile_seller__isnull=False)), name="product_one_account_owner")]
         ordering = ("-submitted_at",)
         permissions = (
             ("can_view_seller_products", "Can view seller products"),
@@ -120,6 +174,40 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def owner(self):
+        from django.core.exceptions import ValidationError
+        owner = self.mobile_seller if self.mobile_seller_id else self.seller
+        if owner is None:
+            raise ValidationError("The product has no recorded account owner.")
+        return owner
+
+    @property
+    def owner_key(self):
+        return f"mobile:{self.mobile_seller_id}" if self.mobile_seller_id else self.seller_id
+
+    @property
+    def owner_ref(self):
+        return f"mobile:{self.mobile_seller_id}" if self.mobile_seller_id else f"admin:{self.seller_id}"
+
+    def save(self, *args, **kwargs):
+        """Keep SKU identities and actual inventory changes with the same write."""
+        from django.db import transaction
+        from modules.marketplace.services.inventory_records import sync_inventory_records
+
+        using = kwargs.get("using") or self._state.db or "default"
+        fields = kwargs.get("update_fields")
+        track = fields is None or bool(set(fields) & {"stock", "customization_options", "product_type"})
+        with transaction.atomic(using=using):
+            before = None
+            if track and self.pk and not self._state.adding:
+                before = type(self).objects.using(using).select_for_update().filter(pk=self.pk).values(
+                    "stock", "customization_options", "product_type"
+                ).first()
+            super().save(*args, **kwargs)
+            if track:
+                sync_inventory_records(self, before=before, using=using)
 
     def get_customization_json(self):
         import json
@@ -200,30 +288,37 @@ class Product(models.Model):
         return get_inventory_status_label(self.get_inventory_status())
 
     def approve(self, user):
-        self.approval_status = self.STATUS_APPROVED
-        self.approved_by = user
-        self.approved_at = timezone.now()
-        self.rejection_reason = ""
-        self.save(update_fields=[
-            "approval_status",
-            "approved_by",
-            "approved_at",
-            "rejection_reason",
-            "updated_at",
-        ])
+        with transaction.atomic():
+            current = Product.objects.select_for_update().get(pk=self.pk)
+            was_approved = current.approval_status == self.STATUS_APPROVED
+            self.approval_status = self.STATUS_APPROVED
+            self.approved_by = user
+            # Preserve the event timestamp on an idempotent repeat approval.
+            self.approved_at = current.approved_at if was_approved else timezone.now()
+            self.rejection_reason = ""
+            self.save(update_fields=["approval_status", "approved_by", "approved_at",
+                                     "rejection_reason", "updated_at"])
+            if not was_approved:
+                from modules.notifications.services.push_service import queue_product_review
+                current.approved_at = self.approved_at
+                current.approval_status = self.STATUS_APPROVED
+                queue_product_review(current)
 
     def reject(self, user, reason=""):
-        self.approval_status = self.STATUS_REJECTED
-        self.approved_by = user
-        self.approved_at = timezone.now()
-        self.rejection_reason = reason
-        self.save(update_fields=[
-            "approval_status",
-            "approved_by",
-            "approved_at",
-            "rejection_reason",
-            "updated_at",
-        ])
+        with transaction.atomic():
+            current = Product.objects.select_for_update().get(pk=self.pk)
+            was_rejected = current.approval_status == self.STATUS_REJECTED
+            self.approval_status = self.STATUS_REJECTED
+            self.approved_by = user
+            self.approved_at = current.approved_at if was_rejected else timezone.now()
+            self.rejection_reason = reason
+            self.save(update_fields=["approval_status", "approved_by", "approved_at",
+                                     "rejection_reason", "updated_at"])
+            if not was_rejected:
+                from modules.notifications.services.push_service import queue_product_review
+                current.approved_at = self.approved_at
+                current.approval_status = self.STATUS_REJECTED
+                queue_product_review(current)
 
     def archive(self):
         self.is_archived = True
@@ -238,12 +333,19 @@ class SellerRequest(models.Model):
     STATUS_PENDING = "pending"
     STATUS_APPROVED = "approved"
     STATUS_REJECTED = "rejected"
+    STATUS_NEEDS_REVISION = "needs_revision"
 
     STATUS_CHOICES = (
-        (STATUS_PENDING, "Pending"),
+        (STATUS_PENDING, "Pending Review"),
         (STATUS_APPROVED, "Approved"),
         (STATUS_REJECTED, "Rejected"),
+        (STATUS_NEEDS_REVISION, "Needs Revision"),
     )
+
+    mobile_user = models.ForeignKey(CampusHubUser, on_delete=models.SET_NULL,
+        null=True, blank=True, db_constraint=False, related_name="seller_access_requests")
+    application_data = models.JSONField(default=dict, blank=True)
+    revision_notes = models.TextField(blank=True)
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -272,11 +374,14 @@ class SellerRequest(models.Model):
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
+    is_suspended = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "campushub_seller_request"
+        constraints = [models.UniqueConstraint(fields=["mobile_user"],
+            condition=models.Q(status__in=["pending", "needs_revision", "approved"]), name="one_active_mobile_seller_request")]
         ordering = ("-created_at",)
         permissions = (
             ("can_view_seller_requests", "Can view seller requests"),
@@ -288,22 +393,24 @@ class SellerRequest(models.Model):
 
     def approve(self, user):
         self.status = self.STATUS_APPROVED
+        self.is_suspended = False
         self.reviewed_by = user
         self.reviewed_at = timezone.now()
         self.rejection_reason = ""
-        if self.user_id:
-            self.user.role = "Seller"
-            self.user.save(update_fields=["role"])
+        # Seller privilege belongs to this application; approval never replaces
+        # the account's existing User / administrator role.
         self.save(update_fields=[
             "status",
             "reviewed_by",
             "reviewed_at",
             "rejection_reason",
+            "is_suspended",
             "updated_at",
         ])
 
     def reject(self, user, reason=""):
         self.status = self.STATUS_REJECTED
+        self.is_suspended = False
         self.reviewed_by = user
         self.reviewed_at = timezone.now()
         self.rejection_reason = reason
@@ -312,8 +419,16 @@ class SellerRequest(models.Model):
             "reviewed_by",
             "reviewed_at",
             "rejection_reason",
+            "is_suspended",
             "updated_at",
         ])
+
+    def request_revision(self, user, notes):
+        self.status = self.STATUS_NEEDS_REVISION
+        self.revision_notes = notes
+        self.reviewed_by = user
+        self.reviewed_at = timezone.now()
+        self.save(update_fields=["status", "revision_notes", "reviewed_by", "reviewed_at", "updated_at"])
 
 
 class Facility(models.Model):
@@ -344,7 +459,7 @@ class Facility(models.Model):
     TYPE_CHOICES = (
         (TYPE_COVERED_COURT, "Covered Court"),
         (TYPE_FUNCTION_HALL, "Function Hall"),
-        (TYPE_HOSTEL, "Hostel Accommodation"),
+        (TYPE_HOSTEL, "Hostel / Room Accommodation"),
         (TYPE_TRAINING_KITCHEN, "Training Kitchen / Assessment Center"),
         (TYPE_FOOD_ANALYSIS, "Food Analysis Hub"),
         (TYPE_LEASE_SPACE, "Lease of Space"),
@@ -396,6 +511,21 @@ class Facility(models.Model):
 
     def __str__(self):
         return self.facility_name
+
+    @property
+    def custom_facility_type(self):
+        """Reuse the configuration JSON; this is not a second database field."""
+        workflow = self.workflow_config if isinstance(self.workflow_config, dict) else {}
+        value = workflow.get("custom_facility_type", "")
+        return value.strip() if self.facility_type == self.TYPE_OTHER and isinstance(value, str) else ""
+
+    def get_facility_type_display(self):
+        """One label resolver shared by catalog, booking APIs and reports."""
+        from modules.facilities.services.facility_configuration import FACILITY_TYPE_CONFIG
+
+        return self.custom_facility_type or FACILITY_TYPE_CONFIG.get(self.facility_type, {}).get(
+            "label", dict(self.TYPE_CHOICES).get(self.facility_type, "Other")
+        )
 
     def archive(self):
         self.is_archived = True
@@ -528,7 +658,7 @@ class Booking(models.Model):
 
 
 class FacilityBookingRequest(models.Model):
-    """Mobile request details kept alongside the existing booking record."""
+    """Request details/origin and schedule metadata alongside the existing Booking."""
 
     booking = models.OneToOneField(
         Booking, primary_key=True, on_delete=models.CASCADE,
@@ -645,6 +775,9 @@ class PasswordResetCode(models.Model):
     """Stores hashed 6-digit reset codes sent via Gmail."""
 
     email = models.EmailField(db_index=True)
+    account_ref = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    purpose = models.CharField(max_length=24, default="password", choices=(("password", "Reset Password"), ("username", "Recover Username"), ("email_verification", "Verify Email")))
+    attempts = models.PositiveSmallIntegerField(default=0)
     code_hash = models.CharField(max_length=128)
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
@@ -699,6 +832,19 @@ def generate_order_code() -> str:
 
     suffix = "".join(secrets.choice(string.ascii_uppercase) for _ in range(8))
     return f"2026{suffix}"
+
+
+class BundleComponent(models.Model):
+    """Recipe references only: inventory remains on the component Product/options."""
+    bundle = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="bundle_components")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="used_in_bundles")
+    selections = models.JSONField(default=list, blank=True)
+    required_quantity = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = "campushub_bundle_component"
+        ordering = ("pk",)
+        constraints = [models.CheckConstraint(condition=models.Q(required_quantity__gte=1), name="bundle_component_quantity_positive")]
 
 
 class MarketplaceOrder(models.Model):
@@ -762,6 +908,12 @@ class MarketplaceOrder(models.Model):
     pickup_location = models.CharField(max_length=180, blank=True)
     pickup_scheduled_at = models.DateTimeField(null=True, blank=True)
     picked_up_at = models.DateTimeField(null=True, blank=True)
+    # Blank means a historical order did not record its fulfillment method.
+    fulfillment_method = models.CharField(max_length=20, blank=True, default="",
+        choices=(("pickup", "Pickup"), ("seller_delivery", "Seller Delivery")))
+    delivery_destination = models.CharField(max_length=500, blank=True)
+    delivery_started_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
     cancellation_reason = models.TextField(blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -797,7 +949,9 @@ class MarketplaceOrder(models.Model):
         return self.order_code
 
     def save(self, *args, **kwargs):
-        self.ensure_order_code()
+        # Historical references must survive reads and operational updates unchanged.
+        if self._state.adding or not self.order_code:
+            self.ensure_order_code()
         super().save(*args, **kwargs)
 
     def get_customization_json(self):
@@ -821,3 +975,184 @@ class MarketplaceOrderStatusHistory(models.Model):
     class Meta:
         db_table = "campushub_order_status_history"
         ordering = ("-created_at",)
+
+
+class InventorySKU(models.Model):
+    """A persistent stock identity; quantity stays in the existing Product JSON."""
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="inventory_skus")
+    group_name = models.TextField(blank=True, default="")
+    variant_name = models.TextField(blank=True, default="")
+    prefix = models.CharField(max_length=3, editable=False)
+    variant_code = models.CharField(max_length=4, blank=True, default="", editable=False)
+
+    class Meta:
+        db_table = "campushub_inventory_sku"
+        constraints = [models.UniqueConstraint(fields=["product", "group_name", "variant_name"], name="inventory_sku_product_option_unique")]
+
+    @property
+    def code(self):
+        parts = [self.prefix]
+        if self.variant_code:
+            parts.append(self.variant_code)
+        parts.append(f"{self.pk:03d}")
+        return "-".join(parts)
+
+
+class InventoryStockMovement(models.Model):
+    """Observed changes, never reconstructed opening/restock quantities."""
+    KIND_CHOICES = (("opening", "Initial stock"), ("adjustment", "Stock adjustment"), ("receipt", "Stock received"),
+                    ("reservation", "Reservation"), ("release", "Reservation released"), ("sale", "Sale"))
+    sku = models.ForeignKey(InventorySKU, on_delete=models.CASCADE, related_name="movements")
+    order = models.ForeignKey(MarketplaceOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="inventory_movements")
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    quantity_change = models.IntegerField()
+    balance = models.CharField(max_length=12, choices=(("available", "Available"), ("on_hand", "On Hand")), default="available")
+    available_before = models.PositiveIntegerField(null=True, blank=True)
+    available_after = models.PositiveIntegerField(null=True, blank=True)
+    actor = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "campushub_inventory_stock_movement"
+        ordering = ("-created_at", "-pk")
+        indexes = [models.Index(fields=["sku", "-created_at"], name="inventory_movement_sku_date")]
+
+
+class InventoryFIFOControl(models.Model):
+    """Explicit cutover marker; creating schema alone never activates FIFO."""
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    active = models.BooleanField(default=False)
+    initialized_at = models.DateTimeField(null=True, blank=True)
+
+
+class InventoryBatch(models.Model):
+    sku = models.ForeignKey(InventorySKU, on_delete=models.PROTECT, related_name="batches")
+    receipt_movement = models.ForeignKey(InventoryStockMovement, null=True, blank=True, on_delete=models.SET_NULL, related_name="received_batches")
+    reference = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    origin = models.CharField(max_length=12, choices=(("receipt", "Stock receipt"), ("opening", "Opening Balance — Historical Receipt Unknown"), ("adjustment", "Stock adjustment")))
+    received_at = models.DateTimeField(null=True, blank=True)
+    recorded_at = models.DateTimeField(default=timezone.now, editable=False)
+    initial_quantity = models.PositiveIntegerField()
+    remaining_quantity = models.PositiveIntegerField()
+    transaction_reference = models.CharField(max_length=150, blank=True)
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    actor = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        ordering = ("recorded_at", "pk")
+        constraints = [models.CheckConstraint(condition=models.Q(initial_quantity__gt=0), name="fifo_batch_initial_positive"),
+                       models.CheckConstraint(condition=models.Q(remaining_quantity__lte=models.F("initial_quantity")), name="fifo_batch_balance_bounded")]
+        indexes = [models.Index(fields=["sku", "recorded_at"], name="fifo_batch_sku_date")]
+
+    @property
+    def code(self):
+        return f"BAT-{self.pk:08d}"
+
+
+class InventoryBatchAllocation(models.Model):
+    batch = models.ForeignKey(InventoryBatch, on_delete=models.PROTECT, related_name="allocations")
+    movement = models.ForeignKey(InventoryStockMovement, null=True, blank=True, on_delete=models.SET_NULL, related_name="fifo_allocations")
+    order = models.ForeignKey(MarketplaceOrder, null=True, blank=True, on_delete=models.SET_NULL, related_name="fifo_allocations")
+    order_reference = models.CharField(max_length=30, blank=True)
+    quantity = models.PositiveIntegerField()
+    state = models.CharField(max_length=12, choices=(("reserved", "Reserved"), ("consumed", "Consumed"), ("released", "Released"), ("adjustment", "Stock adjustment")))
+    legacy = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(quantity__gt=0), name="fifo_allocation_positive")]
+        indexes = [models.Index(fields=["order", "state"], name="fifo_order_state")]
+
+
+class InventoryOperation(models.Model):
+    kind = models.CharField(max_length=12)
+    key = models.UUIDField()
+    fingerprint = models.CharField(max_length=64)
+    response = models.JSONField(null=True, blank=True)
+    status_code = models.PositiveSmallIntegerField(default=200)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["kind", "key"], name="fifo_operation_unique")]
+
+
+class BundleRecommendation(models.Model):
+    """A persisted live association; research CSV rules never enter this table."""
+    product_a = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="recommendations_a")
+    product_b = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="recommendations_b")
+    generated_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(default=timezone.now)
+    is_current = models.BooleanField(default=True)
+    metrics = models.JSONField(default=dict)  # Internal evidence, never ordinary UI payloads.
+    sent_at = models.DateTimeField(null=True, blank=True)
+    sent_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="highlighted_bundle_recommendations")
+
+    class Meta:
+        db_table = "campushub_bundle_recommendation"
+        ordering = ("-generated_at", "-pk")
+        constraints = [
+            models.UniqueConstraint(fields=("product_a", "product_b"), name="recommendation_pair_unique"),
+            models.CheckConstraint(condition=models.Q(product_a__lt=models.F("product_b")),
+                                   name="recommendation_pair_ordered"),
+        ]
+
+
+class SellerBundleSuggestion(models.Model):
+    """A mobile seller's saved/dismissed live pair; never inventory or a bundle."""
+    seller = models.ForeignKey(CampusHubUser, db_constraint=False, on_delete=models.CASCADE,
+                               related_name="bundle_suggestion_choices")
+    product_a = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="saved_pair_a")
+    product_b = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="saved_pair_b")
+    state = models.CharField(max_length=10, choices=(("saved", "Saved"), ("dismissed", "Dismissed")))
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "campushub_seller_bundle_suggestion"
+        ordering = ("-updated_at", "-pk")
+        constraints = [
+            models.UniqueConstraint(fields=["seller", "product_a", "product_b"], name="seller_bundle_pair_unique"),
+            models.CheckConstraint(condition=models.Q(product_a__lt=models.F("product_b")), name="seller_bundle_pair_ordered"),
+        ]
+
+
+class PushDeviceRegistration(models.Model):
+    """One FCM installation, bound to an authenticated mobile login session."""
+    user = models.ForeignKey(CampusHubUser, db_constraint=False, on_delete=models.CASCADE,
+                             related_name="push_devices")
+    installation_id = models.CharField(max_length=160, unique=True)
+    session_digest = models.CharField(max_length=64)
+    valid_until = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "campushub_push_device"
+
+
+class ProductApprovalPush(models.Model):
+    """Review delivery outbox; approved_at retains its legacy review-time name."""
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="approval_pushes")
+    device = models.ForeignKey(PushDeviceRegistration, on_delete=models.CASCADE,
+                               related_name="approval_pushes")
+    recipient = models.ForeignKey(CampusHubUser, db_constraint=False, on_delete=models.CASCADE,
+                                  related_name="product_approval_pushes")
+    approved_at = models.DateTimeField()
+    decision = models.CharField(max_length=10, default="approved",
+                               choices=(("approved", "Approved"), ("rejected", "Rejected")))
+    session_digest = models.CharField(max_length=64)
+    status = models.CharField(max_length=12, default="pending", choices=(
+        ("pending", "Pending"), ("sent", "Sent"), ("failed", "Failed"), ("skipped", "Skipped")))
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error_code = models.CharField(max_length=80, blank=True)
+    retry_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "campushub_product_approval_push"
+        constraints = [models.UniqueConstraint(fields=["product", "device", "approved_at", "decision"],
+                                               name="product_review_device_once")]
+        indexes = [models.Index(fields=["status", "retry_at"], name="approval_push_retry")]

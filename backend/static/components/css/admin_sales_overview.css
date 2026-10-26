@@ -1,12 +1,12 @@
 /* ==========================================================================
    CampusHub - Marketplace Overview & Sales Overview Card Styles
-   Clean Flat Minimalist UI Design (Institutional Navy #1A1851 & Gold #FCB316)
+   Clean Flat Minimalist UI Design (Institutional Navy #1A1851 & Gold #FCB315)
    ========================================================================== */
 
 :root {
     --sales-navy: #1a1851;
     --sales-navy-hover: #12103a;
-    --sales-gold: #fcb316;
+    --sales-gold: #fcb315;
     --sales-muted: #64748b;
     --sales-border: #e2e8f0;
     --sales-border-subtle: #f1f5f9;
@@ -48,13 +48,13 @@
     flex-direction: column;
     min-width: 0;
     height: 100%;
-    font-family: 'Montserrat', sans-serif !important;
+    font-family: var(--ch-font-ui, 'Inter', sans-serif) !important;
     box-sizing: border-box;
 }
 
 .sales-overview *,
 .marketplace-overview-panel * {
-    font-family: 'Montserrat', sans-serif !important;
+    font-family: var(--ch-font-ui, 'Inter', sans-serif) !important;
     box-sizing: border-box;
 }
 
@@ -396,7 +396,7 @@
 
 .sales-overview__swatch--orders {
     border-radius: 2px;
-    background: #fcb316;
+    background: #fcb315;
 }
 
 .sales-overview__canvas {
@@ -539,7 +539,7 @@
 }
 
 .marketplace-panel-link:hover {
-    color: #fcb316;
+    color: #fcb315;
     text-decoration: underline;
 }
 

@@ -1,0 +1,59 @@
+<div class="service-form-body">
+  {% include 'facilities/partials/catalog_images.html' %}
+  <section aria-labelledby="serviceBasicHeading"><h3 class="facility-form-section-title" id="serviceBasicHeading">2. Basic Information</h3>
+    <div class="facility-form-grid">
+      <div><label class="form-label" for="facilityName">Service Name *</label><input class="form-control" id="facilityName" maxlength="150" required placeholder="Enter service name"></div>
+      <div><label class="form-label" for="facilityType">Service Category *</label><select class="form-select" id="facilityType" required><option value="">Select category</option>{% for value,label in service_configuration.categories.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div data-service-disclose="category"><label class="form-label" for="serviceCustomCategory">Specify Service Category *</label><input class="form-control" id="serviceCustomCategory" maxlength="120" placeholder="Enter service category"></div>
+      <div><label class="form-label" for="facilityLocation">Location</label><input class="form-control" id="facilityLocation" maxlength="180" placeholder="Enter building or campus location"></div>
+      <div><label class="form-label" for="facilityStatus">Status *</label><select class="form-select" id="facilityStatus" required>{% for value,label in service_configuration.statuses.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="facility-form-field-wide"><label class="form-label" for="facilityDescription">Description</label><textarea class="form-control" id="facilityDescription" rows="3" maxlength="5000" placeholder="Describe the service, its purpose, and what it offers"></textarea></div>
+    </div>
+  </section>
+  <section aria-labelledby="serviceRequestHeading"><h3 class="facility-form-section-title" id="serviceRequestHeading">3. Request Configuration</h3>
+    <div class="facility-form-grid">
+      <div><label class="form-label" for="serviceRequestType">Request Type *</label><select class="form-select" id="serviceRequestType" required><option value="">Select request type</option>{% for value,label in service_configuration.request_types.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div><label class="form-label" for="servicePaymentTiming">Payment Timing</label><select class="form-select" id="servicePaymentTiming">{% for value,label in service_configuration.payment_timing.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <div><label class="form-label" for="serviceOutputType">Result / Output Type</label><select class="form-select" id="serviceOutputType"><option value="">Select result / output type</option>{% for value,label in service_configuration.outputs.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+      <label class="service-check"><input type="checkbox" id="serviceApproval">Requires Approval<small>Requests must be approved before processing.</small></label>
+      <div data-service-disclose="output"><label class="form-label" for="serviceCustomOutput">Specify Result / Output Type *</label><input class="form-control" id="serviceCustomOutput" maxlength="150" placeholder="Enter result or output type"></div>
+      <div data-service-disclose="timing"><label class="form-label" for="serviceCustomTiming">Custom Payment Timing *</label><input class="form-control" id="serviceCustomTiming" maxlength="250" placeholder="Describe when payment is collected"></div>
+    </div>
+  </section>
+  <section aria-labelledby="servicePricingHeading"><h3 class="facility-form-section-title" id="servicePricingHeading">4. Pricing Configuration</h3>
+    <div class="facility-form-grid">
+      <div><label class="form-label" for="facilityPriceType">Pricing Method *</label><select class="form-select" id="facilityPriceType" required><option value="">Select pricing method</option></select></div>
+      <div data-service-disclose="rate"><label class="form-label" for="facilityRate" id="serviceRateLabel">Rate *</label><input class="form-control" id="facilityRate" inputmode="decimal" placeholder="Enter amount" pattern="[0-9,]+(\.[0-9]{1,2})?"></div>
+      <div class="facility-form-field-wide facility-form-grid" data-service-disclose="termRates"><div><label for="serviceRegularRate" class="form-label">Regular Term Rate *</label><input class="form-control" id="serviceRegularRate" type="number" min="0" step="0.01" placeholder="Enter configured rate"></div><div><label for="serviceMidyearRate" class="form-label">Midyear Rate *</label><input class="form-control" id="serviceMidyearRate" type="number" min="0" step="0.01" placeholder="Enter configured rate"></div></div>
+      <div class="facility-form-field-wide" data-service-disclose="customPricing"><label class="form-label" for="serviceCustomPricing">Custom Pricing Description *</label><textarea class="form-control" id="serviceCustomPricing" maxlength="1000" rows="2" placeholder="Describe how this service is priced"></textarea></div>
+      <div class="facility-form-field-wide" data-service-disclose="analyses"><div id="serviceAnalysisRows"></div><button type="button" class="facility-cancel-btn" id="serviceAddAnalysis">+ Add Analysis Type</button></div>
+    </div>
+    <p class="service-form-note" id="serviceExistingPricing" hidden></p>
+  </section>
+  <section aria-labelledby="serviceAvailabilityHeading"><h3 class="facility-form-section-title" id="serviceAvailabilityHeading">5. Service Availability</h3>
+    <label class="service-check"><input type="checkbox" id="serviceAvailabilityEnabled">Configure weekly availability<small id="serviceAvailabilityHelp">Optional normal operating hours.</small></label>
+    <div class="facility-hours" id="serviceWeeklyHours" role="group" aria-labelledby="serviceAvailabilityHeading" hidden></div>
+  </section>
+  <section aria-labelledby="serviceSpecificHeading"><h3 class="facility-form-section-title" id="serviceSpecificHeading">6. Service-Specific Configuration</h3>
+    <p id="serviceCategoryHint" class="service-form-note">Select a category to configure this service.</p>
+    <div class="facility-form-grid" data-service-category="food_analysis" hidden>
+      <label class="service-check"><input type="checkbox" id="serviceSampleAcceptance">Sample Submission Required</label>
+      <div><label class="form-label" for="serviceTurnaround">Typical Turnaround Time</label><input class="form-control" id="serviceTurnaround" maxlength="250" placeholder="Enter turnaround time"></div>
+      <p class="service-form-note facility-form-field-wide">Configure analysis names and fees under Pricing Configuration. Result type is configured under Request Configuration.</p>
+    </div>
+    <div class="facility-form-grid" data-service-category="training_kitchen" hidden>
+      <div><label class="form-label" for="serviceAssessmentName">Assessment / Training Name</label><input class="form-control" id="serviceAssessmentName" maxlength="150" placeholder="Enter assessment or training name"></div>
+      <div><label class="form-label" for="serviceCandidateCapacity">Candidate Capacity</label><input class="form-control" id="serviceCandidateCapacity" type="number" min="1" max="1000000" step="1" placeholder="Enter maximum candidates per session"></div>
+      <div class="facility-form-field-wide"><label class="form-label" for="serviceSchedulingMethod">Scheduling Method *</label><select class="form-select" id="serviceSchedulingMethod" aria-describedby="serviceSchedulingHelp"><option value="">Select scheduling method</option>{% for value,label in service_configuration.scheduling_methods.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select><p class="service-form-note" id="serviceSchedulingHelp">Defines how actual assessment or training schedules are assigned to Service Requests.</p></div>
+      <div class="facility-form-field-wide" data-service-disclose="assessmentDates"><div id="serviceAssessmentDates"></div><button type="button" class="facility-cancel-btn" id="serviceAddAssessmentDate">+ Add Assessment Date</button><p class="service-form-note">Configure available assessment dates. Times are optional; enter both when applicable.</p></div>
+      <p class="service-form-note facility-form-field-wide">Certification / result type is configured under Request Configuration.</p>
+    </div>
+    <div class="facility-form-grid" data-service-category="lease_space" hidden>
+      <fieldset class="facility-form-field-wide"><legend class="form-label">Lease Space Types</legend>{% for value,label in service_configuration.lease_types.items %}<label class="service-check"><input type="checkbox" data-service-lease="{{ value }}">{{ label }}</label>{% endfor %}</fieldset>
+      <div data-service-disclose="leaseOther"><label class="form-label" for="serviceOtherLease">Specify Lease Space Type *</label><input class="form-control" id="serviceOtherLease" maxlength="150" placeholder="Enter lease space type"></div>
+      <div class="facility-form-field-wide" id="serviceLeaseSpaces"></div>
+    </div>
+  </section>
+  <section aria-labelledby="serviceRequirementsHeading"><h3 class="facility-form-section-title" id="serviceRequirementsHeading">7. Requirements</h3><label class="form-label" for="facilityRequirements">Required Documents / Submission Requirements</label><textarea class="form-control" id="facilityRequirements" rows="3" maxlength="5000" placeholder="List the documents, samples, or information clients need to submit."></textarea></section>
+  <section aria-labelledby="serviceTermsHeading"><h3 class="facility-form-section-title" id="serviceTermsHeading">8. Terms &amp; Conditions</h3><label class="form-label" for="facilityTermsConditions">Terms &amp; Conditions</label><textarea class="form-control" id="facilityTermsConditions" maxlength="10000" rows="3" placeholder="Enter terms and conditions for this service"></textarea></section>
+</div>

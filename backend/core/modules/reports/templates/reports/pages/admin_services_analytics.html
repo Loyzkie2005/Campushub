@@ -1,0 +1,206 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Services Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_analytics.css' %}?v={% if super_analytics %}20261026-super-analytics{% else %}20261020-below-header{% endif %}" />
+{% include 'partials/web_typography.html' %}
+</head>
+<body class="services-analytics-page{% if super_analytics %} super-admin-analytics{% endif %}">
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='marketplace_analytics' %}
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Analytics' breadcrumb_section='Reports' breadcrumb_page='Services' analytics_subheader=True %}
+
+            <main class="analytics-content">
+                <div class="container-fluid analytics-shell">
+                    {% if not user.is_superuser and user.role|lower != 'super admin' %}{% include 'reports/partials/analytics_toolbar.html' %}{% endif %}
+
+
+                    <!-- Services KPIs -->
+                    <section class="analytics-kpi-grid" aria-label="Services overview summary">
+                        <article class="analytics-kpi">
+                            <span>Registered Services</span>
+                            <strong>{{ services_tab.kpis.registered_services }}</strong>
+                            <small>{% if super_analytics %}Current registered, non-archived service catalog snapshot{% else %}Active university service centers{% endif %}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Total Requests</span>
+                            <strong>{{ services_tab.kpis.total_requests }}</strong>
+                            <small>Formal requests in {{ analytics_period.label }}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Pending Requests</span>
+                            <strong>{{ services_tab.kpis.pending_requests }}</strong>
+                            <small>Awaiting laboratory / center review</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Completed Requests</span>
+                            <strong>{{ services_tab.kpis.completed_requests }}</strong>
+                            <small>{% if super_analytics %}Submitted in selected dates; currently marked Completed. Payment/results release is not inferred.{% else %}Accomplished &amp; results released{% endif %}</small>
+                        </article>
+                    </section>
+
+                    <!-- Registered Institutional Services Overview -->
+                    <section class="analytics-panel">
+                        <header class="analytics-panel-header">
+                            <div>
+                                <h2>Registered Campus Services &amp; Facilities</h2>
+                                <p>University enterprise services operating via formal departmental procedures</p>
+                            </div>
+                            <a href="{% url 'admin_services_page' %}" class="analytics-panel-link">View services catalog &rarr;</a>
+                        </header>
+                        <div class="table-responsive">
+                            <table class="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Service Center</th>
+                                        <th>Service Category</th>
+                                        <th>Rate / Fee Structure</th>
+                                        <th>Location</th>
+                                        <th>Status</th>
+                                        <th>Engagement Workflow</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for svc in services_tab.services %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ svc.name }}</strong>
+                                            <small class="d-block text-muted">{{ svc.description|truncatewords:12 }}</small>
+                                        </td>
+                                        <td>{{ svc.category }}</td>
+                                        <td><strong>{{ svc.rate }}</strong></td>
+                                        <td>{{ svc.location }}</td>
+                                        <td><span class="badge-status-neutral">{{ svc.status_display }}</span></td>
+                                        <td>
+                                            {% if svc.is_food_analysis %}
+                                            <span class="analytics-workflow-tag">ISO DPM-USTP-Oro-BEU-004</span>
+                                            {% else %}
+                                            <span class="analytics-workflow-tag">{{ svc.request_type }}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6"><div class="analytics-table-empty">No campus services registered in the database.</div></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- Service Request Activity or Honest Empty State -->
+                    <section class="analytics-panel">
+                        <header class="analytics-panel-header">
+                            <div>
+                                <h2>Service Request Activity Breakdown</h2>
+                                <p>Requests logged for the selected period</p>
+                            </div>
+                            <a href="{% url 'admin_service_requests_page' %}" class="analytics-panel-link">Manage service requests &rarr;</a>
+                        </header>
+                        {% if services_tab.has_activity %}
+                        <div class="table-responsive">
+                            <table class="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Service</th>
+                                        <th class="number-cell">Total</th>
+                                        <th class="number-cell">Pending</th>
+                                        <th class="number-cell">Approved</th>
+                                        <th class="number-cell">Completed</th>
+                                        <th class="number-cell">Closed / Rejected</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in services_tab.breakdown %}
+                                    <tr>
+                                        <td><strong>{{ row.facility__facility_name }}</strong></td>
+                                        <td class="number-cell">{{ row.total }}</td>
+                                        <td class="number-cell">{{ row.pending }}</td>
+                                        <td class="number-cell">{{ row.approved }}</td>
+                                        <td class="number-cell">{{ row.completed }}</td>
+                                        <td class="number-cell">{{ row.closed }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="analytics-empty-state">
+                            <strong>No digital service requests submitted in this period.</strong>
+                            <span>CampusHub Services (including the Food Analysis Hub and BPP NC II Assessment Center) currently operate via verified university receiving checklists and cashier job orders. No decorative or artificial graphs are displayed.</span>
+                        </div>
+                        {% endif %}
+                    </section>
+
+                    <!-- Verified Institutional ISO Procedure Card -->
+                    <section class="analytics-panel">
+                        <header class="analytics-panel-header">
+                            <div>
+                                <h2>Laboratory Food Analysis Standard Procedure</h2>
+                                <p>Standard Operating Procedure &middot; Focal Person: {{ services_tab.iso_info.focal_person }} ({{ services_tab.iso_info.office }})</p>
+                            </div>
+                            <span class="analytics-iso-badge">{{ services_tab.iso_info.document_code }}</span>
+                        </header>
+                        <div class="analytics-iso-steps-grid">
+                            <div class="analytics-iso-step">
+                                <span class="step-num">01</span>
+                                <strong>Client Inquiry</strong>
+                                <small>Proximate chemical analysis (protein, carbs, fat, fiber, moisture, pH).</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">02</span>
+                                <strong>Sample Receiving</strong>
+                                <small>Inspection for sealing, quantity, temperature compliance, no leakage.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">03</span>
+                                <strong>Job Order Issuance</strong>
+                                <small>Job Order Request Form issued ({{ services_tab.iso_info.job_order_form }}).</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">04</span>
+                                <strong>Resource &amp; Calibration</strong>
+                                <small>Reagents verification and equipment calibration with Lab Technician.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">05</span>
+                                <strong>Acceptance / Notice</strong>
+                                <small>Service logbook entry with deadline or formal ISO disapproval notice.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">06</span>
+                                <strong>Laboratory Analysis</strong>
+                                <small>Standard chemical &amp; nutritional testing execution.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">07</span>
+                                <strong>Billing &amp; Cashier</strong>
+                                <small>Statement of Account ({{ services_tab.iso_info.soa_form }}) settled at Cashier for Official Receipt.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">08</span>
+                                <strong>Certificate of Analysis</strong>
+                                <small>Official release of certified laboratory test results upon OR presentation.</small>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    {% include 'partials/admin_logout_modal.html' %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_analytics.js' %}?v={% if super_analytics %}20261026-super-analytics{% else %}20261022-inter{% endif %}"></script>
+{% if super_analytics %}<script src="{% static 'components/js/admin_super_analytics.js' %}?v=20261026-super-analytics"></script>{% endif %}
+</body>
+</html>

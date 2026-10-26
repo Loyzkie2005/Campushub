@@ -1,0 +1,29 @@
+<div class="dash-card dash-card-low-stock{% if not global_dashboard %} h-100{% endif %}" data-low-stock-card aria-labelledby="lowStockTitle">
+    <div class="dash-card-header">
+        <div><h3 id="lowStockTitle">Inventory Alerts</h3><p>Products requiring stock attention.</p></div>
+        <a href="{{ dashboard_low_stock.view_all_url }}" class="dash-view-all-link" data-low-stock-view-all>View All <span aria-hidden="true">&rarr;</span></a>
+    </div>
+    <div class="table-responsive low-stock-table-wrap" tabindex="0" role="region" aria-labelledby="lowStockTitle" data-low-stock-content{% if dashboard_low_stock.state == 'error' %} hidden{% endif %}>
+        <table class="low-stock-table"{% if global_dashboard and not dashboard_low_stock.products %} hidden{% endif %}>
+            <caption class="visually-hidden">Up to five products or variants requiring attention, out of stock first.</caption>
+            <thead><tr><th scope="col">Product</th><th scope="col" class="text-end">Available</th><th scope="col" class="text-end">Status</th></tr></thead>
+            <tbody data-low-stock-rows>
+                {% for item in dashboard_low_stock.products %}
+                <tr>
+                    <th scope="row">
+                        <a href="{{ item.url }}" class="low-stock-product-cell" title="View inventory for {{ item.product_name }}{% if item.variant_name %} ({{ item.variant_name }}){% endif %}">
+                            <span class="inventory-alert-thumb" aria-hidden="true">{% if item.image_url %}<img data-product-image-url="{{ item.image_url }}" alt="" width="36" height="36" loading="lazy" decoding="async" hidden>{% endif %}</span>
+                            <span><strong>{{ item.product_name }}</strong>{% if item.variant_key %}<small>{{ item.group_name|default:'Option' }}: {{ item.variant_name|default:'Unnamed option' }}</small>{% endif %}</span>
+                        </a>
+                    </th>
+                    <td class="text-end low-stock-qty">{{ item.available }}</td>
+                    <td class="text-end"><span class="inventory-alert-status">{% if item.status == 'out_of_stock' %}Out of Stock{% else %}Low Stock{% endif %}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="low-stock-empty" data-low-stock-empty{% if dashboard_low_stock.products %} hidden{% endif %}>{% if global_dashboard %}{% include 'dashboard/partials/empty_state.html' with title='No Inventory Alerts' description='Products requiring stock attention will appear here.' icon='bag' %}{% else %}<strong>No Inventory Alerts</strong><p>Products with low or depleted stock will appear here.</p>{% endif %}</div>
+    </div>
+    <div class="low-stock-loading" data-low-stock-loading role="status"><span class="visually-hidden">Loading inventory alerts.</span><span></span><span></span><span></span></div>
+    <div class="low-stock-error" data-low-stock-error role="alert"{% if dashboard_low_stock.state != 'error' %} hidden{% endif %}><p>Unable to load inventory alerts.</p><button type="button" id="lowStockRetry">Retry</button></div>
+</div>

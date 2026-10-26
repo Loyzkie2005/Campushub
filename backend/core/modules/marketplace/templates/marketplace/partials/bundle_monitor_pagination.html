@@ -1,0 +1,5 @@
+{% if current.paginator.num_pages > 1 %}<nav class="bm-pagination" aria-label="Result pages">
+{% if current.has_previous %}<a class="bm-button" href="?{{ query_args }}&amp;page={{ current.previous_page_number }}">Previous</a>{% endif %}
+<span>Page {{ current.number }} of {{ current.paginator.num_pages }} · {{ current.paginator.count }} results</span>
+{% if current.has_next %}<a class="bm-button" href="?{{ query_args }}&amp;page={{ current.next_page_number }}">Next</a>{% endif %}
+</nav>{% endif %}

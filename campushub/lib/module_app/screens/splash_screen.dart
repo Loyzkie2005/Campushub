@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../routes/app_routes.dart';
 
@@ -15,7 +15,7 @@ class CampusHubIntroScreen extends StatefulWidget {
   final bool autoNavigate;
 
   static const Color primaryNavy = Color(0xFF1A1851);
-  static const Color campusGold  = Color(0xFFFCB316);
+  static const Color campusGold = Color(0xFFFCB315);
 
   @override
   State<CampusHubIntroScreen> createState() => _CampusHubIntroScreenState();
@@ -42,12 +42,10 @@ class _CampusHubIntroScreenState extends State<CampusHubIntroScreen>
       duration: const Duration(milliseconds: 1200),
     );
 
-    _zoomIn = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutCubic,
-      ),
-    );
+    _zoomIn = Tween<double>(
+      begin: 0.4,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
     _fadeIn = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -116,7 +114,7 @@ class _CampusHubIntroScreenState extends State<CampusHubIntroScreen>
                       RichText(
                         text: const TextSpan(
                           style: TextStyle(
-                            fontFamily: 'Montserrat',
+                            fontFamily: 'Poppins',
                             fontSize: 34,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.5,
@@ -125,7 +123,8 @@ class _CampusHubIntroScreenState extends State<CampusHubIntroScreen>
                             TextSpan(
                               text: 'Campus',
                               style: TextStyle(
-                                  color: CampusHubIntroScreen.campusGold),
+                                color: CampusHubIntroScreen.campusGold,
+                              ),
                             ),
                             TextSpan(
                               text: 'Hub',

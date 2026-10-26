@@ -1,0 +1,324 @@
+{# UI-only fixtures. Marketplace values exported from isolated tests; facility previews are explicitly requested examples, never saved. #}
+<script type="application/json" id="salesSampleData">
+{
+  "metrics": [
+    {
+      "key": "sales",
+      "label": "Marketplace Sales",
+      "value": "3,900.00",
+      "currency": true,
+      "change": "+333.3%",
+      "comparison_text": "↑ 333.3% vs previous 7 days",
+      "percentage_change": 333.33,
+      "semantic_type": "positive"
+    },
+    {
+      "key": "orders",
+      "label": "Completed Orders",
+      "value": "18",
+      "currency": false,
+      "change": "+100.0%",
+      "comparison_text": "↑ 100% vs previous 7 days",
+      "percentage_change": 100,
+      "semantic_type": "positive"
+    },
+    {
+      "key": "average",
+      "label": "Average Order Value",
+      "value": "216.67",
+      "currency": true,
+      "change": "+116.7%",
+      "comparison_text": "↑ 116.7% vs previous 7 days",
+      "percentage_change": 116.67,
+      "semantic_type": "positive"
+    }
+  ],
+  "top_products": [
+    {
+      "rank": 1,
+      "product_name": "CampusHub Hoodie",
+      "category": "Apparel & Uniforms",
+      "units_sold": 15,
+      "sales": "600.00"
+    },
+    {
+      "rank": 2,
+      "product_name": "Iced Spanish Latte",
+      "category": "Food & Beverages",
+      "units_sold": 12,
+      "sales": "600.00"
+    },
+    {
+      "rank": 3,
+      "product_name": "Spiral Notebook",
+      "category": "School Supplies",
+      "units_sold": 9,
+      "sales": "600.00"
+    },
+    {
+      "rank": 4,
+      "product_name": "Canvas Tote Bag",
+      "category": "Accessories",
+      "units_sold": 6,
+      "sales": "625.00"
+    },
+    {
+      "rank": 5,
+      "product_name": "USB Flash Drive",
+      "category": "Electronics",
+      "units_sold": 3,
+      "sales": "750.00"
+    }
+  ],
+  "product_categories": {
+    "total": 18,
+    "is_snapshot": false,
+    "kind": "completed_paid_category_sales",
+    "share_basis": "completed_paid_sales_amount",
+    "total_sales": "3,900.00",
+    "categories": [
+      {
+        "name": "Electronics",
+        "count": 3,
+        "units_sold": 3,
+        "sales": "750.00",
+        "percentage": 19.2,
+        "chart": {
+          "color": "#1A1851",
+          "share": 19.230769,
+          "offset": 0,
+          "label_x": 169.99,
+          "label_y": 47.577,
+          "label_color": "#FFFFFF"
+        }
+      },
+      {
+        "name": "Sports",
+        "count": 3,
+        "units_sold": 3,
+        "sales": "725.00",
+        "percentage": 18.6,
+        "chart": {
+          "color": "#FCB315",
+          "share": 18.589744,
+          "offset": -19.230769,
+          "label_x": 205.85,
+          "label_y": 139.335,
+          "label_color": "#1A1851"
+        }
+      },
+      {
+        "name": "Accessories",
+        "count": 3,
+        "units_sold": 6,
+        "sales": "625.00",
+        "percentage": 16,
+        "chart": {
+          "color": "#69717E",
+          "share": 16.025641,
+          "offset": -37.820513,
+          "label_x": 142.776,
+          "label_y": 205.001,
+          "label_color": "#FFFFFF"
+        }
+      },
+      {
+        "name": "Apparel & Uniforms",
+        "count": 3,
+        "units_sold": 15,
+        "sales": "600.00",
+        "percentage": 15.4,
+        "chart": {
+          "color": "#939AA5",
+          "share": 15.384615,
+          "offset": -53.846154,
+          "label_x": 61.645,
+          "label_y": 185.869,
+          "label_color": "#FFFFFF"
+        }
+      },
+      {
+        "name": "Food & Beverages",
+        "count": 3,
+        "units_sold": 12,
+        "sales": "600.00",
+        "percentage": 15.4,
+        "chart": {
+          "color": "#BDC2CB",
+          "share": 15.384615,
+          "offset": -69.230769,
+          "label_x": 32.642,
+          "label_y": 109.393,
+          "label_color": "#1A1851"
+        }
+      },
+      {
+        "name": "School Supplies",
+        "count": 3,
+        "units_sold": 9,
+        "sales": "600.00",
+        "percentage": 15.4,
+        "chart": {
+          "color": "#E0E3E8",
+          "share": 15.384615,
+          "offset": -84.615385,
+          "label_x": 79.104,
+          "label_y": 42.08,
+          "label_color": "#1A1851"
+        }
+      }
+    ]
+  },
+  "facility_samples": {
+    "most_booked": [
+      {"rank": 1, "name": "Covered Court", "bookings": 24, "image_url": "/static/assets/img/samples/facility-court.svg"},
+      {"rank": 2, "name": "Function Hall", "bookings": 18, "image_url": "/static/assets/img/samples/facility-hall.svg"},
+      {"rank": 3, "name": "Hostel", "bookings": 12, "image_url": "/static/assets/img/samples/facility-hostel.svg"},
+      {"rank": 4, "name": "Training / Assessment Center", "bookings": 8, "image_url": "/static/assets/img/samples/facility-training.svg"}
+    ],
+    "booking_overview": {
+      "start_date": "2026-09-29", "end_date": "2026-10-05", "previous_total": 35,
+      "daily": [
+        {"pending": 1, "approved": 2, "completed": 1, "rejected_cancelled": 0},
+        {"pending": 1, "approved": 3, "completed": 2, "rejected_cancelled": 1},
+        {"pending": 0, "approved": 2, "completed": 1, "rejected_cancelled": 0},
+        {"pending": 1, "approved": 0, "completed": 0, "rejected_cancelled": 0},
+        {"pending": 1, "approved": 4, "completed": 3, "rejected_cancelled": 1},
+        {"pending": 1, "approved": 3, "completed": 3, "rejected_cancelled": 1},
+        {"pending": 1, "approved": 4, "completed": 4, "rejected_cancelled": 1}
+      ]
+    },
+    "revenue": {
+      "total": "48750.00", "previous_total": "42763.16", "transactions": 17,
+      "start_date": "2026-09-29", "end_date": "2026-10-05",
+      "comparison": {"comparison_text": "↑ 14% vs previous 7 days", "percentage_change": 14},
+      "chart": {
+        "labels": ["Sep 29", "Sep 30", "Oct 01", "Oct 02", "Oct 03", "Oct 04", "Oct 05"],
+        "dates": ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"],
+        "tooltip_labels": ["Sep 29, 2026", "Sep 30, 2026", "Oct 01, 2026", "Oct 02, 2026", "Oct 03, 2026", "Oct 04, 2026", "Oct 05, 2026"],
+        "values": [5500, 7000, 6250, 0, 12500, 9250, 8250],
+        "transactions": [2, 3, 2, 0, 3, 4, 3]
+      }
+    },
+    "upcoming": [
+      {"facility": "Covered Court", "days_ahead": 5, "time": "1:00 PM – 5:00 PM"},
+      {"facility": "Function Hall", "days_ahead": 8, "time": "8:00 AM – 12:00 PM"},
+      {"facility": "Hostel", "days_ahead": 11, "nights": 2},
+      {"facility": "Training / Assessment Center", "days_ahead": 14, "time": "9:00 AM – 12:00 PM"}
+    ]
+  },
+  "trends": {
+    "daily": {
+      "grouping": "daily",
+      "labels": [
+        "Sep 29",
+        "Sep 30",
+        "Oct 01",
+        "Oct 02",
+        "Oct 03",
+        "Oct 04",
+        "Oct 05"
+      ],
+      "tooltip_labels": [
+        "Sep 29, 2026",
+        "Sep 30, 2026",
+        "Oct 01, 2026",
+        "Oct 02, 2026",
+        "Oct 03, 2026",
+        "Oct 04, 2026",
+        "Oct 05, 2026"
+      ],
+      "sales": [
+        350,
+        525,
+        0,
+        800,
+        450,
+        1125,
+        650
+      ],
+      "orders": [
+        2,
+        3,
+        0,
+        4,
+        2,
+        5,
+        2
+      ],
+      "values": [
+        350,
+        525,
+        0,
+        800,
+        450,
+        1125,
+        650
+      ],
+      "order_values": [
+        2,
+        3,
+        0,
+        4,
+        2,
+        5,
+        2
+      ]
+    },
+    "weekly": {
+      "grouping": "weekly",
+      "labels": [
+        "Sep 28-Oct 04",
+        "Oct 05-11"
+      ],
+      "tooltip_labels": [
+        "Week of Sep 28, 2026",
+        "Week of Oct 05, 2026"
+      ],
+      "sales": [
+        3250,
+        650
+      ],
+      "orders": [
+        16,
+        2
+      ],
+      "values": [
+        3250,
+        650
+      ],
+      "order_values": [
+        16,
+        2
+      ]
+    },
+    "monthly": {
+      "grouping": "monthly",
+      "labels": [
+        "Sep 2026",
+        "Oct 2026"
+      ],
+      "tooltip_labels": [
+        "September 2026",
+        "October 2026"
+      ],
+      "sales": [
+        875,
+        3025
+      ],
+      "orders": [
+        5,
+        13
+      ],
+      "values": [
+        875,
+        3025
+      ],
+      "order_values": [
+        5,
+        13
+      ]
+    }
+  }
+}
+</script>

@@ -1,0 +1,86 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusHub | Service Requests</title>
+    <link rel="icon" href="{% static 'assets/img/icon.png' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter">
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
+    <link rel="stylesheet" href="{% static 'components/css/admin_booking.css' %}?v=20260728-merged">
+    <link rel="stylesheet" href="{% static 'facilities/css/admin_services.css' %}?v=20261017-service-workflows">
+{% include 'partials/web_typography.html' %}
+</head>
+<body class="service-requests-page">
+<div class="sidebar-section">
+    {% include 'partials/admin_sidebar.html' with active_page='service_requests' %}
+    <div class="main-wrapper" id="mainWrapper">
+        {% include 'partials/admin_header.html' with page_title='Service Requests' breadcrumb_section='Services' breadcrumb_page='Service Requests' %}
+        <main class="dashboard-content p-4 service-requests">
+            <section class="bk-bookings-list-card">
+                <div class="bk-bookings-list-header">
+                    <div><h2>Service Requests</h2><p>Review submitted laboratory, assessment and leasing requests.</p>{% if selected_service %}<p>Service: {{ selected_service.facility_name }}</p>{% endif %}</div>
+                    <form method="get" class="bk-booking-filters">
+                        {% if service_filter %}<input type="hidden" name="service" value="{{ service_filter }}">{% endif %}
+                        <div class="facility-filter-field"><label for="serviceRequestSearch">Search</label><label class="bk-booking-search"><input id="serviceRequestSearch" type="search" name="q" value="{{ q }}" placeholder="Search ID, requester or service..." aria-label="Search service requests"></label></div>
+                        <div class="facility-filter-field"><label for="serviceRequestStatus">Request Status</label><select id="serviceRequestStatus" name="status" aria-label="Filter by request status">
+                            <option value="">All Statuses</option>
+                            {% for value, label in status_choices %}<option value="{{ value }}"{% if status_filter == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                        </select></div>
+                        <button class="service-request-action" type="submit">Apply</button>
+                        <a href="{% url 'admin_service_requests_page' %}" class="service-request-action">Clear</a>
+                    </form>
+                </div>
+                <div class="bk-bookings-table-wrap">
+                    <table class="bk-bookings-table">
+                        <thead><tr><th>Request ID</th><th>Requester</th><th>Service</th><th>Request Type</th><th>Date Submitted</th><th>Status</th><th>Assigned Office / Personnel</th><th>Actions</th></tr></thead>
+                        <tbody>
+                        {% for item in request_page %}
+                            <tr>
+                                <td>{{ item.id }}</td><td>{{ item.requester_display|default:'—' }}</td>
+                                <td>{{ item.facility.facility_name }}</td><td>{{ item.request_type_display }}</td>
+                                <td>{{ item.created_at|date:'M d, Y · g:i A' }}</td><td>{{ item.get_status_display }}</td>
+                                <td>—</td>
+                                <td><button type="button" class="service-request-action" data-request-dialog="serviceRequest{{ forloop.counter }}" aria-label="View request {{ item.id }}">View</button></td>
+                            </tr>
+                        {% empty %}<tr><td colspan="8" class="bk-table-empty">No service requests found.</td></tr>{% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <nav class="service-request-pagination" aria-label="Service request pages">
+                {% if request_page.has_previous %}<a href="?q={{ q|urlencode }}&amp;status={{ status_filter|urlencode }}&amp;service={{ service_filter|urlencode }}&amp;page={{ request_page.previous_page_number }}">Previous</a>{% endif %}
+                <span>Page {{ request_page.number }} of {{ request_page.paginator.num_pages }}</span>
+                {% if request_page.has_next %}<a href="?q={{ q|urlencode }}&amp;status={{ status_filter|urlencode }}&amp;service={{ service_filter|urlencode }}&amp;page={{ request_page.next_page_number }}">Next</a>{% endif %}
+            </nav>
+            {% for item in request_page %}
+            <dialog class="service-request-details" id="serviceRequest{{ forloop.counter }}" aria-labelledby="serviceRequestTitle{{ forloop.counter }}">
+                <h2 id="serviceRequestTitle{{ forloop.counter }}">Service Request Details</h2>
+                <dl>
+                    <dt>Request ID</dt><dd>{{ item.id }}</dd>
+                    <dt>Requester</dt><dd>{{ item.requester_display|default:'—' }}</dd>
+                    <dt>Service</dt><dd>{{ item.facility.facility_name }}</dd>
+                    <dt>Request Type</dt><dd>{{ item.request_type_display }}</dd>
+                    <dt>Date Submitted</dt><dd>{{ item.created_at|date:'M d, Y · g:i A' }}</dd>
+                    <dt>Status</dt><dd>{{ item.get_status_display }}</dd>
+                    <dt>Request Details</dt><dd>{{ item.purpose_display|default:'—' }}</dd>
+                    <dt>Assigned Office / Personnel</dt><dd>—</dd>
+                </dl>
+                <form method="dialog"><button class="service-request-action">Close</button></form>
+            </dialog>
+            {% endfor %}
+        </main>
+    </div>
+</div>
+{% include 'partials/admin_logout_modal.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'components/js/admin_notifications.js' %}?v=20260523-3"></script>
+<script>
+document.querySelectorAll('[data-request-dialog]').forEach(button => {
+    button.addEventListener('click', () => document.getElementById(button.dataset.requestDialog).showModal());
+});
+</script>
+</body>
+</html>

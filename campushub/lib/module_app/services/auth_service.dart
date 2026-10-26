@@ -18,6 +18,13 @@ class AuthUser {
     required this.institutionalId,
     required this.contactNumber,
     required this.profileCompleted,
+    this.programId,
+    this.majorId,
+    this.program = '',
+    this.major = '',
+    this.emailVerified = false,
+    this.yearSection = '',
+    this.profilePhotoUrl = '',
   });
 
   final int id;
@@ -32,6 +39,19 @@ class AuthUser {
   final String institutionalId;
   final String contactNumber;
   final bool profileCompleted;
+  final bool emailVerified;
+  final int? programId;
+  final int? majorId;
+  final String program;
+  final String major;
+  final String yearSection;
+  final String profilePhotoUrl;
+
+  String get resolvedProfilePhotoUrl => profilePhotoUrl.isEmpty
+      ? ''
+      : Uri.parse(
+          ApiConfig.effectiveBaseUrl,
+        ).resolve(profilePhotoUrl).toString();
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
     final rawId = json['id'];
@@ -49,6 +69,13 @@ class AuthUser {
       institutionalId: json['institutional_id'] as String? ?? '',
       contactNumber: json['contact_number'] as String? ?? '',
       profileCompleted: json['profile_completed'] == true,
+      emailVerified: json['email_verified'] == true,
+      programId: json['program_id'] as int?,
+      majorId: json['major_id'] as int?,
+      program: json['program'] as String? ?? '',
+      major: json['major'] as String? ?? '',
+      yearSection: json['year_section'] as String? ?? '',
+      profilePhotoUrl: json['profile_photo_url'] as String? ?? '',
     );
   }
 }
@@ -60,6 +87,9 @@ class AuthResult {
     this.chatToken,
     this.message,
     this.emailSent = false,
+    this.maskedEmail,
+    this.recoveryGrant,
+    this.recoveredUsername,
   });
 
   final bool success;
@@ -68,6 +98,9 @@ class AuthResult {
   final String? message;
 
   final bool emailSent;
+  final String? maskedEmail;
+  final String? recoveryGrant;
+  final String? recoveredUsername;
 }
 
 class AuthService {
@@ -108,6 +141,9 @@ class AuthService {
     required String userType,
     required String institutionalId,
     required String contactNumber,
+    int? programId,
+    int? majorId,
+    String? yearSection,
   }) async {
     return _post(
       'profile/complete/',
@@ -116,45 +152,77 @@ class AuthService {
         'student_id': userType == 'student' ? institutionalId.trim() : '',
         'institutional_id': userType == 'faculty' ? institutionalId.trim() : '',
         'contact_number': contactNumber.trim(),
+        'program_id': programId,
+        'major_id': majorId,
+        if (yearSection != null) 'year_section': yearSection.trim(),
       },
       expectUser: true,
       authorizationToken: token,
     );
   }
 
-  static Future<AuthResult> sendPasswordResetCode({
-    required String email,
-  }) async {
-    return _post('password-reset/', {'email': email.trim().toLowerCase()});
+  static Future<Map<String, dynamic>> academicOptions() async {
+    for (final baseUrl in _baseUrls) {
+      try {
+        final response = await http
+            .get(Uri.parse('$baseUrl/academic-options/'))
+            .timeout(const Duration(seconds: 5));
+        if (response.statusCode != 200) {
+          throw Exception('Unable to load programs.');
+        }
+        final result = _decodeJson(response.body);
+        if (result['programs'] is! List || result['majors'] is! List) {
+          throw Exception('Invalid academic options.');
+        }
+        ApiConfig.recordWorkingBaseUrl(
+          baseUrl.replaceFirst(RegExp(r'/api/mobile/?$'), ''),
+        );
+        return result;
+      } catch (_) {
+        // Try the configured server candidates, just like authentication.
+      }
+    }
+    throw Exception(
+      'Unable to load programs. Check your connection and retry.',
+    );
   }
 
-  static Future<AuthResult> verifyPasswordResetCode({
+  static Future<AuthResult> sendRecoveryCode({
+    required String email,
+    required String purpose,
+    String? token,
+  }) => _post('password-reset/', {
+    'email': email.trim().toLowerCase(),
+    'purpose': purpose,
+  }, authorizationToken: token);
+
+  static Future<AuthResult> verifyRecoveryCode({
     required String email,
     required String code,
-  }) async {
-    return _post('password-reset/verify/', {
-      'email': email.trim().toLowerCase(),
-      'code': code.trim(),
-    });
-  }
+    required String purpose,
+    String? token,
+  }) => _post(
+    'password-reset/verify/',
+    {'email': email.trim().toLowerCase(), 'code': code, 'purpose': purpose},
+    authorizationToken: token,
+    expectUser: token != null,
+  );
 
   static Future<AuthResult> confirmPasswordReset({
     required String email,
-    required String code,
+    required String recoveryGrant,
     required String newPassword,
     required String confirmPassword,
-  }) async {
-    return _post('password-reset/confirm/', {
-      'email': email.trim().toLowerCase(),
-      'code': code.trim(),
-      'new_password': newPassword,
-      'confirm_password': confirmPassword,
-    });
-  }
+  }) => _post('password-reset/confirm/', {
+    'email': email.trim().toLowerCase(),
+    'recovery_grant': recoveryGrant,
+    'new_password': newPassword,
+    'confirm_password': confirmPassword,
+  });
 
   static Future<AuthResult> _post(
     String path,
-    Map<String, String> body, {
+    Map<String, dynamic> body, {
     bool expectUser = false,
     String? authorizationToken,
   }) async {
@@ -173,7 +241,9 @@ class AuthService {
               },
               body: jsonEncode(body),
             )
-            .timeout(const Duration(seconds: 5));
+            .timeout(
+              Duration(seconds: path.startsWith('password-reset') ? 20 : 5),
+            );
 
         final decoded = _decodeJson(response.body);
 
@@ -191,6 +261,9 @@ class AuthService {
             chatToken: decoded['chat_token'] as String?,
             message: decoded['message'] as String?,
             emailSent: decoded['email_sent'] == true,
+            maskedEmail: decoded['masked_email'] as String?,
+            recoveryGrant: decoded['recovery_grant'] as String?,
+            recoveredUsername: decoded['username'] as String?,
           );
         }
 
@@ -209,11 +282,12 @@ class AuthService {
 
     return AuthResult(
       success: false,
-      message:
-          lastError ??
-          'Cannot reach server. Use the same Wi-Fi or hotspot. '
-              'Django: runserver 0.0.0.0:8000\n'
-              'Set IP in lib/module_app/config/api_config.dart → ${ApiConfig.hostIp}',
+      message: ApiConfig.usesPublicServer
+          ? 'Cannot reach CampusHub online. Check your internet connection and retry.'
+          : lastError ??
+                'Cannot reach server. Use the same Wi-Fi or hotspot. '
+                    'Django: runserver 0.0.0.0:8000\n'
+                    'Set IP in lib/module_app/config/api_config.dart → ${ApiConfig.hostIp}',
     );
   }
 

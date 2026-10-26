@@ -1,0 +1,78 @@
+{% load tz %}
+{% if fifo_ready and inventory_section != 'overview' %}
+<div class="offcanvas offcanvas-end inventory-details-drawer" tabindex="-1" id="inventoryDetailsDrawer" aria-labelledby="inventoryDetailsTitle">
+    <div class="offcanvas-header">
+        <h2 id="inventoryDetailsTitle">Inventory Details</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close inventory details"></button>
+    </div>
+    <div class="offcanvas-body" id="inventoryDetailsBody"></div>
+</div>
+{% if inventory_section == 'fifo' %}
+{% for batch in fifo_batches %}
+<template id="inventoryBatchDetail{{ batch.pk }}">
+    <section class="inventory-drawer-section inventory-batch-section" aria-label="Batch Information">
+    <h3>Batch Information</h3>
+    <dl class="inventory-drawer-fields">
+        <div><dt>Batch Reference</dt><dd>{{ batch.code }}</dd></div>
+        <div><dt>Batch Type</dt><dd>{% if batch.origin == 'opening' %}Starting Stock{% else %}{{ batch.get_origin_display }}{% endif %}</dd></div>
+        <div><dt>Product / Variant</dt><dd>{{ batch.sku.product.name }}{% if batch.sku.variant_name %}<small>{{ batch.sku.group_name }}: {{ batch.sku.variant_name }}</small>{% endif %}</dd></div>
+        <div><dt>Seller / Owner</dt><dd>{{ batch.owner_label }}</dd></div>
+        <div><dt>Receiving Transaction Reference</dt><dd>{% if batch.origin == 'receipt' %}{{ batch.transaction_reference|default:'Not recorded' }}{% else %}Not recorded{% endif %}</dd></div>
+        <div><dt>Date Received</dt><dd>{% if batch.received_at %}{% timezone 'Asia/Manila' %}<time datetime="{{ batch.received_at|date:'c' }}">{{ batch.received_at|date:'M d, Y g:i A' }}</time>{% endtimezone %}{% else %}Not recorded{% endif %}</dd></div>
+        <div><dt>Recorded</dt><dd>{% timezone 'Asia/Manila' %}<time datetime="{{ batch.recorded_at|date:'c' }}">{{ batch.recorded_at|date:'M d, Y g:i A' }}</time>{% endtimezone %}</dd></div>
+        <div><dt>Recorded By</dt><dd>{{ batch.actor|default:'—' }}</dd></div>
+    </dl>
+    </section>
+    <section class="inventory-drawer-section inventory-batch-section" aria-label="Stock Balance">
+    <h3>Stock Balance</h3>
+    <dl class="inventory-drawer-fields">
+        <div><dt>Batch Quantity</dt><dd>{{ batch.initial_quantity }}</dd></div>
+        <div><dt>Available Quantity</dt><dd>{{ batch.remaining_quantity }}</dd></div>
+        <div><dt>Reserved Quantity</dt><dd>{{ batch.reserved_quantity }}</dd></div>
+        <div><dt>Consumed Quantity</dt><dd>{{ batch.consumed_quantity }}</dd></div>
+        <div><dt>Batch Status</dt><dd>{{ batch.status_label|title }}</dd></div>
+    </dl>
+    </section>
+    {% if fifo_can_move %}
+    <section class="inventory-drawer-section inventory-batch-section" aria-label="Related Transactions">
+        <h3>Related Transactions</h3>
+        {% if batch.receipt_movement %}<p>{{ batch.receipt_movement.get_kind_display }}: {{ batch.receipt_movement.quantity_change }}{% timezone 'Asia/Manila' %}<small>{{ batch.receipt_movement.created_at|date:'M d, Y g:i A' }}</small>{% endtimezone %}</p>{% endif %}
+        <ul class="inventory-drawer-allocations">{% for allocation in batch.allocations.all %}
+            <li><strong>{% if allocation.order_reference %}{{ allocation.order_reference }}{% elif allocation.state == 'adjustment' %}Stock adjustment{% else %}Reference not recorded{% endif %}</strong><span>{{ allocation.quantity }} — {{ allocation.get_state_display }}</span>{% if allocation.movement %}<small>{{ allocation.movement.get_kind_display }}</small>{% endif %}{% timezone 'Asia/Manila' %}<small>Recorded {{ allocation.created_at|date:'M d, Y g:i A' }}</small>{% if allocation.resolved_at %}<small>Updated {{ allocation.resolved_at|date:'M d, Y g:i A' }}</small>{% endif %}{% endtimezone %}{% if allocation.legacy %}<small>Existing reservation at starting stock</small>{% endif %}</li>
+        {% empty %}{% if not batch.receipt_movement %}<li>No related transactions recorded.</li>{% endif %}{% endfor %}</ul>
+    </section>
+    {% endif %}
+</template>
+{% endfor %}
+{% elif fifo_can_move %}
+{% for movement in fifo_movements %}{% if movement.display_allocations %}
+<template id="inventoryMovementDetail{{ movement.pk }}">
+    {% if movement.allocation_reconciled %}<p class="inventory-allocation-origin">Historical</p>{% endif %}
+    <dl class="inventory-drawer-fields">
+        <div><dt>Product / Variant</dt><dd>{{ movement.sku.product.name }}{% if movement.sku.variant_name %}<small>{{ movement.sku.group_name }}: {{ movement.sku.variant_name }}</small>{% endif %}</dd></div>
+        <div><dt>Movement Type</dt><dd>{{ movement.get_kind_display }}</dd></div>
+        <div><dt>Order / Transaction</dt><dd>{{ movement.transaction_label }}</dd></div>
+        <div><dt>Movement Quantity</dt><dd>{% if movement.quantity_change > 0 %}+{% endif %}{{ movement.quantity_change }}</dd></div>
+        <div><dt>Movement Date</dt><dd>{% timezone 'Asia/Manila' %}<time datetime="{{ movement.created_at|date:'c' }}">{{ movement.created_at|date:'M d, Y g:i A' }}</time>{% endtimezone %}</dd></div>
+        <div><dt>Recorded By</dt><dd>{{ movement.actor|default:'—' }}</dd></div>
+    </dl>
+    <section class="inventory-drawer-section" aria-label="Batch allocation breakdown">
+        <h3>Batch Allocation{{ movement.display_allocations|length|pluralize }}</h3>
+        {% if movement.allocation_reconciled %}<p class="inventory-reconciliation-note">Historical reservation linked to an opening-balance batch during inventory reconciliation.</p>{% endif %}
+        <ul class="inventory-drawer-allocations inventory-movement-allocations">{% for allocation in movement.display_allocations %}
+            <li>
+                <div class="inventory-allocation-heading"><strong>{{ allocation.batch.code }}</strong><span class="inventory-allocation-state">{{ allocation.get_state_display }}</span></div>
+                <p class="inventory-allocation-summary">{{ allocation.quantity }} unit{{ allocation.quantity|pluralize }} {% if allocation.state == 'reserved' %}reserved{% elif allocation.state == 'consumed' %}consumed{% elif allocation.state == 'released' %}released{% else %}allocated{% endif %}</p>
+                <dl class="inventory-drawer-fields inventory-allocation-fields">
+                    <div><dt>Allocated Quantity</dt><dd>{{ allocation.quantity }} unit{{ allocation.quantity|pluralize }}</dd></div>
+                    {% if allocation.legacy %}<div><dt>Allocation Origin</dt><dd>Opening Balance Reconciliation</dd></div>{% endif %}
+                    <div><dt>Allocation Recorded</dt><dd>{% timezone 'Asia/Manila' %}<time datetime="{{ allocation.created_at|date:'c' }}">{{ allocation.created_at|date:'M d, Y g:i A' }}</time>{% endtimezone %}</dd></div>
+                    {% if allocation.resolved_at %}<div><dt>Allocation Updated</dt><dd>{% timezone 'Asia/Manila' %}<time datetime="{{ allocation.resolved_at|date:'c' }}">{{ allocation.resolved_at|date:'M d, Y g:i A' }}</time>{% endtimezone %}</dd></div>{% endif %}
+                </dl>
+            </li>
+        {% endfor %}</ul>
+    </section>
+</template>
+{% endif %}{% endfor %}
+{% endif %}
+{% endif %}

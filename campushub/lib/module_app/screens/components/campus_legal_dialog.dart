@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 const _navy = Color(0xFF1A1851);
-const _gold = Color(0xFFFCB316);
+const _gold = Color(0xFFFCB315);
 
 Future<bool> showCampusLegalDialog(BuildContext context) async {
   return await showDialog<bool>(

@@ -1,0 +1,78 @@
+/* Super Admin: live overview and urgent work left, recommendations right. */
+[data-global-dashboard] .dashboard-summary-layout { display: grid; grid-template-columns: minmax(0,2fr) minmax(300px,1fr); align-items: start; gap: 16px; margin-bottom: 24px; }
+[data-global-dashboard] .dashboard-summary-layout:not(:has(.dashboard-summary-aside)) { grid-template-columns: minmax(0,1fr); }
+[data-global-dashboard] .dashboard-summary-aside { min-width: 0; display: grid; gap: 16px; align-content: start; }
+[data-global-dashboard] .dashboard-summary-aside > .dashboard-section-heading { margin-bottom: -4px; }
+[data-global-dashboard] .dashboard-summary-aside .bundle-dss { margin: 0; min-height: 0; padding: 16px; box-shadow: none; }
+[data-global-dashboard] .dashboard-summary-aside .bundle-panel-heading { margin-bottom: 12px; }
+[data-global-dashboard] .dashboard-summary-aside .bundle-empty { padding: 8px 0; }
+[data-global-dashboard] .dashboard-summary-aside .bundle-empty-detail { margin: 0; }
+[data-global-dashboard] .dashboard-summary-left .dashboard-attention { margin-top: 24px; margin-bottom: 20px; }
+[data-global-dashboard] .dashboard-overview-controls { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+[data-global-dashboard] .dashboard-summary-left { min-width: 0; margin: 0; }
+[data-global-dashboard] .dashboard-summary-layout .dashboard-overview-kpis.row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); grid-auto-rows: minmax(132px,auto); gap: 12px; margin: 0; }
+[data-global-dashboard] .dashboard-overview-kpis.row > div { width: auto; padding: 0; margin: 0; min-width: 0; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-stat-card { display: grid; grid-template-columns: minmax(0,1fr) 32px; grid-template-rows: minmax(32px,auto) auto 1fr; align-content: start; align-items: center; min-height: 132px; padding: 16px; gap: 8px 10px; border: 1px solid #E8EAF0; border-radius: 14px; font-family: "Montserrat", sans-serif; container-type: inline-size; background: #fff; box-shadow: none; transform: none; color: #1A1851; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-stat-card:hover { box-shadow: none; transform: none; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-stat-card .dashboard-stat-icon { grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; margin: 0; border: 1px solid rgba(26,24,81,.1); border-radius: 8px; background: rgba(26,24,81,.05); box-shadow: none; color: #1A1851; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-stat-icon svg { width: 18px; height: 18px; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-stat-card > div:not(.dashboard-stat-icon) { display: contents; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-stat-card > div:not(.dashboard-stat-icon) > span { grid-column: 1; grid-row: 1; font-size: 12px; line-height: 1.4; text-transform: none; letter-spacing: 0; white-space: normal; margin: 0; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-stat-card strong { grid-column: 1 / -1; grid-row: 2; font-size: clamp(18px,11cqi,26px); font-weight: 700; line-height: 1.25; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-stat-card small { grid-column: 1 / -1; grid-row: 3; align-self: start; margin-top: 0; font-size: 11px; line-height: 1.4; white-space: normal; overflow: visible; text-overflow: clip; }
+/* Only linked cards react to pointer/keyboard input. Values remain real data. */
+/* The shared shell forces Roboto with !important; scope this requested exception. */
+[data-global-dashboard] .dashboard-overview-kpis,
+[data-global-dashboard] .dashboard-overview-kpis :is(a, span, strong, small) { font-family: var(--ch-font-ui, 'Inter', sans-serif) !important; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-kpi-link { text-decoration: none; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-kpi-link:hover { border-color: #1A1851; background: #f8fafc; }
+[data-global-dashboard] .dashboard-overview-kpis .dashboard-kpi-link:focus-visible { outline: 3px solid #1A1851; outline-offset: 3px; }
+[data-global-dashboard] .dashboard-kpi-stale { margin: 0 0 12px; padding-left: 10px; border-left: 3px solid #FCB315; font-size: 12px; color: #1A1851; }
+[data-global-dashboard] .dashboard-domain-overview { margin-block: 24px; }
+[data-global-dashboard] .dashboard-domain-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+[data-global-dashboard] .dashboard-domain-grid > section { min-width: 0; }
+[data-global-dashboard] .dashboard-domain-grid .dashboard-domain-summary { gap: 16px 24px; padding: 20px; height: calc(100% - 40px); }
+[data-global-dashboard] .dashboard-domain-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 40px; }
+[data-global-dashboard] .dashboard-domain-summary > div { display: grid; gap: 4px; }
+[data-global-dashboard] .dashboard-domain-summary strong { font-size: 20px; color: #1A1851; }
+[data-global-dashboard] .dashboard-domain-summary span { font-size: 12px; color: #1A1851; }
+[data-global-dashboard] .dashboard-domain-summary > a { margin-left: auto; }
+/* Retain each real data card, using content height instead of large empty panels. */
+[data-global-dashboard] .dashboard-marketplace-grid { grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); }
+[data-global-dashboard] .dashboard-marketplace-side { grid-template-rows: auto auto; }
+[data-global-dashboard] .marketplace-card-empty { min-height: 120px; }
+[data-global-dashboard] .dashboard-marketplace-side .marketplace-category-card { height: auto; min-height: 0; }
+[data-global-dashboard] .facility-analytics-grid { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 16px; margin: 0 !important; }
+[data-global-dashboard] .facility-analytics-grid > div { width: auto; min-width: 0; margin: 0; padding: 0; grid-column: span 2; }
+[data-global-dashboard] .facility-analytics-grid > div:first-child { grid-column: 1 / -1; }
+[data-global-dashboard] .facility-analytics-grid > div:last-child { grid-column: span 4; }
+[data-global-dashboard] .facility-analytics-grid .dash-card { min-height: 0; box-shadow: none; }
+[data-global-dashboard] .facility-utilization-empty,
+[data-global-dashboard] [data-facility-ranking-empty],
+[data-global-dashboard] [data-upcoming-empty] { min-height: 140px; }
+[data-global-dashboard] [data-facility-revenue] .facility-revenue-chart-wrap { flex: none; height: 190px; min-height: 190px; }
+[data-global-dashboard] [data-facility-operational-status] .facility-status-layout { margin: 20px 0; }
+@media (max-width: 1279px) {
+    [data-global-dashboard] .dashboard-summary-layout .dashboard-overview-kpis.row { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 991px) {
+    [data-global-dashboard] .dashboard-summary-layout { grid-template-columns: minmax(0,1fr); }
+    [data-global-dashboard] .dashboard-marketplace-grid { grid-template-columns: minmax(0,1fr); }
+    [data-global-dashboard] .dashboard-marketplace-side { grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; }
+    [data-global-dashboard] .facility-analytics-grid > div { grid-column: span 3; }
+    [data-global-dashboard] .facility-analytics-grid > div:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 599px) {
+    .main-wrapper:has(> [data-global-dashboard]) > .dashboard-header { padding-inline: 16px; gap: 8px; }
+    .main-wrapper:has(> [data-global-dashboard]) > .dashboard-header .header-left { min-width: 0; flex: 1; }
+    .main-wrapper:has(> [data-global-dashboard]) > .dashboard-header .header-page-title { font-size: 20px; }
+    .main-wrapper:has(> [data-global-dashboard]) > .dashboard-header .header-right { gap: 4px; }
+    [data-global-dashboard] .dashboard-summary-layout .dashboard-overview-kpis.row { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    [data-global-dashboard] .dashboard-summary-layout .dashboard-overview-kpis.row { grid-auto-rows: minmax(132px,auto); }
+    [data-global-dashboard] .dashboard-marketplace-side { grid-template-columns: minmax(0,1fr); }
+    [data-global-dashboard] .dashboard-domain-grid { grid-template-columns: minmax(0,1fr); gap: 0; }
+    [data-global-dashboard] .facility-analytics-grid > div { grid-column: 1 / -1; }
+}
+@media (max-width: 479px) {
+    [data-global-dashboard] .dashboard-summary-layout .dashboard-overview-kpis.row { grid-template-columns: minmax(0,1fr); }
+}

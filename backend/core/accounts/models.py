@@ -1,15 +1,37 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from django.contrib.auth.models import AbstractUser, Permission
 from django.db import models
+
+if TYPE_CHECKING:
+    _UserMetaBase = AbstractUser.Meta
+else:
+    # Preserve Django's existing options; only the type checker needs this base.
+    _UserMetaBase = object
 
 
 class Department(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    is_program = models.BooleanField(default=False)
 
     class Meta:
         db_table = "campushub_department"
+
+    def __str__(self):
+        return self.name
+
+
+class ProgramMajor(models.Model):
+    program = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="majors")
+    code = models.CharField(max_length=20)
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        db_table = "campushub_program_major"
+        ordering = ("program__code", "code")
+        constraints = [models.UniqueConstraint(fields=("program", "code"), name="program_major_code_unique")]
 
     def __str__(self):
         return self.name
@@ -27,10 +49,12 @@ class User(AbstractUser):
         blank=True,
         related_name="users",
     )
+    major = models.ForeignKey(ProgramMajor, on_delete=models.SET_NULL, null=True, blank=True, related_name="users")
     contact_number = models.CharField(max_length=30, blank=True, default="")
     is_suspended = models.BooleanField(default=False)
+    email_verified = models.BooleanField(default=False)
 
-    class Meta:
+    class Meta(_UserMetaBase):
         db_table = "campushub_accounts_user"
 
     def __str__(self):
@@ -43,6 +67,7 @@ class Role(models.Model):
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
     granted_permissions = models.ManyToManyField(
         Permission,
         blank=True,
@@ -55,6 +80,13 @@ class Role(models.Model):
         verbose_name = "User Role"
         verbose_name_plural = "User Roles"
         permissions = [
+            ("can_view_products", "Can view administrator product listings"),
+            ("can_view_inventory", "Can view inventory"),
+            ("can_view_stock_movements", "Can view stock movements"),
+            ("can_view_orders", "Can view administrator orders"),
+            ("can_view_sellers", "Can view seller applications"),
+            ("can_view_facilities", "Can view administrator facilities"),
+            ("can_view_bookings", "Can view administrator bookings"),
             ("can_browse_products", "Can browse products"),
             ("can_buy_products", "Can buy products"),
             ("can_manage_products", "Can manage products"),
@@ -71,6 +103,7 @@ class Role(models.Model):
             ("can_record_facility_payment", "Can record facility payments and official receipts"),
             ("can_view_facility_reports", "Can view facility reports"),
             ("can_view_users", "Can view users"),
+            ("can_reset_user_password", "Can initiate user password resets"),
             ("can_manage_admin_accounts", "Can manage administrator accounts"),
             ("can_manage_roles_permissions", "Can manage roles and permissions"),
             ("can_view_user_monitoring", "Can view user monitoring"),
@@ -138,6 +171,7 @@ class AccountActivity(models.Model):
     account_type = models.CharField(max_length=24, blank=True)
     role = models.CharField(max_length=100, blank=True)
     activity_type = models.CharField(max_length=40, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
     activity = models.CharField(max_length=180)
     module = models.CharField(max_length=80, default="Authentication")
     result = models.CharField(max_length=12, choices=RESULT_CHOICES)

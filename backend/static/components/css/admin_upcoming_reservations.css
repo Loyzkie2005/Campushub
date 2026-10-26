@@ -1,0 +1,17 @@
+/* Shared dashboard card foundations; compact real reservation rows only. */
+[data-upcoming-reservations] { width: 100%; padding: 16px; min-height: 380px; color: #1A1851; }
+[data-upcoming-reservations] [hidden] { display: none !important; }
+.upcoming-reservations-header { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.upcoming-reservations-header a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: #1A1851; font-size: 12px; font-weight: 600; text-decoration: none; }
+.upcoming-reservations-header a:hover { text-decoration: underline; }
+.upcoming-reservations-list { list-style: none; margin: 8px 0 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.upcoming-reservations-list::-webkit-scrollbar { display: none; }
+.upcoming-reservations-list li { display: flex; flex-direction: column; gap: 3px; padding: 12px 0; border-bottom: 1px solid #e2e5ee; overflow-wrap: anywhere; }
+.upcoming-reservations-list li:last-child { border-bottom: 0; }
+.upcoming-reservations-list strong { font-size: 13px; font-weight: 600; line-height: 1.5; }
+.upcoming-reservation-when { font-size: 12px; line-height: 1.5; }
+.upcoming-reservation-status { font-size: 11px; font-weight: 600; line-height: 1.5; }
+.upcoming-reservations-state { margin: auto 0; padding: 24px 0; text-align: center; font-size: 13px; line-height: 1.5; }
+.upcoming-reservations-state button { min-height: 44px; padding: 8px 12px; border: 1px solid #1A1851; border-radius: 6px; color: #1A1851; background: #FFFFFF; font: inherit; cursor: pointer; }
+[data-upcoming-reservations] :is(a, button, ul):focus-visible { outline: 2px solid #1A1851; outline-offset: 3px; }
+.upcoming-reservations-list:focus-visible { outline-offset: -2px; }

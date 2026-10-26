@@ -1,0 +1,41 @@
+{% load tz %}
+<section class="inventory-monitor-detail" id="inventory-details" aria-labelledby="inventory-detail-heading">
+    <div class="inventory-detail-heading">
+        <h3 id="inventory-detail-heading">Inventory Details</h3>
+        <a class="inventory-product-link" href="{{ inventory_return_url }}">Back to Inventory →</a>
+    </div>
+    <dl class="inventory-detail-fields">
+        <div><dt>Product</dt><dd>{{ item.product_name }}{% if item.archived %} · Archived{% endif %}</dd></div>
+        <div><dt>Variant</dt><dd>{% if item.derived %}Bundle{% else %}{{ item.name|default:'—' }}{% endif %}{% if item.group %} · {{ item.group }}{% endif %}</dd></div>
+        <div><dt>SKU</dt><dd>{{ item.sku }}</dd></div>
+        <div><dt>Seller</dt><dd>{{ item.seller_name }}</dd></div>
+        <div><dt>Program</dt><dd>{{ item.program }}</dd></div>
+        <div><dt>Major</dt><dd>{{ item.major|default:'—' }}</dd></div>
+        <div><dt>Category</dt><dd>{{ item.category|default:'Not assigned' }}</dd></div>
+        <div><dt>On Hand</dt><dd>{% if item.derived %}—{% else %}{{ item.on_hand|default_if_none:'Unavailable' }}{% endif %}</dd></div>
+        <div><dt>Reserved</dt><dd>{% if item.derived %}—{% else %}{{ item.reserved|default_if_none:'Unavailable' }}{% endif %}</dd></div>
+        <div><dt>Available</dt><dd>{{ item.available|default_if_none:'Unavailable' }}{% if item.derived %} bundle{{ item.available|pluralize }}{% endif %}</dd></div>
+        <div><dt>Threshold</dt><dd>{{ item.threshold|default_if_none:'—' }}</dd></div>
+        <div><dt>Status</dt><dd class="inventory-ledger-status--{{ item.status }}">{{ item.status_label }}</dd></div>
+        <div><dt>Last Updated</dt><dd>{% timezone 'Asia/Manila' %}{{ item.updated_at|date:'M d, Y' }} · {{ item.updated_at|date:'g:i A' }}{% endtimezone %}</dd></div>
+    </dl>
+    {% if item.can_view_movements %}
+    <div class="inventory-detail-heading" id="inventory-movements"><h3>Stock Movement History</h3>{% if perms.accounts.can_manage_products or perms.accounts.can_approve_products or perms.accounts.can_view_products %}<a class="inventory-product-link" href="{{ item.details_url }}">View Product →</a>{% endif %}</div>
+    {% if item.derived %}
+        <p class="inventory-history-note">Bundle stock is managed through its components.</p>
+        <ul class="inventory-component-links">{% for component in item.components %}<li><a class="inventory-product-link" href="{% url 'admin_products_page' %}?view=inventory&amp;product_id={{ component.product_id }}{% if inventory_tab_token %}&amp;__at={{ inventory_tab_token|urlencode }}{% endif %}">{{ component.product_name }}{% if component.variant %} · {{ component.variant }}{% endif %}</a></li>{% endfor %}</ul>
+    {% else %}
+        <p class="inventory-history-note">Reservations change Available; completed sales change On Hand. Latest recorded events are shown first.</p>
+        <div class="inventory-table-scroll" tabindex="0" role="region" aria-label="Stock movement history; scroll horizontally on smaller screens">
+            <table class="inventory-history-table">
+                <thead><tr><th scope="col">Date</th><th scope="col">Movement</th><th scope="col" class="inventory-ledger-number">Change</th><th scope="col">Affects</th><th scope="col">Reference</th><th scope="col">By</th></tr></thead>
+                <tbody>{% for movement in item.movements %}<tr>
+                    <td>{% timezone 'Asia/Manila' %}{{ movement.date|date:'M d, Y' }}<small>{{ movement.date|date:'g:i A' }}</small>{% endtimezone %}</td>
+                    <td>{{ movement.kind }}</td><td class="inventory-ledger-number">{% if movement.quantity > 0 %}+{% endif %}{{ movement.quantity }}</td>
+                    <td>{{ movement.balance }}</td><td>{{ movement.reference }}{% if movement.allocations %}<details class="fifo-allocation-details"><summary>Batch Allocation Details</summary><ul>{% for allocation in movement.allocations %}<li>{{ allocation.batch.code }}: {{ allocation.quantity }} — {{ allocation.get_state_display }}{% if allocation.legacy %} (opening-balance reconciliation){% endif %}</li>{% endfor %}</ul></details>{% endif %}</td><td>{{ movement.actor }}</td>
+                </tr>{% empty %}<tr><td colspan="6">No recorded stock movements.</td></tr>{% endfor %}</tbody>
+            </table>
+        </div>
+    {% endif %}
+    {% endif %}
+</section>

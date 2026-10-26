@@ -1,0 +1,52 @@
+{% load tz %}
+<nav class="bm-tabs" aria-label="Analysis data source">
+    <a href="?tab=marketplace"{% if tab == 'marketplace' %} aria-current="page"{% endif %}>Marketplace Orders</a>
+    <a href="?tab=synthetic"{% if tab == 'synthetic' %} aria-current="page"{% endif %}>Synthetic Demo</a>
+</nav>
+{% if tab == 'synthetic' %}
+<section class="bm-panel bm-detail-page">
+    <div class="bm-drawer-section">
+        <h2>Synthetic Demo</h2>
+        <p>Synthetic data is simulated research data, separate from actual Marketplace Orders and live seller recommendations.</p>
+        <h3>Saved demo analysis unavailable</h3>
+        <p>No safely scoped, saved demo result snapshot is available for read-only viewing. This page does not calculate, cache or run synthetic analysis.</p>
+    </div>
+</section>
+{% else %}
+<section class="bm-panel bm-analysis" aria-labelledby="savedAnalysisTitle">
+    <div class="bm-section-heading"><h2 id="savedAnalysisTitle">Marketplace Orders: Saved Analysis</h2><p>Saved completion metadata for your authorized scope. This page does not read live transaction rows or run analysis.</p></div>
+    <dl class="bm-analysis-facts">
+        <div><dt>Data Source</dt><dd>{{ analysis.source_label }}</dd></div>
+        <div><dt>Analyzed Baskets</dt><dd>{{ analysis.basket_count|default_if_none:'&mdash;' }}</dd></div>
+        <div><dt>Multi-Product Baskets</dt><dd>{{ analysis.multi_item_basket_count|default_if_none:'&mdash;' }}</dd></div>
+        <div><dt>Last Analysis</dt><dd>{% if analysis.completed_at %}{{ analysis.completed_label }} PHT{% else %}Not recorded{% endif %}</dd></div>
+        <div><dt>Analysis Outcome</dt><dd>{{ analysis.outcome_label }}</dd></div>
+        <div><dt>Raw Association Rules</dt><dd>Not recorded</dd></div>
+    </dl>
+    <p class="bm-analysis-note"{% if analysis.state == 'unavailable' %} role="alert"{% endif %}>{{ analysis.note }}{% if analysis.completed_at %} {{ analysis.scope_note }}{% endif %}</p>
+    <div class="bm-section-heading"><h3>Historical dataset unavailable</h3><p>The original basket membership and complete rule snapshot were not saved. Current transactions cannot reconstruct the analyzed dataset. Saved pair evidence below is separate from a full dataset or rule table.</p></div>
+</section>
+<section class="bm-panel bm-section" aria-labelledby="savedEvidenceTitle">
+    <h2 class="bm-panel-title" id="savedEvidenceTitle">Saved Recommendation Evidence</h2>
+    <form class="bm-filters" data-action-filter method="get" aria-label="Search saved evidence">
+        <input type="hidden" name="tab" value="marketplace">
+        <label class="bm-search">Search products<input type="search" name="q" value="{{ request.GET.q }}" maxlength="150"></label>
+        <button class="bm-button bm-primary" type="submit">Search</button><a href="?tab=marketplace">Reset</a>
+    </form>
+    <div class="bm-table-scroll" role="region" aria-label="Saved recommendation evidence" tabindex="0">
+        <table><caption class="visually-hidden">Original stored pair evidence within your scope, not a complete analysis rule snapshot</caption>
+            <thead><tr><th scope="col">Product Combination</th><th scope="col">Seller</th><th scope="col">Program / Major</th><th scope="col">Antecedent (IF)</th><th scope="col">Consequent (THEN)</th><th scope="col">Support</th><th scope="col">Confidence</th><th scope="col">Lift</th><th scope="col">Generated Date</th><th scope="col">Details</th></tr></thead>
+            <tbody>{% for row in rows %}<tr>
+                <td>{{ row.item.product_a }} + {{ row.item.product_b }}</td><td>{{ row.item.seller }}</td><td>{{ row.item.academic.program_major }}</td>
+                <td>{{ row.evidence.antecedent|default:'Not recorded' }}</td><td>{{ row.evidence.consequent|default:'Not recorded' }}</td>
+                <td>{% if row.evidence.available %}{{ row.evidence.support|floatformat:2 }}%{% else %}Not recorded{% endif %}</td>
+                <td>{% if row.evidence.available %}{{ row.evidence.confidence|floatformat:2 }}%{% else %}Not recorded{% endif %}</td>
+                <td>{% if row.evidence.available %}{{ row.evidence.lift|floatformat:2 }}{% else %}Not recorded{% endif %}</td>
+                <td>{% timezone 'Asia/Manila' %}{{ row.item.record.generated_at|date:'M j, Y · g:i A' }} PHT{% endtimezone %}</td>
+                <td><a class="bm-button" href="{% url 'bundle_monitor_detail' row.item.id %}">View Details</a></td>
+            </tr>{% empty %}<tr><td colspan="10"><div class="bm-empty"><h3>No saved evidence in this view</h3><p>Saved recommendations with original evidence will appear here when available. Try resetting an active search.</p></div></td></tr>{% endfor %}</tbody>
+        </table>
+    </div>
+    {% include 'marketplace/partials/bundle_monitor_pagination.html' %}
+</section>
+{% endif %}

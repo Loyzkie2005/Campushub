@@ -168,8 +168,8 @@
 }
 
 .pd-btn-gold {
-    border: 1px solid #FCB316;
-    background: #FCB316;
+    border: 1px solid #FCB315;
+    background: #FCB315;
     color: #1A1851;
 }
 
@@ -322,9 +322,9 @@
 }
 
 .pd-inv-stat-icon--amber {
-    background: rgba(252, 179, 22, 0.12);
+    background: rgba(252, 179, 21, 0.12);
     color: #1A1851;
-    border: 1px solid #FCB316;
+    border: 1px solid #FCB315;
 }
 
 .pd-inv-stat-body {
@@ -640,9 +640,9 @@
 }
 
 .pd-active-badge.status-pending {
-    background: rgba(252, 179, 22, 0.16);
+    background: rgba(252, 179, 21, 0.16);
     color: #1A1851;
-    border: 1px solid #FCB316;
+    border: 1px solid #FCB315;
 }
 
 .pd-active-badge.status-rejected {
@@ -854,8 +854,8 @@
 
 .pd-kpi-tile--amber,
 .pd-kpi-tile--gold {
-    background: rgba(252, 179, 22, 0.08);
-    border: 1px solid #FCB316;
+    background: rgba(252, 179, 21, 0.08);
+    border: 1px solid #FCB315;
 }
 .pd-kpi-tile--amber .pd-kpi-tile-icon,
 .pd-kpi-tile--gold .pd-kpi-tile-icon {
@@ -1034,9 +1034,9 @@
 }
 
 .pd-order-status--pending {
-    background: rgba(252, 179, 22, 0.16);
+    background: rgba(252, 179, 21, 0.16);
     color: #1A1851;
-    border: 1px solid #FCB316;
+    border: 1px solid #FCB315;
 }
 
 .pd-order-status--cancelled,
@@ -1087,7 +1087,7 @@
 }
 
 .pd-timeline > li.pd-timeline--blue::before { background: #1A1851; box-shadow: 0 0 0 3px rgba(26, 24, 81, 0.15); }
-.pd-timeline > li.pd-timeline--amber::before { background: #FCB316; box-shadow: 0 0 0 3px rgba(252, 179, 22, 0.25); }
+.pd-timeline > li.pd-timeline--amber::before { background: #FCB315; box-shadow: 0 0 0 3px rgba(252, 179, 21, 0.25); }
 .pd-timeline > li.pd-timeline--red::before { background: rgba(26, 24, 81, 0.35); box-shadow: 0 0 0 3px rgba(26, 24, 81, 0.08); }
 .pd-timeline > li.pd-timeline--purple::before { background: #1A1851; box-shadow: 0 0 0 3px rgba(26, 24, 81, 0.15); }
 
@@ -1641,8 +1641,8 @@
 }
 
 .pd-overview-card .pd-thumbnails img.is-active {
-    border-color: #FCB316;
-    box-shadow: 0 0 0 2px rgba(252, 179, 22, 0.25);
+    border-color: #FCB315;
+    box-shadow: 0 0 0 2px rgba(252, 179, 21, 0.25);
 }
 
 .pd-overview-info .pd-title-row {
@@ -1706,9 +1706,41 @@
 }
 
 .pd-overview-info #pdInventoryStatus {
-    padding: 2px 8px !important;
-    font-size: 0.72rem !important;
+    padding: 0;
+    font-size: 0.82rem;
 }
+
+.pd-listing-status,
+.pd-inventory-state {
+    margin: 0;
+    color: #1A1851;
+    font-weight: 600;
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.pd-inventory-state--low_stock { color: #FCB315; }
+.pd-inventory-state--out_of_stock { color: #B42318; }
+
+.pd-inventory-feedback {
+    margin: 0 0 16px;
+    color: #1A1851;
+    font-size: 0.82rem;
+}
+
+.pd-variant-thresholds {
+    overflow-x: auto;
+    margin-top: 8px;
+    color: #1A1851;
+    font-size: 0.82rem;
+}
+.pd-variant-thresholds table { min-width: 560px; font-size: 0.75rem; color: #1A1851; }
+.pd-variant-thresholds th:first-child { text-align: left; }
+
+.pd-variant-thresholds th { font-weight: 600; }
+.pd-variant-thresholds th:not(:first-child),
+.pd-variant-thresholds td:not(:first-child) { text-align: right; }
+.pd-variant-thresholds th:last-child, .pd-variant-thresholds td:last-child { text-align: left; }
 
 /* Card headings */
 .pd-card-heading {
@@ -1925,7 +1957,7 @@
     color: #1A1851;
 }
 .pd-sales-kpi-icon--gold {
-    background: rgba(252, 179, 22, 0.14);
+    background: rgba(252, 179, 21, 0.14);
     color: #1A1851;
 }
 

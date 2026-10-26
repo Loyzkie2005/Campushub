@@ -1,16 +1,13 @@
 {% load static %}
-<header class="dashboard-header"{% if request.user.is_authenticated %} data-admin-user-id="{{ request.user.id }}"{% endif %}>
+{% include 'partials/admin_alerts.html' %}
+<header class="dashboard-header"{% if request.user.is_authenticated %} data-admin-user-id="{{ request.user.id }}"{% endif %}{% if system_status_inline %} data-inline-system-status{% endif %}>
     <div class="header-left">
-        <button type="button" class="header-hamburger" id="sidebarToggle" aria-label="Toggle sidebar" aria-expanded="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />
-            </svg>
-        </button>
         <div class="header-title-group">
             <h1 class="header-page-title">{{ page_title }}</h1>
             <nav class="admin-breadcrumb" aria-label="Breadcrumb">
+                {% if header_breadcrumb_template %}
+                {% include header_breadcrumb_template %}
+                {% else %}
                 {% if breadcrumb_section or breadcrumb_page %}
                 <span class="breadcrumb-link">Dashboard</span>
                 {% endif %}
@@ -22,9 +19,11 @@
                 <span class="breadcrumb-sep">&rsaquo;</span>
                 <span class="breadcrumb-current">{{ breadcrumb_page }}</span>
                 {% endif %}
+                {% endif %}
             </nav>
         </div>
     </div>
+    {% if system_status_inline %}<div class="header-system-status">{% include 'dashboard/partials/system_status.html' with compact=True %}</div>{% endif %}
     <div class="header-right">
         {% include 'partials/admin_chat_dropdown.html' %}
         <div class="dropdown notification-dropdown">
@@ -101,6 +100,9 @@
         {% include 'partials/admin_profile_dropdown.html' %}
     </div>
 </header>
+{% if analytics_subheader and user.is_superuser or analytics_subheader and user.role|lower == 'super admin' %}
+{% include 'reports/partials/analytics_toolbar.html' with below_header=True %}
+{% endif %}
 {% if request.user.is_authenticated %}
 <script src="{% static 'components/js/admin_session.js' %}?v=20260605-multi-tab" defer></script>
 {% endif %}

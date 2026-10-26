@@ -1,0 +1,21 @@
+/* Keep the existing Facility Status card and donut foundations. */
+[data-facility-operational-status] { container: facility-state / inline-size; }
+[data-facility-operational-status] [hidden] { display: none !important; }
+[data-facility-operational-status] .facility-status-layout { flex: 1; margin: auto 0; }
+.facility-operational-status-legend { min-width: 0; }
+.facility-operational-status-legend > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e2e5ee; }
+.facility-operational-status-legend > div:last-child { border-bottom: 0; }
+.facility-operational-status-legend > div > span { display: flex; align-items: center; gap: 8px; min-width: 0; color: #1A1851; font-size: 12px; line-height: 1.5; }
+.facility-operational-status-legend strong { color: #1A1851; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.operational-dot--available { background: #1A1851; }
+.operational-dot--unavailable { background: #FCB315; }
+.operational-dot--maintenance { background: rgba(26, 24, 81, .55); }
+.operational-dot--inactive { background: rgba(26, 24, 81, .2); }
+.facility-operational-state { margin: auto 0; padding: 24px 0; text-align: center; color: #1A1851; font-size: 13px; line-height: 1.5; }
+.facility-operational-state button { min-height: 44px; padding: 8px 12px; border: 1px solid #1A1851; border-radius: 6px; color: #1A1851; background: #FFFFFF; font: inherit; cursor: pointer; }
+.facility-operational-state button:focus-visible { outline: 2px solid #1A1851; outline-offset: 3px; }
+@container facility-state (max-width: 310px) {
+    [data-facility-operational-status] .facility-status-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    [data-facility-operational-status] .facility-status-chart-wrap { margin: 0 auto; }
+    .facility-operational-status-legend > div { padding: 6px 0; }
+}

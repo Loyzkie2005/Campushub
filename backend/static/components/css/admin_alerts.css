@@ -1,0 +1,154 @@
+/* Shared admin feedback; green success palette explicitly requested by the user. */
+.admin-alert-region {
+    position: fixed;
+    top: calc(20px + env(safe-area-inset-top, 0px));
+    right: 20px;
+    z-index: 3000;
+    display: grid;
+    gap: 10px;
+    width: min(380px, calc(100vw - 32px));
+    max-height: calc(100dvh - 40px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    pointer-events: auto;
+}
+
+.admin-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 12px 14px 16px;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #15803d;
+    border-radius: 12px;
+    background: #f0fdf4;
+    color: #14532d;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, .08);
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 180ms ease-out, transform 180ms ease-out;
+    pointer-events: auto;
+    font-family: Montserrat, system-ui, sans-serif;
+}
+
+.admin-alert.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.admin-alert__icon {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    margin-top: 2px;
+    color: #15803d;
+}
+
+.admin-alert__content {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-alert__title {
+    display: block;
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.admin-alert__message {
+    margin: 3px 0 0;
+    font-size: .8rem;
+    font-weight: 400;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.admin-alert__close {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin: -4px -4px 0 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+    font: 22px/1 system-ui, sans-serif;
+}
+
+.admin-alert__close:hover {
+    background: rgba(20, 83, 45, .07);
+}
+
+.admin-alert__close:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.admin-alert--error,
+.admin-alert--warning {
+    background: #fffbeb;
+    border-color: #fde68a;
+    border-left-color: #FCB315;
+    color: #1A1851;
+}
+
+.admin-alert--error .admin-alert__icon,
+.admin-alert--warning .admin-alert__icon {
+    color: #9a6500;
+}
+
+.admin-alert--info {
+    background: #fff;
+    border-color: #d9dcea;
+    border-left-color: #1A1851;
+    color: #1A1851;
+}
+
+.admin-alert--info .admin-alert__icon {
+    color: #1A1851;
+}
+
+.admin-flash-fallback {
+    padding: 12px 16px;
+    background: #f8fafc;
+    color: #1A1851;
+    border-left: 3px solid #FCB315;
+}
+
+.has-admin-alerts .campushub-toast,
+.has-admin-alerts .product-save-toast,
+.has-admin-alerts .facility-save-toast,
+.has-admin-alerts .order-action-toast,
+.has-admin-alerts .bk-toast {
+    display: none !important;
+}
+
+@media(max-width:600px) {
+    .admin-alert-region {
+        right: 16px;
+        top: calc(16px + env(safe-area-inset-top, 0px));
+    }
+
+    .admin-alert__close {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+@media(prefers-reduced-motion:reduce) {
+    .admin-alert {
+        transition: none;
+        transform: none;
+    }
+}
+
+@media print {
+    .admin-alert-region {
+        display: none !important;
+    }
+}

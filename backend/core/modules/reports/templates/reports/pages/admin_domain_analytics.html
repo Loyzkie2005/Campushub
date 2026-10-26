@@ -1,0 +1,27 @@
+{% load static %}
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampusHub | {{ analytics_module|title }} Analytics</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}"><link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}">
+<link rel="stylesheet" href="{% static 'components/css/admin_dashboard.css' %}"><link rel="stylesheet" href="{% static 'components/css/admin_analytics.css' %}?v=20261020-below-header">
+{% include 'partials/web_typography.html' %}
+</head><body><div class="sidebar-section">{% include 'partials/admin_sidebar.html' with active_page='marketplace_analytics' %}<div class="main-wrapper" id="mainWrapper">
+{% include 'partials/admin_header.html' with page_title='Analytics' breadcrumb_section='Reports' breadcrumb_page=analytics_module|title analytics_subheader=True %}
+<main class="dashboard-content"><div class="analytics-page container-fluid p-4">
+{% if not user.is_superuser and user.role|lower != 'super admin' %}{% include 'reports/partials/analytics_toolbar.html' %}{% endif %}
+
+{% if analytics_module == 'services' %}
+<section class="analytics-kpi-grid" aria-label="Service request summary">
+<article class="analytics-kpi"><span>Active Services</span><strong>{{ services.active_services }}</strong><small>Current open services</small></article>
+<article class="analytics-kpi"><span>Open Requests</span><strong>{{ services.open_requests }}</strong><small>Pending or approved in selected period</small></article>
+<article class="analytics-kpi"><span>Pending Requests</span><strong>{{ services.pending_requests }}</strong></article>
+<article class="analytics-kpi"><span>Completed Requests</span><strong>{{ services.completed_requests }}</strong></article>
+</section><section class="dash-card"><div class="dash-card-header"><h2>Requests by Service</h2><a href="{% url 'admin_service_requests_page' %}" class="dash-view-all-link">View Service Requests &rarr;</a></div>
+<p>Requests submitted in the selected period, grouped by their actual current status.</p><div class="analytics-module-table" tabindex="0" role="region" aria-label="Requests by service"><table><thead><tr><th>Service</th><th>Total</th><th>Pending</th><th>Approved</th><th>Completed</th><th>Rejected / Cancelled</th></tr></thead><tbody>{% for row in service_breakdown %}<tr><th scope="row">{{ row.facility__facility_name }}</th><td>{{ row.total }}</td><td>{{ row.pending }}</td><td>{{ row.approved }}</td><td>{{ row.completed }}</td><td>{{ row.closed }}</td></tr>{% empty %}<tr><td colspan="6">No service requests in selected period.</td></tr>{% endfor %}</tbody></table></div></section>
+{% else %}
+<section class="analytics-kpi-grid" aria-label="User account summary">{% for item in report.summary %}<article class="analytics-kpi"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></article>{% endfor %}</section>
+<section class="dash-card"><div class="dash-card-header"><h2>User Accounts</h2><a class="dash-view-all-link" href="{% url 'admin_user_monitoring_page' %}">View User Monitoring &rarr;</a></div><p>Accounts created in the selected period. Reuses the User Accounts report.</p>
+<div class="analytics-module-table" tabindex="0" role="region" aria-label="User accounts"><table><thead><tr>{% for col in report.columns %}<th scope="col">{{ col }}</th>{% endfor %}</tr></thead><tbody>{% for row in account_rows %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="7">No accounts created in selected period.</td></tr>{% endfor %}</tbody></table></div>
+<nav aria-label="User analytics pages">{% if account_rows.has_previous %}<a href="?module=users&amp;period=custom&amp;date_from={{ analytics_period.start|date:'Y-m-d' }}&amp;date_to={{ analytics_period.end|date:'Y-m-d' }}&amp;page={{ account_rows.previous_page_number }}">&lsaquo;</a>{% endif %} {{ account_rows.number }} / {{ account_rows.paginator.num_pages }} {% if account_rows.has_next %}<a href="?module=users&amp;period=custom&amp;date_from={{ analytics_period.start|date:'Y-m-d' }}&amp;date_to={{ analytics_period.end|date:'Y-m-d' }}&amp;page={{ account_rows.next_page_number }}">&rsaquo;</a>{% endif %}</nav></section>
+{% endif %}</div></main></div></div>
+{% include 'partials/admin_logout_modal.html' %}<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script></body></html>

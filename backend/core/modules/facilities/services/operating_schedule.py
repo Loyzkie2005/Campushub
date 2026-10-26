@@ -64,6 +64,15 @@ def validate_weekly_hours(value):
     return cleaned
 
 
+def closed_operating_day_messages(facility):
+    """Explain only confirmed closed weekdays; unknown schedules need review."""
+    schedule = weekly_hours((facility.workflow_config or {}).get('operating_hours'))
+    if schedule is None:
+        return {}
+    return {day: f'{facility.facility_name} is not available on {day.title()}s. Please select an allowed operating day.'
+            for day, period in schedule.items() if period is None}
+
+
 def weekly_hours(value):
     """Read structured hours or an unambiguous legacy daily/day-range string.
 

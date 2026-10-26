@@ -1,0 +1,30 @@
+<div class="dashboard-executive" data-executive-dashboard>
+    <div class="executive-toolbar">
+        <div class="executive-welcome-copy"><h2 class="executive-welcome">Welcome back, {{ user.first_name|default:user.username }}!</h2><p>Here’s what’s happening across CampusHub today.</p></div>
+        <div class="dashboard-overview-controls">{% include 'dashboard/partials/global_date_filter.html' %}</div>
+    </div>
+    {{ dashboard_period|json_script:'dashboardPeriodData' }}
+    {{ executive|json_script:'executiveDashboardData' }}
+    {{ revenue_chart|json_script:'revenueChartData' }}
+    <div id="dashboardLoadError" class="dashboard-load-error" role="alert" hidden>Unable to load dashboard data. <button type="button" class="dashboard-filter-button" id="dashboardRetry">Retry</button></div>
+    <p id="dashboardLoading" role="status" class="dashboard-loading" hidden>Loading dashboard data…</p>
+
+    {% include 'dashboard/partials/system_overview_summary.html' %}
+
+    <section class="dashboard-marketplace executive-section" aria-labelledby="marketplaceOverviewTitle">
+        <div class="dashboard-section-heading executive-section-header"><div><h2 id="marketplaceOverviewTitle">Marketplace Overview</h2><p class="marketplace-section-subtitle executive-section-subtitle">Monitor marketplace performance and activity.</p></div><a class="dash-view-all-link" data-executive-analytics="marketplace" href="{{ executive.analytics_urls.marketplace }}">View Analytics <span aria-hidden="true">&rarr;</span></a></div>
+            {% include 'dashboard/partials/sales_overview.html' with executive_mode=True %}
+        <div class="marketplace-operations-row">
+            {% include 'dashboard/partials/recent_orders.html' with recent_orders=recent_orders|slice:':5' executive_mode=True %}
+                <div class="dashboard-marketplace-operations" id="lowStockSlot">{% include 'dashboard/partials/low_stock_card.html' %}</div>
+        </div>
+    </section>
+
+    {% include 'dashboard/partials/super_facilities_overview.html' with overview=executive.booking_overview %}
+
+    {% include 'dashboard/partials/super_services_overview.html' %}
+
+    {% include 'dashboard/partials/super_users_overview.html' %}
+
+    {% include 'dashboard/partials/system_activity_preview.html' %}
+</div>

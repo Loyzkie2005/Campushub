@@ -48,7 +48,7 @@ def get_user_for_tab_token(key):
         return None
 
     user = record.user
-    if not user.is_active:
+    if not user.is_active or user.is_suspended:
         return None
     if record.last_seen_at is None or record.last_seen_at <= now - timedelta(minutes=1):
         AdminTabToken.objects.filter(pk=record.pk).update(last_seen_at=now)

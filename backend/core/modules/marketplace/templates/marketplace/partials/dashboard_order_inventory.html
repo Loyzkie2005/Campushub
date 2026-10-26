@@ -1,0 +1,41 @@
+<div class="marketplace-operational-grid">
+    <section class="dash-card" aria-labelledby="recentMarketplaceOrdersTitle">
+        <header class="dash-card-header"><h2 id="recentMarketplaceOrdersTitle">Recent Orders</h2><a href="{% url 'admin_orders_page' %}" class="dash-view-all-link">View All Orders &rarr;</a></header>
+        <details class="marketplace-dashboard-details" data-order-status-summary>
+            <summary>Order status and completion rate</summary>
+            <p>Orders placed in {{ marketplace.sales_period.label }}. Current completed status / all orders placed, including cancellations. This measures fulfillment, not collected sales.</p>
+            <p><strong>Order Completion Rate: {% if marketplace.order_completion_rate == None %}&mdash;{% else %}{{ marketplace.order_completion_rate }}%{% endif %}</strong></p>
+            <dl class="marketplace-dashboard-breakdown">{% for row in marketplace.period_order_status %}<div><dt>{{ row.label }}</dt><dd>{{ row.count }}</dd></div>{% endfor %}</dl>
+            {% if not marketplace.total_orders %}<p>No orders placed in this reporting period.</p>{% endif %}
+        </details>
+        <div class="marketplace-table-scroll" role="region" aria-label="Recent marketplace orders" tabindex="0">
+        <table class="table dashboard-table dashboard-table--compact marketplace-preview-table marketplace-orders-table">
+            <thead><tr><th scope="col">Order / Date</th><th scope="col">Buyer</th><th scope="col">Product / Seller</th><th scope="col" class="marketplace-number">Items</th><th scope="col" class="marketplace-number">Total</th><th scope="col">Fulfillment</th><th scope="col">Order Status</th><th scope="col">Payment</th><th scope="col">Action</th></tr></thead>
+            <tbody>{% for order in marketplace.recent_orders %}
+                <tr>
+                    <th scope="row"><a href="{{ order.url }}">{{ order.code }}</a><small class="marketplace-order-date">{{ order.date }}</small></th>
+                    <td>{{ order.buyer_name }}</td>
+                    <td>{{ order.product_name }}<small>{{ order.seller_name }}</small></td>
+                    <td class="marketplace-number">{% if order.item_count == None %}&mdash;{% else %}{{ order.item_count }}{% endif %}</td>
+                    <td class="marketplace-number">&#8369;{{ order.total }}</td>
+                    <td>{{ order.fulfillment.fulfillment_label }}{% if order.fulfillment.delivery_started_at or order.fulfillment.delivered_at %}<small>{{ order.fulfillment.fulfillment_progress }}</small>{% endif %}</td>
+                    <td><span class="marketplace-status">{{ order.fulfillment.status_label }}</span></td>
+                    <td><span class="marketplace-status{% if order.payment_key == 'unpaid' %} marketplace-status--attention{% endif %}">{{ order.payment_status }}</span>{% if order.fulfillment.delivered_at and order.payment_key != 'paid' and order.status_key != 'completed' and order.status_key != 'cancelled' %}<small>Awaiting payment</small>{% endif %}</td>
+                    <td><a href="{{ order.url }}">View Details</a></td>
+                </tr>
+                {% empty %}<tr><td colspan="9"><div class="marketplace-empty"><strong>No Recent Orders</strong><p>New marketplace orders will appear here once customers begin placing orders.</p></div></td></tr>{% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </section>
+    <section class="dash-card" aria-labelledby="inventoryAlertsTitle">
+        <header class="dash-card-header"><h2 id="inventoryAlertsTitle">Inventory Alerts</h2><a href="{% url 'admin_products_page' %}?view=inventory" class="dash-view-all-link">View All Inventory &rarr;</a></header>
+        <div class="marketplace-table-scroll" role="region" aria-label="Inventory alerts" tabindex="0"><table class="table dashboard-table dashboard-table--compact marketplace-preview-table marketplace-inventory-table">
+            <thead><tr><th scope="col">Product</th><th scope="col" class="marketplace-number">Available</th><th scope="col" class="marketplace-number">Reserved</th><th scope="col">Status</th></tr></thead>
+            <tbody>{% for product in marketplace.low_stock_products %}
+                <tr><th scope="row"><a href="{{ product.url }}">{{ product.name }}</a>{% if product.variant_name %}<small class="d-block">{{ product.variant_name }}</small>{% endif %}</th><td class="marketplace-number">{{ product.stock }}</td><td class="marketplace-number">{% if product.reserved == None %}&mdash;{% else %}{{ product.reserved }}{% endif %}</td><td>{% if product.is_out_of_stock %}Out of Stock{% else %}Low Stock{% endif %}</td></tr>
+                {% empty %}<tr><td colspan="4"><div class="marketplace-empty"><strong>No Inventory Alerts</strong><p>Products requiring stock attention will appear here.</p></div></td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </section>
+</div>

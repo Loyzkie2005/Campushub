@@ -26,13 +26,14 @@ class FacilityService {
       try {
         final response = await http
             .get(
-              Uri.parse('$baseUrl/api/facilities/'),
+              Uri.parse('$baseUrl/api/facilities/?resource_type=facility'),
               headers: const {'Accept': 'application/json'},
             )
             .timeout(const Duration(seconds: 4));
 
         final decoded = _decodeJson(response.body);
         if (response.statusCode >= 200 && response.statusCode < 300) {
+          ApiConfig.recordWorkingBaseUrl(baseUrl);
           final rows = (decoded['facilities'] as List<dynamic>? ?? [])
               .whereType<Map>()
               .map(
@@ -47,8 +48,9 @@ class FacilityService {
 
     return const FacilityServiceResult(
       success: false,
-      message:
-          'Connection error. Start Django with: python manage.py runserver 0.0.0.0:8000',
+      message: ApiConfig.usesPublicServer
+          ? 'Cannot reach CampusHub online. Check your internet connection and retry.'
+          : 'Connection error. Start Django with: python manage.py runserver 0.0.0.0:8000',
     );
   }
 

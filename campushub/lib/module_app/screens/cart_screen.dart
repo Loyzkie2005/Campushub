@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../theme/app_typography.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../models/cart_item.dart';
@@ -16,7 +16,7 @@ class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
 
   static const Color navy = Color(0xFF1A1851);
-  static const Color gold = Color(0xFFFCB316);
+  static const Color gold = Color(0xFFFCB315);
   static const Color pageBg = Color(0xFFF5F7FB);
 
   @override
@@ -465,10 +465,14 @@ class _CartBulkCheckoutScreenState extends State<_CartBulkCheckoutScreen> {
   bool _showPlacedOrders = false;
   bool _isPlacing = false;
   final _sellerMessageController = TextEditingController();
+  String _fulfillmentMethod = 'pickup';
+  String _deliveryDestination = '';
+  final Map<int, String> _requestKeys = {};
+  final Map<int, Map<String, dynamic>> _submittedOrders = {};
+  final Set<int> _confirmedOrders = {};
   late final List<CartItem> _items = List.of(widget.items);
 
-  double get _subtotal =>
-      _items.fold(0, (sum, item) => sum + item.totalPrice);
+  double get _subtotal => _items.fold(0, (sum, item) => sum + item.totalPrice);
 
   @override
   void dispose() {
@@ -498,12 +502,27 @@ class _CartBulkCheckoutScreenState extends State<_CartBulkCheckoutScreen> {
 
   Future<void> _placeAllOrders() async {
     if (_isPlacing || _showPlacedOrders) return;
+    if (_submittedOrders.isEmpty &&
+        _fulfillmentMethod == 'seller_delivery' &&
+        _deliveryDestination.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter the seller delivery destination.')),
+      );
+      return;
+    }
     setState(() => _isPlacing = true);
     final user = await SessionService.loadUser();
 
-    for (final item in _items) {
-      await OrderService.placeOrder(
-        order: {
+    for (var index = 0; index < _items.length; index++) {
+      final item = _items[index];
+      _requestKeys.putIfAbsent(index, OrderService.requestKey);
+      _submittedOrders.putIfAbsent(
+        index,
+        () => {
+          'fulfillment_method': _fulfillmentMethod,
+          'delivery_destination': _fulfillmentMethod == 'seller_delivery'
+              ? _deliveryDestination.trim()
+              : '',
           'product_id': item.productId,
           'product_name': item.productName,
           'category': item.category,
@@ -521,6 +540,27 @@ class _CartBulkCheckoutScreenState extends State<_CartBulkCheckoutScreen> {
           'image_url': item.imageUrl,
         },
       );
+    }
+    for (var index = 0; index < _items.length; index++) {
+      if (_confirmedOrders.contains(index)) continue;
+      final success = await OrderService.placeOrder(
+        order: _submittedOrders[index]!,
+        operationKey: _requestKeys[index],
+      );
+      if (success) {
+        _confirmedOrders.add(index);
+      } else {
+        if (!mounted) return;
+        setState(() => _isPlacing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${_confirmedOrders.length} orders confirmed. Retry to check remaining submissions; confirmed orders will not be sent again.',
+            ),
+          ),
+        );
+        return;
+      }
     }
 
     if (!mounted) return;
@@ -546,17 +586,16 @@ class _CartBulkCheckoutScreenState extends State<_CartBulkCheckoutScreen> {
         surfaceTintColor: Colors.transparent,
         title: Text(
           _showPlacedOrders ? 'Review' : 'Checkout',
-          style: GoogleFonts.notoSans(
-            fontWeight: FontWeight.w600,
-          ),
+          style: AppTypography.text(fontWeight: FontWeight.w600),
         ),
       ),
       body: Theme(
         data: Theme.of(context).copyWith(
-          textTheme: GoogleFonts.notoSansTextTheme(Theme.of(context).textTheme),
+          textTheme: AppTypography.textTheme(Theme.of(context).textTheme),
         ),
         child: SafeArea(
           top: false,
+          bottom: false,
           child: Padding(
             padding: _showPlacedOrders
                 ? const EdgeInsets.all(16)
@@ -579,22 +618,32 @@ class _CartBulkCheckoutScreenState extends State<_CartBulkCheckoutScreen> {
                           children: [
                             const CheckoutBuyerDetails(),
                             OrderSummaryCard(
+                              locked: _submittedOrders.isNotEmpty,
                               showCheckoutHeader: true,
                               items: _summaryItems,
                               subtotal: _subtotal,
                               sellerMessageController: _sellerMessageController,
                               onQuantityChanged: _updateItemQuantity,
+                              onFulfillmentChanged: (method, destination) {
+                                _fulfillmentMethod = method;
+                                _deliveryDestination = destination;
+                              },
                             ),
                           ],
                         ),
                       ),
                       Container(
                         color: Colors.white,
-                        padding: const EdgeInsets.all(16),
-                        child: OrderSummaryPrimaryButton(
-                          label: 'Place Order',
-                          isLoading: _isPlacing,
-                          onPressed: _placeAllOrders,
+                        child: SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: OrderSummaryPrimaryButton(
+                              label: 'Place Order',
+                              isLoading: _isPlacing,
+                              onPressed: _placeAllOrders,
+                            ),
+                          ),
                         ),
                       ),
                     ],

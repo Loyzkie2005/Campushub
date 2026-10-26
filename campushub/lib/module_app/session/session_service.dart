@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import '../services/push_device_api.dart';
+import '../services/push_notification_service.dart';
 
 /// Persists the logged-in user across app restarts.
 class SessionService {
@@ -20,10 +22,17 @@ class SessionService {
       'full_name': user.fullName,
       'role': user.role,
       'user_type': user.userType,
+      'program_id': user.programId,
+      'major_id': user.majorId,
+      'program': user.program,
+      'major': user.major,
       'student_id': user.profileStudentId,
       'institutional_id': user.institutionalId,
       'contact_number': user.contactNumber,
+      'year_section': user.yearSection,
+      'profile_photo_url': user.profilePhotoUrl,
       'profile_completed': user.profileCompleted,
+      'email_verified': user.emailVerified,
     });
   }
 
@@ -37,8 +46,12 @@ class SessionService {
     await prefs.setString(_userKey, _encodeUser(user));
     if (chatToken != null && chatToken.isNotEmpty) {
       await prefs.setString(_chatTokenKey, chatToken);
+    } else {
+      // A new login must never inherit another account's bearer token.
+      await prefs.remove(_chatTokenKey);
     }
     await prefs.setBool(_rememberKey, remember);
+    _syncPushSession(user, prefs.getString(_chatTokenKey));
   }
 
   static Future<String?> loadChatToken() async {
@@ -52,6 +65,7 @@ class SessionService {
     if (chatToken != null && chatToken.isNotEmpty) {
       await prefs.setString(_chatTokenKey, chatToken);
     }
+    _syncPushSession(user, prefs.getString(_chatTokenKey));
   }
 
   /// Load the user (returns null if not logged in).
@@ -73,6 +87,7 @@ class SessionService {
     await prefs.remove(_userKey);
     await prefs.remove(_chatTokenKey);
     await prefs.remove(_rememberKey);
+    await PushNotificationService.instance.clearSession();
   }
 
   /// Quick check.
@@ -80,10 +95,19 @@ class SessionService {
     final prefs = await SharedPreferences.getInstance();
     final shouldRemember = prefs.getBool(_rememberKey) ?? false;
     if (!shouldRemember) {
-      await prefs.remove(_userKey);
-      await prefs.remove(_chatTokenKey);
+      await clearUser();
       return false;
     }
-    return (await loadUser()) != null;
+    final user = await loadUser();
+    _syncPushSession(user, prefs.getString(_chatTokenKey));
+    return user != null;
+  }
+
+  static void _syncPushSession(AuthUser? user, String? token) {
+    PushNotificationService.instance.setSession(
+      user != null && token != null && token.isNotEmpty
+          ? PushSession(userId: user.id, token: token)
+          : null,
+    );
   }
 }

@@ -1,24 +1,25 @@
-{% load static %}
+{% load static tz %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
-    <title>CampusHub | Sellers</title>
+    <title>CampusHub | Seller Applications</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_sellers.css' %}?v=20260901-rbac" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_sellers.css' %}?v=20261025-drawer" />
+{% include 'partials/web_typography.html' %}
 </head>
-<body>
+<body class="admin-module-shell">
     <div class="sidebar-section">
         {% include 'partials/admin_sidebar.html' with active_page='sellers' %}
         <div class="main-wrapper" id="mainWrapper">
-            {% include 'partials/admin_header.html' with page_title='Sellers' breadcrumb_section='Marketplace' breadcrumb_page='Sellers' %}
+            {% include 'partials/admin_header.html' with page_title='Seller Applications' breadcrumb_section='Marketplace' breadcrumb_page='Seller Applications' %}
             <main class="dashboard-content p-4">
                 <section class="seller-page container-fluid px-0">
+                    <header class="seller-page-heading"><h2>Seller Applications</h2><p>Review and manage marketplace selling requests.</p></header>
                     <div class="seller-summary" aria-label="Seller request summary">
                         <article><span>Total Requests</span><strong>{{ status_counts.total }}</strong></article>
                         <article><span>Pending</span><strong>{{ status_counts.pending }}</strong></article>
@@ -28,70 +29,129 @@
 
                     <section class="seller-list-panel">
                         <header class="seller-list-header">
-                            <div><h2>Seller Access Requests</h2><p>Review marketplace seller applications and access status.</p></div>
-                            <form method="get" class="seller-filters">
+
+                            <form method="get" class="seller-filters" data-action-filter>
+                                {% for key, value in seller_filter_parameters %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
                                 <label class="seller-search">
-                                    <span class="visually-hidden">Search sellers</span>
-                                    <input type="search" name="q" value="{{ search_query }}" placeholder="Search sellers..." />
+                                    <span class="visually-hidden">Search seller applications</span>
+                                    <input type="search" name="q" value="{{ search_query }}" placeholder="Search seller applications..." />
                                 </label>
-                                <select name="status" aria-label="Filter seller status" onchange="this.form.submit()">
+                                <select name="status" aria-label="Filter seller status">
                                     <option value="">All Status</option>
-                                    <option value="pending"{% if status_filter == 'pending' %} selected{% endif %}>Pending</option>
+                                    <option value="pending"{% if status_filter == 'pending' %} selected{% endif %}>Pending Review</option>
+                                    <option value="needs_revision"{% if status_filter == 'needs_revision' %} selected{% endif %}>Needs Revision</option>
                                     <option value="approved"{% if status_filter == 'approved' %} selected{% endif %}>Approved</option>
                                     <option value="rejected"{% if status_filter == 'rejected' %} selected{% endif %}>Rejected</option>
                                 </select>
                                 <button type="submit">Search</button>
+                                {% if search_query or status_filter %}<a class="seller-clear" href="{% url 'admin_sellers_page' %}{% if seller_clear_query %}?{{ seller_clear_query }}{% endif %}">Clear Filters</a>{% endif %}
                             </form>
                         </header>
 
-                        <div class="seller-table-wrap">
+                        <div class="seller-table-wrap" role="region" aria-label="Seller applications table" tabindex="0">
                             <table class="seller-table">
-                                <thead><tr><th>Applicant</th><th>Username</th><th>Department</th><th>Product Type</th><th>Contact</th><th>Status</th><th>Date Applied</th><th>Actions</th></tr></thead>
+                                <thead><tr><th scope="col">Applicant</th><th scope="col">Username</th><th scope="col">Department</th><th scope="col">Product Type</th><th scope="col">Contact</th><th scope="col">Status</th><th scope="col">Date Applied</th><th scope="col">Actions</th></tr></thead>
                                 <tbody>
                                     {% for seller in page_obj %}
                                     <tr>
-                                        <td><strong>{{ seller.full_name|default:'Unnamed applicant' }}</strong><small>{{ seller.user.email|default:'No email provided' }}</small></td>
-                                        <td>{{ seller.student_id|default:'Not provided' }}</td>
-                                        <td>{{ seller.user.department.name|default:'Not Assigned' }}</td>
+                                        <td><strong>{{ seller.full_name|default:'Unnamed applicant' }}</strong><small>{% if seller.mobile_user %}{{ seller.mobile_user.email }}{% else %}{{ seller.user.email|default:'No email provided' }}{% endif %}</small></td>
+                                        <td>{{ seller.display_username|default:'Not recorded' }}{% if not seller.display_username and seller.student_id %}<small>Applicant ID: {{ seller.student_id }}</small>{% endif %}</td>
+                                        <td>{% if seller.display_department %}{{ seller.display_department }}{% if seller.display_major %}<small>{{ seller.display_major }}</small>{% endif %}{% elif seller.snapshot_program %}{{ seller.snapshot_program }}<small>Application snapshot</small>{% else %}Not assigned{% endif %}</td>
                                         <td>{{ seller.product_type|default:'Not specified' }}</td>
                                         <td>{{ seller.contact_number|default:'Not provided' }}</td>
-                                        <td><span class="seller-status seller-status--{{ seller.status }}">{{ seller.get_status_display }}</span></td>
-                                        <td>{{ seller.created_at|date:'M d, Y' }}</td>
+                                        <td><span class="seller-status seller-status--{{ seller.status }}">{{ seller.get_status_display }}</span>{% if seller.is_suspended %}<small>Seller access suspended</small>{% endif %}</td>
+                                        <td class="seller-date">{{ seller.created_at|date:'M j, Y' }}</td>
                                         <td>
-                                            {% if seller.status == 'pending' %}
-                                            <div class="seller-actions">
-                                                <form method="post" action="{% url 'marketplace_approve_seller_request' seller.id %}">{% csrf_token %}<button class="seller-action seller-action--approve" type="submit">Approve</button></form>
-                                                <form method="post" action="{% url 'marketplace_reject_seller_request' seller.id %}" class="js-reject-seller">{% csrf_token %}<input type="hidden" name="rejection_reason" /><button class="seller-action seller-action--reject" type="submit">Reject</button></form>
+                                            <div class="seller-row-actions">
+                                                {# Kept outside .seller-actions so review locking never disables viewing. #}
+                                                <button type="button" class="seller-icon-action" aria-controls="sellerApplicationDrawer" data-seller-application="sellerApplicationDetail{{ seller.pk }}" data-applicant="{{ seller.full_name|default:'Unnamed applicant' }}" data-tooltip="View Application" aria-label="View Application for {{ seller.full_name|default:'Unnamed applicant' }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                                                {% if seller.status == 'pending' and perms.accounts.can_manage_sellers %}
+                                                <div class="seller-actions">
+                                                    <form method="post" action="{% url 'marketplace_approve_seller_request' seller.id %}">{% csrf_token %}<button class="seller-action seller-action--approve" type="submit">Approve</button></form>
+                                                    <form method="post" action="{% url 'marketplace_reject_seller_request' seller.id %}" class="js-reject-seller">{% csrf_token %}<input type="hidden" name="rejection_reason" /><button class="seller-action seller-action--reject" type="submit">Reject</button></form>
+                                                </div>
+                                                {% elif seller.status == 'pending' %}
+                                                <span class="seller-action-muted">Awaiting review</span>
+                                                {% endif %}
                                             </div>
-                                            {% else %}
-                                            <span class="seller-action-muted">Reviewed</span>
-                                            {% endif %}
                                         </td>
                                     </tr>
                                     {% empty %}
-                                    <tr><td colspan="8" class="seller-empty">No seller requests match the selected filters.</td></tr>
+                                    <tr><td colspan="8" class="seller-empty">No seller applications match the selected filters.</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
 
                         <footer class="seller-list-footer">
-                            <span>Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} requests</span>
-                            {% if page_obj.paginator.num_pages > 1 %}
+                            <span>Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} applications</span>
                             <nav class="seller-pagination" aria-label="Seller request pages">
-                                {% if page_obj.has_previous %}<a href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" aria-label="Previous page">&lsaquo;</a>{% else %}<span aria-hidden="true">&lsaquo;</span>{% endif %}
-                                <strong>{{ page_obj.number }}</strong>
-                                {% if page_obj.has_next %}<a href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page_obj.next_page_number }}" aria-label="Next page">&rsaquo;</a>{% else %}<span aria-hidden="true">&rsaquo;</span>{% endif %}
+                                {% if page_obj.has_previous %}<a href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" aria-label="Previous page">&lsaquo;</a>{% else %}<button type="button" disabled aria-label="Previous page">&lsaquo;</button>{% endif %}
+                                <span aria-current="page">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                                {% if page_obj.has_next %}<a href="?{% if query_without_page %}{{ query_without_page }}&amp;{% endif %}page={{ page_obj.next_page_number }}" aria-label="Next page">&rsaquo;</a>{% else %}<button type="button" disabled aria-label="Next page">&rsaquo;</button>{% endif %}
                             </nav>
-                            {% endif %}
                         </footer>
                     </section>
                 </section>
             </main>
         </div>
     </div>
+    {# Read-only Application Details drawer: same offcanvas pattern as the Inventory details drawer. #}
+    <div class="offcanvas offcanvas-end seller-details-drawer" tabindex="-1" id="sellerApplicationDrawer" aria-labelledby="sellerApplicationTitle">
+        <div class="offcanvas-header">
+            <div class="seller-drawer-heading"><h2 id="sellerApplicationTitle">Application Details</h2><p id="sellerApplicationSubtitle"></p></div>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close application details"></button>
+        </div>
+        <div class="offcanvas-body" id="sellerApplicationBody"></div>
+    </div>
+    {% timezone 'Asia/Manila' %}
+    {% for seller in page_obj %}
+    <template id="sellerApplicationDetail{{ seller.pk }}">
+        <section class="seller-drawer-section">
+            <h3>Applicant Information</h3>
+            <dl class="seller-drawer-fields">
+                <div><dt>Full Name</dt><dd>{{ seller.full_name|default:'Not recorded' }}</dd></div>
+                <div><dt>Username</dt><dd>{{ seller.display_username|default:'Not recorded' }}{% if not seller.display_username and seller.student_id %}<small>Applicant ID: {{ seller.student_id }}</small>{% endif %}</dd></div>
+                <div><dt>Email</dt><dd>{{ seller.display_email|default:'Not recorded' }}</dd></div>
+                <div><dt>Contact Number</dt><dd>{{ seller.contact_number|default:'Not provided' }}</dd></div>
+                <div><dt>Department</dt><dd>{% if seller.display_department %}{{ seller.display_department }}{% if seller.display_major %}<small>{{ seller.display_major }}</small>{% endif %}{% else %}Not assigned{% endif %}</dd></div>
+                <div><dt>Program</dt><dd>{% if seller.program_snapshot %}{{ seller.program_snapshot }}<small>Recorded when applying</small>{% else %}Not recorded{% endif %}</dd></div>
+                <div><dt>Course / Section</dt><dd>{{ seller.course_section|default:'Not recorded' }}</dd></div>
+            </dl>
+        </section>
+        <section class="seller-drawer-section">
+            <h3>Application Details</h3>
+            <dl class="seller-drawer-fields">
+                <div><dt>Product Type</dt><dd>{{ seller.product_type|default:'Not specified' }}</dd></div>
+                <div><dt>Products Intended</dt><dd class="seller-drawer-text">{{ seller.application_data.products_intended|default:'Not recorded' }}</dd></div>
+                <div><dt>Applicant Message</dt><dd class="seller-drawer-text">{{ seller.message|default:'No message provided' }}</dd></div>
+                <div><dt>Date Applied</dt><dd><time datetime="{{ seller.created_at|date:'c' }}">{{ seller.created_at|date:'M j, Y' }} &middot; {{ seller.created_at|date:'g:i A' }}</time></dd></div>
+                <div><dt>Seller Terms</dt><dd><ul class="seller-drawer-terms">{% for label, agreed in seller.confirmation_rows %}<li>{{ label }}: {% if agreed %}Agreed{% else %}Not recorded{% endif %}</li>{% endfor %}</ul></dd></div>
+                <div><dt>Terms Confirmed</dt><dd>{% if seller.confirmed_at_value %}<time datetime="{{ seller.confirmed_at_value|date:'c' }}">{{ seller.confirmed_at_value|date:'M j, Y' }} &middot; {{ seller.confirmed_at_value|date:'g:i A' }}</time>{% else %}Not recorded{% endif %}</dd></div>
+                <div><dt>Status</dt><dd><span class="seller-status seller-status--{{ seller.status }}">{{ seller.get_status_display }}</span>{% if seller.is_suspended %}<small>Seller access suspended</small>{% endif %}</dd></div>
+            </dl>
+        </section>
+        <section class="seller-drawer-section">
+            <h3>Review History</h3>
+            {% if seller.reviewed_at or seller.reviewed_by or seller.rejection_reason or seller.revision_notes %}
+            <dl class="seller-drawer-fields">
+                {# A pending record with revision notes is a resubmission after a revision request. #}
+                <div><dt>Review Decision</dt><dd>{% if seller.status == 'pending' and seller.revision_notes %}Needs Revision<small>Applicant resubmitted; awaiting a new review.</small>{% else %}{{ seller.get_status_display }}{% endif %}</dd></div>
+                <div><dt>Reviewed By</dt><dd>{% if seller.reviewed_by %}{{ seller.reviewed_by.get_full_name|default:seller.reviewed_by.username }}{% if seller.reviewed_by.get_full_name %}<small>Admin username: {{ seller.reviewed_by.username }}</small>{% endif %}{% else %}Not recorded{% endif %}</dd></div>
+                <div><dt>Review Date and Time</dt><dd>{% if seller.reviewed_at %}<time datetime="{{ seller.reviewed_at|date:'c' }}">{{ seller.reviewed_at|date:'M j, Y' }} &middot; {{ seller.reviewed_at|date:'g:i A' }}</time>{% else %}Not recorded{% endif %}</dd></div>
+                {% if seller.rejection_reason %}<div><dt>Reason</dt><dd class="seller-drawer-text">{{ seller.rejection_reason }}</dd></div>{% endif %}
+                {% if seller.revision_notes %}<div><dt>Revision Notes</dt><dd class="seller-drawer-text">{{ seller.revision_notes }}</dd></div>{% endif %}
+            </dl>
+            {% else %}
+            <p class="seller-drawer-empty">Not yet reviewed.</p>
+            {% endif %}
+            <p class="seller-drawer-note">Only the latest recorded review is stored for each application.</p>
+        </section>
+    </template>
+    {% endfor %}
+    {% endtimezone %}
     {% include 'partials/admin_logout_modal.html' %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{% static 'components/js/admin_sellers.js' %}?v=20260901-rbac"></script>
+    <script src="{% static 'components/js/admin_sellers.js' %}?v=20261025-drawer"></script>
 </body>
 </html>

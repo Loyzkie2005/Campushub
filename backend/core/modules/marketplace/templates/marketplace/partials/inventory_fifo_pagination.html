@@ -1,0 +1,14 @@
+<div class="inventory-page-pagination{% if movement_pagination or batch_pagination %} inventory-movement-pagination{% endif %}">
+    <span>{{ page.paginator.count }} record{{ page.paginator.count|pluralize }}</span>
+    <nav aria-label="{% if movement_pagination %}Stock movement pages{% elif batch_pagination %}Stock batch pages{% else %}Inventory workspace pages{% endif %}">
+    {% if movement_pagination or batch_pagination %}
+        {% if page.has_previous %}<a class="inventory-page-step" href="?{{ fifo_page_query }}&amp;fifo_page={{ page.previous_page_number }}" aria-label="Previous page" title="Previous page">&lt;</a>{% else %}<button type="button" class="inventory-page-step" aria-label="Previous page" title="Previous page" disabled>&lt;</button>{% endif %}
+        <span aria-current="page">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a class="inventory-page-step" href="?{{ fifo_page_query }}&amp;fifo_page={{ page.next_page_number }}" aria-label="Next page" title="Next page">&gt;</a>{% else %}<button type="button" class="inventory-page-step" aria-label="Next page" title="Next page" disabled>&gt;</button>{% endif %}
+    {% else %}
+        {% if page.has_previous %}<a href="?{{ fifo_page_query }}&amp;fifo_page={{ page.previous_page_number }}">Previous</a>{% endif %}
+        <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a href="?{{ fifo_page_query }}&amp;fifo_page={{ page.next_page_number }}">Next</a>{% endif %}
+    {% endif %}
+    </nav>
+</div>

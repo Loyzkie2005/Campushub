@@ -1,0 +1,107 @@
+                            <section class="facility-form-section-images" id="facilityImagesSection" aria-labelledby="facilitySectionImages">
+                                <h3 class="facility-form-section-title" id="facilitySectionImages">1. {% if service_catalog %}Service{% else %}Facility{% endif %} Images</h3>
+
+                                <label for="facilityImageUpload" class="create-upload-dropzone" id="facilityImageDropzone">
+                                    <!-- Default state: icon + text -->
+                                    <span class="upload-default-state">
+                                        <span class="create-upload-icon" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                                stroke-width="1.8" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                                            </svg>
+                                        </span>
+                                        <span class="create-upload-copy">
+                                            <span class="create-upload-line">Drop your images here, or</span>
+                                            <span class="create-upload-button">Click to browse</span>
+                                        </span>
+                                    </span>
+
+                                    <!-- Loading state: spinner -->
+                                    <span class="upload-loading-state" aria-hidden="true">
+                                        <span class="upload-spinner"></span>
+                                        <span class="upload-loading-text">Uploading...</span>
+                                    </span>
+
+                                    <!-- Selected state: filename only -->
+                                    <span class="upload-selected-state">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="1.8" stroke="currentColor" class="upload-check-icon">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                        </svg>
+                                        <span class="upload-selected-filename" id="facilityImageFileName">No file selected</span>
+                                    </span>
+                                </label>
+                                <input type="file" class="create-upload-input" id="facilityImageUpload" accept="image/*" multiple>
+
+                                <div class="facility-image-slots" id="facilityImageSlots" aria-label="Facility image previews">
+                                    <div class="facility-image-slot" data-slot-index="0" role="button" tabindex="0" aria-label="Image slot 1">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="1" role="button" tabindex="0" aria-label="Image slot 2">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="2" role="button" tabindex="0" aria-label="Image slot 3">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="3" role="button" tabindex="0" aria-label="Image slot 4">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="4" role="button" tabindex="0" aria-label="Image slot 5">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                    <div class="facility-image-slot" data-slot-index="5" role="button" tabindex="0" aria-label="Image slot 6">
+                                        <span class="facility-image-slot-empty" aria-hidden="true">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>
+                                            <span class="facility-image-slot-add">+</span>
+                                        </span>
+                                        <span class="facility-image-slot-processing" aria-hidden="true" hidden>
+                                            <span class="slot-spinner"></span>
+                                        </span>
+                                        <img class="facility-image-slot-preview" alt="" hidden>
+                                        <button type="button" class="facility-image-slot-remove" aria-label="Remove image" hidden>&times;</button>
+                                    </div>
+                                </div>
+                                <span class="facility-form-help">Supported: JPG, PNG, WEBP. Up to 6 images.</span>
+                            </section>

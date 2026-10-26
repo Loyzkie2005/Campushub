@@ -1,0 +1,35 @@
+<article class="bk-official-slip{% if slip.rental %} bk-official-slip--rental{% endif %}" aria-label="{{ slip.title }}">
+  <header class="bk-official-header">
+    {% if slip.logo_url %}<img src="{{ slip.logo_url }}" alt="USTP logo" width="64" height="64">{% endif %}
+    <p class="bk-official-institution">{% for line in slip.institution %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</p>
+    <p class="bk-official-campus">{{ slip.campus }}</p>
+    <h2>{{ slip.title }}</h2>
+  </header>
+  <dl class="bk-official-meta"><div><dt>Booking No.</dt><dd>{{ slip.id }}</dd></div><div><dt>{% if slip.rental %}Date of Request{% else %}Date Requested{% endif %}</dt><dd>{{ slip.requested_at }}</dd></div>{% if not slip.rental %}<div><dt>Booking Status</dt><dd>{{ slip.status }}</dd></div>{% endif %}</dl>
+  {% for section in slip.sections %}
+    {% if forloop.last %}
+    <section class="bk-official-section"><h3>{{ slip.signatory_heading }}</h3>
+      <div class="bk-official-signatories">
+        {% for signatory in slip.signatories %}<div>
+          {% if slip.rental %}
+            {% if signatory.label == 'Approved By' %}
+              <div class="bk-approved-heading"><h4>Approved By:</h4><p class="bk-signatory-name">{{ signatory.name }}</p><p class="bk-signatory-role">{{ signatory.role }}</p><p class="bk-approved-date-label">Date</p><p class="bk-approved-date-value"><span>:</span></p></div>
+            {% else %}
+              <h4>{{ signatory.label }}:</h4>
+              <div class="bk-signatory-fields"><dl><div><dt>Signature:</dt><dd class="bk-blank-line">&nbsp;</dd></div><div><dt>Name:</dt><dd>{{ signatory.name }}</dd></div></dl></div>
+              <div class="bk-signatory-fields"><dl><div><dt>Date:</dt><dd class="bk-blank-line">&nbsp;</dd></div></dl></div>
+            {% endif %}
+          {% else %}
+            <h4>{{ signatory.label }}</h4><p>{{ signatory.name }}</p><p class="bk-signatory-role">{{ signatory.role }}</p><span class="bk-signature-line">Signature / Date</span>
+          {% endif %}
+        </div>{% endfor %}
+      </div>
+    </section>
+    {% endif %}
+    <section class="bk-official-section"><h3>{{ section.title }}</h3>
+      {% if section.choices %}<ul class="bk-official-choices">{% for choice in section.choices %}<li{% if choice.write_in %} class="bk-choice-write-in"{% endif %}><span class="bk-slip-checkbox" aria-hidden="true">{% if choice.checked %}&#10003;{% endif %}</span>{{ choice.label }}{% if choice.write_in %}:<span class="bk-choice-value">{{ choice.value|linebreaksbr }}</span>{% endif %}{% if choice.detail %} ({{ choice.detail }}){% endif %}<span class="visually-hidden">{% if choice.checked %}: Selected{% else %}: Not selected{% endif %}</span></li>{% endfor %}</ul>{% endif %}
+      <dl class="bk-official-fields">{% for field in section.fields %}<div{% if field.wide %} class="bk-official-wide"{% endif %}><dt>{{ field.label }}</dt><dd>{{ field.value|linebreaksbr }}</dd></div>{% endfor %}</dl>
+    </section>
+  {% endfor %}
+  {% if not slip.rental %}<p class="bk-official-note">Generated from the saved booking and recorded payments. Printed names do not replace signatures. This slip is not an Official Receipt.</p>{% endif %}
+</article>

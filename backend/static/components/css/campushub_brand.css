@@ -1,0 +1,32 @@
+/* Reuse the same wordmark face bundled with the Flutter app. */
+@font-face {
+    font-family: 'SugarPie';
+    src: url('../../assets/fonts/Sugar-Pie-W00-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+.login-brand .login-brand-name,
+.login-brand .login-brand-name span,
+.sidebar-logo .sidebar-logo-text,
+.sidebar-logo .sidebar-logo-text span {
+    font-family: 'SugarPie', cursive !important;
+    font-weight: 400;
+    font-style: normal;
+    font-synthesis: none;
+    letter-spacing: 0;
+}
+
+.sidebar-logo .sidebar-logo-text {
+    font-size: 24px;
+    line-height: 1.25;
+}
+
+.sidebar-logo .sidebar-logo-text .logo-campus {
+    color: var(--campushub-navy, #1A1851);
+}
+
+.sidebar-logo .sidebar-logo-text .logo-hub {
+    color: var(--campushub-gold, #FCB315);
+}

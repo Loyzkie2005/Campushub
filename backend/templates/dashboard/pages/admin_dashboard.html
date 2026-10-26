@@ -8,12 +8,27 @@
     <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
     <title>CampusHub | Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_dashboard.css' %}?v=20260823-facility-analytics" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_sales_overview.css' %}?v=20260920-marketplace-panels" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_dashboard.css' %}?v=20261004-system-status-heading" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_sales_overview.css' %}?v=20261022-inter" />
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_filter.css' %}?v=20261005-stock-column-fit" />{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_system_status.css' %}?v=20261005-online-green" />{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_marketplace_overview.css' %}?v=20261022-inter" />{% endif %}
+    <link rel="stylesheet" href="{% static 'components/css/admin_dashboard_palette.css' %}?v=20261006-navy-columns" />
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_booking_overview.css' %}?v=20261017-executive" />{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_most_booked_facilities.css' %}?v=20261007-facility-images" />{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_upcoming_reservations.css' %}?v=20261006-upcoming" />{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_summary.css' %}?v=20261022-inter">{% endif %}
+    {% if show_bundle_suggestions %}<link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261025-bundle-sync">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_executive.css' %}?v=20261020-header-status-stock">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_facilities_overview.css' %}?v=20261022-facilities">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_services_overview.css' %}?v=20261022-services">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_operations.css' %}?v=20261024-registration-views">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_empty.css' %}?v=20261022-empty">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_executive_refinement.css' %}?v=20261024-orders-row">{% endif %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% include 'partials/web_typography.html' %}
 </head>
 
 <body>
@@ -25,16 +40,32 @@
         <div class="main-wrapper" id="mainWrapper">
 
             <!-- Header -->
-            {% include 'partials/admin_header.html' with page_title='Dashboard' %}
+            {% include 'partials/admin_header.html' with page_title='Dashboard' system_status_inline=False %}
 
             <!-- Content -->
-            <main class="dashboard-content">
+            <main class="dashboard-content" data-dashboard-palette{% if global_dashboard %} data-global-dashboard{% endif %}>
                 <div class="container-fluid py-4 px-4">
+                    {% if global_dashboard %}
+                    {% include 'dashboard/partials/executive_dashboard.html' %}
+                    {% else %}
+                    {% if global_dashboard %}
+                    <div class="dashboard-overview-controls">{% include 'dashboard/partials/global_date_filter.html' %}</div>
+                    {% else %}
                     <div class="dashboard-section-heading dashboard-section-heading--first">
                         <h2>System Overview</h2>
                         <time datetime="{{ dashboard_updated_at|date:'c' }}">Updated {{ dashboard_updated_at|date:"M d, Y g:i A" }}</time>
                     </div>
-                    <section class="dashboard-stats-grid row g-3">
+                    {% endif %}
+                    {% if global_dashboard %}
+                    {{ dashboard_period|json_script:"dashboardPeriodData" }}
+                    <div id="dashboardLoadError" class="dashboard-load-error" role="alert" hidden>Unable to load dashboard data. <button type="button" class="dashboard-filter-button" id="dashboardRetry">Retry</button></div>
+                    <p id="dashboardLoading" role="status" class="dashboard-loading" hidden>Loading dashboard data…</p>
+                    {% endif %}
+                    {% if global_dashboard %}
+                    {% include 'dashboard/partials/system_overview_summary.html' %}
+                    {% else %}
+                    {% if global_dashboard %}<div class="dashboard-kpi-region">{% endif %}
+                    <section class="dashboard-stats-grid row g-3" data-dashboard-loading-region>
                         {% if not is_marketplace_admin %}
                         <div class="col-12 col-sm-6 col-xl-3">
                             <article class="dashboard-stat-card h-100">
@@ -44,8 +75,9 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <strong>{{ dashboard_stats.total_users|default:0 }}</strong>
+                                    <strong data-dashboard-kpi="total_users">{{ dashboard_stats.total_users|default:0 }}</strong>
                                     <span>Total Users</span>
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_users' metric=dashboard_kpis.total_users %}{% endif %}
                                 </div>
                             </article>
                         </div>
@@ -58,8 +90,9 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <strong>{{ dashboard_stats.active_sellers|default:0 }}</strong>
+                                    <strong data-dashboard-kpi="active_sellers">{{ dashboard_stats.active_sellers|default:0 }}</strong>
                                     <span>Active Sellers</span>
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='active_sellers' metric=dashboard_kpis.active_sellers %}{% endif %}
                                 </div>
                             </article>
                         </div>
@@ -71,8 +104,9 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <strong>{{ dashboard_stats.total_products|default:0 }}</strong>
+                                    <strong data-dashboard-kpi="total_products">{{ dashboard_stats.total_products|default:0 }}</strong>
                                     <span>Total Products</span>
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_products' metric=dashboard_kpis.total_products %}{% endif %}
                                 </div>
                             </article>
                         </div>
@@ -85,8 +119,9 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <strong>{{ dashboard_stats.total_facilities|default:0 }}</strong>
+                                    <strong data-dashboard-kpi="total_facilities">{{ dashboard_stats.total_facilities|default:0 }}</strong>
                                     <span>Total Facilities</span>
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_facilities' metric=dashboard_kpis.total_facilities %}{% endif %}
                                 </div>
                             </article>
                         </div>
@@ -99,8 +134,9 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <strong>{{ dashboard_stats.total_orders|default:0 }}</strong>
+                                    <strong data-dashboard-kpi="total_orders">{{ dashboard_stats.total_orders|default:0 }}</strong>
                                     <span>Total Orders</span>
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_orders' metric=dashboard_kpis.total_orders %}{% endif %}
                                 </div>
                             </article>
                         </div>
@@ -113,8 +149,9 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <strong>{{ dashboard_stats.total_bookings|default:0 }}</strong>
+                                    <strong data-dashboard-kpi="total_bookings">{{ dashboard_stats.total_bookings|default:0 }}</strong>
                                     <span>Total Bookings</span>
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_bookings' metric=dashboard_kpis.total_bookings %}{% endif %}
                                 </div>
                             </article>
                         </div>
@@ -141,8 +178,9 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <strong>&#8369; {{ dashboard_stats.total_revenue|default:"0.00" }}</strong>
+                                    <strong data-dashboard-kpi="marketplace_revenue">&#8369;{{ dashboard_stats.total_revenue|default:"0.00" }}</strong>
                                     <span>{% if user.is_superuser or user.role|lower == 'super admin' %}Marketplace Revenue{% else %}All-Time Marketplace Revenue{% endif %}</span>
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='marketplace_revenue' metric=dashboard_kpis.marketplace_revenue %}{% endif %}
                                 </div>
                             </article>
                         </div>
@@ -154,40 +192,22 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <strong>{{ dashboard_stats.pending_approvals|default:0 }}</strong>
+                                    <strong data-dashboard-kpi="pending_approvals">{{ dashboard_stats.pending_approvals|default:0 }}</strong>
                                     <span>Pending Approvals</span>
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='pending_approvals' metric=dashboard_kpis.pending_approvals %}{% endif %}
                                 </div>
                             </article>
                         </div>
                     </section>
-                    {% if not is_marketplace_admin %}
-                    <section class="dash-card dashboard-system-services mt-3" aria-labelledby="systemStatusTitle">
-                        <div class="dash-card-header dashboard-system-services-header">
-                            <h2 id="systemStatusTitle">System Status</h2>
-                            <a href="{% url 'admin_settings_page' %}" class="dash-view-all-link">Manage Settings</a>
-                        </div>
-                        <div class="dashboard-service-list">
-                            <div class="dashboard-service-item">
-                                <span class="dashboard-service-icon dashboard-service-icon--database" aria-hidden="true"></span>
-                                <div><strong>Database</strong><span>Connected</span></div>
-                                <span class="dashboard-service-state dashboard-service-state--online">Online</span>
-                            </div>
-                            <div class="dashboard-service-item">
-                                <span class="dashboard-service-icon dashboard-service-icon--chat" aria-hidden="true"></span>
-                                <div><strong>Chat Service</strong><span>FastAPI messaging</span></div>
-                                <span class="dashboard-service-state" id="chatServiceStatus" data-health-url="{{ chat_health_url }}">Checking</span>
-                            </div>
-                            <a class="dashboard-service-item dashboard-service-item--link" href="{% url 'admin_backup_page' %}">
-                                <span class="dashboard-service-icon dashboard-service-icon--backup" aria-hidden="true"></span>
-                                <div><strong>Backup &amp; Restore</strong><span>System data tools</span></div>
-                                <span class="dashboard-service-action">Open</span>
-                            </a>
-                        </div>
-                    </section>
+                    {% if global_dashboard %}</div>{% endif %}
                     {% endif %}
 
                     <!-- Row 1: Sales Overview | Top Selling Product | Product Categories -->
                     {{ revenue_chart|json_script:"revenueChartData" }}
+                    {% if global_dashboard %}
+                    {% include 'dashboard/partials/marketplace_analytics.html' %}
+                    {% include 'dashboard/partials/marketplace_operations.html' %}
+                    {% else %}
                     <div class="dashboard-section-heading"><h2>Marketplace Analytics</h2></div>
                     <section class="row g-3 mt-3 dash-overview-row">
                         <div class="col-12 col-xl-6">
@@ -206,9 +226,9 @@
                                     <span class="dashboard-top-selling-label">Based on completed marketplace sales</span>
                                     <strong>{{ dashboard_stats.best_selling|default:"—" }}</strong>
                                     {% if dashboard_stats.best_selling == "—" %}
-                                    <p>No completed product sales yet.</p>
+                                    <p>{% if global_dashboard %}No completed sales in this period.{% else %}No completed product sales yet.{% endif %}</p>
                                     {% else %}
-                                    <p>Current all-time sales leader</p>
+                                    <p>{% if global_dashboard %}Sales leader in selected period{% else %}Current all-time sales leader{% endif %}</p>
                                     {% endif %}
                                 </div>
                             </div>
@@ -250,6 +270,15 @@
                         </div>
                     </section>
 
+                    {% endif %}
+                    {% if not global_dashboard %}
+                    <section class="row g-3 mt-3">
+                        <div class="col-12 d-flex">
+                            {% include 'dashboard/partials/recent_orders.html' %}
+                        </div>
+                    </section>
+                    {% endif %}
+
                     {% if not is_marketplace_admin %}
                     {{ facility_booking_chart|json_script:"facilityBookingChartData" }}
                     {{ facility_analytics.revenue_chart|json_script:"facilityRevenueChartData" }}
@@ -257,16 +286,19 @@
                     <div class="dashboard-section-heading dashboard-facilities-heading mt-4">
                         <h2>Facilities Analytics</h2>
                         <div class="dashboard-section-actions">
-                            <select class="dash-select" id="facilityPeriodSelect" aria-label="Facility analytics period">
+                            {% if not global_dashboard %}<select class="dash-select" id="facilityPeriodSelect" aria-label="Facility analytics period">
                                 <option value="7"{% if facility_days == 7 %} selected{% endif %}>Last 7 Days</option>
                                 <option value="14"{% if facility_days == 14 %} selected{% endif %}>Last 14 Days</option>
                                 <option value="30"{% if facility_days == 30 %} selected{% endif %}>Last 30 Days</option>
-                            </select>
+                            </select>{% endif %}
                             <a href="{% url 'admin_facility_page' %}" class="dash-view-all-link">Manage Facilities</a>
                         </div>
                     </div>
                     <section class="row g-3 mt-2 facility-analytics-grid">
-                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                        <div class="col-12{% if not global_dashboard %} col-lg-6 col-xl-4{% endif %} d-flex">
+                            {% if global_dashboard %}
+                            {% include 'dashboard/partials/booking_overview.html' with overview=facility_analytics.booking_overview %}
+                            {% else %}
                             <div class="dash-card facility-booking-overview h-100">
                                 <div class="dash-card-header"><h2>Booking Overview</h2></div>
                                 <div class="facility-status-summary" aria-label="Booking status totals">
@@ -277,8 +309,12 @@
                                 </div>
                                 <div class="facility-booking-chart-wrap"><canvas id="facilityBookingOverviewChart"></canvas></div>
                             </div>
+                            {% endif %}
                         </div>
                         <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            {% if global_dashboard %}
+                            {% include 'dashboard/partials/facility_utilization.html' %}
+                            {% else %}
                             <div class="dash-card facility-utilization-analytics h-100">
                                 <div class="dash-card-header"><h2>Facility Utilization</h2></div>
                                 <p class="facility-metric-note">Approved and completed reserved hours across {{ facility_operating_hours }} operating hours per day.</p>
@@ -294,8 +330,12 @@
                                     {% endfor %}
                                 </div>
                             </div>
+                            {% endif %}
                         </div>
                         <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                            {% if global_dashboard %}
+                            {% include 'dashboard/partials/most_booked_facilities.html' %}
+                            {% else %}
                             <div class="dash-card facility-highlight-card h-100">
                                 <div class="dash-card-header"><h2>Most Booked Facility</h2></div>
                                 <div class="facility-highlight-body">
@@ -306,8 +346,12 @@
                                     <span id="facilityMostBookedCount">{% if facility_analytics.most_booked %}{{ facility_analytics.most_booked.bookings }} approved/completed bookings{% else %}Selected period{% endif %}</span>
                                 </div>
                             </div>
+                            {% endif %}
                         </div>
-                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                        <div class="col-12 {% if global_dashboard %}col-lg-12{% else %}col-lg-6{% endif %} col-xl-4 d-flex">
+                            {% if global_dashboard %}
+                            {% include 'dashboard/partials/upcoming_reservations.html' %}
+                            {% else %}
                             <div class="dash-card facility-upcoming-analytics h-100">
                                 <div class="dash-card-header"><h2>Upcoming Reservations</h2><a href="{% url 'admin_calendar_page' %}" class="dash-view-all-link">View Calendar</a></div>
                                 <div class="facility-upcoming-list">
@@ -322,8 +366,12 @@
                                 </div>
                                 <a href="{% url 'admin_bookings_page' %}" class="facility-upcoming-all">View All Bookings</a>
                             </div>
+                            {% endif %}
                         </div>
-                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                        <div class="col-12 col-lg-6{% if not global_dashboard %} col-xl-4{% endif %} d-flex">
+                            {% if global_dashboard %}
+                            {% include 'dashboard/partials/facility_status.html' %}
+                            {% else %}
                             <div class="dash-card facility-availability-card h-100">
                                 <div class="dash-card-header"><h2>Facility Status</h2></div>
                                 <div class="facility-status-layout">
@@ -342,8 +390,12 @@
                                     <span>Schedule conflicts</span><strong id="facilityScheduleConflicts">{{ facility_analytics.schedule_conflicts }}</strong>
                                 </div>
                             </div>
+                            {% endif %}
                         </div>
-                        <div class="col-12 col-lg-6 col-xl-4 d-flex">
+                        <div class="col-12 col-lg-6{% if not global_dashboard %} col-xl-4{% endif %} d-flex">
+                            {% if global_dashboard %}
+                            {% include 'dashboard/partials/facility_revenue.html' %}
+                            {% else %}
                             <div class="dash-card facility-revenue-analytics h-100">
                                 <div class="dash-card-header"><h2>Facility Revenue</h2></div>
                                 <div class="facility-revenue-total">
@@ -353,10 +405,15 @@
                                 <div class="facility-revenue-chart-wrap"><canvas id="facilityRevenueChart"></canvas></div>
                                 <a href="{% url 'admin_generate_reports_page' %}" class="facility-report-link">View Facility Reports</a>
                             </div>
+                            {% endif %}
                         </div>
                     </section>
                     {% endif %}
 
+                    {% if global_dashboard %}
+                    {% include 'dashboard/partials/domain_overviews.html' %}
+                    {% include 'dashboard/partials/system_status.html' %}
+                    {% endif %}
                     <!-- Recent Activities -->
                     <section class="row g-3 mt-3 dash-row-equal">
                         <div class="col-12 dashboard-analytics-recent d-flex">
@@ -397,9 +454,10 @@
                         </div>
                     </section>
 
-                    <!-- Row 3: Action Center | Low Stock Products -->
+                    {% if not global_dashboard %}
+                    <!-- Legacy dashboards retain their approval and stock cards. -->
                     <section class="row g-3 mt-3">
-                        <div class="col-12 col-xl-7 d-flex" id="pendingApprovalsSlot">
+                        <div class="{% if global_dashboard %}col-12{% else %}col-12 col-xl-7{% endif %} d-flex" id="pendingApprovalsSlot">
                             <div class="dash-card dashboard-action-center h-100">
                                 <div class="dash-card-header">
                                     <h2>Pending Approvals</h2>
@@ -461,6 +519,7 @@
                                 {% endif %}
                             </div>
                         </div>
+                        {% if not global_dashboard %}
                         <div class="col-12 col-xl-5 d-flex" id="lowStockSlot">
                             <div class="dash-card dash-card-low-stock h-100">
                                 <div class="dash-card-header">
@@ -502,56 +561,12 @@
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
                     </section>
+                    {% endif %}
 
-                    <!-- Row 4: Recent Orders -->
-                    <section class="row g-3 mt-3">
-                        <div class="col-12 d-flex" id="recentOrdersSlot">
-                            <div class="dash-card dash-card-recent-orders h-100">
-                                <div class="dash-card-header">
-                                    <h2>Recent Orders</h2>
-                                    <a href="{% url 'admin_orders_page' %}" class="dash-view-all-link">View All</a>
-                                </div>
-                                <div class="table-responsive recent-orders-table-wrap">
-                                    <table class="recent-orders-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Order ID</th>
-                                                <th>Product</th>
-                                                <th>Buyer</th>
-                                                <th class="text-end">Amount</th>
-                                                <th>Status</th>
-                                                <th>Date</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for order in recent_orders %}
-                                            <tr>
-                                                <td class="recent-order-code">{{ order.code }}</td>
-                                                <td>
-                                                    <div class="recent-order-product">
-                                                        {% if order.image_url %}
-                                                        <img class="recent-order-thumb" src="{{ order.image_url }}" alt="" width="38" height="38">
-                                                        {% else %}
-                                                        <span class="recent-order-thumb recent-order-thumb--empty" aria-hidden="true"></span>
-                                                        {% endif %}
-                                                        <strong>{{ order.product_name }}</strong>
-                                                    </div>
-                                                </td>
-                                                <td>{{ order.buyer_name }}</td>
-                                                <td class="text-end recent-order-amount">&#8369;{{ order.total }}</td>
-                                                <td><span class="status-pill status-{{ order.status_key }}">{{ order.status }}</span></td>
-                                                <td class="recent-order-date">{{ order.date }}</td>
-                                            </tr>
-                                            {% empty %}
-                                            <tr><td colspan="6" class="recent-orders-empty">No recent orders yet.</td></tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
+                    {% endif %}
+
                 </div>
 
             </main>
@@ -587,10 +602,26 @@
         </div>
     </div>
 
+    {% if show_bundle_suggestions %}
+    {% if global_dashboard %}
+    <script src="{% static 'marketplace/js/bundle_monitoring.js' %}?v=20261022-monitor"></script>
+    {% else %}
+    {% include 'marketplace/partials/bundle_dialogs.html' %}
+    <script src="{% static 'marketplace/js/bundle_suggestions.js' %}?v=20261022-monitor"></script>
+    {% endif %}
+    {% endif %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'components/js/admin_notifications.js' %}?v=20260726-empty-messages"></script>
-    <script src="{% static 'components/js/admin_dashboard.js' %}?v=20260904-offset-zero"></script>
-    <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20260920-graph-bigger-rect"></script>
+    <script src="{% static 'components/js/admin_dashboard.js' %}?v=20261022-inter"></script>
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_most_booked_facilities.js' %}?v=20261022-empty"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_upcoming_reservations.js' %}?v=20261023-users-overview"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_booking_overview.js' %}?v=20261023-users-overview"></script>{% endif %}
+    <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20261023-users-overview"></script>
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_marketplace_products_chart.js' %}?v=20261022-empty"></script><script src="{% static 'components/js/admin_dashboard_filter.js' %}?v=20261024-orders-nine"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_services_overview.js' %}?v=20261023-users-overview"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_dashboard_activities.js' %}?v=20261022-activities"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_dashboard_executive.js' %}?v=20261024-registration-grouping"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_system_status.js' %}?v=20261022-top-layout"></script>{% endif %}
 </body>
 
 </html>

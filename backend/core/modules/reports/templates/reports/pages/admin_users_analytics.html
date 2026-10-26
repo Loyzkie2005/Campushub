@@ -1,0 +1,191 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
+    <title>CampusHub | Users Analytics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_analytics.css' %}?v={% if super_analytics %}20261026-super-analytics{% else %}20261020-below-header{% endif %}" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% include 'partials/web_typography.html' %}
+</head>
+<body class="users-analytics-page{% if super_analytics %} super-admin-analytics{% endif %}">
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='marketplace_analytics' %}
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with page_title='Analytics' breadcrumb_section='Reports' breadcrumb_page='Users' analytics_subheader=True %}
+
+            <main class="analytics-content">
+                <div class="container-fluid analytics-shell">
+                    {% if not user.is_superuser and user.role|lower != 'super admin' %}{% include 'reports/partials/analytics_toolbar.html' %}{% endif %}
+
+
+                    <!-- Users KPIs -->
+                    <section class="analytics-kpi-grid" aria-label="User accounts summary">
+                        <article class="analytics-kpi">
+                            <span>Total Users</span>
+                            <strong>{{ users_tab.kpis.total_users }}</strong>
+                            <small>{% if super_analytics %}Current snapshot · recorded web and mobile accounts{% else %}Registered campus accounts{% endif %}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>New Registrations</span>
+                            <strong>{{ users_tab.kpis.new_registrations }}</strong>
+                            <small>Joined in {{ analytics_period.label }}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Active Users</span>
+                            <strong>{{ users_tab.kpis.active_users }}</strong>
+                            <small>{% if super_analytics %}Current enabled accounts, not recent usage. Inactive/disabled: {{ users_tab.inactive_users }}.{% else %}Active accounts with valid credentials{% endif %}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Approved Sellers</span>
+                            <strong>{{ users_tab.kpis.approved_sellers }}</strong>
+                            <small>{% if super_analytics %}Current approved, non-suspended seller application records{% else %}Accounts granted seller privileges{% endif %}</small>
+                        </article>
+                    </section>
+
+                    <!-- Main Bar Graph: User Registrations by Month -->
+                    {{ users_tab.main_chart|json_script:"userMonthlyChartData" }}
+
+                    <section class="analytics-grid analytics-grid-main">
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    <h2>User Registrations by Month</h2>
+                                    <p>Account creation volume across mobile and web platforms</p>
+                                </div>
+                                <a href="{% url 'admin_users_page' %}" class="analytics-panel-link">Manage user accounts &rarr;</a>
+                            </header>
+                            {% if super_analytics %}{% include 'reports/partials/analytics_chart.html' with chart_id='userMonthlyChart' label='Recorded account registrations within selected dates' table=users_tab.chart_table has_data=users_tab.has_registrations size='analytics-chart-large' empty_title='No registrations in the selected period' empty_text='Recorded activity will appear when available for these dates.' %}{% else %}<div class="analytics-chart analytics-chart-large">
+                                <canvas id="userMonthlyChart"></canvas>
+                            </div>{% endif %}
+                        </article>
+
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    <h2>User Distribution</h2>
+                                    <p>{% if super_analytics %}Current mobile account types and web account records; web access roles do not imply a mobile account type. Unknown mobile values remain Unclassified. Seller is a separate privilege.{% else %}Breakdown by primary institutional account category{% endif %}</p>
+                                </div>
+                            </header>
+                            <div class="analytics-status-breakdown-card">
+                                {% for row in users_tab.distribution %}
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-{{ row.type_code }}">{{ row.role }}</span>
+                                        <strong>{{ row.count }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {{ row.percentage }}%;"></div>
+                                    </div>
+                                    <small>{{ row.percentage }}% of total users</small>
+                                </div>
+                                {% empty %}
+                                <div class="analytics-table-empty">No registered user accounts found.</div>
+                                {% endfor %}
+                            </div>
+                        </article>
+                    </section>
+
+                    <!-- Seller Application Statistics -->
+                    <section class="analytics-grid analytics-grid-halves">
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    <h2>Seller Access &amp; Application Status</h2>
+                                    <p>{% if super_analytics %}Current application statuses, not period approval events. Approval rate uses approved plus rejected decisions; no unrecorded history is inferred. Submitted in selected dates: {{ users_tab.seller_stats.submitted_in_period }}. Current approved/rejected decisions with a recorded review date in this period: {{ users_tab.seller_stats.recorded_decisions_in_period }}.{% else %}Independent permission review statistics{% endif %}</p>
+                                </div>
+                                <a href="{% url 'admin_sellers_page' %}" class="analytics-panel-link">Review applications &rarr;</a>
+                            </header>
+                            <div class="analytics-status-breakdown-card">
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-approved">Approved Sellers</span>
+                                        <strong>{{ users_tab.seller_stats.approved }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {{ users_tab.seller_stats.approval_rate }}%;"></div>
+                                    </div>
+                                    <small>{{ users_tab.seller_stats.approval_rate }}% approval rate</small>
+                                </div>
+
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-pending">Pending Review</span>
+                                        <strong>{{ users_tab.seller_stats.pending }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {% if super_analytics %}{{ users_tab.seller_stats.pending_share }}{% else %}0{% endif %}%;"></div>
+                                    </div>
+                                    <small>Awaiting administrative review</small>
+                                </div>
+
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-processing">Needs Revision</span>
+                                        <strong>{{ users_tab.seller_stats.revision }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {% if super_analytics %}{{ users_tab.seller_stats.revision_share }}{% else %}0{% endif %}%;"></div>
+                                    </div>
+                                    <small>Returned to applicant for revisions</small>
+                                </div>
+
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-cancelled">Rejected Applications</span>
+                                        <strong>{{ users_tab.seller_stats.rejected }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {% if super_analytics %}{{ users_tab.seller_stats.rejected_share }}{% else %}0{% endif %}%;"></div>
+                                    </div>
+                                    <small>Did not meet marketplace requirements</small>
+                                </div>
+                            </div>
+                        </article>
+
+                        <article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    <h2>Account Governance &amp; Security</h2>
+                                    <p>Institutional identity governance standards</p>
+                                </div>
+                                <a href="{% url 'admin_user_monitoring_page' %}" class="analytics-panel-link">User monitoring &rarr;</a>
+                            </header>
+                            <div class="analytics-governance-card">
+                                <div class="analytics-governance-item">
+                                    <div class="meta">
+                                        <strong>Single Source of Truth</strong>
+                                        <p>All accounts, role-based access control (RBAC), and authentication records originate from PostgreSQL.</p>
+                                    </div>
+                                </div>
+                                <div class="analytics-governance-item">
+                                    <div class="meta">
+                                        <strong>Independent Seller Privilege</strong>
+                                        <p>Seller access is an approved status, not an account category. Students and employees retain their university role.</p>
+                                    </div>
+                                </div>
+                                <div class="analytics-governance-item">
+                                    <div class="meta">
+                                        <strong>Protected Super Administrator</strong>
+                                        <p>Protected Super Admin accounts cannot be demoted, deactivated, or deleted through self-management.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    {% include 'partials/admin_logout_modal.html' %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_analytics.js' %}?v={% if super_analytics %}20261026-super-analytics{% else %}20261022-inter{% endif %}"></script>
+{% if super_analytics %}<script src="{% static 'components/js/admin_super_analytics.js' %}?v=20261026-super-analytics"></script>{% endif %}
+</body>
+</html>

@@ -8,10 +8,10 @@
     <title>CampusHub | Generate Reports</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
     <link rel="stylesheet" href="{% static 'components/css/admin_reports.css' %}?v=20260822-export-preview" />
+{% include 'partials/web_typography.html' %}
 </head>
 <body>
 <div class="sidebar-section">
@@ -35,7 +35,7 @@
                                 {% for group, report_options in report_groups.items %}
                                 <optgroup label="{{ group }}">
                                     {% for value, label in report_options.items %}
-                                    <option value="{{ value }}">{{ label }}</option>
+                                    <option value="{{ value }}"{% if value == selected_report_type %} selected{% endif %}>{{ label }}</option>
                                     {% endfor %}
                                 </optgroup>
                                 {% endfor %}
@@ -44,9 +44,9 @@
                         <div class="report-filter-group report-date-group">
                             <label>Date Range</label>
                             <div class="date-range-inputs">
-                                <input type="date" class="form-control" id="reportDateFrom" aria-label="Start date" />
+                                <input type="date" class="form-control" id="reportDateFrom" aria-label="Start date" value="{{ report_date_from|date:'Y-m-d' }}" />
                                 <span>to</span>
-                                <input type="date" class="form-control" id="reportDateTo" aria-label="End date" />
+                                <input type="date" class="form-control" id="reportDateTo" aria-label="End date" value="{{ report_date_to|date:'Y-m-d' }}" />
                             </div>
                         </div>
                         <div class="report-actions">
@@ -137,6 +137,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const openExportButton = document.getElementById('btnOpenExportPreview');
     const exportFormat = document.getElementById('reportExportFormat');
     let chart = null;
+    let previewVersion = 0, previewReady = true, exporting = false;
     let report = JSON.parse(document.getElementById('initialReportData').textContent);
 
     function params(includeFormat) {
@@ -151,6 +152,9 @@ document.addEventListener('DOMContentLoaded', function () {
         report = nextReport;
         document.getElementById('reportPreviewTitle').textContent = report.title + ' - ' + report.range;
         document.getElementById('previewCount').textContent = report.rows.length + (report.rows.length === 1 ? ' record' : ' records');
+        let description = document.getElementById('reportDescription');
+        if (!description) { description = document.createElement('p'); description.id = 'reportDescription'; document.getElementById('reportPreviewTitle').after(description); }
+        description.textContent = report.description || ''; description.hidden = !report.description;
         document.getElementById('reportSummary').innerHTML = report.summary.map(function (item) {
             return '<div class="summary-stat"><span>' + escapeHtml(item.label) + '</span><strong>' + escapeHtml(String(item.value)) + '</strong></div>';
         }).join('');
@@ -176,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function () {
         chartEmpty.hidden = hasChartData;
         if (!hasChartData) return;
 
-        const isMoneyChart = ['sales', 'orders', 'bookings', 'facility_payments'].includes(report.report_type);
+        const isMoneyChart = ['sales', 'orders', 'bookings', 'facility_payments', 'facility_revenue'].includes(report.report_type);
         chart = new Chart(chartCanvas, {
             type: 'line',
             data: {
@@ -217,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         grid: { display: false },
                         ticks: {
                             color: '#94a3b8',
-                            font: { family: 'Roboto', size: 9, weight: '600' }
+                            font: { family: 'Inter, sans-serif', size: 12, weight: '600' }
                         }
                     },
                     y: {
@@ -227,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             precision: isMoneyChart ? 2 : 0,
                             maxTicksLimit: 6,
                             color: '#94a3b8',
-                            font: { family: 'Roboto', size: 9, weight: '600' },
+                            font: { family: 'Inter, sans-serif', size: 12, weight: '600' },
                             callback: function (value) {
                                 return isMoneyChart ? 'PHP ' + Number(value).toLocaleString() : Number(value).toLocaleString();
                             }
@@ -266,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const printableReport =
             '<header class="native-print-header"><div><div class="native-print-brand">CampusHub</div><h1>' + escapeHtml(nextReport.title) + '</h1><p>' + escapeHtml(nextReport.range) + '</p></div>' +
             '<div class="native-print-meta"><strong>' + nextReport.rows.length + (nextReport.rows.length === 1 ? ' record' : ' records') + '</strong><br>Generated ' + escapeHtml(generatedAt) + '</div></header>' +
-            '<table><thead><tr>' + columns + '</tr></thead><tbody>' + rows + '</tbody></table>' +
+            '<p>' + escapeHtml(nextReport.description || '') + '</p><table><thead><tr>' + columns + '</tr></thead><tbody>' + rows + '</tbody></table>' +
             '<footer>Generated by CampusHub</footer>';
 
         const printStyle = document.createElement('style');
@@ -317,34 +321,60 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function refreshPreview() {
+        const version = ++previewVersion;
+        previewReady = false;
         if (!hasValidDateRange()) return;
         openExportButton.disabled = true;
         feedback.textContent = 'Updating preview...';
         feedback.className = 'report-feedback';
         try {
             const response = await fetch(previewUrl + '?' + params(false).toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Unable to load the report preview.');
+            const data = await window.CampusHubActions.json(response, 'Unable to load the report preview. Please retry.');
+            if (version !== previewVersion) return;
             render(data);
+            previewReady = true;
             feedback.textContent = '';
         } catch (error) {
+            if (version !== previewVersion) return;
             feedback.textContent = error.message;
             feedback.className = 'report-feedback error';
         } finally {
-            openExportButton.disabled = false;
+            if (version === previewVersion) openExportButton.disabled = !previewReady || exporting;
         }
     }
 
-    function exportReport() {
-        if (!hasValidDateRange()) return;
+    async function exportReport() {
+        if (exporting || !previewReady || !hasValidDateRange()) return;
+        exporting = true;
+        openExportButton.disabled = true;
+        openExportButton.setAttribute('aria-busy', 'true');
         feedback.textContent = exportFormat.value === 'pdf' ? 'Opening print preview...' : 'Preparing CSV export...';
         feedback.className = 'report-feedback';
-        if (exportFormat.value === 'pdf') {
-            if (!openNativePrintPreview(report)) return;
-        } else {
-            window.location.assign(downloadUrl + '?' + params(true).toString());
+        try {
+            if (exportFormat.value === 'pdf') {
+                if (!openNativePrintPreview(report)) throw new Error('Unable to open print preview. Please retry.');
+                feedback.textContent = 'Print preview requested. Use the browser dialog to print or save a PDF.';
+            } else {
+                const response = await fetch(downloadUrl + '?' + params(true).toString(), {credentials: 'same-origin'});
+                if (response.redirected) throw new Error('Your session has expired. Reload and sign in before exporting.');
+                if (!response.ok) await window.CampusHubActions.json(response, 'Unable to export this report. Please retry.');
+                if (!response.ok || !response.headers.get('Content-Type')?.includes('text/csv')) throw new Error('The server did not return a CSV report. Please retry.');
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob), link = document.createElement('a');
+                link.href = url;
+                link.download = 'campushub-report.csv';
+                document.body.append(link); link.click(); link.remove();
+                window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+                feedback.textContent = 'CSV prepared. Download requested from your browser.';
+            }
+        } catch (error) {
+            feedback.textContent = error.message || 'Export failed. Check your connection and retry.';
+            feedback.className = 'report-feedback error';
+        } finally {
+            exporting = false;
+            openExportButton.disabled = !previewReady;
+            openExportButton.removeAttribute('aria-busy');
         }
-        window.setTimeout(function () { feedback.textContent = ''; }, 1500);
     }
 
     exportFormat.addEventListener('change', function () {

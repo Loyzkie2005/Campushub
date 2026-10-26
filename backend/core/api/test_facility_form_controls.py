@@ -37,12 +37,18 @@ class FacilityFormControlsTests(SimpleTestCase):
                       {**self.hours(), "monday": {"open": "", "close": "17:00"}},
                       {**self.hours(), "monday": {"open": "25:00", "close": "17:00"}},
                       {**self.hours(), "monday": {"open": "17:00", "close": "17:00"}},
-                      {**self.hours(), "monday": {"open": "18:00", "close": "08:00"}},
-                      {day: None for day in WEEKDAYS}):
+                      {**self.hours(), "monday": {"open": "18:00", "close": "08:00"}}):
             with self.subTest(hours=hours), self.assertRaises(ValidationError):
                 payload = self.payload()
                 payload["workflow_config"]["operating_hours"] = hours
                 validate_facility_payload(payload)
+
+    def test_all_closed_schedule_does_not_invent_operating_hours(self):
+        payload = self.payload()
+        payload["workflow_config"]["operating_hours"] = {day: None for day in WEEKDAYS}
+        cleaned = validate_facility_payload(payload)
+        facility = Facility(workflow_config=cleaned["workflow_config"])
+        self.assertEqual(configured_slots(facility, date(2026, 9, 14)), [])
 
     def test_legacy_day_range_and_duration_are_normalized(self):
         payload = self.payload()

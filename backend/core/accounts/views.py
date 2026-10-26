@@ -5,11 +5,12 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.db import transaction
 from django.db.models import Case, Count, IntegerField, Q, Value, When
-from django.db.models.functions import TruncDay, TruncMonth, TruncWeek
+from django.db.models.functions import ExtractHour, TruncDay, TruncMonth, TruncWeek
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.validators import validate_email
 from django.core.paginator import Paginator
 from django.urls import reverse
 from django.utils import timezone
@@ -28,21 +29,23 @@ from api.inventory import (
     INVENTORY_STATUS_LOW_STOCK,
     adjust_product_stock,
     count_customization_options,
+    customization_has_stock_tracking,
+    get_inventory_status,
+    get_product_quantity_status,
     get_product_inventory_status,
+    iter_product_low_stock,
     low_stock_threshold,
+    get_variant_stock_summary,
+    build_inventory_table,
 )
 from accounts.admin_tab_auth import get_tab_token_from_request, revoke_admin_tab_token
 from accounts.activity_logging import log_account_activity
+from accounts.monitoring import monitoring_load_guard
 from accounts.models import AccountActivity, AdminTabToken, Role, User
 from accounts.role_permissions import (
-    ADMIN_PERMISSION_CODENAMES,
-    PERMISSION_MODULES,
+    admin_read_permissions,
     get_admin_home_url,
-    permission_labels_for_role,
-    permission_set_label_for_role,
-    set_role_permissions,
     sync_user_admin_permissions,
-    sync_users_for_role,
     user_can_book_facilities,
     user_can_manage_facilities,
     user_can_manage_products,
@@ -61,7 +64,6 @@ from accounts.user_management import (
 from modules.marketplace.services.product_access import admin_product_queryset
 from modules.marketplace.services.order_access import admin_order_queryset
 
-PROTECTED_ADMIN_ROLES = frozenset({"Super Admin", "Marketplace Admin", "Facilities Admin", "User"})
 CREATABLE_ADMIN_ROLES = frozenset({"super admin", "marketplace admin", "facilities admin"})
 
 
@@ -111,7 +113,9 @@ def products_module_required(view_func):
     def _wrapped(request, *args, **kwargs):
         if (
             user_can_manage_products(request.user)
+            or request.user.has_perm("accounts.can_view_products") and request.GET.get("view") != "inventory"
             or request.user.has_perm("accounts.can_approve_products")
+            or request.GET.get("view") == "inventory" and (request.user.has_perm("accounts.can_view_inventory") or request.user.has_perm("accounts.can_view_stock_movements"))
         ):
             return view_func(request, *args, **kwargs)
         if user_has_admin_access(request.user):
@@ -141,13 +145,11 @@ def admin_logout_page(request):
     return redirect(reverse("admin_login_page"))
 
 
-def get_notification_context(limit=5):
-    seller_requests = SellerRequest.objects.select_related("user", "reviewed_by").filter(
-        status=SellerRequest.STATUS_PENDING
-    )[:limit]
-    pending_seller_requests = SellerRequest.objects.filter(
-        status=SellerRequest.STATUS_PENDING
-    ).count()
+def get_notification_context(limit=5, *, user=None):
+    from accounts.academic import scope_users, scope_seller_requests
+    pending = scope_seller_requests(SellerRequest.objects.filter(status=SellerRequest.STATUS_PENDING), user)
+    seller_requests = pending.select_related("user", "reviewed_by")[:limit]
+    pending_seller_requests = pending.count()
     return {
         "seller_requests": seller_requests,
         "pending_seller_requests": pending_seller_requests,
@@ -165,38 +167,59 @@ def _is_facilities_admin(user):
 @products_module_required
 def admin_products_page(request):
     from accounts.models import Department
+    from modules.marketplace.services.bundles import is_bundle, prime_bundle_inventory, bundle_inventory
 
     all_products = admin_product_queryset(request.user)
+    if request.GET.get("view") == "inventory":
+        from modules.marketplace.services.inventory_monitor import inventory_monitor_context
+        context = inventory_monitor_context(request, all_products)
+        context["inventory_page"] = Paginator(context.pop("inventory_rows"), 30).get_page(request.GET.get("page"))
+        context.update(get_notification_context(user=request.user))
+        return render(request, "marketplace/pages/admin_inventory.html", context)
     active_products = all_products.filter(is_archived=False)
-    departments = Department.objects.all().order_by("name")
+    from accounts.academic import academic_options, product_academic, scope_users
+    from modules.marketplace.services.inventory import inventory_sku
+    departments, majors = academic_options()
 
     from accounts.models import User
-    approved_sellers = User.objects.filter(
+    approved_sellers = scope_users(User.objects.filter(
         Q(role__iexact="Seller") | Q(seller_access_requests__status="approved")
-    ).distinct().order_by("first_name", "last_name")
-    seller_products = list(
+    ), request.user).select_related("department", "major").distinct().order_by("first_name", "last_name")
+    seller_products = prime_bundle_inventory(
         all_products.select_related(
-            "seller", "seller__department", "approved_by"
-        ).order_by("-submitted_at")
+            "mobile_seller", "mobile_seller__department", "mobile_seller__major", "seller", "seller__department", "seller__major", "approved_by", "department", "major"
+        ).prefetch_related("inventory_skus").order_by("-submitted_at")
     )
     today = timezone.localdate()
     for product in seller_products:
+        product.admin_academic = product_academic(product)
+        product.admin_sku = inventory_sku(product)
         product.admin_total_stock = max(0, product.get_total_stock() or 0)
+        variant_summary = get_variant_stock_summary(product)
         product.admin_variant_count = (
-            count_customization_options(product.customization_options)
+            variant_summary["variant_count"]
+            if customization_has_stock_tracking(product.customization_options)
+            else count_customization_options(product.customization_options)
             if product.customization_enabled
             else 0
         )
         product.admin_inventory_status = get_product_inventory_status(product, today=today)
+        # Parent quantity state, independent of approval and individual option alerts.
+        product.admin_quantity_status = get_product_quantity_status(product)
+        product.admin_threshold = None if is_bundle(product) or customization_has_stock_tracking(product.customization_options) else low_stock_threshold(product)
+        product.admin_bundle_json = json.dumps(bundle_inventory(product)) if is_bundle(product) else "{}"
+        product.admin_tags_json = json.dumps(product.tags)
+        product.admin_has_low_stock = any(iter_product_low_stock(product, today=today))
+        product.admin_low_stock_variant_count = variant_summary["low_stock_variant_count"]
     low_stock_count = sum(
         1
-        for product in active_products
-        if get_product_inventory_status(product, today=today) == INVENTORY_STATUS_LOW_STOCK
+        for product in seller_products
+        if not product.is_archived and product.admin_has_low_stock
     )
     product_stats = {
-        "total": active_products.count(),
-        "pending": active_products.filter(approval_status=Product.STATUS_PENDING).count(),
-        "approved": active_products.filter(approval_status=Product.STATUS_APPROVED).count(),
+        "total": all_products.count(),
+        "pending": all_products.filter(approval_status=Product.STATUS_PENDING).count(),
+        "approved": all_products.filter(approval_status=Product.STATUS_APPROVED).count(),
         "rejected": active_products.filter(approval_status=Product.STATUS_REJECTED).count(),
         "low_stock": low_stock_count,
         "archived": all_products.filter(is_archived=True).count(),
@@ -210,26 +233,30 @@ def admin_products_page(request):
             "low_stock_threshold": low_stock_threshold(),
             "expiry_warning_days": getattr(settings, "CAMPUSHUB_EXPIRY_WARNING_DAYS", 7),
             "departments": departments,
+            "programs": departments, "majors": majors,
+            "product_categories": all_products.exclude(category="").order_by("category").values_list("category", flat=True).distinct(),
             "approved_sellers": approved_sellers,
+            "approved_mobile_sellers": scope_users(CampusHubUser.objects.filter(seller_access_requests__status="approved", seller_access_requests__is_suspended=False, is_active=True), request.user).distinct(),
             "can_manage_products": user_can_manage_products(request.user),
             "can_approve_products": request.user.has_perm(
                 "accounts.can_approve_products"
             ),
             "can_add_products": request.user.is_superuser or _is_marketplace_admin(request.user),
-            **get_notification_context(),
+            **get_notification_context(user=request.user),
         },
     )
 
 
 @login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_sellers", raise_exception=True)
+@admin_read_permissions("can_manage_sellers", "can_view_sellers")
 def admin_sellers_page(request):
     """Review existing seller-access requests without duplicating user records."""
     search_query = (request.GET.get("q") or "").strip()
     status_filter = (request.GET.get("status") or "").strip().lower()
-    seller_requests = SellerRequest.objects.select_related(
-        "user", "user__department", "reviewed_by"
-    ).order_by("-created_at")
+    from accounts.academic import scope_users, scope_seller_requests
+    seller_requests = scope_seller_requests(SellerRequest.objects.select_related(
+        "user", "user__department", "user__major", "mobile_user", "mobile_user__department", "mobile_user__major", "reviewed_by"
+    ), request.user).order_by("-created_at", "-pk")
 
     if search_query:
         seller_requests = seller_requests.filter(
@@ -237,24 +264,81 @@ def admin_sellers_page(request):
             | Q(student_id__icontains=search_query)
             | Q(product_type__icontains=search_query)
             | Q(user__email__icontains=search_query)
+            | Q(user__username__icontains=search_query)
+            | Q(mobile_user__email__icontains=search_query)
+            | Q(mobile_user__username__icontains=search_query)
         )
     valid_statuses = {
         SellerRequest.STATUS_PENDING,
         SellerRequest.STATUS_APPROVED,
         SellerRequest.STATUS_REJECTED,
+        SellerRequest.STATUS_NEEDS_REVISION,
     }
     if status_filter in valid_statuses:
         seller_requests = seller_requests.filter(status=status_filter)
 
     paginator = Paginator(seller_requests, 10)
     page_obj = paginator.get_page(request.GET.get("page") or 1)
+    # Only read audit events for applications already authorized on this page.
+    # Bound each application's history separately so a busy record cannot hide
+    # another record's events or cause an unbounded dashboard query.
+    from django.db.models import F, Window
+    from django.db.models.functions import RowNumber
+    from django.db.models.fields.json import KeyTextTransform
+    from accounts.activity_service import format_activities
+    from accounts.support_scope import scope_marketplace_activity
+    from accounts.models import AccountActivity
+
+    applications = list(page_obj)
+    history = {application.pk: [] for application in applications}
+    events = list(scope_marketplace_activity(AccountActivity.objects.all(), request.user).filter(
+        metadata__seller_request_id__in=list(history),
+        activity_type__in=("SELLER_REQUESTED", "SELLER_RESUBMITTED", "SELLER_APPROVED",
+                           "SELLER_REJECTED", "SELLER_REVISION_REQUESTED"),
+    ).annotate(_application_event_rank=Window(
+        expression=RowNumber(), partition_by=[KeyTextTransform("seller_request_id", "metadata")],
+        order_by=[F("created_at").desc(), F("pk").desc()],
+    )).filter(_application_event_rank__lte=10).order_by("-created_at", "-pk")) if history else []
+    for event, detail in zip(events, format_activities(events, scoped=True, include_targets=False)):
+        actor = detail["performed_by"]
+        history[event.metadata["seller_request_id"]].append({
+            "action": detail["action"], "recorded_at": event.created_at,
+            "actor": actor["name"] if actor["name"] != "Unknown" else "Not recorded",
+            "username": actor["username"],
+        })
+    for application in page_obj:
+        application.review_events = history[application.pk]
+        account = application.mobile_user if application.mobile_user_id else application.user
+        application.display_username = account.username if account else ""
+        application.display_department = account.department if account else None
+        application.display_major = account.major if account else None
+        # An application snapshot is historical context, never an authorization input.
+        snapshot = application.application_data if isinstance(application.application_data, dict) else {}
+        application.snapshot_program = snapshot.get("program") if not application.display_department else None
+        # Application Details drawer values: display only, never saved or used for scope.
+        application.display_email = (account.email if account else "") or snapshot.get("email") or ""
+        try:
+            confirmed_at = parse_datetime(str(snapshot.get("confirmed_at") or ""))
+        except ValueError:
+            confirmed_at = None
+        # Only an offset-aware stored value can be converted to Manila time honestly.
+        application.confirmed_at_value = confirmed_at if confirmed_at and timezone.is_aware(confirmed_at) else None
+        application.program_snapshot = snapshot.get("program_major") or snapshot.get("program") or ""
+        confirmations = snapshot.get("confirmations") if isinstance(snapshot.get("confirmations"), dict) else {}
+        application.confirmation_rows = [
+            (label, confirmations.get(key) is True)
+            for key, label in (("accuracy", "Information Accuracy"), ("rules", "Marketplace Rules"), ("approval", "Approval Requirement"))
+        ]
     query_without_page = request.GET.copy()
     query_without_page.pop("page", None)
+    clear_query = query_without_page.copy()
+    clear_query.pop("q", None)
+    clear_query.pop("status", None)
     status_counts = {
-        "total": SellerRequest.objects.count(),
-        "pending": SellerRequest.objects.filter(status=SellerRequest.STATUS_PENDING).count(),
-        "approved": SellerRequest.objects.filter(status=SellerRequest.STATUS_APPROVED).count(),
-        "rejected": SellerRequest.objects.filter(status=SellerRequest.STATUS_REJECTED).count(),
+        "total": scope_seller_requests(SellerRequest.objects.all(), request.user).count(),
+        "pending": scope_seller_requests(SellerRequest.objects.filter(status=SellerRequest.STATUS_PENDING), request.user).count(),
+        "approved": scope_seller_requests(SellerRequest.objects.filter(status=SellerRequest.STATUS_APPROVED), request.user).count(),
+        "rejected": scope_seller_requests(SellerRequest.objects.filter(status=SellerRequest.STATUS_REJECTED), request.user).count(),
     }
     return render(
         request,
@@ -265,7 +349,10 @@ def admin_sellers_page(request):
             "status_filter": status_filter,
             "status_counts": status_counts,
             "query_without_page": query_without_page.urlencode(),
-            **get_notification_context(),
+            "seller_filter_parameters": [(key, value) for key, value in request.GET.items()
+                                         if key not in {"q", "status", "page"}],
+            "seller_clear_query": clear_query.urlencode(),
+            **get_notification_context(user=request.user),
         },
     )
 
@@ -276,7 +363,7 @@ def admin_notifications_page(request):
     return render(
         request,
         "notifications/pages/admin_notifications.html",
-        get_notification_context(limit=100),
+        get_notification_context(limit=100, user=request.user),
     )
 
 
@@ -286,136 +373,25 @@ def admin_messages_page(request):
     return render(
         request,
         "messages/pages/admin_messages.html",
-        get_notification_context(),
+        get_notification_context(user=request.user),
     )
 
 
 @login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_orders", raise_exception=True)
+@admin_read_permissions("can_manage_orders", "can_view_orders")
 def admin_orders_page(request):
-    from api.models import CampusHubUser
+    from modules.marketplace.services.orders import orders_page_context
 
-    orders_queryset = (
-        admin_order_queryset(request.user)
-        .select_related("product", "product__seller", "product__seller__department")
-        .prefetch_related("status_history")
-    )
-
-    orders = list(orders_queryset)
-    buyer_ids = [order.buyer_user_id for order in orders if order.buyer_user_id]
-    django_users = {
-        user.id: user
-        for user in User.objects.filter(id__in=buyer_ids).only(
-            "id", "role", "first_name", "last_name", "username", "email", "contact_number"
-        )
-    }
-    campus_users = {
-        user.id: user
-        for user in CampusHubUser.objects.filter(id__in=buyer_ids).only(
-            "id", "first_name", "last_name", "username", "email", "contact_number"
-        )
-    }
-
-    for order in orders:
-        if not order.order_code or len(order.order_code) != 12 or not order.order_code.startswith("2026"):
-            order.ensure_order_code(force=True)
-            order.save(update_fields=["order_code"])
-
-        django_user = django_users.get(order.buyer_user_id) if order.buyer_user_id else None
-        campus_user = campus_users.get(order.buyer_user_id) if order.buyer_user_id else None
-
-        name = (order.buyer_name or "").strip()
-        if not name and campus_user:
-            name = (
-                f"{campus_user.first_name} {campus_user.last_name}".strip()
-                or campus_user.username
-            )
-        if not name and django_user:
-            name = django_user.get_full_name().strip() or django_user.username
-        order.display_buyer_name = name or "Unknown customer"
-
-        email = (order.buyer_email or "").strip()
-        if not email and campus_user:
-            email = getattr(campus_user, "email", "") or ""
-        if not email and django_user:
-            email = getattr(django_user, "email", "") or ""
-        order.display_buyer_email = email
-
-        phone = ""
-        if django_user and getattr(django_user, "contact_number", None):
-            phone = django_user.contact_number
-        elif campus_user and getattr(campus_user, "contact_number", None):
-            phone = campus_user.contact_number
-        order.display_buyer_phone = phone
-
-        if django_user:
-            order.buyer_user_type = (django_user.role or "User").strip() or "User"
-        elif campus_user:
-            order.buyer_user_type = "Student"
-        else:
-            order.buyer_user_type = ""
-
-        # Multi-item and total quantity handling
-        customization = order.customization or {}
-        items_list = customization.get("items")
-        if isinstance(items_list, list) and len(items_list) > 0:
-            first_name = items_list[0].get("product_name") or order.product_name
-            extra_count = len(items_list) - 1
-            if extra_count > 0:
-                order.display_items = f"{first_name} + {extra_count} more"
-            else:
-                order.display_items = first_name
-            order.display_qty = sum(int(it.get("quantity", 1) or 1) for it in items_list)
-            order.items_json = json.dumps(items_list)
-        else:
-            order.display_items = order.product_name
-            order.display_qty = order.quantity
-            order.items_json = json.dumps([{
-                "product_name": order.product_name,
-                "variant": order.option or "Standard",
-                "quantity": order.quantity,
-                "unit_price": str(order.unit_price),
-                "subtotal": str(order.total_price),
-            }])
-
-        order.status_history_json = json.dumps(
-            [
-                {
-                    "previous_status": item.previous_status,
-                    "new_status": item.new_status,
-                    "new_status_label": dict(MarketplaceOrder.STATUS_CHOICES).get(
-                        item.new_status, item.new_status.replace("_", " ").title()
-                    ),
-                    "changed_by": item.changed_by or "System",
-                    "notes": item.notes,
-                    "created_at": timezone.localtime(item.created_at).strftime(
-                        "%b %d, %Y at %I:%M %p"
-                    ),
-                }
-                for item in order.status_history.all()
-            ]
-        )
-
-    order_stats = {
-        "total": len(orders),
-        "completed": sum(1 for o in orders if o.status == MarketplaceOrder.STATUS_COMPLETED),
-        "pending": sum(1 for o in orders if o.status == MarketplaceOrder.STATUS_PENDING),
-        "processing": sum(1 for o in orders if o.status == MarketplaceOrder.STATUS_PROCESSING),
-        "ready_for_pickup": sum(
-            1 for o in orders if o.status == MarketplaceOrder.STATUS_READY_FOR_PICKUP
-        ),
-        "cancelled": sum(1 for o in orders if o.status == MarketplaceOrder.STATUS_CANCELLED),
-    }
-
-    return render(
-        request,
-        "marketplace/pages/admin_orders.html",
-        {
-            "orders": orders,
-            "order_stats": order_stats,
-            **get_notification_context(),
-        },
-    )
+    return render(request, "marketplace/pages/admin_orders.html", {
+        **orders_page_context(request.user, request.GET),
+        "orders_tab_token": get_tab_token_from_request(request) or "",
+        "orders_reset_url": reverse("admin_orders_page") + ("?__at=" + get_tab_token_from_request(request) if get_tab_token_from_request(request) else ""),
+        "order_status_options": MarketplaceOrder.STATUS_CHOICES,
+        "payment_status_options": MarketplaceOrder.PAYMENT_STATUS_CHOICES,
+        "date_options": (("today", "Today"), ("7days", "Last 7 Days"), ("30days", "Last 30 Days"),
+                         ("month", "This Month"), ("previous_month", "Previous Month"), ("custom", "Custom Range")),
+        **get_notification_context(user=request.user),
+    })
 
 
 @permissions_required_any("can_view_users", "can_manage_admin_accounts")
@@ -425,15 +401,15 @@ def admin_users_page(request):
         "user_management/pages/admin_user_access_control.html",
         {
             **get_user_management_context(request),
-            **get_notification_context(),
+            **get_notification_context(user=request.user),
         },
     )
 
 
 def _active_super_admin_count():
-    return User.objects.filter(is_active=True, is_suspended=False).filter(
+    return len(list(User.objects.select_for_update().filter(is_active=True, is_suspended=False).filter(
         Q(is_superuser=True) | Q(role__iexact="Super Admin")
-    ).count()
+    ).order_by("pk")))
 
 
 def _is_super_admin(account):
@@ -464,10 +440,13 @@ def _duplicate_account(username, email, source=None, account_id=None):
 
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_manage_admin_accounts", login_url="admin_dashboard_page")
+@transaction.atomic
 def admin_users_save(request):
     """Create or update an account without changing its owning account store."""
     if request.method != "POST":
         return redirect("admin_users_page")
+    list(User.objects.select_for_update().filter(Q(is_superuser=True) | Q(role__iexact="Super Admin")).order_by("pk"))
+    active_super_admins = _active_super_admin_count()
 
     account_reference = request.POST.get("account_ref", "").strip()
     username = request.POST.get("username", "").strip()
@@ -505,7 +484,7 @@ def admin_users_save(request):
     ):
         messages.error(
             request,
-            "Add User can create only Super Admin, Marketplace Admin, or Facilities Admin accounts.",
+            "Add Admin can create only Super Admin, Marketplace Admin, or Facilities Admin accounts.",
         )
         return redirect("admin_users_page")
     if account_type == "admin" and not admin_access:
@@ -518,23 +497,40 @@ def admin_users_save(request):
         messages.error(request, "Only a Super Admin can assign the Super Admin role.")
         return redirect("admin_users_page")
 
-    department = None
-    if department_id:
-        department = Department.objects.filter(pk=department_id).first()
-        if department is None:
-            messages.error(request, "Choose a valid department.")
-            return redirect("admin_users_page")
-    if role.lower() == "marketplace admin" and department is None:
-        messages.error(request, "Marketplace Admin requires a department.")
-        return redirect("admin_users_page")
-
     source, existing_user = resolve_account(account_reference) if account_reference else (None, None)
+    if existing_user is not None:
+        existing_user = type(existing_user).objects.select_for_update().get(pk=existing_user.pk)
     if account_reference and existing_user is None:
         messages.error(request, "User not found.")
+        return redirect("admin_users_page")
+    if existing_user and _is_super_admin(existing_user) and not request.user.is_superuser:
+        raise PermissionDenied("Only a Super Admin can modify a Super Admin account.")
+    from accounts.academic import resolve_account_academic
+    if existing_user:
+        from .support_scope import can_manage_account, is_super_admin
+        if not can_manage_account(request.user, existing_user):
+            raise PermissionDenied("This account is outside your account-editing scope.")
+        if password:
+            messages.error(request, "Use Assist Account Recovery; the account owner must choose their password.")
+            return redirect("admin_users_page")
+        if role != existing_user.role and not is_super_admin(request.user):
+            raise PermissionDenied("Only Super Admin can change administrator roles.")
+    try:
+        department, major = resolve_account_academic(role, account_type, department_id, request.POST.get("major"), existing=existing_user)
+    except (ValueError, TypeError) as exc:
+        messages.error(request, str(exc))
         return redirect("admin_users_page")
     expected_source = "admin" if account_type == "admin" else "mobile"
     if existing_user and source != expected_source:
         messages.error(request, "Account type cannot be changed between mobile and admin storage.")
+        return redirect("admin_users_page")
+    try:
+        validate_email(email)
+        account_model = User if expected_source == "admin" else CampusHubUser
+        for name, value in (("username", username), ("first_name", first_name), ("last_name", last_name), ("email", email), ("contact_number", contact_number)):
+            account_model._meta.get_field(name).clean(value, existing_user)
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
         return redirect("admin_users_page")
 
     duplicate_error = _duplicate_account(
@@ -579,11 +575,14 @@ def admin_users_save(request):
     if (
         existing_user
         and _is_super_admin(existing_user)
+        and existing_user.is_active and not existing_user.is_suspended
         and (not is_active or role.lower() != "super admin")
-        and _active_super_admin_count() <= 1
+        and active_super_admins <= 1
     ):
         messages.error(request, "The final active Super Admin cannot be deactivated or demoted.")
         return redirect("admin_users_page")
+
+    previous = {field: getattr(existing_user, field, None) for field in ("role", "department_id", "major_id", "is_active", "email")}
 
     with transaction.atomic():
         if source == "admin":
@@ -592,9 +591,12 @@ def admin_users_save(request):
             user.first_name = first_name
             user.last_name = last_name
             user.email = email
+            if previous["email"].casefold() != email.casefold():
+                user.email_verified = False
             user.contact_number = contact_number
             user.role = role
             user.department = department
+            user.major = major
             user.is_active = is_active
             if is_active:
                 user.is_suspended = False
@@ -610,10 +612,13 @@ def admin_users_save(request):
             user.last_name = last_name
             user.username = username
             user.email = email
+            if previous["email"].casefold() != email.casefold():
+                user.email_verified = False
             user.contact_number = contact_number
             user.user_type = account_type
             user.role = role
             user.department = department
+            user.major = major
             user.is_active = is_active
             if is_active:
                 user.is_suspended = False
@@ -631,6 +636,7 @@ def admin_users_save(request):
                 last_name=last_name,
                 role=role,
                 department=department,
+                major=major,
                 contact_number=contact_number,
                 is_active=is_active,
                 is_staff=admin_access,
@@ -650,31 +656,56 @@ def admin_users_save(request):
                 password_hash=make_password(password),
                 role=role,
                 department=department,
+                major=major,
                 is_active=is_active,
                 profile_completed=bool(contact_number),
             )
 
+    from accounts.user_management import log_management_event
+    log_management_event(request, source=source or "admin", account=user,
+                         action="USER_UPDATED" if existing_user else "ADMIN_CREATED")
+    if existing_user:
+        for field, event in (("role", "ADMIN_ROLE_CHANGED"), ("department_id", "ADMIN_SCOPE_CHANGED"), ("major_id", "ADMIN_SCOPE_CHANGED"), ("is_active", "ACCOUNT_REACTIVATED" if is_active else "ACCOUNT_DEACTIVATED")):
+            if previous[field] != getattr(user, field):
+                log_management_event(request, source=source, account=user, action=event)
+        if password:
+            log_management_event(request, source=source, account=user, action="PASSWORD_RESET")
     messages.success(request, f'User "{username}" {"updated" if existing_user else "created"}.')
     return redirect("admin_users_page")
 
 
 @login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_admin_accounts", login_url="admin_dashboard_page")
+@admin_read_permissions("can_manage_admin_accounts", "can_reset_user_password", "can_manage_sellers")
+@transaction.atomic
 def admin_users_action(request):
     if request.method != "POST":
         return redirect("admin_users_page")
+    if request.POST.get("action") in {"reset_password", "assist_recovery", "verify_email"}:
+        from .password_support import initiate_reset
+        return initiate_reset(request)
+    list(User.objects.select_for_update().filter(Q(is_superuser=True) | Q(role__iexact="Super Admin")).order_by("pk"))
+    active_super_admins = _active_super_admin_count()
 
     source, account = resolve_account(request.POST.get("account_ref", "").strip())
     action = request.POST.get("action", "").strip().lower()
     if account is None:
         messages.error(request, "User not found.")
         return redirect("admin_users_page")
+    from .support_scope import can_manage_account, can_manage_seller
+    if action == "seller_access":
+        if not can_manage_seller(request.user, source, account):
+            raise PermissionDenied("Seller access is outside your authorized scope.")
+    elif not can_manage_account(request.user, account):
+        raise PermissionDenied("Account management is outside your authorized scope.")
+    account = type(account).objects.select_for_update().get(pk=account.pk)
+    if _is_super_admin(account) and not request.user.is_superuser:
+        raise PermissionDenied("Only a Super Admin can modify a Super Admin account.")
 
     protected_change = action in {"deactivate", "suspend"}
     if source == "admin" and account == request.user and protected_change:
         messages.error(request, "You cannot deactivate or suspend your own account.")
         return redirect("admin_users_page")
-    if protected_change and _is_super_admin(account) and _active_super_admin_count() <= 1:
+    if protected_change and _is_super_admin(account) and account.is_active and not account.is_suspended and active_super_admins <= 1:
         messages.error(request, "The final active Super Admin cannot be deactivated or suspended.")
         return redirect("admin_users_page")
 
@@ -684,22 +715,7 @@ def admin_users_action(request):
         account.save(update_fields=["is_active", "is_suspended"])
         state = {"activate": "activated", "deactivate": "deactivated", "suspend": "suspended"}[action]
         messages.success(request, f'Account "{account.username}" was {state}.')
-    elif action == "reset_password":
-        password = request.POST.get("password", "")
-        confirm_password = request.POST.get("confirm_password", "")
-        errors = strict_password_errors(password)
-        if password != confirm_password:
-            errors.append("Passwords do not match.")
-        if errors:
-            messages.error(request, " ".join(errors))
-            return redirect("admin_users_page")
-        if source == "admin":
-            account.set_password(password)
-            account.save(update_fields=["password"])
-        else:
-            account.password_hash = make_password(password)
-            account.save(update_fields=["password_hash"])
-        messages.success(request, f'Password reset for "{account.username}".')
+        event = "ACCOUNT_REACTIVATED" if action == "activate" else "ACCOUNT_DEACTIVATED"
     elif action == "seller_access":
         if source == "admin":
             messages.error(request, "Seller access does not apply to administrator accounts.")
@@ -709,33 +725,46 @@ def admin_users_action(request):
             SellerRequest.STATUS_PENDING,
             SellerRequest.STATUS_APPROVED,
             SellerRequest.STATUS_REJECTED,
+            "suspended",
         }
         if seller_status not in valid_statuses:
             messages.error(request, "Choose a valid seller access status.")
             return redirect("admin_users_page")
         seller_request = seller_request_for(source, account)
         if seller_request is None:
-            seller_request = SellerRequest(
-                user=account if source == "admin" else None,
-                student_id=getattr(account, "student_id", "") or account.username,
-                full_name=(
-                    account.get_full_name().strip()
-                    if source == "admin"
-                    else f"{account.first_name} {account.last_name}".strip()
-                ) or account.username,
-                contact_number=getattr(account, "contact_number", ""),
-                product_type="Campus marketplace products",
-            )
-        seller_request.status = seller_status
-        seller_request.reviewed_by = request.user
-        seller_request.reviewed_at = timezone.now()
-        seller_request.rejection_reason = (
-            "Suspended by Super Admin" if seller_status == SellerRequest.STATUS_REJECTED else ""
-        )
+            messages.error(request, "No seller application exists. The user must apply first.")
+            return redirect("admin_users_page")
+        from .academic import scope_seller_requests
+        if not scope_seller_requests(SellerRequest.objects.filter(pk=seller_request.pk), request.user).exists():
+            raise PermissionDenied("This seller application is outside your authorized scope.")
+        seller_request = SellerRequest.objects.select_for_update().get(pk=seller_request.pk)
+        if (request.user.role or "").casefold() == "marketplace admin" and not (
+            seller_request.status == SellerRequest.STATUS_APPROVED and seller_status in {"suspended", "approved"}
+        ):
+            raise PermissionDenied("Use the Sellers module for application reviews.")
+        was_suspended = seller_request.is_suspended
+        if seller_status == "suspended":
+            if seller_request.status != SellerRequest.STATUS_APPROVED:
+                messages.error(request, "Only approved seller access can be suspended.")
+                return redirect("admin_users_page")
+            seller_request.is_suspended = True
+        elif seller_status == "approved" and seller_request.is_suspended:
+            seller_request.is_suspended = False  # Preserve the original approval date/reviewer.
+        else:
+            seller_request.status = seller_status
+            seller_request.is_suspended = False
+            seller_request.reviewed_by = request.user
+            seller_request.reviewed_at = timezone.now()
+            seller_request.rejection_reason = request.POST.get("reason", "").strip() if seller_status == "rejected" else ""
         seller_request.save()
         messages.success(request, f'Seller access updated for "{account.username}".')
+        event = {"approved": "SELLER_RESTORED" if was_suspended else "SELLER_APPROVED", "suspended": "SELLER_SUSPENDED", "rejected": "SELLER_REJECTED", "pending": "SELLER_PENDING"}[seller_status]
     else:
         messages.error(request, "Unsupported user action.")
+        return redirect("admin_users_page")
+
+    from accounts.user_management import log_management_event
+    log_management_event(request, source=source, account=account, action=event)
 
     return redirect("admin_users_page")
 
@@ -749,71 +778,93 @@ def admin_users_delete(request):
 
 
 @facility_module_required
-def admin_facility_page(request):
+def admin_facility_page(request, *, services=False):
     from api.models import Booking, Facility, Room
     from modules.facilities.services.operating_schedule import workflow_for_display
+    from modules.facilities.services.rental_configuration import PRICING_METHODS, capacity_label, pricing_label
     from modules.facilities.services.facility_configuration import (
         BOOKING_MODE_LABELS,
+        FACILITY_TYPE_CONFIG,
         STATUS_CHOICES,
         facility_form_configuration,
     )
 
+    from modules.facilities.services.catalog import SERVICE_TYPES, service_labels, service_resources_q
+
     facilities_qs = Facility.objects.all()
+    facilities_qs = facilities_qs.filter(service_resources_q()) if services else facilities_qs.exclude(service_resources_q())
+    facilities_qs = facilities_qs.annotate(configured_room_count=Count("rooms"))
     facilities = list(facilities_qs)
     for facility in facilities:
         facility.form_workflow = workflow_for_display(facility)
+        facility.capacity_display = capacity_label(facility)
+        from modules.facilities.services.service_configuration import service_pricing_label
+        facility.pricing_display = service_pricing_label(facility) if services else pricing_label(facility)
+        facility.price_method_display = PRICING_METHODS.get(facility.price_type, f"Per {facility.price_type}")
+        facility.service_type_display, facility.request_type_display = service_labels(facility)
+        facility.service_status_display = {"available": "Active", "inactive": "Inactive"}.get(facility.availability_status, "Temporarily Unavailable")
+    from modules.facilities.services.service_configuration import service_configuration_choices, CATEGORIES, STATUSES
     can_manage = user_can_manage_facilities(request.user)
     configured_units = sum(
         max(int(units or 0), 0)
         for units in facilities_qs.values_list("rooms_units", flat=True)
-    )
-    room_records = Room.objects.count()
+    ) if services else 0
+    room_facilities = facilities_qs if services else facilities_qs.filter(is_archived=False)
+    room_records = Room.objects.filter(facility__in=room_facilities).count()
 
     recent_activities = []
-    for facility in facilities_qs.order_by("-updated_at")[:8]:
-        occurred_at = facility.updated_at or facility.created_at
-        if not occurred_at:
-            continue
-        was_updated = bool(
-            facility.created_at
-            and facility.updated_at
-            and (facility.updated_at - facility.created_at).total_seconds() > 1
-        )
-        recent_activities.append(
-            {
-                "kind": "facility",
-                "title": (
-                    f"{facility.facility_name} facility details updated."
-                    if was_updated
-                    else f"{facility.facility_name} added."
-                ),
-                "description": "Facility update" if was_updated else "New facility",
-                "occurred_at": occurred_at,
-            }
-        )
+    if services:
+        for facility in facilities_qs.order_by("-updated_at")[:8]:
+            occurred_at = facility.updated_at or facility.created_at
+            if not occurred_at:
+                continue
+            was_updated = bool(
+                facility.created_at
+                and facility.updated_at
+                and (facility.updated_at - facility.created_at).total_seconds() > 1
+            )
+            recent_activities.append(
+                {
+                    "kind": "facility",
+                    "title": (
+                        f"{facility.facility_name} {'service' if services else 'facility'} details updated."
+                        if was_updated
+                        else f"{facility.facility_name} added."
+                    ),
+                    "description": ("Service update" if services else "Facility update") if was_updated else ("New service" if services else "New facility"),
+                    "occurred_at": occurred_at,
+                }
+            )
 
-    booking_activity_labels = {
-        "class": "class schedule recorded",
-        "maintenance": "maintenance schedule recorded",
-        "assessment": "assessment schedule recorded",
-        "reservation": "reservation updated",
-    }
-    for booking in Booking.objects.select_related("facility", "user").order_by("-updated_at")[:8]:
-        occurred_at = booking.updated_at or booking.created_at
-        if not occurred_at:
-            continue
-        event_type, _, purpose = _booking_display_fields(booking)
-        facility_name = booking.facility.facility_name if booking.facility_id else "Facility"
-        recent_activities.append(
-            {
-                "kind": event_type,
-                "title": f"{facility_name} {booking_activity_labels.get(event_type, 'booking updated')}.",
-                "description": purpose or booking.get_status_display(),
-                "occurred_at": occurred_at,
-            }
-        )
+        booking_activity_labels = {
+            "class": "class schedule recorded",
+            "maintenance": "maintenance schedule recorded",
+            "assessment": "assessment schedule recorded",
+            "reservation": "reservation updated",
+        }
+        for booking in Booking.objects.filter(facility__in=facilities_qs).select_related("facility", "user").order_by("-updated_at")[:8]:
+            occurred_at = booking.updated_at or booking.created_at
+            if not occurred_at:
+                continue
+            event_type, _, purpose = _booking_display_fields(booking)
+            facility_name = booking.facility.facility_name if booking.facility_id else "Facility"
+            recent_activities.append(
+                {
+                    "kind": event_type,
+                    "title": f"{facility_name} {'request updated' if services else booking_activity_labels.get(event_type, 'booking updated')}.",
+                    "description": purpose or booking.get_status_display(),
+                    "occurred_at": occurred_at,
+                }
+            )
 
-    recent_activities.sort(key=lambda item: item["occurred_at"], reverse=True)
+        from modules.facilities.services.activity import recent_facility_activities
+        service_events = recent_facility_activities(services=True)
+        if service_events:
+            recent_activities = service_events
+        recent_activities.sort(key=lambda item: item["occurred_at"], reverse=True)
+    else:
+        from modules.facilities.services.activity import recent_facility_activities
+        recent_activities = recent_facility_activities()
     active_facilities_qs = facilities_qs.filter(is_archived=False)
     context = {
         "facilities": facilities,
@@ -822,23 +873,30 @@ def admin_facility_page(request):
         "open_for_booking_count": active_facilities_qs.filter(
             availability_status=Facility.STATUS_AVAILABLE
         ).count(),
-        "under_maintenance_count": active_facilities_qs.filter(
-            availability_status=Facility.STATUS_MAINTENANCE
-        ).count(),
-        "rooms_units_total": max(configured_units, room_records),
-        "facility_type_choices": Facility.TYPE_CHOICES,
-        "booking_mode_choices": tuple(BOOKING_MODE_LABELS.items()),
-        "facility_status_choices": STATUS_CHOICES,
+        "under_maintenance_count": active_facilities_qs.filter(availability_status__in=("unavailable", "maintenance", "reserved", "occupied") if services else ("maintenance",)).count(),
+        "rooms_units_total": active_facilities_qs.filter(availability_status="inactive").count() if services else max(configured_units, room_records),
+        "service_configuration": service_configuration_choices() if services else {},
+        'can_view_service_requests': any(request.user.has_perm('accounts.'+code) for code in (
+            'can_view_bookings','can_manage_bookings','can_approve_bookings','can_record_facility_payment')),
+        "facility_type_choices": tuple(CATEGORIES.items()) if services else tuple((value, FACILITY_TYPE_CONFIG.get(value, {}).get("label", label)) for value, label in Facility.TYPE_CHOICES if (value in SERVICE_TYPES) == services),
+        "booking_mode_choices": tuple((value, label) for value, label in BOOKING_MODE_LABELS.items() if (value in {"service", "assessment", "lease"}) == services),
+        "facility_status_choices": tuple(STATUSES.items()) if services else STATUS_CHOICES,
+        "facility_status_filter": (request.GET.get("status") or "").strip().lower(),
         "facility_form_configuration": facility_form_configuration(),
-        "calendar_events": _bookings_calendar_events(),
+        "calendar_events": [] if services else _bookings_calendar_events(),
         "recent_facility_activities": recent_activities[:8],
+        "can_view_facility_activity_history": not services and _is_super_admin(request.user) and request.user.has_perm("accounts.can_view_user_monitoring"),
         "can_manage_facilities": can_manage,
         "can_book_facilities": user_can_book_facilities(request.user),
-        **get_notification_context(),
+        "can_manage_schedules": request.user.has_perm("accounts.can_manage_schedules"),
+        "service_catalog": services,
+        "page_title": "Services" if services else "Facilities",
+        "active_page": "services" if services else "facilities",
+        **get_notification_context(user=request.user),
     }
 
 
-    if can_manage:
+    if can_manage or services:
         return render(request, "facilities/pages/admin_facility.html", context)
 
     context.update(
@@ -854,7 +912,7 @@ def _booking_display_fields(booking):
     """Extract the schedule type, requester, and public purpose from a booking."""
     import re
 
-    type_pattern = re.compile(r"^\[(class|reservation|maintenance|assessment)\]\s*", re.I)
+    type_pattern = re.compile(r"^\[(class|reservation|maintenance|assessment|official|hold|other|blocked)\]\s*", re.I)
     reserved_pattern = re.compile(r"(?:^|\n)Reserved by:\s*(.+)$", re.I | re.M)
 
     purpose = (booking.purpose or "").strip()
@@ -877,37 +935,13 @@ def _booking_display_fields(booking):
     return event_type, reserved_by, purpose
 
 
-def _bookings_calendar_events():
-    """Build calendar events from real facility bookings only (no placeholders)."""
-    from api.models import Booking
-
-    events = []
-
-    bookings = (
-        Booking.objects.select_related("facility", "user")
-        .filter(booking_date__isnull=False)
-        .exclude(status__in=(Booking.STATUS_CANCELLED, Booking.STATUS_REJECTED))
-        .order_by("booking_date", "start_time")[:300]
-    )
-    for booking in bookings:
-        facility_name = booking.facility.facility_name if booking.facility_id else "Facility"
-        event_type, reserved_by, purpose = _booking_display_fields(booking)
-        events.append(
-            {
-                "id": booking.id,
-                "type": event_type,
-                "facility_id": booking.facility_id or "",
-                "facility": facility_name,
-                "date": booking.booking_date.isoformat(),
-                "start": booking.start_time.strftime("%H:%M") if booking.start_time else "",
-                "end": booking.end_time.strftime("%H:%M") if booking.end_time else "",
-                "reserved_by": reserved_by,
-                "purpose": purpose,
-                "status": booking.status,
-            }
-        )
-
-    return events
+def _bookings_calendar_events(first=None, last=None):
+    """Compatibility entry point for the shared, read-only calendar projection."""
+    from datetime import timedelta
+    from modules.facilities.services.calendar import calendar_events
+    first = first or timezone.localdate().replace(day=1)
+    last = last or first + timedelta(days=366)
+    return calendar_events(first, last)
 
 
 @login_required(login_url="admin_login_page")
@@ -921,29 +955,28 @@ def admin_order_update(request, order_id):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON format."}, status=400)
 
-    allowed_transitions = {
-        MarketplaceOrder.STATUS_PENDING: {
-            MarketplaceOrder.STATUS_PROCESSING,
-            MarketplaceOrder.STATUS_CANCELLED,
-        },
-        MarketplaceOrder.STATUS_PROCESSING: {
-            MarketplaceOrder.STATUS_READY_FOR_PICKUP,
-            MarketplaceOrder.STATUS_CANCELLED,
-        },
-        MarketplaceOrder.STATUS_READY_FOR_PICKUP: {
-            MarketplaceOrder.STATUS_COMPLETED,
-            MarketplaceOrder.STATUS_CANCELLED,
-        },
-        MarketplaceOrder.STATUS_COMPLETED: set(),
-        MarketplaceOrder.STATUS_CANCELLED: set(),
-    }
+    if not isinstance(payload, dict):
+        return JsonResponse({"error": "Send an order update object."}, status=400)
+    if "fulfillment_action" in payload:
+        if set(payload) != {"fulfillment_action"}:
+            return JsonResponse({"error": "Record fulfillment progress separately from payment updates."}, status=400)
+        from modules.marketplace.services.fulfillment import advance
+        return advance(admin_order_queryset(request.user), order_id, payload["fulfillment_action"],
+            request.user.get_full_name().strip() or request.user.username)
+    for field in ("status", "payment_status", "official_receipt_no", "pickup_location", "pickup_scheduled_at", "cancellation_reason"):
+        if payload.get(field) is not None and not isinstance(payload[field], str):
+            return JsonResponse({"error": f"{field.replace('_', ' ').title()} must be text."}, status=400)
+
+    from modules.marketplace.services.fulfillment import ORDER_TRANSITIONS
+    allowed_transitions = ORDER_TRANSITIONS
 
     with transaction.atomic():
-        order_query = admin_order_queryset(request.user).select_for_update()
+        order_query = admin_order_queryset(request.user).select_for_update(of=("self",))
 
         order = get_object_or_404(order_query, id=order_id)
 
         current_status = order.status
+        seller_delivery = order.fulfillment_method == "seller_delivery"
         previous_payment_status = order.payment_status
         requested_status = (payload.get("status") or current_status).strip().lower()
         valid_statuses = {choice[0] for choice in MarketplaceOrder.STATUS_CHOICES}
@@ -963,6 +996,9 @@ def admin_order_update(request, order_id):
                 status=409,
             )
 
+        if requested_status == "cancelled" and order.delivered_at:
+            return JsonResponse({"error": "A delivered order cannot be cancelled. Returns and refunds are not supported here."}, status=409)
+
         payment_status = (
             payload.get("payment_status") or order.payment_status
         ).strip().lower()
@@ -972,11 +1008,23 @@ def admin_order_update(request, order_id):
         }:
             return JsonResponse({"error": "Invalid payment status."}, status=400)
 
-        receipt_no = (payload.get("official_receipt_no") or "").strip()
-        cash_confirmed = bool(payload.get("cash_confirmed"))
+        receipt_no = (payload.get("official_receipt_no", order.official_receipt_no) or "").strip()
+        cash_confirmed = payload.get("cash_confirmed") is True
+        # Legacy combined Cash on Pickup confirmation also acknowledges collection.
+        # An explicit false pickup confirmation must never be overridden.
+        pickup_confirmed = payload.get("pickup_confirmed", cash_confirmed) is True
+
+        if previous_payment_status == MarketplaceOrder.PAYMENT_PAID and payment_status != previous_payment_status:
+            return JsonResponse({"error": "Recorded payments cannot be reverted through order status updates."}, status=409)
+        if requested_status == MarketplaceOrder.STATUS_CANCELLED and payment_status != previous_payment_status:
+            return JsonResponse({"error": "Cancelled orders cannot accept a new payment."}, status=409)
 
         # Cash on Pickup Completion verification
         if requested_status == MarketplaceOrder.STATUS_COMPLETED:
+            if seller_delivery and not order.delivered_at:
+                return JsonResponse({"error": "Record seller delivery before completing the order."}, status=409)
+            if not seller_delivery and current_status != requested_status and not pickup_confirmed:
+                return JsonResponse({"error": "Confirm that the buyer has collected the order before completion."}, status=409)
             if not cash_confirmed and payment_status != MarketplaceOrder.PAYMENT_PAID and order.payment_status != MarketplaceOrder.PAYMENT_PAID:
                 return JsonResponse(
                     {"error": "Cash payment receipt must be confirmed before completing the order."},
@@ -984,7 +1032,7 @@ def admin_order_update(request, order_id):
                 )
             payment_status = MarketplaceOrder.PAYMENT_PAID
 
-        cancellation_reason = (payload.get("cancellation_reason") or "").strip()
+        cancellation_reason = (payload.get("cancellation_reason", order.cancellation_reason) or "").strip()
         if (
             requested_status == MarketplaceOrder.STATUS_CANCELLED
             and requested_status != current_status
@@ -993,7 +1041,7 @@ def admin_order_update(request, order_id):
             return JsonResponse({"error": "Cancellation reason is required."}, status=400)
 
         pickup_raw = (payload.get("pickup_scheduled_at") or "").strip()
-        pickup_scheduled_at = None
+        pickup_scheduled_at = order.pickup_scheduled_at if "pickup_scheduled_at" not in payload else None
         if pickup_raw:
             pickup_scheduled_at = parse_datetime(pickup_raw)
             if pickup_scheduled_at is None:
@@ -1015,10 +1063,9 @@ def admin_order_update(request, order_id):
 
         order.status = requested_status
         order.payment_status = payment_status
-        order.official_receipt_no = (
-            receipt_no if payment_status == MarketplaceOrder.PAYMENT_PAID else ""
-        )
-        order.pickup_location = (payload.get("pickup_location") or "").strip()
+        # A receipt reference is metadata, not payment confirmation by itself.
+        order.official_receipt_no = receipt_no
+        order.pickup_location = (payload.get("pickup_location", order.pickup_location) or "").strip()
         order.pickup_scheduled_at = pickup_scheduled_at
         order.cancellation_reason = (
             cancellation_reason
@@ -1029,7 +1076,7 @@ def admin_order_update(request, order_id):
         if payment_status == MarketplaceOrder.PAYMENT_PAID:
             if previous_payment_status != MarketplaceOrder.PAYMENT_PAID or not order.paid_at:
                 order.paid_at = now
-            order.payment_encoded_by = changed_by
+                order.payment_encoded_by = changed_by
             update_fields.update({"paid_at", "payment_encoded_by"})
         elif current_status != MarketplaceOrder.STATUS_COMPLETED:
             order.paid_at = None
@@ -1041,8 +1088,10 @@ def admin_order_update(request, order_id):
             and current_status != requested_status
         ):
             order.completed_at = now
-            order.picked_up_at = now
-            update_fields.update({"completed_at", "picked_up_at"})
+            update_fields.add("completed_at")
+            if not seller_delivery:
+                order.picked_up_at = now
+                update_fields.add("picked_up_at")
 
         if (
             requested_status == MarketplaceOrder.STATUS_CANCELLED
@@ -1050,15 +1099,32 @@ def admin_order_update(request, order_id):
         ):
             order.cancelled_at = now
             update_fields.add("cancelled_at")
-            if order.product_id and order.inventory_deducted and not order.inventory_restored:
-                product = Product.objects.select_for_update().get(id=order.product_id)
-                selections = (order.customization or {}).get("selections") or []
-                adjust_product_stock(product, selections, order.quantity, restore=True)
-                product.save(update_fields=["stock", "customization_options", "updated_at"])
+            if order.inventory_deducted and not order.inventory_restored:
+                from modules.marketplace.services.bundles import restore_bundle
+                from modules.marketplace.services.inventory import InsufficientStockError
+                try:
+                    with transaction.atomic():
+                        if (order.customization or {}).get("bundle_components"):
+                            restore_bundle(order, changed_by)
+                        elif order.product_id:
+                            product = Product.objects.select_for_update().get(id=order.product_id)
+                            selections = (order.customization or {}).get("selections") or []
+                            product._inventory_order_id = order.pk
+                            product._inventory_actor = changed_by
+                            adjust_product_stock(product, selections, order.quantity, restore=True)
+                            product.save(update_fields=["stock", "customization_options", "updated_at"])
+                        else:
+                            raise InsufficientStockError("Original inventory is unavailable; reconcile this order before cancellation.")
+                except InsufficientStockError as exc:
+                    return JsonResponse({"error": str(exc)}, status=409)
                 order.inventory_restored = True
                 update_fields.add("inventory_restored")
 
         order.save(update_fields=sorted(update_fields))
+
+        if requested_status == MarketplaceOrder.STATUS_COMPLETED and current_status != requested_status and order.inventory_deducted:
+            from modules.marketplace.services.inventory_records import record_completed_sale
+            record_completed_sale(order, changed_by)
 
         if requested_status != current_status:
             MarketplaceOrderStatusHistory.objects.create(
@@ -1068,6 +1134,20 @@ def admin_order_update(request, order_id):
                 changed_by=changed_by,
                 notes=cancellation_reason,
             )
+
+        if requested_status != current_status or payment_status != previous_payment_status:
+            log_account_activity(request, source=AccountActivity.SOURCE_ADMIN,
+                account=request.user, activity_type="order_updated", module="Marketplace Orders",
+                activity=f"Order {order.order_code or order.pk}: {current_status} -> {requested_status}; payment {previous_payment_status} -> {payment_status}",
+                result=AccountActivity.RESULT_SUCCESS, metadata={"order_id": order.pk})
+            from .activity_logging import log_marketplace_event
+            buyer = CampusHubUser.objects.filter(pk=order.buyer_user_id).first() if order.buyer_user_id else None
+            event_product = order.product
+            log_marketplace_event(request, account=buyer, source="mobile", activity_type="ORDER_UPDATED",
+                activity=f"Order {order.order_code or order.pk}: {order.get_status_display()}",
+                metadata={"order_id": order.pk, "previous_status": current_status, "new_status": requested_status,
+                    "program_id": (event_product.department_id or event_product.owner.department_id) if event_product else None,
+                    "major_id": (event_product.major_id if event_product.department_id else event_product.owner.major_id) if event_product else None})
 
     return JsonResponse(
         {
@@ -1091,62 +1171,49 @@ def admin_order_update(request, order_id):
     )
 
 
-def _booking_request_rows():
-    """Build the complete booking request list used by the admin table."""
-    from api.models import Booking, Room
-
-    bookings = list(
-        Booking.objects.select_related("facility", "user")
-        .prefetch_related("payments")
-        .order_by("-created_at")[:300]
-    )
-    room_ids = {booking.room_id for booking in bookings if booking.room_id}
-    rooms = {
-        room.id: (room.room_name or room.room_type or "Room")
-        for room in Room.objects.filter(id__in=room_ids)
-    }
-
-    rows = []
-    for booking in bookings:
-        event_type, reserved_by, purpose = _booking_display_fields(booking)
-        payments = list(booking.payments.all())
-        latest_payment = payments[0] if payments else None
-        rows.append(
-            {
-                "id": booking.id,
-                "type": event_type,
-                "facility_id": booking.facility_id or "",
-                "facility": booking.facility.facility_name if booking.facility_id else "Facility",
-                "room": rooms.get(booking.room_id, "-") if booking.room_id else "-",
-                "date": booking.booking_date.isoformat() if booking.booking_date else "",
-                "start": booking.start_time.strftime("%H:%M") if booking.start_time else "",
-                "end": booking.end_time.strftime("%H:%M") if booking.end_time else "",
-                "reserved_by": reserved_by,
-                "purpose": purpose,
-                "total_amount": str(booking.total_amount or 0),
-                "payment_status": latest_payment.payment_status if latest_payment else "unpaid",
-                "status": booking.status,
-                "created_at": booking.created_at.isoformat() if booking.created_at else "",
-            }
-        )
-
-    return rows
+def _booking_request_rows(user=None):
+    """Bounded first page; use the same serializer as transaction API responses."""
+    from modules.facilities.booking_workflow_views import physical_bookings, row_set
+    return row_set(physical_bookings().order_by("-created_at", "-pk")[:20], user)
 
 
 @permissions_required_any(
     "can_manage_bookings",
     "can_approve_bookings",
     "can_record_facility_payment",
+    "can_view_bookings",
 )
 def admin_bookings_page(request):
     from api.models import Facility
+    from modules.facilities.booking_workflow_views import list_data, physical_bookings
+    from modules.facilities.services.catalog import service_resources_q
+    if request.GET.get('booking'):
+        selected = get_object_or_404(physical_bookings(), pk=request.GET['booking'])
+        target = reverse('admin_booking_details_page', kwargs={'booking_id': selected.pk})
+        token = get_tab_token_from_request(request)
+        if token:
+            from urllib.parse import urlencode
+            target += '?' + urlencode({'__at': token})
+        return redirect(target)
+    page_data = list_data(request.GET, request.user)
+    kpi_filter = request.GET.get('kpi', '')
 
     context = {
-        "calendar_events": _bookings_calendar_events(),
-        "booking_requests": _booking_request_rows(),
-        "facilities": Facility.objects.filter(is_archived=False).order_by("facility_name")[:100],
+        "booking_requests": page_data['bookings'],
+        "booking_total": page_data['total'],
+        'booking_page':page_data['page'], 'booking_pages':page_data['pages'],
+        'booking_start':page_data['start_index'], 'booking_end':page_data['end_index'],
+        'booking_has_previous':page_data['has_previous'], 'booking_has_next':page_data['has_next'],
+        'booking_kpis':page_data['kpis'],
+        'booking_kpi_filter':kpi_filter if kpi_filter in ('pending','upcoming','unpaid') else '',
+        'booking_facility_filter':request.GET.get('facility',''),
+        'booking_record_filter':request.GET.get('record_status','current'),
+        'booking_search':(request.GET.get('q') or '').strip()[:100],
+        "booking_status_filter": (request.GET.get("status") or "").strip().lower(),
+        "facilities": Facility.objects.filter(is_archived=False).exclude(service_resources_q()).order_by("facility_name")[:100],
         "can_manage_facilities": user_can_manage_facilities(request.user),
         "can_book_facilities": user_can_book_facilities(request.user),
+        "can_manage_schedules": request.user.has_perm("accounts.can_manage_schedules"),
         "can_approve_bookings": request.user.has_perm("accounts.can_approve_bookings"),
         "can_record_facility_payment": request.user.has_perm(
             "accounts.can_record_facility_payment"
@@ -1154,584 +1221,55 @@ def admin_bookings_page(request):
         "page_title": "Bookings",
         "breadcrumb_page": "Bookings",
         "active_page": "bookings",
-        **get_notification_context(),
+        **get_notification_context(user=request.user),
     }
     return render(request, "facilities/pages/admin_bookings.html", context)
 
 
 @login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_schedules", login_url="admin_dashboard_page")
 def admin_calendar_page(request):
-    from api.models import Facility
-
+    from datetime import timedelta
+    from modules.facilities.services.calendar import calendar_data, calendar_facilities
+    from accounts.role_permissions import user_has_admin_access
+    if not user_has_admin_access(request.user) or not any(request.user.has_perm("accounts." + code)
+            for code in ("can_manage_schedules", "can_view_bookings")):
+        raise PermissionDenied
+    first = timezone.localdate().replace(day=1)
+    last = (first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    data = calendar_data(first, last)
     context = {
-        "calendar_events": _bookings_calendar_events(),
-        "facilities": Facility.objects.filter(is_archived=False).order_by("facility_name")[:100],
+        "calendar_data": data,
+        "facilities": calendar_facilities(),
         "can_manage_facilities": user_can_manage_facilities(request.user),
-        "can_book_facilities": user_can_book_facilities(request.user),
+        "can_book_facilities": False,  # Calendar reuses only the schedule editor.
+        "can_manage_schedules": request.user.has_perm("accounts.can_manage_schedules"),
         "calendar_only": True,
-        "page_title": "Calendar",
-        "breadcrumb_page": "Calendar",
-        "active_page": "calendar",
-        **get_notification_context(),
+        "page_title": "Calendar", "breadcrumb_page": "Calendar", "active_page": "calendar",
+        **get_notification_context(user=request.user),
     }
     return render(request, "facilities/pages/admin_bookings.html", context)
 
 
-@login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_roles_permissions", login_url="admin_dashboard_page")
-def admin_roles_page(request):
-    """Display database-backed roles with filters and pagination."""
-    search_query = request.GET.get("q", "").strip()
-    role_type = request.GET.get("type", "").strip().lower()
-    status_filter = request.GET.get("status", "").strip().lower()
-
-    roles_qs = Role.objects.prefetch_related("granted_permissions").annotate(
-        role_display_order=Case(
-            When(role_name="Super Admin", then=Value(0)),
-            When(role_name="Marketplace Admin", then=Value(1)),
-            When(role_name="Facilities Admin", then=Value(2)),
-            When(role_name="User", then=Value(3)),
-            default=Value(4),
-            output_field=IntegerField(),
-        )
-    ).order_by("role_display_order", "role_name")
-    if search_query:
-        roles_qs = roles_qs.filter(
-            Q(role_name__icontains=search_query) | Q(description__icontains=search_query)
-        )
-    if role_type == "system":
-        roles_qs = roles_qs.filter(role_name__in=PROTECTED_ADMIN_ROLES)
-    elif role_type == "custom":
-        roles_qs = roles_qs.exclude(role_name__in=PROTECTED_ADMIN_ROLES)
-    if status_filter == "active":
-        roles_qs = roles_qs.filter(is_active=True)
-    elif status_filter == "inactive":
-        roles_qs = roles_qs.filter(is_active=False)
-
-    paginator = Paginator(roles_qs, 10)
-    page_obj = paginator.get_page(request.GET.get("page"))
-    roles_data = []
-    for role in page_obj.object_list:
-        role_users_qs = User.objects.filter(role=role.role_name).order_by("first_name", "last_name", "username")
-        assigned_perms = list(
-            role.granted_permissions.filter(
-                codename__in=ADMIN_PERMISSION_CODENAMES
-            ).values_list("codename", flat=True)
-        )
-        if role.role_name.casefold() == "super admin":
-            assigned_perms = list(ADMIN_PERMISSION_CODENAMES)
-        perm_labels = permission_labels_for_role(role.role_name)
-        role_users = [
-            {
-                "id": u.id,
-                "username": u.username,
-                "full_name": (u.get_full_name() or "").strip() or u.username,
-                "email": u.email or "",
-                "is_active": u.is_active,
-                "initials": (
-                    f"{(u.first_name[:1] if u.first_name else '')}{(u.last_name[:1] if u.last_name else '')}".upper()
-                    or u.username[:2].upper()
-                ),
-            }
-            for u in role_users_qs
-        ]
-
-        permission_count = len(assigned_perms)
-        roles_data.append({
-            "id": str(role.id),
-            "role_name": role.role_name,
-            "display_name": "Standard User" if role.role_name == "User" else role.role_name,
-            "description": role.description,
-            "user_count": len(role_users),
-            "assigned_permissions": assigned_perms,
-            "permission_labels": perm_labels,
-            "role_users": role_users,
-            "permission_count": permission_count,
-            "permission_summary": permission_set_label_for_role(
-                role.role_name, assigned_perms
-            ),
-            "is_protected": role.role_name in PROTECTED_ADMIN_ROLES,
-            "role_type": "System Role" if role.role_name in PROTECTED_ADMIN_ROLES else "Custom Role",
-            "is_active": role.is_active,
-            "status_label": "Active" if role.is_active else "Inactive",
-            "created_at": timezone.localtime(role.created_at).strftime("%b %d, %Y"),
-        })
-
-    permission_groups = [
-        {
-            "name": module_name,
-            "key": module_name.lower().replace(" ", "-"),
-            "permissions": [
-                {"codename": codename, "label": label}
-                for codename, label in permissions
-            ],
-        }
-        for module_name, permissions in PERMISSION_MODULES
-    ]
-    all_role_names = list(Role.objects.values_list("role_name", flat=True))
-    # Django User records are the administrator account store. Mobile users are
-    # held separately in CampusHubUser and must never appear in role assignment.
-    admin_accounts = User.objects.all()
-    assignable_admins = [
-        {
-            "id": user.id,
-            "full_name": (user.get_full_name() or "").strip() or user.username,
-            "username": user.username,
-            "email": user.email or "",
-            "role": user.role or "User",
-            "display_role": "Standard User" if (user.role or "User") == "User" else user.role,
-            "department_id": user.department_id,
-            "is_active": user.is_active and not user.is_suspended,
-        }
-        for user in admin_accounts.select_related("department").order_by(
-            "first_name", "last_name", "username"
-        )
-    ]
-    query_without_page = request.GET.copy()
-    query_without_page.pop("page", None)
-
-    return render(
-        request,
-        "user_management/pages/admin_roles.html",
-        {
-            "roles": roles_data,
-            "roles_json": roles_data,
-            "permission_groups": permission_groups,
-            "assignable_admins": assignable_admins,
-            "page_obj": page_obj,
-            "query_without_page": query_without_page.urlencode(),
-            "search_query": search_query,
-            "role_type_filter": role_type,
-            "status_filter": status_filter,
-            "total_roles": Role.objects.count(),
-            "assigned_admins": admin_accounts.filter(role__in=all_role_names).count(),
-            "unassigned_admins": admin_accounts.exclude(role__in=all_role_names).count(),
-            "total_permission_count": len(ADMIN_PERMISSION_CODENAMES),
-            **get_notification_context(),
-        },
-    )
-
-
-def _serialize_admin_role(role):
-    assigned_perms = list(
-        role.granted_permissions.filter(
-            codename__in=ADMIN_PERMISSION_CODENAMES
-        ).values_list("codename", flat=True)
-    )
-    if role.role_name.casefold() == "super admin":
-        assigned_perms = list(ADMIN_PERMISSION_CODENAMES)
-    role_users_qs = User.objects.filter(role=role.role_name).order_by("first_name", "last_name", "username")
-    role_users = [
-        {
-            "id": u.id,
-            "username": u.username,
-            "full_name": (u.get_full_name() or "").strip() or u.username,
-            "email": u.email or "",
-            "is_active": u.is_active,
-            "initials": (
-                f"{(u.first_name[:1] if u.first_name else '')}{(u.last_name[:1] if u.last_name else '')}".upper()
-                or u.username[:2].upper()
-            ),
-        }
-        for u in role_users_qs
-    ]
-    permission_count = len(assigned_perms)
-    return {
-        "id": str(role.id),
-        "role_name": role.role_name,
-        "display_name": "Standard User" if role.role_name == "User" else role.role_name,
-        "description": role.description or "",
-        "user_count": len(role_users),
-        "assigned_permissions": assigned_perms,
-        "permission_labels": permission_labels_for_role(role.role_name),
-        "role_users": role_users,
-        "permission_count": permission_count,
-        "permission_summary": permission_set_label_for_role(
-            role.role_name, assigned_perms
-        ),
-        "is_protected": role.role_name in PROTECTED_ADMIN_ROLES,
-        "role_type": "System Role" if role.role_name in PROTECTED_ADMIN_ROLES else "Custom Role",
-        "is_active": role.is_active,
-        "status_label": "Active" if role.is_active else "Inactive",
-        "created_at": timezone.localtime(role.created_at).strftime("%b %d, %Y"),
-    }
-
-
-
-
-def _roles_ajax_request(request):
-    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
-
-
-def _roles_json_response(request, *, success, message, role=None, role_id=None, status=200):
-    msg_str = str(message)
-    if _roles_ajax_request(request):
-        payload = {"success": success, "message": msg_str}
-        if role is not None:
-            payload["role"] = _serialize_admin_role(role)
-        if role_id is not None:
-            payload["role_id"] = str(role_id)
-        return JsonResponse(payload, status=status if success else status)
-    if success:
-        messages.success(request, msg_str)
-    else:
-        messages.error(request, msg_str)
-    return redirect("admin_roles_page")
-
-
-def _parse_assigned_admin_ids(request):
-    if request.POST.get("assigned_users_present") != "1":
-        return None
-    try:
-        return {
-            int(raw_id)
-            for raw_id in request.POST.getlist("assigned_users")
-            if raw_id.strip()
-        }
-    except (TypeError, ValueError):
-        raise ValidationError("Choose valid administrator accounts to assign.")
-
-
-def _apply_role_assignments(role, selected_user_ids):
-    """Replace a role's admin assignments while preserving RBAC invariants."""
-    if selected_user_ids is None:
-        return
-
-    current_users = list(
-        User.objects.select_for_update().filter(role=role.role_name).order_by("id")
-    )
-    selected_users = list(
-        User.objects.select_for_update().filter(pk__in=selected_user_ids).order_by("id")
-    )
-    if len(selected_users) != len(selected_user_ids):
-        raise ValidationError("One or more selected administrator accounts no longer exist.")
-
-    current_ids = {user.id for user in current_users}
-    newly_assigned_ids = selected_user_ids - current_ids
-    if (
-        selected_user_ids
-        and not role.granted_permissions.exists()
-        and (role.is_active or newly_assigned_ids)
-    ):
-        raise ValidationError("Assign at least one permission before assigning administrators.")
-    if not role.is_active and newly_assigned_ids:
-        raise ValidationError("Inactive roles cannot be assigned to new administrators.")
-    if role.role_name == "Marketplace Admin":
-        missing_department = [user.username for user in selected_users if not user.department_id]
-        if missing_department:
-            raise ValidationError(
-                "Marketplace Admin assignments require a department: "
-                + ", ".join(missing_department)
-                + "."
-            )
-
-    active_super_ids = set(
-        User.objects.filter(is_active=True, is_suspended=False)
-        .filter(Q(is_superuser=True) | Q(role__iexact="Super Admin"))
-        .values_list("id", flat=True)
-    )
-    demoted_super_ids = set()
-    if role.role_name == "Super Admin":
-        demoted_super_ids.update(current_ids - selected_user_ids)
-    else:
-        demoted_super_ids.update(active_super_ids & selected_user_ids)
-    promoted_super_ids = {
-        user.id
-        for user in selected_users
-        if role.role_name == "Super Admin" and user.is_active and not user.is_suspended
-    }
-    if not ((active_super_ids - demoted_super_ids) | promoted_super_ids):
-        raise ValidationError("The final active Super Admin assignment cannot be removed.")
-
-    fallback_role, _ = Role.objects.get_or_create(
-        role_name="User",
-        defaults={"description": "Standard CampusHub user.", "is_active": True},
-    )
-    removed_users = [user for user in current_users if user.id not in selected_user_ids]
-    for user in removed_users:
-        user.role = fallback_role.role_name
-        user.save(update_fields=["role"])
-        sync_user_admin_permissions(user)
-    for user in selected_users:
-        if user.role != role.role_name:
-            user.role = role.role_name
-            user.save(update_fields=["role"])
-        sync_user_admin_permissions(user)
-
-
-@login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_roles_permissions", login_url="admin_dashboard_page")
-def admin_roles_save(request):
-    """Create or update a role."""
-    if request.method != "POST":
-        return redirect("admin_roles_page")
-
-    role_id = request.POST.get("role_id", "").strip()
-    role_name = request.POST.get("role_name", "").strip()
-    description = request.POST.get("description", "").strip()
-    role_status_submitted = request.POST.get("role_status_present") == "1"
-    requested_active = request.POST.get("is_active") == "on"
-    try:
-        assigned_admin_ids = _parse_assigned_admin_ids(request)
-    except ValidationError as exc:
-        return _roles_json_response(
-            request,
-            success=False,
-            message=" ".join(exc.messages),
-            status=400,
-        )
-    selected_perms = [
-        codename
-        for codename in request.POST.getlist("permissions")
-        if codename in ADMIN_PERMISSION_CODENAMES
-    ]
-
-    if not role_name:
-        return _roles_json_response(
-            request,
-            success=False,
-            message="Role name is required.",
-            status=400,
-        )
-
-    if role_id:
-        try:
-            with transaction.atomic():
-                role = Role.objects.select_for_update().get(id=role_id)
-                previous_name = role.role_name
-                if previous_name in PROTECTED_ADMIN_ROLES and role_name != previous_name:
-                    return _roles_json_response(
-                        request,
-                        success=False,
-                        message="Built-in roles cannot be renamed.",
-                        status=400,
-                    )
-                if Role.objects.filter(role_name__iexact=role_name).exclude(id=role.id).exists():
-                    return _roles_json_response(
-                        request,
-                        success=False,
-                        message=f'Role "{role_name}" already exists.',
-                        status=400,
-                    )
-                role.role_name = role_name
-                role.description = description
-                role.is_active = (
-                    True
-                    if previous_name in PROTECTED_ADMIN_ROLES
-                    else requested_active if role_status_submitted else role.is_active
-                )
-                role.save(update_fields=["role_name", "description", "is_active"])
-                if role_name == "Super Admin":
-                    selected_perms = list(ADMIN_PERMISSION_CODENAMES)
-                set_role_permissions(role, selected_perms)
-                if previous_name != role_name:
-                    User.objects.filter(role=previous_name).update(role=role_name)
-                _apply_role_assignments(role, assigned_admin_ids)
-                sync_users_for_role(role_name)
-            return _roles_json_response(
-                request,
-                success=True,
-                message=f'Role "{role_name}" updated.',
-                role=role,
-            )
-        except Role.DoesNotExist:
-            return _roles_json_response(
-                request,
-                success=False,
-                message="Role not found.",
-                status=404,
-            )
-        except ValidationError as exc:
-            return _roles_json_response(
-                request,
-                success=False,
-                message=" ".join(exc.messages),
-                status=400,
-            )
-    else:
-        if Role.objects.filter(role_name__iexact=role_name).exists():
-            return _roles_json_response(
-                request,
-                success=False,
-                message=f'Role "{role_name}" already exists.',
-                status=400,
-            )
-        try:
-            with transaction.atomic():
-                role = Role.objects.create(
-                    role_name=role_name,
-                    description=description,
-                    is_active=requested_active if role_status_submitted else True,
-                )
-                set_role_permissions(role, selected_perms)
-                _apply_role_assignments(role, assigned_admin_ids)
-        except ValidationError as exc:
-            return _roles_json_response(
-                request,
-                success=False,
-                message=" ".join(exc.messages),
-                status=400,
-            )
-        return _roles_json_response(
-            request,
-            success=True,
-            message=f'Role "{role_name}" created.',
-            role=role,
-        )
-
-
-@login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_roles_permissions", login_url="admin_dashboard_page")
-def admin_role_permissions_save(request):
-    """Update only a role's permission bundle from the permissions workspace."""
-    if request.method != "POST":
-        return redirect("admin_roles_page")
-
-    role_id = request.POST.get("role_id", "").strip()
-    selected_perms = [
-        codename
-        for codename in request.POST.getlist("permissions")
-        if codename in ADMIN_PERMISSION_CODENAMES
-    ]
-    try:
-        with transaction.atomic():
-            role = Role.objects.select_for_update().get(id=role_id)
-            if role.role_name == "Super Admin":
-                selected_perms = list(ADMIN_PERMISSION_CODENAMES)
-            elif not selected_perms and User.objects.filter(role=role.role_name).exists():
-                return _roles_json_response(
-                    request,
-                    success=False,
-                    message="A role assigned to administrators must keep at least one permission.",
-                    status=400,
-                )
-            set_role_permissions(role, selected_perms)
-            sync_users_for_role(role.role_name)
-        return _roles_json_response(
-            request,
-            success=True,
-            message=f'Permissions for "{role.role_name}" updated.',
-            role=role,
-        )
-    except (Role.DoesNotExist, ValidationError):
-        return _roles_json_response(
-            request,
-            success=False,
-            message="Role not found.",
-            status=404,
-        )
-
-
-@login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_roles_permissions", login_url="admin_dashboard_page")
-def admin_roles_status(request):
-    """Activate or deactivate a custom role and resync assigned users."""
-    if request.method != "POST":
-        return redirect("admin_roles_page")
-
-    role_id = request.POST.get("role_id", "").strip()
-    action = request.POST.get("action", "").strip().lower()
-    if action not in {"activate", "deactivate"}:
-        return _roles_json_response(
-            request,
-            success=False,
-            message="Choose a valid role status action.",
-            status=400,
-        )
-
-    try:
-        with transaction.atomic():
-            role = Role.objects.select_for_update().get(id=role_id)
-            if role.role_name in PROTECTED_ADMIN_ROLES and action == "deactivate":
-                return _roles_json_response(
-                    request,
-                    success=False,
-                    message="Built-in system roles cannot be deactivated.",
-                    status=400,
-                )
-            role.is_active = action == "activate"
-            role.save(update_fields=["is_active"])
-            sync_users_for_role(role.role_name)
-        return _roles_json_response(
-            request,
-            success=True,
-            message=f'Role "{role.role_name}" {"activated" if role.is_active else "deactivated"}.',
-            role=role,
-        )
-    except Role.DoesNotExist:
-        return _roles_json_response(
-            request,
-            success=False,
-            message="Role not found.",
-            status=404,
-        )
-
-
-@login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_roles_permissions", login_url="admin_dashboard_page")
-def admin_roles_delete(request):
-    """Delete a role."""
-    if request.method != "POST":
-        return redirect("admin_roles_page")
-
-    role_id = request.POST.get("role_id", "").strip()
-    if role_id:
-        try:
-            role = Role.objects.get(id=role_id)
-            name = role.role_name
-            if name in PROTECTED_ADMIN_ROLES:
-                return _roles_json_response(
-                    request,
-                    success=False,
-                    message="Built-in roles cannot be deleted.",
-                    status=400,
-                )
-            with transaction.atomic():
-                fallback_role, _ = Role.objects.get_or_create(
-                    role_name="User",
-                    defaults={"description": "Standard CampusHub user."},
-                )
-                User.objects.filter(role=name).update(role=fallback_role.role_name)
-                role.delete()
-                sync_users_for_role(fallback_role.role_name)
-            return _roles_json_response(
-                request,
-                success=True,
-                message=f'Role "{name}" deleted. Affected users reset to "Standard User".',
-                role_id=role_id,
-            )
-        except Role.DoesNotExist:
-            return _roles_json_response(
-                request,
-                success=False,
-                message="Role not found.",
-                status=404,
-            )
-        except Exception as e:
-            return _roles_json_response(
-                request,
-                success=False,
-                message=f"Error deleting role: {e}",
-                status=500,
-            )
-
-    return _roles_json_response(
-        request,
-        success=False,
-        message="Role ID is required.",
-        status=400,
-    )
+# Existing URLs retain their names; role edits reuse the shared RBAC store.
+from .role_management import (
+    admin_roles_page, admin_roles_save, admin_role_permissions_save,
+    admin_roles_status, admin_roles_delete,
+)
 
 
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_view_user_monitoring", login_url="admin_dashboard_page")
+@monitoring_load_guard
 def admin_user_monitoring_page(request):
     """Monitor real authentication activity across admin and mobile accounts."""
-    if not _is_super_admin(request.user):
+    from .support_scope import is_marketplace_admin, support_activity
+    scoped_monitor = is_marketplace_admin(request.user)
+    if not _is_super_admin(request.user) and not scoped_monitor:
         raise PermissionDenied
 
     from datetime import datetime, time, timedelta
+    from .monitoring import display_role, event_rows, presence_age, recent_per_account, timestamp, tracked_sessions
+    from .activity_service import action_label, connection_summary
 
     now = timezone.now()
     local_today = timezone.localdate(now)
@@ -1759,60 +1297,61 @@ def admin_user_monitoring_page(request):
     online_cutoff = now - timedelta(minutes=5)
 
     all_rows = build_account_rows(request.user)
+    selected_account_ref = (request.GET.get("account_ref") or "").strip()
+    if selected_account_ref and not any(row["ref"] == selected_account_ref for row in all_rows):
+        from django.http import Http404
+        raise Http404("Account not found.")
     account_refs = [row["ref"] for row in all_rows]
-    latest_events = AccountActivity.objects.filter(account_ref__in=account_refs).order_by(
-        "account_ref", "-created_at"
+    activity_source = support_activity(AccountActivity.objects.all(), request.user)
+    latest_events = activity_source.filter(account_ref__in=account_refs).order_by(
+        "account_ref", "-created_at", "-pk"
     ).distinct("account_ref")
     latest_event_by_ref = {event.account_ref: event for event in latest_events}
 
-    online_admin_ids = set(
-        AdminTabToken.objects.filter(
-            expires_at__gt=now,
-            last_seen_at__gte=online_cutoff,
-            user__is_active=True,
-            user__is_suspended=False,
-        ).values_list("user_id", flat=True)
-    )
-    online_mobile_ids = set(
-        AccountActivity.objects.filter(
-            account_source=AccountActivity.SOURCE_MOBILE,
-            activity_type="login_success",
-            result=AccountActivity.RESULT_SUCCESS,
-            created_at__gte=online_cutoff,
-            account_id__isnull=False,
-        ).values_list("account_id", flat=True)
-    )
-    online_refs = {f"admin:{pk}" for pk in online_admin_ids} | {
-        f"mobile:{pk}" for pk in online_mobile_ids
-    }
-
+    enabled_refs = {row["ref"] for row in all_rows if row["is_active"] and not row["is_suspended"]}
+    valid_sessions = tracked_sessions(now, [row["id"] for row in all_rows if row["source"] == "admin"])
+    seen_by_ref = {}
+    for session in valid_sessions.order_by("user_id", "-last_seen_at").distinct("user_id"):
+        seen_by_ref[f"admin:{session.user_id}"] = session.last_seen_at
+    # Mobile currently has login audit events, not a heartbeat/session registry.
+    # A latest logout invalidates that recent-login presence estimate.
+    mobile_presence = AccountActivity.objects.filter(
+        account_source=AccountActivity.SOURCE_MOBILE, account_ref__in=enabled_refs,
+        activity_type__in=["login_success", "logout"], result=AccountActivity.RESULT_SUCCESS,
+        created_at__gte=online_cutoff, created_at__lte=now,
+    ).order_by("account_ref", "-created_at", "-pk").distinct("account_ref")
+    for event in mobile_presence:
+        if event.activity_type == "login_success":
+            seen_by_ref[event.account_ref] = event.created_at
+    online_refs = {ref for ref, seen in seen_by_ref.items() if ref in enabled_refs and seen >= online_cutoff}
+    latest_logins = activity_source.filter(
+        account_ref__in=account_refs, activity_type="login_success", result=AccountActivity.RESULT_SUCCESS,
+        created_at__lte=now,
+    ).order_by("account_ref", "-created_at", "-pk").distinct("account_ref")
+    login_by_ref = {event.account_ref: event.created_at for event in latest_logins}
     for row in all_rows:
         event = latest_event_by_ref.get(str(row["ref"]))
-        row["role_label"] = "Standard User" if row["role"] == "User" else row["role"]
-        if row["is_suspended"]:
-            row["monitor_status"] = "suspended"
-            row["monitor_status_label"] = "Suspended"
-        elif row["ref"] in online_refs:
-            row["monitor_status"] = "online"
-            row["monitor_status_label"] = "Online"
-        else:
-            row["monitor_status"] = "offline"
-            row["monitor_status_label"] = "Offline"
-        row["last_activity"] = event.activity if event else ""
+        row["role_label"] = display_role(row["role"])
+        row["monitor_status"] = "online" if row["ref"] in online_refs else "offline"
+        row["monitor_status_label"] = row["monitor_status"].title()
+        row["last_activity"] = action_label(event) if event else ""
         row["last_activity_at"] = event.created_at if event else None
-
+        row["last_seen"] = seen_by_ref.get(row["ref"])
+        row["online_activity"] = presence_age(row["last_seen"], now)
+        stored_login = row.get("last_login")
+        audit_login = login_by_ref.get(row["ref"])
+        row["last_login"] = max(filter(None, (stored_login, audit_login)), default=None)
     online_users = sorted(
         (row for row in all_rows if row["ref"] in online_refs),
-        key=lambda row: row["last_activity_at"] or row["last_login"] or row["date_joined"],
-        reverse=True,
+        key=lambda row: row["last_seen"], reverse=True,
     )[:5]
-    for row in online_users:
-        row["online_activity"] = row["last_activity"] or "Active session"
 
-    events_in_range = AccountActivity.objects.filter(
+    events_in_range = activity_source.filter(
         created_at__gte=range_start,
         created_at__lt=range_end,
     )
+    if selected_account_ref:
+        events_in_range = events_in_range.filter(account_ref=selected_account_ref)
     query = (request.GET.get("q") or "").strip().lower()
     account_type = (request.GET.get("type") or "").strip().lower()
     role = (request.GET.get("role") or "").strip().lower()
@@ -1832,9 +1371,10 @@ def admin_user_monitoring_page(request):
             for key in ("full_name", "username", "email", "role_label", "account_type_label")
         ).lower()
         return (
-            (not query or query in searchable)
+            (not selected_account_ref or row["ref"] == selected_account_ref)
+            and (not query or query in searchable)
             and (not account_type or row["account_type"] == account_type)
-            and (not role or row["role"].lower() == role)
+            and (not role or row["role_label"].lower() == display_role(role).lower())
             and (not status or row["monitor_status"] == status)
             and (activity_refs is None or row["ref"] in activity_refs)
         )
@@ -1850,7 +1390,25 @@ def admin_user_monitoring_page(request):
 
     page_refs = [row["ref"] for row in page_obj.object_list]
     drawer_events = {ref: [] for ref in page_refs}
-    for event in AccountActivity.objects.filter(account_ref__in=page_refs).order_by("-created_at"):
+    history_page_obj = None
+    event_query = activity_source.filter(account_ref__in=page_refs).exclude(activity="").order_by("-created_at", "-pk")
+    if selected_account_ref and selected_account_ref in page_refs:
+        # The deep link opens complete all-time history, twenty actual events per page.
+        history_page_obj = Paginator(event_query, 20).get_page(request.GET.get("history_page"))
+        event_query = history_page_obj.object_list
+    if not history_page_obj:
+        event_query = recent_per_account(event_query)
+    login_history = recent_per_account(activity_source.filter(
+        account_ref__in=page_refs, activity_type__in=["login_success", "login_failed"],
+    )) if not scoped_monitor else []
+    logins_by_ref = {ref: [] for ref in page_refs}
+    for event in login_history:
+        logins_by_ref[event.account_ref].append({
+            "time": timestamp(event.created_at), "activity": event.activity,
+            "type": event.activity_type, "module": event.module,
+            "result": event.get_result_display(), "ip": event.ip_address or "",
+        })
+    for event in event_query:
         if len(drawer_events[event.account_ref]) < 20:
             drawer_events[event.account_ref].append({
                 "time": timezone.localtime(event.created_at).strftime("%b %d, %Y %I:%M %p"),
@@ -1858,25 +1416,23 @@ def admin_user_monitoring_page(request):
                 "type": event.activity_type,
                 "module": event.module,
                 "result": event.get_result_display(),
-                "ip": event.ip_address or "",
-                "device": event.user_agent or "",
+                "ip": "" if scoped_monitor else event.ip_address or "",
+                "device": "" if scoped_monitor else connection_summary(event.user_agent),
             })
     session_map = {ref: [] for ref in page_refs}
     page_admin_ids = [row["id"] for row in page_obj.object_list if row["source"] == "admin"]
-    for session in AdminTabToken.objects.filter(user_id__in=page_admin_ids).order_by("-last_seen_at", "-created_at"):
+    for session in recent_per_account(valid_sessions.filter(user_id__in=[] if scoped_monitor else page_admin_ids), limit=10, partition="user_id"):
         ref = f"admin:{session.user_id}"
         if len(session_map[ref]) < 10:
             session_map[ref].append({
-                "created": timezone.localtime(session.created_at).strftime("%b %d, %Y %I:%M %p"),
-                "last_seen": timezone.localtime(session.last_seen_at).strftime("%b %d, %Y %I:%M %p") if session.last_seen_at else "",
-                "expires": timezone.localtime(session.expires_at).strftime("%b %d, %Y %I:%M %p"),
-                "active": session.expires_at > now,
+                "created": timestamp(session.created_at), "last_seen": timestamp(session.last_seen_at),
+                "expires": timestamp(session.expires_at), "active": True,
             })
 
     users_json = []
     for row in page_obj.object_list:
         events = drawer_events[row["ref"]]
-        latest = events[0] if events else {}
+        latest = latest_event_by_ref.get(row["ref"])
         users_json.append({
             "ref": row["ref"],
             "initials": row["initials"],
@@ -1886,16 +1442,21 @@ def admin_user_monitoring_page(request):
             "accountType": row["account_type_label"],
             "role": row["role_label"],
             "status": row["monitor_status_label"],
+            "accountStatus": row["status_label"],
+            "lastSeen": timestamp(row["last_seen"]),
+            "presenceNote": "Mobile presence uses recent successful login; no mobile heartbeat is recorded." if row["source"] == "mobile" else "",
+            "sessionNote": "Mobile session mapping is not recorded." if row["source"] == "mobile" else "Only recently used authenticated admin tab sessions are tracked.",
+            "logins": logins_by_ref[row["ref"]],
             "lastLogin": timezone.localtime(row["last_login"]).strftime("%b %d, %Y %I:%M %p") if isinstance(row.get("last_login"), datetime) else "",
             "lastActivity": row["last_activity"],
             "lastActivityAt": timezone.localtime(row["last_activity_at"]).strftime("%b %d, %Y %I:%M %p") if isinstance(row.get("last_activity_at"), datetime) else "",
-            "ip": latest.get("ip", ""),
-            "device": latest.get("device", ""),
+            "ip": (latest.ip_address or "") if latest and not scoped_monitor else "",
+            "device": connection_summary(latest.user_agent) if latest and not scoped_monitor else "",
             "events": events,
             "sessions": session_map[row["ref"]],
         })
 
-    successful_logins = events_in_range.filter(
+    successful_logins = events_in_range if scoped_monitor else events_in_range.filter(
         activity_type="login_success",
         result=AccountActivity.RESULT_SUCCESS,
     )
@@ -1987,44 +1548,40 @@ def admin_user_monitoring_page(request):
         ),
     }
 
+    online_refs.intersection_update(account_refs)
     online_total = len(online_refs)
 
     hourly_login_counts = [0] * 24
-    for logged_at in events_in_range.filter(
-        activity_type="login_success",
-        result=AccountActivity.RESULT_SUCCESS,
-    ).values_list("created_at", flat=True):
-        hourly_login_counts[timezone.localtime(logged_at).hour] += 1
+    for bucket in successful_logins.annotate(hour=ExtractHour("created_at", tzinfo=current_tz)).values("hour").annotate(total=Count("pk")).order_by("hour"):
+        hourly_login_counts[bucket["hour"]] = bucket["total"]
     def hour_label(hour):
         return datetime.combine(local_today, time(hour=hour)).strftime("%I %p").lstrip("0")
 
-    account_type_labels = {**dict(ACCOUNT_TYPES), "admin": "Admin"}
-    recent_activities = []
-    for event in events_in_range.order_by("-created_at")[:10]:
-        role_label = "Standard User" if event.role == "User" else (event.role or "-")
-        recent_activities.append({
-            "id": str(event.pk),
-            "time": timezone.localtime(event.created_at).strftime("%b %d, %Y %I:%M %p"),
-            "user": event.full_name or event.username or "Unknown",
-            "identity": event.email or event.username or "Unknown account",
-            "account_type": account_type_labels.get(event.account_type, event.account_type.title() or "Unknown"),
-            "account_type_value": event.account_type or "unknown",
-            "role": role_label,
-            "activity": event.activity,
-            "module": event.module,
-            "ip": event.ip_address or "",
-            "device": event.user_agent or "",
-            "result": event.get_result_display(),
-            "result_value": event.result,
-        })
+    # Keep chart totals tied to the period; table filters only narrow the log.
+    filtered_events = events_in_range
+    if query or account_type or role or status or activity_type:
+        matching_refs = [row["ref"] for row in filtered_rows]
+        filtered_events = filtered_events.filter(account_ref__in=matching_refs)
+        if query and not (account_type or role or status):
+            # Failed attempts for unknown identifiers do not have an account_ref.
+            filtered_events = events_in_range.filter(
+                Q(account_ref__in=matching_refs) | Q(username__icontains=query)
+            )
+        if activity_type:
+            filtered_events = filtered_events.filter(activity_type=activity_type)
+    activity_module_filter = "Facilities" if (request.GET.get("module") or "").strip().casefold() == "facilities" else ""
+    if activity_module_filter:
+        filtered_events = filtered_events.filter(module__iexact=activity_module_filter)
+    activity_page_obj = Paginator(filtered_events.order_by("-created_at", "-pk"), 20).get_page(request.GET.get("activity_page"))
+    recent_activities = event_rows(activity_page_obj.object_list, scoped=scoped_monitor)
+    activity_query = request.GET.copy()
+    activity_query.pop("activity_page", None)
     query_without_page = request.GET.copy()
     query_without_page.pop("page", None)
-    role_choices = sorted({str(row["role"]) for row in all_rows if row.get("role")}, key=str.casefold)
-    active_sessions = AdminTabToken.objects.filter(
-        expires_at__gt=now,
-        user__is_active=True,
-        user__is_suspended=False,
-    ).count()
+    history_query = request.GET.copy()
+    history_query.pop("history_page", None)
+    role_choices = sorted({display_role(row["role"]) for row in all_rows if row.get("role")}, key=str.casefold)
+    active_sessions = valid_sessions.count() if not scoped_monitor else None
     monitor_chart_data = {
         **login_trend_data,
         "peakHours": {
@@ -2034,6 +1591,9 @@ def admin_user_monitoring_page(request):
     }
 
     return render(request, "user_management/pages/admin_user_monitoring.html", {
+        "scoped_monitor": scoped_monitor,
+        "marketplace_activity_count": events_in_range.count(),
+        "accounts_with_activity": events_in_range.values("account_ref").distinct().count(),
         "users": page_obj.object_list,
         "users_json": users_json,
         "page_obj": page_obj,
@@ -2047,20 +1607,30 @@ def admin_user_monitoring_page(request):
         "online_users": online_users,
         "monitor_chart_data": monitor_chart_data,
         "recent_activities": recent_activities,
+        "activity_page_obj": activity_page_obj,
+        "activity_module_filter": activity_module_filter,
+        "activity_query": activity_query.urlencode(),
+        "monitor_config": {"scoped": scoped_monitor, "selectedAccount": selected_account_ref},
+        "session_coverage": "Tracked admin tab sessions only; mobile sessions are not recorded.",
+        "presence_coverage": "Admin presence uses last seen. Mobile presence uses recent successful login.",
+        "selected_account_ref": selected_account_ref,
+        "history_page_obj": history_page_obj,
+        "history_query": history_query.urlencode(),
         "account_types": ACCOUNT_TYPES,
         "role_choices": role_choices,
-        "activity_types": (("login_success", "Successful Login"), ("login_failed", "Failed Login"), ("logout", "Logout")),
+        "activity_types": [(kind, kind.replace("_", " ").title()) for kind in sorted(set(activity_source.values_list("activity_type", flat=True)))],
         "filters": {
             "q": request.GET.get("q", ""),
             "type": account_type,
             "role": request.GET.get("role", ""),
             "status": status,
             "activity": activity_type,
+            "account_ref": selected_account_ref,
             "period": monitoring_period,
             "date_from": date_from.isoformat(),
             "date_to": date_to.isoformat(),
         },
-        **get_notification_context(),
+        **get_notification_context(user=request.user),
     })
 
 
@@ -2071,7 +1641,7 @@ def admin_settings_page(request):
     return render(
         request,
         "user_management/pages/admin_settings.html",
-        get_notification_context(),
+        get_notification_context(user=request.user),
     )
 
 
@@ -2094,7 +1664,7 @@ def admin_marketplace_export_page(request):
             "export_format": EXPORT_FORMAT,
             "record_counts": export_record_counts("marketplace", request.user),
             "download_url": reverse("admin_marketplace_export_download"),
-            **get_notification_context(),
+            **get_notification_context(user=request.user),
         },
     )
 
@@ -2118,7 +1688,7 @@ def admin_facility_export_page(request):
             "export_format": EXPORT_FORMAT,
             "record_counts": export_record_counts("facilities", request.user),
             "download_url": reverse("admin_facility_export_download"),
-            **get_notification_context(),
+            **get_notification_context(user=request.user),
         },
     )
 
@@ -2338,6 +1908,6 @@ def admin_backup_page(request):
             "backups": backups,
             "latest_backup": latest,
             "auto_config": auto_config,
-            **get_notification_context(),
+            **get_notification_context(user=request.user),
         },
     )

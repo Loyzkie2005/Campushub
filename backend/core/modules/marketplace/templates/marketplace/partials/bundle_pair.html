@@ -1,0 +1,10 @@
+<article class="bundle-pair{% if directional %} bundle-pair--cross-sell{% endif %}{% if view_action %} bundle-pair--suggested{% endif %}" data-pair-id="{{ row.id }}">
+    <div class="bundle-pair-images">
+        {% include 'marketplace/partials/bundle_photo.html' with product=row.products.0 %}
+        <span class="bundle-pair-plus" aria-hidden="true">{% if directional %}&rarr;{% else %}+{% endif %}</span>
+        {% include 'marketplace/partials/bundle_photo.html' with product=row.products.1 %}
+    </div>
+    <h3>{% if view_action %}{{ row.product_a }} + {{ row.product_b }}{% else %}<span>{{ row.product_a }}</span>{% if directional %}<span class="bundle-relation-label">Recommended with</span>{% else %}<span class="visually-hidden">and</span>{% endif %}<span>{{ row.product_b }}</span>{% endif %}</h3>
+    <p class="bundle-pair-seller">Seller: {{ row.seller }}</p>
+    {% if view_action %}<div class="bundle-pair-footer"><button type="button" class="bundle-review-button" data-bundle-review="{{ row.id }}" aria-label="View {{ row.product_a }} and {{ row.product_b }}">View</button></div>{% endif %}
+</article>

@@ -1,0 +1,10 @@
+<td class="col-action"><div class="action-row">
+    <button type="button" class="btn-user-action btn-view-product" title="View Details" aria-label="View Details"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Zm7 0a3 3 0 1 0 6 0 3 3 0 0 0-6 0"/></svg></button>
+    {% if can_approve_products and product.approval_status == 'pending' and not product.is_archived %}
+    <button type="button" class="btn-user-action btn-approve-product" title="Approve Product" aria-label="Approve product"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/></svg></button>
+    <button type="button" class="btn-user-action btn-reject-product" title="Reject Product" aria-label="Reject product"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18"/></svg></button>
+    {% endif %}
+    {% if can_manage_products %}
+    {% if product.is_archived %}<button type="button" class="btn-user-action btn-restore-product" title="Restore Product" aria-label="Restore product"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10a8 8 0 1 1 1 8M4 3v7h7"/></svg></button>{% else %}<button type="button" class="btn-user-action btn-archive-product" title="Archive Product" aria-label="Archive product"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4V7Zm-1-4h18v4H3V3Zm6 8h6"/></svg></button>{% endif %}
+    {% endif %}
+</div></td>

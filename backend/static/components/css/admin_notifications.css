@@ -1,6 +1,6 @@
 :root {
     --campushub-navy: #1A1851;
-    --campushub-gold: #FCB316;
+    --campushub-gold: #FCB315;
     --campushub-blue: #0175C2;
     --campushub-surface: #ffffff;
     --campushub-muted: #64748b;
@@ -226,7 +226,7 @@
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: #FCB316;
+    background: #FCB315;
 }
 
 .notification-row.is-seen .notification-read-dot {
@@ -353,8 +353,8 @@
 }
 
 .approve-request:hover {
-    background: #FCB316;
-    border-color: #FCB316;
+    background: #FCB315;
+    border-color: #FCB315;
     color: #1A1851;
 }
 

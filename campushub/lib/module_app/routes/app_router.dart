@@ -5,6 +5,8 @@ import '../screens/login_screen.dart';
 import '../screens/profile_setup_screen.dart';
 import '../screens/signup_screen.dart';
 import '../screens/startup_gate.dart';
+import '../screens/notification_product_page.dart';
+import '../models/product_notification_target.dart';
 import 'app_routes.dart';
 
 abstract final class AppRouter {
@@ -21,6 +23,12 @@ abstract final class AppRouter {
       AppRoutes.login => const LoginScreen(),
       AppRoutes.profileSetup => const ProfileSetupScreen(),
       AppRoutes.dashboard => const DashboardScreen(),
+      AppRoutes.services => const DashboardScreen(initialTab: 2),
+      AppRoutes.notificationProduct
+          when settings.arguments is ProductNotificationTarget =>
+        NotificationProductPage(
+          target: settings.arguments as ProductNotificationTarget,
+        ),
       _ => const LoginScreen(),
     };
 

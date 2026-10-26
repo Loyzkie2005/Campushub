@@ -42,16 +42,17 @@ void main() {
     expect(find.text('Hotdog'), findsOneWidget);
     expect(find.text('Size: Medium (+\u20b125.00)'), findsOneWidget);
     expect(find.text('x1'), findsOneWidget);
-    expect(find.text('Payment Methods'), findsOneWidget);
+    expect(find.text('Fulfillment & Payment'), findsOneWidget);
     expect(find.text('Cash on Pickup'), findsOneWidget);
-    expect(find.text('Cash on Delivery'), findsOneWidget);
+    expect(find.text('Cash on Delivery'), findsNothing);
+    expect(find.byKey(const ValueKey('checkout-fulfillment')), findsOneWidget);
     expect(find.text('Order Summary'), findsOneWidget);
     expect(find.text('Delivery Fee'), findsNothing);
     expect(find.text('Platform Fee'), findsNothing);
     expect(find.text('Add note'), findsOneWidget);
 
     final msgRect = tester.getRect(find.text('Add note'));
-    final payRect = tester.getRect(find.text('Payment Methods'));
+    final payRect = tester.getRect(find.text('Fulfillment & Payment'));
     final orderSummaryRect = tester.getRect(find.text('Order Summary'));
     final subtotalRect = tester.getRect(find.text('Product Subtotal'));
 
@@ -62,7 +63,10 @@ void main() {
     await tester.tap(find.text('Add note'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Leave an optional message for the seller.'), findsOneWidget);
+    expect(
+      find.text('Leave an optional message for the seller.'),
+      findsOneWidget,
+    );
     await tester.enterText(find.byType(TextField), 'No ketchup, please.');
     expect(messageController.text, 'No ketchup, please.');
   });
@@ -104,33 +108,51 @@ void main() {
     expect(changedQty, 1);
   });
 
-  testWidgets('payment method radio toggles to Cash on Delivery', (
-    tester,
-  ) async {
-    String? selected;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: OrderSummaryCard(
-            items: const [
-              OrderSummaryLineItem(
-                productName: 'Hotdog',
-                imageUrl: '',
-                quantity: 1,
-                unitPrice: 65,
-                selections: [],
+  testWidgets(
+    'seller delivery selection sends method and actual destination separately from payment',
+    (tester) async {
+      String? selected;
+      String? destination;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: OrderSummaryCard(
+                items: const [
+                  OrderSummaryLineItem(
+                    productName: 'Hotdog',
+                    imageUrl: '',
+                    quantity: 1,
+                    unitPrice: 65,
+                    selections: [],
+                  ),
+                ],
+                subtotal: 65,
+                onFulfillmentChanged: (method, address) {
+                  selected = method;
+                  destination = address;
+                },
               ),
-            ],
-            subtotal: 65,
-            onPaymentMethodChanged: (method) => selected = method,
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('Cash on Delivery'), findsOneWidget);
-    await tester.tap(find.text('Cash on Delivery'));
-    await tester.pump();
-    expect(selected, 'Cash on Delivery');
-  });
+      await tester.tap(find.byKey(const ValueKey('checkout-fulfillment')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Seller Delivery').last);
+      await tester.pumpAndSettle();
+      expect(selected, 'seller_delivery');
+      await tester.enterText(
+        find.byKey(const ValueKey('checkout-delivery-destination')),
+        'Actual test destination',
+      );
+      expect(destination, 'Actual test destination');
+      expect(find.text('Cash on Delivery'), findsNothing);
+      expect(
+        find.text('Cash payment is recorded separately from delivery.'),
+        findsOneWidget,
+      );
+    },
+  );
 }

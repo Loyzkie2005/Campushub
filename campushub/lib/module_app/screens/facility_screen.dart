@@ -1,9 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 
 import '../models/facility_item.dart';
 import '../services/facility_service.dart';
+import '../widgets/product_image.dart';
 import 'facility_details_screen.dart';
 import 'facilities/facility_booking_history_screen.dart';
 
@@ -369,33 +368,19 @@ class _FacilityPhoto extends StatelessWidget {
   Widget? _buildFacilityImage(String imageUrl) {
     if (imageUrl.isEmpty) return null;
 
-    if (imageUrl.startsWith('data:image/')) {
-      final commaIndex = imageUrl.indexOf(',');
-      if (commaIndex == -1) return null;
-
-      try {
-        final bytes = base64Decode(imageUrl.substring(commaIndex + 1));
-        return Image.memory(
-          bytes,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          errorBuilder: (context, error, stackTrace) => _fallbackIcon,
-        );
-      } catch (_) {
+    if (!imageUrl.startsWith('data:image/')) {
+      final uri = Uri.tryParse(imageUrl);
+      if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
         return null;
       }
     }
 
-    final uri = Uri.tryParse(imageUrl);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
-      return null;
-    }
-
-    return Image.network(
-      imageUrl,
+    return ProductImage(
+      imageUrl: imageUrl,
       fit: BoxFit.cover,
-      gaplessPlayback: true,
-      errorBuilder: (context, error, stackTrace) => _fallbackIcon,
+      fallbackIcon: facility.icon,
+      fallbackColor: _FacilityColors.primaryNavy,
+      fallbackSize: 44,
     );
   }
 }
@@ -469,5 +454,5 @@ class _FacilityInfoLine extends StatelessWidget {
 
 class _FacilityColors {
   static const Color primaryNavy = Color(0xFF142B47);
-  static const Color campusGold = Color(0xFFFCB316);
+  static const Color campusGold = Color(0xFFFCB315);
 }

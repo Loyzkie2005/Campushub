@@ -1,0 +1,19 @@
+<section class="analytics-intro" aria-label="Analytics date range filter">
+    <form method="get" class="analytics-period-form" id="analyticsPeriodForm">
+        <input type="hidden" name="module" value="{{ analytics_module|default:'marketplace' }}" />
+        <label for="analyticsPeriod" class="visually-hidden">Analytics period</label>
+        <select name="period" id="analyticsPeriod" class="analytics-select">
+            <option value="7"{% if analytics_period.key == '7' %} selected{% endif %}>Last 7 Days</option>
+            <option value="30"{% if analytics_period.key == '30' or not analytics_period.key %} selected{% endif %}>Last 30 Days</option>
+            <option value="90"{% if analytics_period.key == '90' %} selected{% endif %}>Last 90 Days</option>
+            <option value="year"{% if analytics_period.key == 'year' %} selected{% endif %}>This Year</option>
+            <option value="custom"{% if analytics_period.key == 'custom' %} selected{% endif %}>Custom Date Range</option>
+        </select>
+        <div class="analytics-custom-dates{% if analytics_period.key != 'custom' %} d-none{% endif %}" id="analyticsCustomDates">
+            <label>From <input type="date" name="date_from" value="{{ analytics_period.start|date:'Y-m-d' }}" max="{{ analytics_period.end|date:'Y-m-d' }}" /></label>
+            <label>To <input type="date" name="date_to" value="{{ analytics_period.end|date:'Y-m-d' }}" /></label>
+            <button type="submit" class="analytics-apply-button" id="analyticsApplyBtn">Apply</button>
+        </div>
+        {% if analytics.grouping %}<input type="hidden" name="grouping" value="{{ analytics.grouping }}" />{% endif %}
+    </form>
+</section>

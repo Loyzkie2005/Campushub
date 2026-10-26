@@ -1,14 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const canManageOrders = document.body.dataset.canManageOrders === 'true';
     const searchInput = document.getElementById('ordersSearchInput');
     const statusFilter = document.getElementById('ordersStatusFilter');
+    const fulfillmentFilter = document.getElementById('ordersFulfillmentFilter');
     const paymentFilter = document.getElementById('ordersPaymentFilter');
     const datePresetFilter = document.getElementById('ordersDatePresetFilter');
     const customDateRange = document.getElementById('ordersCustomDateRange');
     const dateFromInput = document.getElementById('ordersDateFrom');
     const dateToInput = document.getElementById('ordersDateTo');
     const tableBody = document.getElementById('ordersTableBody');
-    const showingText = document.getElementById('ordersShowingText');
-    const pagination = document.getElementById('ordersPagination');
     const statCards = [...document.querySelectorAll('[data-order-stat-filter]')];
 
     const detailModalEl = document.getElementById('orderDetailModal');
@@ -35,10 +35,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnConfirmCancelOrder = document.getElementById('btnConfirmCancelOrder');
     const cancelAlert = document.getElementById('cancelOrderAlert');
 
-    const rowsPerPage = 10;
-    let currentPage = 1;
+    const filtersForm = document.getElementById('ordersFilters');
+    const programFilter = document.getElementById('ordersProgramFilter');
+    const majorFilter = document.getElementById('ordersMajorFilter');
+    const pickupConfirmedCheck = document.getElementById('buyerPickupConfirmedCheck');
+    const stepDetailButton = document.getElementById('btnModalStepOrder');
+    const cancelDetailButton = document.getElementById('btnModalCancelOrder');
+    const deliveryDetailButton = document.getElementById('btnModalDelivery');
     let selectedRow = null;
-    let cardFilter = '';
+    let actionPending = false;
+    let detailTrigger = null;
+    detailModalEl?.addEventListener('hidden.bs.modal', () => {
+        if (!completeModalEl?.classList.contains('show') && !cancelModalEl?.classList.contains('show')) {
+            detailTrigger?.focus({preventScroll: true});
+        }
+    });
+
 
     function getCsrfToken() {
         return document.querySelector('[name="csrfmiddlewaretoken"]')?.value
@@ -57,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function formatCurrency(value) {
         const amount = Number.parseFloat(value);
-        return Number.isNaN(amount) ? '₱ 0.00' : `₱ ${amount.toFixed(2)}`;
+        return Number.isFinite(amount) ? new Intl.NumberFormat('en-PH', {style: 'currency', currency: 'PHP'}).format(amount) : 'Not recorded';
     }
 
     function setText(id, value) {
@@ -77,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 2800);
     }
 
-    function renderStatusBadge(status) {
+    function renderStatusBadge(status, method = '') {
         const labels = {
             pending: 'Pending',
             processing: 'Processing',
@@ -85,8 +97,17 @@ document.addEventListener('DOMContentLoaded', () => {
             completed: 'Completed',
             cancelled: 'Cancelled',
         };
-        const label = labels[status] || status;
-        return `<span class="status-pill status-${status}">${label}</span>`;
+        const label = status === 'ready_for_pickup' && method === 'seller_delivery' ? 'Ready for Seller Delivery' : labels[status] || 'Not recorded';
+        const key = labels[status] ? status : 'unknown';
+        return `<span class="status-pill status-${key}">${label}</span>`;
+    }
+
+    function finishOrderAction(message) {
+        try {
+            window.sessionStorage.setItem('campushubOrderSuccessMessage', message);
+            window.sessionStorage.setItem('campushubOrdersScrollY', String(window.scrollY));
+        } catch (_) { showActionToast(message); }
+        window.setTimeout(() => window.location.reload(), 800);
     }
 
     function renderPaymentBadge(payment) {
@@ -133,34 +154,18 @@ document.addEventListener('DOMContentLoaded', () => {
         orderItemsTableBody.replaceChildren();
         const items = parseJson(row.dataset.itemsJson, []);
 
-        if (!Array.isArray(items) || !items.length) {
+        if (!Array.isArray(items)) return;
+        items.forEach(item => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><strong>${row.dataset.productName || 'Product'}</strong></td>
-                <td class="text-muted">${row.dataset.option || 'Standard'}</td>
-                <td class="text-center">${row.dataset.quantity || '1'}</td>
-                <td class="text-end">${formatCurrency(row.dataset.unitPrice || row.dataset.totalPrice)}</td>
-                <td class="text-end fw-bold">${formatCurrency(row.dataset.totalPrice)}</td>
-            `;
-            orderItemsTableBody.appendChild(tr);
-            return;
-        }
-
-        items.forEach((item) => {
-            const tr = document.createElement('tr');
-            const productName = item.product_name || row.dataset.productName || 'Product';
-            const variant = item.variant || item.option || 'Standard';
-            const qty = item.quantity || 1;
-            const unitPrice = formatCurrency(item.unit_price || 0);
-            const subtotal = formatCurrency(item.subtotal || (item.quantity * item.unit_price) || 0);
-
-            tr.innerHTML = `
-                <td><strong>${productName}</strong></td>
-                <td class="text-muted">${variant}</td>
-                <td class="text-center">${qty}</td>
-                <td class="text-end">${unitPrice}</td>
-                <td class="text-end fw-bold">${subtotal}</td>
-            `;
+            const values = [item.product_name, item.variant, item.sku || 'Not recorded',
+                item.quantity ?? 'Not recorded', formatCurrency(item.unit_price), formatCurrency(item.subtotal)];
+            values.forEach((value, index) => {
+                const cell = document.createElement('td');
+                cell.textContent = value;
+                if (index === 3) cell.className = 'text-center';
+                if (index >= 4) cell.className = 'text-end';
+                tr.appendChild(cell);
+            });
             orderItemsTableBody.appendChild(tr);
         });
     }
@@ -172,13 +177,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const buyerName = row.dataset.buyerName || 'Unknown customer';
         const currentStatus = row.dataset.orderStatus || 'pending';
         const currentPayment = row.dataset.paymentStatus || 'unpaid';
+        const delivery = row.dataset.fulfillmentMethod === 'seller_delivery';
+        const delivered = Boolean(row.dataset.deliveredAt);
+        setText('orderDetailFulfillment', row.dataset.fulfillmentLabel);
+        setText('orderDetailFulfillmentProgress', row.dataset.fulfillmentProgress);
+        setText('orderDetailDestination', delivery ? row.dataset.deliveryDestination : 'Not applicable');
+        const dateLabel = value => value ? new Date(value).toLocaleString('en-PH') : 'Not recorded';
+        setText('orderDetailDeliveryStarted', delivery ? dateLabel(row.dataset.deliveryStartedAt) : 'Not applicable');
+        setText('orderDetailDelivered', delivery ? dateLabel(row.dataset.deliveredAt) : 'Not applicable');
+        document.querySelectorAll('.order-payment-method').forEach(el => { el.textContent = delivery ? 'Cash — recorded separately from delivery' : 'Cash on Pickup'; });
 
         setText('orderDetailCode', row.dataset.orderCode);
         setText('orderDetailDate', row.dataset.createdAt);
 
         const statusBadgeContainer = document.getElementById('orderDetailStatusBadge');
         if (statusBadgeContainer) {
-            statusBadgeContainer.innerHTML = renderStatusBadge(currentStatus);
+            statusBadgeContainer.innerHTML = renderStatusBadge(currentStatus, row.dataset.fulfillmentMethod);
         }
 
         setText('orderDetailCustomer', buyerName);
@@ -186,32 +200,51 @@ document.addEventListener('DOMContentLoaded', () => {
         setText('orderDetailPhone', row.dataset.buyerPhone || 'None provided');
         setText('orderDetailSeller', row.dataset.sellerName || 'Campus Seller');
         setText('orderDetailSellerMessage', row.dataset.messageToSeller || 'None');
+        setText('orderDetailBuyerProgram', row.dataset.buyerProgram);
+        setText('orderDetailBuyerMajor', row.dataset.buyerMajor || 'Not applicable / not recorded');
+        setText('orderDetailSellerProgram', row.dataset.sellerProgram);
+        setText('orderDetailSellerMajor', row.dataset.sellerMajor || 'Not applicable / not recorded');
+        setText('orderDetailSubtotal', formatCurrency(row.dataset.itemsSubtotal));
+        setText('orderDetailPickedUpAt', delivery ? 'Not applicable' : row.dataset.pickedUpAt || 'Not recorded');
+        setText('orderDetailPickupStatus', delivery ? 'Not applicable' : row.dataset.pickedUpAt ? 'Picked up' : currentStatus === 'cancelled' ? 'Cancelled' : 'Pickup not recorded');
+        const infoPayment = document.getElementById('orderDetailInfoPayment');
+        if (infoPayment) infoPayment.innerHTML = renderPaymentBadge(currentPayment);
+        stepDetailButton.hidden = !canManageOrders || !['pending', 'processing'].includes(currentStatus);
+        stepDetailButton.textContent = currentStatus === 'pending' ? 'Start Processing' : delivery ? 'Mark Ready for Seller Delivery' : 'Mark Ready for Pickup';
+        stepDetailButton.dataset.nextStatus = currentStatus === 'pending' ? 'processing' : 'ready_for_pickup';
+        cancelDetailButton.hidden = !canManageOrders || delivered || ['completed', 'cancelled'].includes(currentStatus);
+        deliveryDetailButton.hidden = !canManageOrders || !delivery || currentStatus !== 'ready_for_pickup' || delivered;
+        deliveryDetailButton.textContent = row.dataset.deliveryStartedAt ? 'Confirm Delivered' : 'Start Seller Delivery';
+        deliveryDetailButton.dataset.action = row.dataset.deliveryStartedAt ? 'delivered' : 'start_delivery';
 
         renderOrderItems(row);
 
-        setText('orderDetailTotalQty', `${row.dataset.quantity || 1} pcs`);
+        setText('orderDetailTotalQty', `${row.dataset.quantity} ${row.dataset.quantity === '1' ? 'pc' : 'pcs'}`);
         setText('orderDetailAmount', formatCurrency(row.dataset.totalPrice));
 
-        setText('orderDetailPickupLocation', row.dataset.pickupLocation || 'Cashiering / Selling Counter');
-        setText('orderDetailPickupSchedule', row.dataset.pickupScheduledAt || 'Regular campus operating hours');
+        setText('orderDetailPickupLocation', delivery ? 'Not applicable' : row.dataset.pickupLocation || 'Not recorded');
+        setText('orderDetailPickupSchedule', delivery ? 'Not applicable' : row.dataset.pickupScheduledAt || 'Not recorded');
 
         const paymentStatusContainer = document.getElementById('orderDetailPaymentStatus');
         if (paymentStatusContainer) {
             paymentStatusContainer.innerHTML = renderPaymentBadge(currentPayment);
         }
 
-        const isPaid = currentPayment === 'paid' || currentStatus === 'completed';
+        const isPaid = currentPayment === 'paid';
         setText('orderDetailAmountPaid', isPaid ? formatCurrency(row.dataset.totalPrice) : '₱ 0.00');
-        setText('orderDetailPaidAt', row.dataset.paidAt || (isPaid ? 'Recorded' : 'Not paid yet'));
-        setText('orderDetailRecordedBy', row.dataset.paymentEncodedBy || (isPaid ? 'Authorized Staff' : 'Pending payment'));
+        setText('orderDetailPaidAt', row.dataset.paidAt || (isPaid ? 'Timestamp not recorded' : 'Not paid yet'));
+        setText('orderDetailRecordedBy', row.dataset.paymentEncodedBy || (isPaid ? 'Not recorded' : 'Pending payment'));
         setText('orderDetailOR', row.dataset.receiptNo || 'Not recorded');
 
         if (detailReceiptInput) {
             detailReceiptInput.value = row.dataset.receiptNo || '';
+            detailReceiptInput.disabled = !canManageOrders || !isPaid;
+            document.getElementById('orderORInputContainer').hidden = !canManageOrders || !isPaid;
+            detailSaveButton.hidden = !canManageOrders || !isPaid;
         }
 
         if (btnModalCompleteOrder) {
-            btnModalCompleteOrder.style.display = currentStatus === 'ready_for_pickup' ? 'inline-block' : 'none';
+            btnModalCompleteOrder.style.display = canManageOrders && currentStatus === 'ready_for_pickup' && (!delivery || delivered) ? 'inline-block' : 'none';
         }
 
         if (detailAlertBox) {
@@ -230,9 +263,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (completeAmountDue) {
             completeAmountDue.textContent = formatCurrency(row.dataset.totalPrice);
         }
-        if (cashReceivedCheck) {
-            cashReceivedCheck.checked = false;
-        }
+        if (cashReceivedCheck) cashReceivedCheck.checked = false;
+        const delivery = row.dataset.fulfillmentMethod === 'seller_delivery';
+        setText('fulfillmentConfirmationLabel', delivery ? 'Seller delivery has been recorded' : 'Buyer has collected the order');
+        setText('completePaymentMethod', delivery ? 'Cash' : 'Cash on Pickup');
+        setText('completeFulfillmentDescription', delivery ? 'Delivery is already recorded. Explicitly confirm payment before completing this order.' : 'Confirm that the buyer has collected the order and payment was received.');
+        if (pickupConfirmedCheck) pickupConfirmedCheck.checked = false;
         if (btnConfirmCompleteOrder) {
             btnConfirmCompleteOrder.disabled = true;
         }
@@ -241,18 +277,28 @@ document.addEventListener('DOMContentLoaded', () => {
             completeAlert.textContent = '';
         }
 
-        completeModal.show();
+        switchFromDetails(completeModal);
     }
 
-    cashReceivedCheck?.addEventListener('change', () => {
+    function switchFromDetails(nextModal) {
+        if (detailModalEl?.classList.contains('show')) {
+            detailModalEl.addEventListener('hidden.bs.modal', () => nextModal.show(), {once: true});
+            detailModal.hide();
+        } else nextModal.show();
+    }
+
+    function syncCompleteButton() {
         if (btnConfirmCompleteOrder) {
-            btnConfirmCompleteOrder.disabled = !cashReceivedCheck.checked;
+            btnConfirmCompleteOrder.disabled = actionPending || !(cashReceivedCheck?.checked && pickupConfirmedCheck?.checked);
         }
-    });
+    }
+    cashReceivedCheck?.addEventListener('change', syncCompleteButton);
+    pickupConfirmedCheck?.addEventListener('change', syncCompleteButton);
 
     btnConfirmCompleteOrder?.addEventListener('click', async () => {
-        if (!selectedRow || !cashReceivedCheck.checked) return;
+        if (actionPending || !selectedRow || !cashReceivedCheck.checked || !pickupConfirmedCheck.checked) return;
 
+        actionPending = true;
         btnConfirmCompleteOrder.disabled = true;
         btnConfirmCompleteOrder.textContent = 'Completing...';
         if (completeAlert) completeAlert.style.display = 'none';
@@ -269,18 +315,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: 'completed',
                     payment_status: 'paid',
                     cash_confirmed: true,
+                    pickup_confirmed: true,
+                    official_receipt_no: selectedRow.dataset.receiptNo || '',
                 }),
             });
 
-            const result = await response.json().catch(() => ({}));
+            const result = await window.CampusHubActions.json(response, 'Unable to confirm the order update. Reload the record before retrying.');
+            if (!result.order) throw new Error('The order update was not confirmed. Reload before retrying.');
             if (!response.ok) throw new Error(result.error || 'Failed to complete the order.');
 
             completeModal.hide();
-            showActionToast('Order completed and Cash on Pickup payment confirmed.');
-            window.sessionStorage.setItem('campushubOrderSuccessMessage', 'Order completed and Cash on Pickup payment confirmed.');
-            window.sessionStorage.setItem('campushubOrdersScrollY', String(window.scrollY));
-            window.setTimeout(() => window.location.reload(), 800);
+            finishOrderAction('Order completed and payment confirmed.');
         } catch (error) {
+            actionPending = false;
             if (completeAlert) {
                 completeAlert.textContent = error.message || 'Failed to complete order.';
                 completeAlert.style.display = 'block';
@@ -299,11 +346,11 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelAlert.style.display = 'none';
             cancelAlert.textContent = '';
         }
-        cancelModal.show();
+        switchFromDetails(cancelModal);
     }
 
     btnConfirmCancelOrder?.addEventListener('click', async () => {
-        if (!selectedRow) return;
+        if (actionPending || !selectedRow) return;
         const reason = cancelReasonInput ? cancelReasonInput.value.trim() : '';
         if (!reason) {
             if (cancelAlert) {
@@ -313,6 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        actionPending = true;
         btnConfirmCancelOrder.disabled = true;
         btnConfirmCancelOrder.textContent = 'Cancelling...';
 
@@ -330,15 +378,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }),
             });
 
-            const result = await response.json().catch(() => ({}));
+            const result = await window.CampusHubActions.json(response, 'Unable to confirm the order update. Reload the record before retrying.');
+            if (!result.order) throw new Error('The order update was not confirmed. Reload before retrying.');
             if (!response.ok) throw new Error(result.error || 'Failed to cancel order.');
 
             cancelModal.hide();
-            showActionToast('Order has been cancelled and stock restored.');
-            window.sessionStorage.setItem('campushubOrderSuccessMessage', 'Order has been cancelled and stock restored.');
-            window.sessionStorage.setItem('campushubOrdersScrollY', String(window.scrollY));
-            window.setTimeout(() => window.location.reload(), 800);
+            finishOrderAction('Order has been cancelled and stock restored.');
         } catch (error) {
+            actionPending = false;
             if (cancelAlert) {
                 cancelAlert.textContent = error.message || 'Failed to cancel order.';
                 cancelAlert.style.display = 'block';
@@ -349,14 +396,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btnModalCompleteOrder?.addEventListener('click', () => {
-        if (detailModal) detailModal.hide();
         if (selectedRow) openCompleteModal(selectedRow);
     });
 
     detailForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!selectedRow) return;
+        if (actionPending || !selectedRow || selectedRow.dataset.paymentStatus !== 'paid') return;
 
+        actionPending = true;
         if (detailSaveButton) {
             detailSaveButton.disabled = true;
             detailSaveButton.textContent = 'Saving...';
@@ -375,15 +422,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }),
             });
 
-            const result = await response.json().catch(() => ({}));
+            const result = await window.CampusHubActions.json(response, 'Unable to confirm the order update. Reload the record before retrying.');
+            if (!result.order) throw new Error('The order update was not confirmed. Reload before retrying.');
             if (!response.ok) throw new Error(result.error || 'Failed to save receipt info.');
 
             detailModal.hide();
-            showActionToast('Receipt information saved.');
-            window.sessionStorage.setItem('campushubOrderSuccessMessage', 'Receipt information saved.');
-            window.sessionStorage.setItem('campushubOrdersScrollY', String(window.scrollY));
-            window.setTimeout(() => window.location.reload(), 800);
+            finishOrderAction('Receipt information saved.');
         } catch (error) {
+            actionPending = false;
             if (detailAlertBox) {
                 detailAlertBox.textContent = error.message || 'Failed to save receipt info.';
                 detailAlertBox.hidden = false;
@@ -395,9 +441,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    async function executeStatusStep(row, nextStatus) {
-        if (!row || !nextStatus) return;
+    async function executeStatusStep(row, nextStatus, fulfillmentAction = null) {
+        if (actionPending || !row || (!nextStatus && !fulfillmentAction)) return;
+        actionPending = true;
 
+        stepDetailButton.disabled = true;
+        deliveryDetailButton.disabled = true;
         try {
             const response = await fetch(row.dataset.updateUrl, {
                 method: 'POST',
@@ -406,17 +455,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCsrfToken(),
                 },
-                body: JSON.stringify({ status: nextStatus }),
+                body: JSON.stringify(fulfillmentAction ? {fulfillment_action: fulfillmentAction} : { status: nextStatus }),
             });
 
-            const result = await response.json().catch(() => ({}));
+            const result = await window.CampusHubActions.json(response, 'Unable to confirm the order update. Reload the record before retrying.');
+            if (!result.order) throw new Error('The order update was not confirmed. Reload before retrying.');
             if (!response.ok) throw new Error(result.error || `Failed to update status to ${nextStatus}.`);
 
-            showActionToast(`Order status updated to ${nextStatus.replace(/_/g, ' ')}.`);
-            window.sessionStorage.setItem('campushubOrderSuccessMessage', `Order status updated to ${nextStatus.replace(/_/g, ' ')}.`);
-            window.sessionStorage.setItem('campushubOrdersScrollY', String(window.scrollY));
-            window.setTimeout(() => window.location.reload(), 800);
+            finishOrderAction(fulfillmentAction ? 'Seller delivery progress recorded. Payment is unchanged.' : `Order status updated to ${nextStatus.replace(/_/g, ' ')}.`);
         } catch (error) {
+            actionPending = false;
+            stepDetailButton.disabled = false;
+            deliveryDetailButton.disabled = false;
             showActionToast(error.message || 'Failed to update order status.', true);
         }
     }
@@ -424,201 +474,72 @@ document.addEventListener('DOMContentLoaded', () => {
     tableBody?.addEventListener('click', (e) => {
         const viewBtn = e.target.closest('.view-order-action');
         if (viewBtn) {
+            if (viewBtn.matches('a') && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)) return;
+            e.preventDefault();
+            detailTrigger = viewBtn;
             const row = viewBtn.closest('tr');
             if (row) openOrderDetail(row);
             return;
         }
 
-        const stepBtn = e.target.closest('.btn-step-action');
-        if (stepBtn) {
-            const row = stepBtn.closest('tr');
-            const nextStatus = stepBtn.dataset.nextStatus;
-            if (row && nextStatus) executeStatusStep(row, nextStatus);
-            return;
-        }
-
-        const completeBtn = e.target.closest('.btn-complete-action');
-        if (completeBtn) {
-            const row = completeBtn.closest('tr');
-            if (row) openCompleteModal(row);
-            return;
-        }
-
-        const cancelBtn = e.target.closest('.btn-cancel-action');
-        if (cancelBtn) {
-            const row = cancelBtn.closest('tr');
-            if (row) openCancelModal(row);
-            return;
-        }
     });
 
-    function allRows() {
-        return tableBody ? [...tableBody.querySelectorAll('tr[data-order-id]')] : [];
-    }
-
-    function rowMatchesDate(row, preset, dateFrom, dateTo) {
-        const createdDate = row.dataset.createdDate || '';
-        if (!createdDate) return true;
-
-        if (preset === 'custom') {
-            const afterStart = !dateFrom || createdDate >= dateFrom;
-            const beforeEnd = !dateTo || createdDate <= dateTo;
-            return afterStart && beforeEnd;
-        }
-
-        if (!preset) return true;
-
-        const rowDate = new Date(`${createdDate}T00:00:00`);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (preset === 'today') {
-            return rowDate.getTime() === today.getTime();
-        }
-
-        if (preset === '7days') {
-            const limit = new Date(today);
-            limit.setDate(limit.getDate() - 7);
-            return rowDate >= limit;
-        }
-
-        if (preset === '30days') {
-            const limit = new Date(today);
-            limit.setDate(limit.getDate() - 30);
-            return rowDate >= limit;
-        }
-
-        if (preset === 'month') {
-            const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-            return createdDate.startsWith(currentYearMonth);
-        }
-
-        return true;
-    }
-
-    function filteredRows() {
-        const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
-        const selectStatus = statusFilter ? statusFilter.value : '';
-        const activeStatus = cardFilter || selectStatus;
-        const selectPayment = paymentFilter ? paymentFilter.value : '';
-        const preset = datePresetFilter ? datePresetFilter.value : '';
-        const dateFrom = dateFromInput ? dateFromInput.value : '';
-        const dateTo = dateToInput ? dateToInput.value : '';
-
-        return allRows().filter((row) => {
-            const textMatches = !query
-                || (row.dataset.orderCode && row.dataset.orderCode.toLowerCase().includes(query))
-                || (row.dataset.buyerName && row.dataset.buyerName.toLowerCase().includes(query))
-                || (row.dataset.buyerEmail && row.dataset.buyerEmail.toLowerCase().includes(query))
-                || (row.dataset.productName && row.dataset.productName.toLowerCase().includes(query))
-                || (row.dataset.displayItems && row.dataset.displayItems.toLowerCase().includes(query));
-
-            const rowStatus = row.dataset.orderStatus || '';
-            const statusMatches = !activeStatus || rowStatus === activeStatus;
-
-            const rowPayment = row.dataset.paymentStatus || '';
-            const paymentMatches = !selectPayment || rowPayment === selectPayment;
-
-            const dateMatches = rowMatchesDate(row, preset, dateFrom, dateTo);
-
-            return textMatches && statusMatches && paymentMatches && dateMatches;
-        });
-    }
-
-    function renderPagination(totalPages) {
-        if (!pagination) return;
-        pagination.replaceChildren();
-
-        const addButton = (label, page, disabled = false, active = false, isNavigation = false) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = `page-btn${isNavigation ? ' page-btn-nav' : ''}${active ? ' is-active' : ''}`;
-            button.textContent = label;
-            button.disabled = disabled;
-            button.addEventListener('click', () => {
-                if (page < 1 || page > totalPages || page === currentPage) return;
-                currentPage = page;
-                updateTable();
-            });
-            pagination.appendChild(button);
-        };
-
-        addButton('‹', currentPage - 1, currentPage === 1, false, true);
-        for (let page = 1; page <= totalPages; page += 1) {
-            addButton(String(page), page, false, page === currentPage);
-        }
-        addButton('›', currentPage + 1, currentPage === totalPages, false, true);
-    }
-
-    function updateTable() {
-        const matched = filteredRows();
-        const matchedSet = new Set(matched);
-        const totalPages = Math.max(1, Math.ceil(matched.length / rowsPerPage));
-        currentPage = Math.min(currentPage, totalPages);
-        const start = (currentPage - 1) * rowsPerPage;
-        const pageRows = matched.slice(start, start + rowsPerPage);
-        const pageSet = new Set(pageRows);
-
-        allRows().forEach((row) => {
-            row.hidden = !matchedSet.has(row) || !pageSet.has(row);
-        });
-
-        pageRows.forEach((row, index) => {
-            const numCell = row.querySelector('.col-num');
-            if (numCell) numCell.textContent = String(start + index + 1);
-        });
-
-        const emptyState = document.getElementById('ordersEmptyState');
-        const tableWrap = document.getElementById('ordersTableWrap');
-        const footer = document.getElementById('ordersTableFooter');
-        if (emptyState && tableWrap) {
-            emptyState.style.display = matched.length === 0 ? 'flex' : 'none';
-            tableWrap.style.display = matched.length === 0 ? 'none' : '';
-            if (footer) footer.style.display = matched.length === 0 ? 'none' : '';
-        }
-
-        if (showingText) {
-            showingText.textContent = matched.length
-                ? `Showing ${start + 1} to ${Math.min(start + rowsPerPage, matched.length)} of ${matched.length} entries`
-                : 'No entries found';
-        }
-        renderPagination(totalPages);
-    }
-
-    function applyFilters() {
-        currentPage = 1;
-        updateTable();
-    }
-
-    [searchInput, statusFilter, paymentFilter, dateFromInput, dateToInput].filter(Boolean).forEach((control) => {
-        control.addEventListener(control === searchInput ? 'input' : 'change', () => {
-            if (control === statusFilter) {
-                cardFilter = '';
-                statCards.forEach((card) => card.classList.remove('is-active'));
-            }
-            applyFilters();
-        });
+    // Dashboard deep links reuse a row already authorized by the Orders view.
+    const requestedOrder = new URLSearchParams(window.location.search).get('order');
+    const requestedRow = requestedOrder && [...(tableBody?.querySelectorAll('tr[data-order-id]') || [])]
+        .find(row => row.dataset.orderId === requestedOrder);
+    if (requestedRow) openOrderDetail(requestedRow);
+    stepDetailButton?.addEventListener('click', () => executeStatusStep(selectedRow, stepDetailButton.dataset.nextStatus));
+    deliveryDetailButton?.addEventListener('click', () => {
+        if (deliveryDetailButton.dataset.action === 'delivered' && !window.confirm('Confirm that the seller personally delivered this order to the customer? This does not record payment.')) return;
+        executeStatusStep(selectedRow, null, deliveryDetailButton.dataset.action);
     });
+    cancelDetailButton?.addEventListener('click', () => openCancelModal(selectedRow));
 
-    datePresetFilter?.addEventListener('change', () => {
-        const isCustom = datePresetFilter.value === 'custom';
-        if (customDateRange) {
-            customDateRange.style.display = isCustom ? 'flex' : 'none';
+    // Filters are GET requests: Django applies scope, pagination and all KPI counts.
+    let searchTimer;
+    function syncMajorLabel() {
+        majorFilter.options[0].textContent = programFilter.value && majorFilter.disabled ? 'Not Applicable' : 'All Majors';
+    }
+    function submitFilters() {
+        window.clearTimeout(searchTimer);
+        const custom = datePresetFilter.value === 'custom';
+        dateFromInput.required = dateToInput.required = custom;
+        if (custom && (!dateFromInput.value || !dateToInput.value)) return;
+        dateToInput.setCustomValidity(custom && dateFromInput.value > dateToInput.value ? 'End date must not be before start date.' : '');
+        if (filtersForm.reportValidity()) filtersForm.requestSubmit();
+    }
+    function syncDates() {
+        const custom = datePresetFilter.value === 'custom';
+        customDateRange.hidden = !custom;
+        dateFromInput.disabled = dateToInput.disabled = !custom;
+        dateFromInput.required = dateToInput.required = custom;
+        if (!custom) {
+            dateFromInput.value = dateToInput.value = '';
+            dateToInput.setCustomValidity('');
         }
-        if (!isCustom) {
-            if (dateFromInput) dateFromInput.value = '';
-            if (dateToInput) dateToInput.value = '';
-        }
-        applyFilters();
+    }
+    syncDates();
+    syncMajorLabel();
+    searchInput?.addEventListener('input', () => {
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(submitFilters, 300);
     });
-
-    statCards.forEach((card) => {
+    filtersForm?.querySelectorAll('select').forEach(control => control.addEventListener('change', () => {
+        if (control === programFilter) { majorFilter.value = ''; window.CampusHubAcademic.sync(programFilter, majorFilter); syncMajorLabel(); }
+        if (control === datePresetFilter) syncDates();
+        submitFilters();
+    }));
+    [dateFromInput, dateToInput].forEach(control => control?.addEventListener('change', submitFilters));
+    statCards.forEach(card => {
+        const active = (card.dataset.orderStatFilter || '') === statusFilter.value &&
+            (statusFilter.value !== 'ready_for_pickup' || fulfillmentFilter.value === 'pickup');
+        card.classList.toggle('is-active', active);
+        card.setAttribute('aria-pressed', String(active));
         card.addEventListener('click', () => {
-            cardFilter = card.dataset.orderStatFilter || '';
-            if (statusFilter) statusFilter.value = cardFilter;
-            statCards.forEach((item) => item.classList.toggle('is-active', item === card));
-            applyFilters();
-            document.getElementById('ordersListSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            statusFilter.value = card.dataset.orderStatFilter || '';
+            if (statusFilter.value === 'ready_for_pickup') fulfillmentFilter.value = 'pickup';
+            submitFilters();
         });
     });
 
@@ -633,5 +554,4 @@ document.addEventListener('DOMContentLoaded', () => {
         showActionToast(savedSuccessMessage);
     }
 
-    updateTable();
 });

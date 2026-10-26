@@ -3,15 +3,57 @@
 import base64
 import binascii
 import re
+from io import BytesIO
 from pathlib import Path
 
 from django.conf import settings
+from PIL import Image, UnidentifiedImageError
 
 
 _DATA_URL_RE = re.compile(
     r"^data:image/(?P<ext>\w+);base64,(?P<data>.+)$",
     re.DOTALL,
 )
+
+MAX_PRODUCT_IMAGES = 6
+MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+def validate_product_images(raw_images) -> list:
+    """Validate the mobile gallery before any product/file is created.
+
+    Reuse existing stored/remote image references; inspect uploaded bytes rather
+    than trusting a filename or data-URL MIME declaration.
+    """
+    if not isinstance(raw_images, list) or len(raw_images) > MAX_PRODUCT_IMAGES:
+        raise ValueError("Upload up to 6 product images.")
+    images = []
+    formats = {"jpeg": "JPEG", "jpg": "JPEG", "png": "PNG", "webp": "WEBP", "gif": "GIF"}
+    for raw in raw_images:
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError("Select a valid product image.")
+        raw = raw.strip()
+        if raw.startswith(("/media/", "http://", "https://")):
+            images.append(raw)
+            continue
+        match = _DATA_URL_RE.fullmatch(raw)
+        if not match or match["ext"].lower() not in formats:
+            raise ValueError("Upload JPEG, PNG, WebP or GIF images.")
+        encoded = match["data"]
+        if len(encoded) > ((MAX_PRODUCT_IMAGE_BYTES + 2) // 3) * 4:
+            raise ValueError("Each product image must be 5 MB or smaller.")
+        try:
+            binary = base64.b64decode(encoded, validate=True)
+            if not binary or len(binary) > MAX_PRODUCT_IMAGE_BYTES:
+                raise ValueError("Each product image must be 5 MB or smaller.")
+            with Image.open(BytesIO(binary)) as image:
+                if image.format != formats[match["ext"].lower()] or image.width * image.height > 20000000:
+                    raise ValueError("Choose a supported image smaller than 20 megapixels.")
+                image.verify()
+        except (binascii.Error, UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombError) as error:
+            raise ValueError("One of the selected product images is invalid.") from error
+        images.append(raw)
+    return images
 
 
 def _save_base64_image(raw: str, folder: str, filename_prefix: str) -> str:

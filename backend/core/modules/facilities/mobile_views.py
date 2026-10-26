@@ -37,6 +37,7 @@ def _error(error):
 
 
 def _serialize(booking):
+    from .services.booking_workflow import cancellation_readiness, public_client_details
     try:
         details = booking.mobile_request.details
     except FacilityBookingRequest.DoesNotExist:
@@ -47,13 +48,17 @@ def _serialize(booking):
     return {
         "id": booking.pk, "status": booking.status,
         "facility": serialize_facility(booking.facility) if booking.facility else None,
-        "date": booking.booking_date.isoformat() if booking.booking_date else "",
+        "date": (booking.booking_date or booking.check_in_date).isoformat() if booking.booking_date or booking.check_in_date else "",
+        "check_in_date": booking.check_in_date.isoformat() if booking.check_in_date else "",
+        "check_out_date": booking.check_out_date.isoformat() if booking.check_out_date else "",
         "start": booking.start_time.strftime("%H:%M") if booking.start_time else "",
         "end": booking.end_time.strftime("%H:%M") if booking.end_time else "",
         "created_at": booking.created_at.isoformat(),
         "total_amount": str(booking.total_amount), "paid_amount": str(paid),
-        "payment_status": "paid" if is_paid else "unpaid", "details": details,
-        "can_cancel": booking.status == Booking.STATUS_PENDING,
+        "payment_status": "paid" if is_paid else "unpaid", "details": public_client_details(details),
+        "status_label": 'Pending Approval' if booking.status == 'pending' else 'Reserved / Confirmed' if booking.status == 'approved' and is_paid else booking.get_status_display(),
+        "booking_slip_url": f'/api/mobile/bookings/{booking.pk}/slip/' if booking.status in ('approved','completed') else '',
+        "can_cancel": cancellation_readiness(booking)['eligible'],
         "can_view_slip": booking.status in (Booking.STATUS_APPROVED, Booking.STATUS_COMPLETED),
         "receipts": [{"number": p.official_receipt_no or "", "amount": str(p.paid_amount),
                       "paid_at": p.paid_at.isoformat() if p.paid_at else None} for p in payments],
@@ -67,7 +72,16 @@ def availability(request, facility_id):
         day = date.fromisoformat(request.GET.get("date", ""))
     except ValueError as error:
         return _error(error)
-    return JsonResponse({"date": day.isoformat(), "slots": schedule_payload(facility, day)})
+    exclude = None
+    if request.GET.get('booking_id'):
+        from .services.booking_workflow import allowed_actions, has_permission
+        if not has_permission(request.user, 'can_manage_bookings'):
+            return JsonResponse({'error':'You cannot edit this reservation.'},status=403)
+        booking=get_object_or_404(Booking, pk=request.GET['booking_id'], facility=facility)
+        if 'edit' not in allowed_actions(booking, request.user):
+            return JsonResponse({'error':'This booking cannot be edited.'},status=403)
+        exclude=booking.pk
+    return JsonResponse({"date": day.isoformat(), "slots": schedule_payload(facility, day, exclude_booking=exclude)})
 
 
 @require_GET
@@ -127,7 +141,8 @@ def bookings(request):
     if error is not None:
         return error
     if request.method == "GET":
-        records = Booking.objects.filter(user=user).select_related("facility", "mobile_request").prefetch_related("payments")
+        from .booking_workflow_views import physical_bookings
+        records = physical_bookings().filter(user=user)
         return JsonResponse({"bookings": [_serialize(row) for row in records[:100]]})
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed."}, status=405)
@@ -150,6 +165,15 @@ def bookings(request):
             if facility.capacity and details["attendees"] > facility.capacity:
                 raise ValidationError("The attendee count exceeds the facility capacity.")
             details["quote"] = estimate
+            from .services.rental_configuration import FORM_TYPES, booking_form_for_category
+            form=booking_form_for_category(facility.facility_type,facility.workflow_config)
+            details['quote']['form_label']=FORM_TYPES[form]
+            details['source'] = 'mobile'
+            details['workflow_snapshot'] = {key:(facility.workflow_config or {}).get(key, False) for key in ('requires_pre_use_inspection','requires_post_use_inspection')}
+            for key in ('job_order_stage','check_out_time'):
+                if key in (facility.workflow_config or {}):
+                    details['workflow_snapshot'][key] = facility.workflow_config[key]
+            details['pricing_method'] = facility.price_type
             summary = ["[reservation]", details["event_name"], details["purpose"],
                        f"Reserved by: {details['full_name']}",
                        f"Organization: {details['organization']}",
@@ -164,6 +188,11 @@ def bookings(request):
                 status=Booking.STATUS_PENDING,
             )
             FacilityBookingRequest.objects.create(booking=booking, request_key=request_key, details=details)
+            from accounts.activity_logging import log_account_activity
+            from accounts.models import AccountActivity
+            log_account_activity(request, source=AccountActivity.SOURCE_MOBILE, account=user,
+                module='Facility Bookings', activity_type='booking_submitted', activity='Booking submitted',
+                result=AccountActivity.RESULT_SUCCESS, metadata={'booking_id':booking.pk, 'facility_id':facility.pk})
         return JsonResponse({"booking": _serialize(booking)}, status=201)
     except (ValueError, TypeError, ValidationError, ArithmeticError) as error:
         return _error(error)
@@ -174,7 +203,8 @@ def booking_detail(request, booking_id):
     user, error = _mobile_user_from_bearer(request)
     if error is not None:
         return error
-    booking = get_object_or_404(Booking, pk=booking_id, user=user)
+    from .booking_workflow_views import physical_bookings
+    booking = get_object_or_404(physical_bookings(), pk=booking_id, user=user)
     return JsonResponse({"booking": _serialize(booking)})
 
 
@@ -184,10 +214,39 @@ def cancel(request, booking_id):
     user, error = _mobile_user_from_bearer(request)
     if error is not None:
         return error
+    from .booking_workflow_views import physical_bookings
+    get_object_or_404(physical_bookings(), pk=booking_id, user=user)
     with transaction.atomic():
         booking = get_object_or_404(Booking.objects.select_for_update(), pk=booking_id, user=user)
-        if booking.status != Booking.STATUS_PENDING:
-            return JsonResponse({"error": "Only pending requests can be cancelled. Contact Facilities Admin."}, status=409)
+        from .services.booking_workflow import cancellation_readiness
+        cancellation = cancellation_readiness(booking)
+        if not cancellation['eligible']:
+            return JsonResponse({"error": cancellation['reason']}, status=409)
         booking.status = Booking.STATUS_CANCELLED
         booking.save(update_fields=["status", "updated_at"])
+        from .services.schedules import metadata
+        from .services.booking_workflow import save_details
+        details = dict(metadata(booking))
+        details['cancel'] = {'by': {'id': user.pk,
+            'name': f'{user.first_name or ""} {user.last_name or ""}'.strip() or user.username},
+            'at': timezone.now().isoformat()}
+        save_details(booking, details)
+        from accounts.activity_logging import log_account_activity
+        from accounts.models import AccountActivity
+        log_account_activity(request, source=AccountActivity.SOURCE_MOBILE, account=user,
+            module='Facility Bookings', activity_type='booking_cancelled', activity='Booking cancelled',
+            result=AccountActivity.RESULT_SUCCESS, metadata={'booking_id':booking.pk})
     return JsonResponse({"booking": _serialize(booking)})
+
+
+@require_GET
+def slip(request, booking_id):
+    user, error = _mobile_user_from_bearer(request)
+    if error is not None:
+        return error
+    from .booking_workflow_views import physical_bookings, document_values, pdf_response
+    booking = get_object_or_404(physical_bookings(), pk=booking_id, user=user)
+    if booking.status not in (Booking.STATUS_APPROVED, Booking.STATUS_COMPLETED):
+        return JsonResponse({'error':'The booking slip is available after approval.'}, status=409)
+    title, values = document_values(booking, 'slip')
+    return pdf_response(title, values, booking.pk + '-slip')

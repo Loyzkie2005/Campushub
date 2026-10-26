@@ -1,0 +1,30 @@
+/* One quiet empty-state treatment; existing cards retain their own headers and actions. */
+[data-executive-dashboard] .ch-dashboard-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; min-width: 0; padding: 24px 16px; text-align: center;
+    font-family: var(--ch-font-ui, 'Inter', sans-serif); color: #1A1851;
+}
+[data-executive-dashboard] .ch-dashboard-empty > svg { flex: 0 0 28px; width: 28px; height: 28px; color: #626781; }
+[data-executive-dashboard] .ch-dashboard-empty > h4 { margin: 0; font: 600 15px/1.4 var(--ch-font-ui, 'Inter', sans-serif); color: #1A1851; }
+[data-executive-dashboard] .ch-dashboard-empty > p { margin: 0; max-width: 48ch; font: 400 13px/1.6 var(--ch-font-ui, 'Inter', sans-serif); color: #626781; overflow-wrap: anywhere; }
+[data-executive-dashboard] .ch-dashboard-empty--left { align-items: flex-start; text-align: left; }
+/* Remove legacy fixed chart-height spacing from the message itself. */
+[data-executive-dashboard] :is(.marketplace-empty, .marketplace-card-empty, .services-empty, .facilities-empty, .upcoming-reservations-state, .bundle-dashboard-state, .low-stock-empty, .dashboard-attention-empty):has(> .ch-dashboard-empty) {
+    display: block; min-height: 0; height: auto; padding: 0; margin: 0;
+}
+[data-executive-dashboard] [hidden] { display: none !important; }
+/* Request regions distinguish a refresh from an empty result, without hiding static bundle snapshots. */
+[data-executive-dashboard] .dashboard-card-loading { padding: 16px; margin: 0; font-size: 13px; color: #626781; }
+[data-executive-dashboard] .dashboard-card-loading { display: none; }
+[data-executive-dashboard] [data-request-state="loading"] > .dashboard-card-loading { display: block; }
+[data-executive-dashboard] [data-request-state="loading"] .ch-dashboard-empty,
+[data-executive-dashboard] [data-request-state="error"] .ch-dashboard-empty { display: none; }
+[data-executive-dashboard] [data-request-state="loading"] [role="alert"] { display: none; }
+[data-executive-dashboard] .dashboard-attention-error { display: none; padding: 16px; margin: 0; font-size: 13px; color: #1A1851; }
+[data-executive-dashboard] [data-empty-region="attention"][data-request-state="error"] .dashboard-attention-error { display: block; }
+[data-executive-dashboard] [data-empty-region="attention"][data-request-state="error"] .dashboard-attention-list,
+[data-executive-dashboard] [data-empty-region="sales"][data-request-state="error"] :is(.sales-overview__canvas, .sales-overview__legend, #salesTrendDescription) { display: none; }
+[data-executive-dashboard] .dashboard-attention-empty .ch-dashboard-empty { padding: 16px; }
+@media (max-width: 479px) {
+    [data-executive-dashboard] .ch-dashboard-empty { padding: 20px 12px; }
+}

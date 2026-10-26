@@ -1,0 +1,38 @@
+/* Only the viewer and edit controls are styled here. The DOCX owns the form. */
+.beu-job-print-page { margin: 0; padding: 24px; background: #f8fafc; color: #1A1851; font: 14px/1.5 Arial, sans-serif; }
+.beu-job-print-page main { max-width: 1100px; margin: auto; }
+.beu-job-print-page h1 { margin: 0; font-size: 22px; }
+.beu-job-preview { width: 100%; min-height: 160px; background: transparent; }
+.beu-job-pages { display: grid; gap: 24px; justify-items: center; }
+.beu-job-paper { position: relative; box-sizing: border-box; width: 100%; max-width: 794px; margin: 0; border: 1px solid #dce0ed; background: #fff; }
+.beu-job-paper canvas { display: block; width: 100%; height: auto; }
+.beu-job-paper-text { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.beu-job-print-frame { position: fixed; width: 1px; height: 1px; bottom: 0; right: 0; border: 0; visibility: hidden; }
+.beu-job-export { position: relative; color: #1A1851; }
+.beu-job-export summary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 1px solid #dce0ed; border-radius: 6px; background: #fff; font: inherit; font-weight: 600; cursor: pointer; list-style: none; }
+.beu-job-export summary::-webkit-details-marker { display: none; }
+.beu-job-export summary svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.beu-job-export .beu-export-chevron { width: 14px; flex-basis: 14px; }
+.beu-job-export-options { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; min-width: 168px; padding: 4px; border: 1px solid #dce0ed; border-radius: 6px; background: #fff; }
+.beu-job-panel-actions .beu-job-export-options a { display: flex; justify-content: flex-start; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 3px; color: #1A1851; text-decoration: none; font-weight: 500; white-space: nowrap; }
+.beu-job-export summary:hover, .beu-job-export summary:active, .beu-job-panel-actions .beu-job-export-options a:hover { background: #f8fafc; }
+.beu-job-export :focus-visible { outline: 2px solid #FCB315; outline-offset: 2px; }
+.beu-job-print-page .beu-job-panel-actions a, .beu-job-print-page button { display: inline-flex; align-items: center; min-height: 40px; padding: 8px 14px; border: 1px solid #1A1851; border-radius: 6px; background: #fff; color: #1A1851; font: inherit; text-decoration: none; cursor: pointer; }
+.beu-job-print-page .beu-job-print { background: #1A1851; color: #fff; }
+[data-job-print]:disabled { opacity: .5; cursor: wait; }
+.beu-job-print-page :focus-visible { outline: 3px solid #FCB315; outline-offset: 3px; }
+.beu-service-options { grid-column: 1/-1; margin: 0; padding: 12px 16px; border: 1px solid #dce0ed; border-radius: 6px; }
+.beu-service-options legend { float: none; width: auto; padding: 0 5px; margin: 0; font-size: 13px; font-weight: 600; }
+.beu-service-options > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+.beu-service-options label { display: flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.beu-service-options input { width: 16px; height: 16px; accent-color: #1A1851; }
+.beu-job-panel-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+.beu-job-panel-heading p { margin: 6px 0 0; }
+.beu-job-panel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.beu-job-panel-actions a, .beu-job-panel-actions button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; }
+@media (max-width: 600px) {
+ .beu-job-print-page { padding: 12px; }
+ .beu-job-export-options { right: auto; left: 0; }
+ .beu-job-print-page .beu-job-export-options { right: 0; left: auto; }
+ .beu-service-options > div { grid-template-columns: 1fr; }
+}

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../theme/app_typography.dart';
 
 import '../models/product_customization.dart';
 import '../services/auth_service.dart';
@@ -7,12 +7,12 @@ import '../session/session_service.dart';
 import 'product_image.dart';
 
 class OrderSummaryConstants {
-  static const gold = Color(0xFFFCB316);
+  static const gold = Color(0xFFFCB315);
   static const navy = Color(0xFF1A1851);
   static const pageBg = Colors.white;
   static const checkoutBg = Color(0xFFF5F5F5);
   static const secondaryText = Color(0xFF475569);
-  static const outline = Color(0xFFCBD5E1);
+  static const outline = Color.fromARGB(255, 250, 247, 247);
 }
 
 class OrderSummaryLineItem {
@@ -78,6 +78,24 @@ String formatCurrency(double value) {
   return '₱${value.toStringAsFixed(2)}';
 }
 
+String _formatPhilippineContact(String raw) {
+  final clean = raw.trim();
+  if (clean.isEmpty) return '';
+  if (clean.startsWith('(+63')) return clean;
+  if (clean.startsWith('+63')) {
+    final digits = clean.substring(3).trim();
+    return '(+63 $digits)';
+  }
+  if (clean.startsWith('09')) {
+    final digits = clean.substring(1);
+    return '(+63 $digits)';
+  }
+  if (clean.startsWith('9')) {
+    return '(+63 $clean)';
+  }
+  return clean.startsWith('(') ? clean : '($clean)';
+}
+
 class OrderSummaryCard extends StatefulWidget {
   const OrderSummaryCard({
     super.key,
@@ -87,6 +105,8 @@ class OrderSummaryCard extends StatefulWidget {
     this.sellerMessageController,
     this.onQuantityChanged,
     this.onPaymentMethodChanged,
+    this.onFulfillmentChanged,
+    this.locked = false,
   });
 
   final List<OrderSummaryLineItem> items;
@@ -95,6 +115,8 @@ class OrderSummaryCard extends StatefulWidget {
   final TextEditingController? sellerMessageController;
   final void Function(int index, int newQuantity)? onQuantityChanged;
   final ValueChanged<String>? onPaymentMethodChanged;
+  final void Function(String method, String destination)? onFulfillmentChanged;
+  final bool locked;
 
   double get total => subtotal;
 
@@ -103,346 +125,323 @@ class OrderSummaryCard extends StatefulWidget {
 }
 
 class _OrderSummaryCardState extends State<OrderSummaryCard> {
-  String _selectedPaymentMethod = 'Cash on Pickup';
+  String _fulfillmentMethod = 'pickup';
+  String _deliveryDestination = '';
   bool _subtotalExpanded = false;
-
-  void _selectPaymentMethod(String method) {
-    setState(() {
-      _selectedPaymentMethod = method;
-    });
-
-    widget.onPaymentMethodChanged?.call(method);
-  }
 
   @override
   Widget build(BuildContext context) {
     final decoration = BoxDecoration(
       color: Colors.white,
       borderRadius: widget.showCheckoutHeader ? null : BorderRadius.circular(8),
-      border: widget.showCheckoutHeader
-          ? null
-          : Border.all(color: OrderSummaryConstants.outline),
+      border: Border.all(color: OrderSummaryConstants.outline),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // =========================================================
-        // PRODUCT / SELLER SECTION
-        // =========================================================
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: decoration,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var i = 0; i < widget.items.length; i++) ...[
-                if (i > 0) ...[
-                  const SizedBox(height: 16),
-                  const Divider(
+    return IgnorePointer(
+      ignoring: widget.locked,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // =========================================================
+          // PRODUCT / SELLER SECTION
+          // =========================================================
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: decoration,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < widget.items.length; i++) ...[
+                  if (i > 0) ...[
+                    const SizedBox(height: 16),
+                    const Divider(
+                      height: 1,
+                      color: OrderSummaryConstants.outline,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  _OrderSummaryItemRow(
+                    key: ValueKey('order-item-$i'),
+                    item: widget.items[i],
+                    sellerMessageController: i == 0
+                        ? widget.sellerMessageController
+                        : null,
+                    onQuantityChanged: widget.onQuantityChanged != null
+                        ? (newQty) {
+                            widget.onQuantityChanged!(i, newQty);
+                          }
+                        : null,
+                  ),
+                ],
+
+                const Padding(
+                  padding: EdgeInsets.only(top: 14, bottom: 12),
+                  child: Divider(
                     height: 1,
                     color: OrderSummaryConstants.outline,
                   ),
-                  const SizedBox(height: 16),
-                ],
-
-                _OrderSummaryItemRow(
-                  key: ValueKey('order-item-$i'),
-                  item: widget.items[i],
-                  sellerMessageController: i == 0
-                      ? widget.sellerMessageController
-                      : null,
-                  onQuantityChanged: widget.onQuantityChanged != null
-                      ? (newQty) {
-                          widget.onQuantityChanged!(i, newQty);
-                        }
-                      : null,
                 ),
-              ],
-            ],
-          ),
-        ),
 
-        const SizedBox(height: 16),
-
-        // =========================================================
-        // PAYMENT METHODS
-        // =========================================================
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: decoration,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Payment Methods',
-                style: GoogleFonts.notoSans(
-                  color: OrderSummaryConstants.navy,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              _PaymentMethodRadioOption(
-                title: 'Cash on Pickup',
-                iconWidget: const Icon(
-                  Icons.store_outlined,
-                  size: 20,
-                  color: OrderSummaryConstants.navy,
-                ),
-                isSelected: _selectedPaymentMethod == 'Cash on Pickup',
-                onTap: () {
-                  _selectPaymentMethod('Cash on Pickup');
-                },
-              ),
-
-              const SizedBox(height: 14),
-
-              _PaymentMethodRadioOption(
-                title: 'Cash on Delivery',
-                iconWidget: Container(
-                  width: 30,
-                  height: 26,
-                  decoration: const BoxDecoration(color: Color(0xFF16A34A)),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'COD',
-                    style: GoogleFonts.googleSansFlex(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      height: 1.0,
-                    ),
-                  ),
-                ),
-                isSelected: _selectedPaymentMethod == 'Cash on Delivery',
-                onTap: () {
-                  _selectPaymentMethod('Cash on Delivery');
-                },
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // =========================================================
-        // ORDER SUMMARY
-        // =========================================================
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: decoration,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Order Summary',
-                style: GoogleFonts.notoSans(
-                  color: OrderSummaryConstants.navy,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Product Subtotal Header
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _subtotalExpanded = !_subtotalExpanded;
-                  });
-                },
-                child: Row(
+                Row(
                   children: [
-                    Text(
-                      'Product Subtotal',
-                      key: const ValueKey('order-summary-heading'),
-                      style: GoogleFonts.googleSansFlex(
-                        color: OrderSummaryConstants.secondaryText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: Text(
+                        'Total Orders (${widget.items.fold<int>(0, (sum, it) => sum + it.quantity)} item${widget.items.fold<int>(0, (sum, it) => sum + it.quantity) == 1 ? '' : 's'})',
+                        style: AppTypography.text(
+                          fontSize: 13,
+                          color: OrderSummaryConstants.navy,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-
-                    const SizedBox(width: 4),
-
-                    AnimatedRotation(
-                      turns: _subtotalExpanded ? 0.25 : 0.0,
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOutCubic,
-                      child: const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 18,
-                        color: OrderSummaryConstants.navy,
-                      ),
-                    ),
-
-                    const Spacer(),
-
+                    const SizedBox(width: 8),
                     Text(
                       formatCurrency(widget.subtotal),
-                      style: GoogleFonts.googleSansFlex(
+                      style: AppTypography.text(
+                        fontSize: 14,
                         color: OrderSummaryConstants.navy,
-                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-              ),
+              ],
+            ),
+          ),
 
-              // Expanded Product Breakdown
-              AnimatedCrossFade(
-                duration: const Duration(milliseconds: 200),
-                crossFadeState: _subtotalExpanded
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
-                firstChild: const SizedBox(width: double.infinity),
-                secondChild: Column(
-                  children: [
-                    const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
-                    for (final item in widget.items) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${item.productName}  ×${item.quantity}',
-                              style: GoogleFonts.googleSansFlex(
-                                color: OrderSummaryConstants.secondaryText,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ),
-
-                          Text(
-                            formatCurrency(item.lineTotal),
-                            style: GoogleFonts.googleSansFlex(
-                              color: OrderSummaryConstants.secondaryText,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 6),
-                    ],
-                  ],
-                ),
-              ),
-
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 14),
-                child: Divider(height: 1, color: OrderSummaryConstants.outline),
-              ),
-
-              // Total
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Total',
-                      style: GoogleFonts.googleSansFlex(
-                        color: OrderSummaryConstants.secondaryText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+          // =========================================================
+          // PAYMENT METHODS
+          // =========================================================
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: decoration,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Fulfillment & Payment',
+                  style: AppTypography.text(
+                    color: OrderSummaryConstants.navy,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
+                ),
 
-                  Text(
-                    formatCurrency(widget.total),
-                    style: GoogleFonts.googleSansFlex(
-                      color: OrderSummaryConstants.navy,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
+                const SizedBox(height: 14),
+
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('checkout-fulfillment'),
+                  initialValue: _fulfillmentMethod,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Fulfillment Method',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'pickup', child: Text('Pickup')),
+                    DropdownMenuItem(
+                      value: 'seller_delivery',
+                      child: Text('Seller Delivery'),
                     ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _fulfillmentMethod = value);
+                    widget.onFulfillmentChanged?.call(
+                      value,
+                      value == 'seller_delivery' ? _deliveryDestination : '',
+                    );
+                  },
+                ),
+                if (_fulfillmentMethod == 'seller_delivery') ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'The seller personally delivers your order. Delivery does not confirm payment.',
+                  ),
+                  TextFormField(
+                    key: const ValueKey('checkout-delivery-destination'),
+                    maxLength: 500,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Delivery destination',
+                    ),
+                    onChanged: (value) {
+                      _deliveryDestination = value;
+                      widget.onFulfillmentChanged?.call(
+                        _fulfillmentMethod,
+                        value,
+                      );
+                    },
                   ),
                 ],
-              ),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  _fulfillmentMethod == 'pickup'
+                      ? 'Cash on Pickup'
+                      : 'Cash payment is recorded separately from delivery.',
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    );
-  }
-}
 
-class _PaymentMethodRadioOption extends StatelessWidget {
-  const _PaymentMethodRadioOption({
-    required this.title,
-    this.iconWidget,
-    required this.isSelected,
-    required this.onTap,
-  });
+          const SizedBox(height: 16),
 
-  final String title;
-  final Widget? iconWidget;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-        child: Row(
-          children: [
-            if (iconWidget != null) ...[
-              iconWidget!,
-              const SizedBox(width: 14),
-            ],
-
-            Expanded(
-              child: Text(
-                title,
-                style: GoogleFonts.googleSansFlex(
-                  color: const Color(0xFF0F172A),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+          // =========================================================
+          // ORDER SUMMARY
+          // =========================================================
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: decoration,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Order Summary',
+                  style: AppTypography.text(
+                    color: OrderSummaryConstants.navy,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ),
 
-            const SizedBox(width: 14),
+                const SizedBox(height: 14),
 
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected ? OrderSummaryConstants.navy : Colors.white,
-                border: Border.all(
-                  color: isSelected
-                      ? OrderSummaryConstants.navy
-                      : const Color(0xFFCBD5E1),
-                  width: isSelected ? 2 : 1.5,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: isSelected
-                  ? Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
+                // Product Subtotal Header
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _subtotalExpanded = !_subtotalExpanded;
+                    });
+                  },
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Product Subtotal',
+                                key: const ValueKey('order-summary-heading'),
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.text(
+                                  color: OrderSummaryConstants.secondaryText,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            AnimatedRotation(
+                              turns: _subtotalExpanded ? 0.25 : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOutCubic,
+                              child: const Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: OrderSummaryConstants.navy,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    )
-                  : null,
+                      const SizedBox(width: 8),
+                      Text(
+                        formatCurrency(widget.subtotal),
+                        key: const ValueKey('order-summary-subtotal-price'),
+                        style: AppTypography.text(
+                          color: OrderSummaryConstants.secondaryText,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Expanded Product Breakdown
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 200),
+                  crossFadeState: _subtotalExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  firstChild: const SizedBox(width: double.infinity),
+                  secondChild: Column(
+                    children: [
+                      const SizedBox(height: 12),
+
+                      for (final item in widget.items) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${item.productName}  ×${item.quantity}',
+                                style: AppTypography.text(
+                                  color: OrderSummaryConstants.secondaryText,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ),
+
+                            Text(
+                              formatCurrency(item.lineTotal),
+                              style: AppTypography.text(
+                                color: OrderSummaryConstants.secondaryText,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 6),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  child: Divider(
+                    height: 1,
+                    color: OrderSummaryConstants.outline,
+                  ),
+                ),
+
+                // Total
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Total',
+                        style: AppTypography.text(
+                          color: OrderSummaryConstants.secondaryText,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+
+                    Text(
+                      formatCurrency(widget.total),
+                      style: AppTypography.text(
+                        color: OrderSummaryConstants.navy,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -473,15 +472,25 @@ class _CheckoutBuyerDetailsState extends State<CheckoutBuyerDetails> {
             ? user.fullName.trim()
             : '${user.firstName} ${user.lastName}'.trim();
 
-        final studentId = user.profileStudentId.trim();
-        final contact = user.contactNumber.trim();
+        final rawStudentId = user.profileStudentId.trim();
+        final studentId = rawStudentId.isNotEmpty
+            ? (rawStudentId.toUpperCase().startsWith('ID:') ||
+                      rawStudentId.toUpperCase().startsWith('ID ')
+                  ? rawStudentId
+                  : 'ID: $rawStudentId')
+            : '';
+        final rawContact = user.contactNumber.trim();
+        final formattedContact = _formatPhilippineContact(rawContact);
 
         return Container(
           key: const ValueKey('checkout-buyer-card'),
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(color: Colors.white),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: OrderSummaryConstants.outline),
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -507,18 +516,18 @@ class _CheckoutBuyerDetailsState extends State<CheckoutBuyerDetails> {
                           Text(
                             name,
                             key: const ValueKey('checkout-buyer-name'),
-                            style: GoogleFonts.notoSans(
+                            style: AppTypography.text(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: OrderSummaryConstants.navy,
                             ),
                           ),
 
-                        if (studentId.isNotEmpty)
+                        if (formattedContact.isNotEmpty)
                           Text(
-                            studentId,
-                            key: const ValueKey('checkout-buyer-student-id'),
-                            style: GoogleFonts.notoSans(
+                            formattedContact,
+                            key: const ValueKey('checkout-buyer-contact'),
+                            style: AppTypography.text(
                               fontSize: 12,
                               color: OrderSummaryConstants.secondaryText,
                             ),
@@ -526,13 +535,13 @@ class _CheckoutBuyerDetailsState extends State<CheckoutBuyerDetails> {
                       ],
                     ),
 
-                    if (contact.isNotEmpty) ...[
+                    if (studentId.isNotEmpty) ...[
                       const SizedBox(height: 4),
 
                       Text(
-                        contact,
-                        key: const ValueKey('checkout-buyer-contact'),
-                        style: GoogleFonts.notoSans(
+                        studentId,
+                        key: const ValueKey('checkout-buyer-student-id'),
+                        style: AppTypography.text(
                           fontSize: 12,
                           color: OrderSummaryConstants.navy,
                         ),
@@ -588,135 +597,137 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
             ),
             child: SafeArea(
               top: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Bottom sheet handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFCBD5E1),
-                        borderRadius: BorderRadius.circular(20),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Bottom sheet handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 18),
+                    const SizedBox(height: 18),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          controller.text.trim().isNotEmpty
-                              ? 'Edit note'
-                              : 'Add note',
-                          style: GoogleFonts.googleSansFlex(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            controller.text.trim().isNotEmpty
+                                ? 'Edit note'
+                                : 'Add note',
+                            style: AppTypography.text(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: OrderSummaryConstants.navy,
+                            ),
+                          ),
+                        ),
+
+                        IconButton(
+                          onPressed: () {
+                            Navigator.of(sheetContext).pop();
+                          },
+                          icon: const Icon(
+                            Icons.close_rounded,
                             color: OrderSummaryConstants.navy,
                           ),
                         ),
-                      ),
-
-                      IconButton(
-                        onPressed: () {
-                          Navigator.of(sheetContext).pop();
-                        },
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: OrderSummaryConstants.navy,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  Text(
-                    'Leave an optional message for the seller.',
-                    style: GoogleFonts.googleSansFlex(
-                      fontSize: 13,
-                      color: OrderSummaryConstants.secondaryText,
+                      ],
                     ),
-                  ),
 
-                  const SizedBox(height: 16),
-
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    minLines: 3,
-                    maxLines: 5,
-                    maxLength: 300,
-                    textCapitalization: TextCapitalization.sentences,
-                    style: GoogleFonts.googleSansFlex(
-                      fontSize: 13,
-                      color: const Color(0xFF0F172A),
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Write your note here...',
-                      hintStyle: GoogleFonts.googleSansFlex(
+                    Text(
+                      'Leave an optional message for the seller.',
+                      style: AppTypography.text(
                         fontSize: 13,
                         color: OrderSummaryConstants.secondaryText,
                       ),
-                      counterStyle: GoogleFonts.googleSansFlex(
-                        color: OrderSummaryConstants.secondaryText,
-                        fontSize: 11,
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
-                      contentPadding: const EdgeInsets.all(14),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                          color: OrderSummaryConstants.outline,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                          color: OrderSummaryConstants.outline,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                          color: OrderSummaryConstants.navy,
-                          width: 1.5,
-                        ),
-                      ),
                     ),
-                  ),
 
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 16),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(sheetContext).pop();
-                        setState(() {});
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: OrderSummaryConstants.navy,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      minLines: 3,
+                      maxLines: 5,
+                      maxLength: 300,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: AppTypography.text(
+                        fontSize: 13,
+                        color: const Color(0xFF0F172A),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Write your note here...',
+                        hintStyle: AppTypography.text(
+                          fontSize: 13,
+                          color: OrderSummaryConstants.secondaryText,
+                        ),
+                        counterStyle: AppTypography.text(
+                          color: OrderSummaryConstants.secondaryText,
+                          fontSize: 11,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        contentPadding: const EdgeInsets.all(14),
+                        border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: OrderSummaryConstants.outline,
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        'Done',
-                        style: GoogleFonts.googleSansFlex(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: OrderSummaryConstants.outline,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: OrderSummaryConstants.navy,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 12),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop();
+                          setState(() {});
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: OrderSummaryConstants.navy,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Text(
+                          'Done',
+                          style: AppTypography.text(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -768,7 +779,7 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: Text(
               '${item.quantity}',
-              style: GoogleFonts.notoSans(
+              style: AppTypography.text(
                 color: OrderSummaryConstants.navy,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -810,7 +821,7 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
             children: [
               const Icon(
                 Icons.storefront_outlined,
-                size: 16,
+                size: 18,
                 color: OrderSummaryConstants.navy,
               ),
 
@@ -821,8 +832,8 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
                   item.sellerName.trim(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.googleSansFlex(
-                    fontSize: 13,
+                  style: AppTypography.text(
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: OrderSummaryConstants.navy,
                   ),
@@ -846,7 +857,7 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
                       children: [
                         Text(
                           hasNoteText ? 'Edit note' : 'Add note',
-                          style: GoogleFonts.googleSansFlex(
+                          style: AppTypography.text(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: OrderSummaryConstants.navy,
@@ -889,7 +900,7 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
                     item.productName,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.googleSansFlex(
+                    style: AppTypography.text(
                       color: const Color(0xFF0F172A),
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -904,7 +915,7 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           line,
-                          style: GoogleFonts.googleSansFlex(
+                          style: AppTypography.text(
                             color: OrderSummaryConstants.secondaryText,
                             fontSize: 12,
                             fontWeight: FontWeight.w400,
@@ -919,7 +930,7 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
 
                   Text(
                     'x${item.quantity}',
-                    style: GoogleFonts.googleSansFlex(
+                    style: AppTypography.text(
                       color: OrderSummaryConstants.secondaryText,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -930,7 +941,7 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
 
                   Text(
                     formatCurrency(item.unitPrice),
-                    style: GoogleFonts.googleSansFlex(
+                    style: AppTypography.text(
                       color: OrderSummaryConstants.navy,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -974,7 +985,7 @@ class _OrderSummaryItemRowState extends State<_OrderSummaryItemRow> {
                       widget.sellerMessageController!.text.trim(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.googleSansFlex(
+                      style: AppTypography.text(
                         fontSize: 12,
                         color: OrderSummaryConstants.navy,
                         fontWeight: FontWeight.w500,
@@ -1038,7 +1049,7 @@ class PlacedOrdersReviewView extends StatelessWidget {
                 children: [
                   Text(
                     successTitle,
-                    style: GoogleFonts.notoSans(
+                    style: AppTypography.text(
                       color: OrderSummaryConstants.navy,
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
@@ -1049,7 +1060,7 @@ class PlacedOrdersReviewView extends StatelessWidget {
 
                   Text(
                     successMessage,
-                    style: GoogleFonts.notoSans(
+                    style: AppTypography.text(
                       color: const Color(0xFF64748B),
                       fontSize: 13,
                     ),
@@ -1064,7 +1075,7 @@ class PlacedOrdersReviewView extends StatelessWidget {
 
         Text(
           'Your Orders',
-          style: GoogleFonts.notoSans(
+          style: AppTypography.text(
             color: OrderSummaryConstants.navy,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1096,7 +1107,7 @@ class PlacedOrdersReviewView extends StatelessWidget {
             ),
             child: Text(
               doneLabel,
-              style: GoogleFonts.notoSans(
+              style: AppTypography.text(
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
               ),
@@ -1148,7 +1159,7 @@ class OrderSummaryPrimaryButton extends StatelessWidget {
               )
             : Text(
                 label,
-                style: GoogleFonts.notoSans(
+                style: AppTypography.text(
                   fontWeight: FontWeight.w600,
                   fontSize: 16,
                 ),

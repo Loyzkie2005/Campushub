@@ -1,0 +1,74 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CampusHub | Booking Details</title>
+    <link rel="icon" href="{% static 'assets/img/icon.png' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter">
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
+    <link rel="stylesheet" href="{% static 'components/css/admin_booking.css' %}?v=20261017-cancelled-history">
+    <link rel="stylesheet" href="{% static 'components/css/booking_slip.css' %}?v=20261022-inter">
+    <link rel="stylesheet" href="{% static 'components/css/job_order.css' %}?v=20261017-job-paper">
+{% include 'partials/web_typography.html' %}
+</head>
+<body class="campushub-bookings-page">
+    <a class="bk-detail-skip" href="#bkBookingDetailPage">Skip to booking details</a>
+    <div class="sidebar-section">
+        {% include 'partials/admin_sidebar.html' with active_page='bookings' %}
+        <div class="main-wrapper" id="mainWrapper">
+            {% include 'partials/admin_header.html' with breadcrumb_section='Facilities Management' breadcrumb_page='Booking Details' %}
+            <main class="dashboard-content p-4">
+                <article class="bk-detail-page" id="bkBookingDetailPage" data-booking-id="{{ booking_id }}" tabindex="-1">
+                    <a class="bk-detail-back" href="{% url 'admin_bookings_page' %}"><span aria-hidden="true">←</span> Back to Bookings</a>
+                    <header class="bk-detail-heading">
+                        <div><h1>Booking Details</h1><p class="bk-details-id">Booking ID <strong id="bkBookingDetailsId">{{ booking_id }}</strong></p></div>
+                        <div class="bk-detail-statuses">
+                            <div><span>Booking Status</span><strong id="bkDetailBookingStatus">{{ booking_detail.booking.status_label }}</strong></div>
+                            <div><span>Payment Status</span><strong id="bkDetailPaymentStatus">{{ booking_detail.booking.payment_status|title }}</strong></div>
+                        </div>
+                    </header>
+                    <div id="bkReservationSuccess" class="bk-reservation-success" role="status" hidden><span></span><button type="button" class="bk-btn-ghost" id="bkViewSavedBooking">View Booking Details</button></div>
+                    <section class="bk-detail-content">
+                        <div class="bk-transaction-tabs" role="tablist" aria-label="Booking information">
+                            <button type="button" role="tab" id="bkTabOverview" aria-controls="bkPanelOverview" aria-selected="true" data-bk-tab="Overview">Overview</button>
+                            <button type="button" role="tab" id="bkTabBookingForm" aria-controls="bkPanelBookingForm" aria-selected="false" data-bk-tab="BookingForm" tabindex="-1">Booking Slip</button>
+                            <button type="button" role="tab" id="bkTabJobOrder" aria-controls="bkPanelJobOrder" aria-selected="false" data-bk-tab="JobOrder" tabindex="-1">Job Order</button>
+                            <button type="button" role="tab" id="bkTabPayment" aria-controls="bkPanelPayment" aria-selected="false" data-bk-tab="Payment" tabindex="-1">Payment</button>
+                            <button type="button" role="tab" id="bkTabInspection" aria-controls="bkPanelInspection" aria-selected="false" data-bk-tab="Inspection" tabindex="-1">Inspection</button>
+                            <button type="button" role="tab" id="bkTabActivity" aria-controls="bkPanelActivity" aria-selected="false" data-bk-tab="Activity" tabindex="-1">Activity</button>
+                        </div>
+                        <p id="bkTransactionMessage" role="status" aria-live="polite"></p>
+                        <section id="bkPanelOverview" role="tabpanel" aria-labelledby="bkTabOverview" tabindex="0"></section>
+                        <section id="bkPanelBookingForm" role="tabpanel" aria-labelledby="bkTabBookingForm" tabindex="0" hidden></section>
+                        <section id="bkPanelJobOrder" role="tabpanel" aria-labelledby="bkTabJobOrder" tabindex="0" hidden></section>
+                        <section id="bkPanelPayment" role="tabpanel" aria-labelledby="bkTabPayment" tabindex="0" hidden></section>
+                        <section id="bkPanelInspection" role="tabpanel" aria-labelledby="bkTabInspection" tabindex="0" hidden></section>
+                        <section id="bkPanelActivity" role="tabpanel" aria-labelledby="bkTabActivity" tabindex="0" hidden></section>
+                        <section id="bkTransactionEditor" hidden></section>
+                    </section>
+                </article>
+            </main>
+        </div>
+    </div>
+    {% include 'facilities/partials/booking_forms.html' %}
+    <div class="bk-modal" id="bkBookingActionModal" aria-hidden="true">
+        <div class="bk-modal-backdrop" data-bk-close></div>
+        <div class="bk-modal-dialog bk-action-dialog" role="dialog" aria-modal="true" aria-labelledby="bkBookingActionTitle" tabindex="-1">
+            <div class="bk-modal-header"><h2 id="bkBookingActionTitle">Booking Action</h2><button type="button" class="bk-modal-close" data-bk-close aria-label="Close action">&times;</button></div>
+            <div class="bk-modal-body" id="bkActionEditor"></div>
+        </div>
+    </div>
+    <div class="bk-toast" id="bkToast" role="status" aria-live="polite"></div>
+    {% csrf_token %}
+    {{ booking_detail|json_script:'bkBookingDetailData' }}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'components/js/admin_session.js' %}?v=20260708"></script>
+    <script src="{% static 'components/js/admin_bookings.js' %}?v=20261017-cancelled-history"></script>
+    <script src="{% static 'components/js/admin_booking_forms.js' %}?v=20261017-closed-day-message"></script>
+    <script src="{% static 'components/js/job_order_preview.js' %}?v=20261017-job-preload"></script>
+    <script src="{% static 'components/js/admin_booking_workflow.js' %}?v=20261017-cancelled-history"></script>
+</body>
+</html>

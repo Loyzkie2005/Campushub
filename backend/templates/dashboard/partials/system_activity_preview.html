@@ -1,0 +1,32 @@
+{% load tz %}{% get_current_timezone as activity_timezone %}
+<section class="executive-section executive-audit" data-system-activities data-time-zone="{{ activity_timezone }}" data-empty-region="activities"{% if perms.accounts.can_view_user_monitoring %} data-can-view-details{% endif %} aria-labelledby="recentActivitiesTitle">
+    <div class="dashboard-section-heading executive-section-header">
+        <div><h2 id="recentActivitiesTitle" tabindex="-1">Recent System Activities</h2><p class="audit-note executive-section-subtitle">Latest important actions recorded across CampusHub.</p></div>
+        {% if perms.accounts.can_view_user_monitoring %}<a class="dash-view-all-link" href="{% url 'admin_user_monitoring_page' %}">View All Activities <span aria-hidden="true">&rarr;</span></a>{% endif %}
+    </div>
+    <div class="dash-card audit-table-scroll" tabindex="0" role="region" aria-label="Recent system activities table" data-activities-table{% if not executive.activities %} hidden{% endif %}>
+        <table class="audit-preview-table"><caption class="visually-hidden">Latest five activities recorded in the selected reporting period, newest first.</caption>
+            <thead><tr><th scope="col">Time</th><th scope="col" class="audit-secondary">User</th><th scope="col">Action</th><th scope="col" class="audit-secondary">Module</th><th scope="col">Result</th><th scope="col">Actions</th></tr></thead>
+            <tbody data-executive-activities>{% for row in executive.activities %}
+                <tr>
+                    <td><time datetime="{{ row.time }}">{{ row.time_label }}</time></td>
+                    <td class="audit-secondary">{{ row.user }}</td>
+                    <td>{{ row.activity }}</td>
+                    <td class="audit-secondary">{{ row.module }}</td>
+                    <td><span class="audit-result{% if row.result == 'Success' %} audit-result-success{% elif row.result == 'Failed' %} audit-result-failed{% endif %}">{{ row.result|default:'Not recorded' }}</span></td>
+                    <td>{% if perms.accounts.can_view_user_monitoring %}<button type="button" class="audit-detail-button audit-icon-button" data-activity-detail-url="{{ row.details_url }}" aria-haspopup="dialog" aria-label="View details for {{ row.activity }}" title="View Details"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>{% else %}&mdash;{% endif %}</td>
+                </tr>
+            {% endfor %}</tbody>
+        </table>
+    </div>
+    <div class="dash-card audit-empty" data-activities-empty{% if executive.activities %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Recent System Activities' description='System activity will appear here as users and administrators interact with CampusHub.' icon='average' %}</div>
+    <div class="dash-card" data-activities-error role="alert" hidden><p>Unable to load recent system activities. Use Refresh above to retry.</p></div>
+    {% if perms.accounts.can_view_user_monitoring %}
+    <dialog class="audit-detail-dialog" data-activity-dialog aria-labelledby="dashboardActivityDetailsTitle">
+        <div class="audit-dialog-heading"><h2 id="dashboardActivityDetailsTitle">Activity Details</h2><form method="dialog"><button type="submit" class="audit-detail-button" aria-label="Close activity details">Close</button></form></div>
+        <p data-activity-detail-loading role="status" hidden>Loading activity details.</p>
+        <p data-activity-detail-error role="alert" hidden>Unable to load activity details.</p>
+        <dl class="audit-detail-fields" data-activity-detail-fields></dl>
+    </dialog>
+    {% endif %}
+</section>

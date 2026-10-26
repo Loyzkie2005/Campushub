@@ -6,9 +6,10 @@ import '../../screens/messages_screen.dart';
 import '../product_image.dart';
 
 const bookingNavy = Color(0xFF1A1851);
-const bookingGold = Color(0xFFFCB316);
+const bookingGold = Color(0xFFFCB315);
 const bookingOutline = Color(0xFFE2E4EC);
 const bookingMuted = Color(0xFF66687A);
+const bookingSurfaceLight = Color(0xFFF8FAFC);
 const bookingGreen = Color(0xFF1B873F);
 const bookingGreenBg = Color(0xFFEAF7EE);
 const bookingGoldBg = Color(0xFFFFF8E6);
@@ -20,6 +21,40 @@ const bookingGreyDot = Color(0xFF9CA3AF);
 
 String bookingMoney(dynamic amount) =>
     '\u20b1${(double.tryParse('$amount') ?? 0).toStringAsFixed(2)}';
+
+Widget bookingMoneyText(
+  dynamic amount, {
+  double fontSize = 15,
+  FontWeight fontWeight = FontWeight.w700,
+  Color color = bookingNavy,
+}) {
+  final formatted = (double.tryParse('$amount') ?? 0).toStringAsFixed(2);
+  return Text.rich(
+    TextSpan(
+      children: [
+        TextSpan(
+          text: '\u20b1',
+          style: TextStyle(
+            fontFamily: 'Roboto',
+            fontFamilyFallback: const ['Poppins', 'sans-serif'],
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            color: color,
+          ),
+        ),
+        TextSpan(
+          text: formatted,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            color: color,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
 String bookingDate(String value, {bool withWeekday = false}) {
   final date = DateTime.tryParse(value);
@@ -77,19 +112,29 @@ String bookingStatus(String status) => switch (status.toLowerCase()) {
 };
 
 class BookingStatusBadge extends StatelessWidget {
-  const BookingStatusBadge(this.status, {super.key, this.fontSize = 11});
+  const BookingStatusBadge(
+    this.status, {
+    super.key,
+    this.fontSize = 11,
+    this.label,
+    this.showDot = false,
+  });
   final String status;
+  final String? label;
   final double fontSize;
+  final bool showDot;
 
   @override
   Widget build(BuildContext context) {
     final lower = status.toLowerCase();
-    final isGreen = lower == 'available' ||
+    final isGreen =
+        lower == 'available' ||
         lower == 'approved' ||
         lower == 'completed' ||
         lower == 'paid' ||
         lower == 'open for booking';
-    final isGold = lower == 'pending' ||
+    final isGold =
+        lower == 'pending' ||
         lower == 'pending approval' ||
         lower == 'unpaid' ||
         lower == 'pending payment';
@@ -115,23 +160,40 @@ class BookingStatusBadge extends StatelessWidget {
       fg = bookingMuted;
     }
 
-    final displayLabel = lower == 'open for booking'
-        ? 'Open for Booking'
-        : bookingStatus(status);
+    final displayLabel =
+        label ??
+        (lower == 'open for booking'
+            ? 'Open for Booking'
+            : bookingStatus(status));
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: fg.withValues(alpha: 0.18)),
       ),
-      child: Text(
-        displayLabel,
-        style: TextStyle(
-          fontSize: fontSize,
-          fontWeight: FontWeight.w600,
-          color: fg,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showDot) ...[
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            displayLabel,
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: fontSize,
+              fontWeight: FontWeight.w600,
+              color: fg,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -144,76 +206,136 @@ class BookingScaffold extends StatelessWidget {
     required this.child,
     this.bottom,
     this.actions,
+    this.backgroundColor = Colors.white,
   });
   final String title;
   final Widget child;
   final Widget? bottom;
   final List<Widget>? actions;
+  final Color backgroundColor;
+
   @override
-  Widget build(BuildContext context) => Theme(
-    data: Theme.of(context).copyWith(
-      colorScheme:
-          ColorScheme.fromSeed(
-            seedColor: bookingNavy,
-            brightness: Brightness.light,
-          ).copyWith(
-            primary: bookingNavy,
-            secondary: bookingGold,
-            surface: Colors.white,
+  Widget build(BuildContext context) {
+    final baseTheme = Theme.of(context);
+    return Theme(
+      data: baseTheme.copyWith(
+        textTheme: baseTheme.textTheme.apply(fontFamily: 'Poppins'),
+        primaryTextTheme: baseTheme.primaryTextTheme.apply(
+          fontFamily: 'Poppins',
+        ),
+        colorScheme:
+            ColorScheme.fromSeed(
+              seedColor: bookingNavy,
+              brightness: Brightness.light,
+            ).copyWith(
+              primary: bookingNavy,
+              secondary: bookingGold,
+              surface: Colors.white,
+            ),
+        scaffoldBackgroundColor: backgroundColor,
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          labelStyle: const TextStyle(
+            fontFamily: 'Poppins',
+            color: bookingMuted,
+            fontSize: 13,
           ),
-      scaffoldBackgroundColor: Colors.white,
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.white,
-        labelStyle: const TextStyle(color: bookingMuted, fontSize: 13),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 15,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: bookingOutline),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: bookingOutline),
-        ),
-      ),
-    ),
-    child: Scaffold(
-      appBar: AppBar(
-        title: Text(
-          title,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: bookingNavy,
-        surfaceTintColor: Colors.transparent,
-        scrolledUnderElevation: 0,
-        actions: actions,
-      ),
-      body: SafeArea(
-        top: false,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
-            child: child,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 15,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: bookingOutline),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: bookingOutline),
           ),
         ),
       ),
-      bottomNavigationBar: bottom == null
-          ? null
-          : SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: bottom,
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          leadingWidth: 56,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 14),
+            child: Center(
+              child: Material(
+                color: bookingSurfaceLight,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(11),
+                  side: const BorderSide(color: bookingOutline),
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(11),
+                  onTap: () => Navigator.of(context).maybePop(),
+                  child: const SizedBox(
+                    width: 38,
+                    height: 38,
+                    child: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 16,
+                      color: bookingNavy,
+                    ),
+                  ),
+                ),
               ),
             ),
-    ),
-  );
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: bookingNavy,
+            ),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          foregroundColor: bookingNavy,
+          surfaceTintColor: Colors.transparent,
+          scrolledUnderElevation: 0,
+          shape: const Border(bottom: BorderSide(color: bookingOutline)),
+          actions: actions,
+        ),
+        body: SafeArea(
+          top: false,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 620),
+              child: child,
+            ),
+          ),
+        ),
+        bottomNavigationBar: bottom == null
+            ? null
+            : DecoratedBox(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: bookingOutline)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x0D1A1851),
+                      blurRadius: 12,
+                      offset: Offset(0, -3),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: bottom,
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
 }
 
 class BookingButton extends StatelessWidget {
@@ -224,34 +346,66 @@ class BookingButton extends StatelessWidget {
     this.busy = false,
     this.outlined = false,
     this.danger = false,
+    this.icon,
   });
   final String label;
   final VoidCallback? onPressed;
   final bool busy;
   final bool outlined;
   final bool danger;
+  final IconData? icon;
+
   @override
   Widget build(BuildContext context) {
-    final content = busy
-        ? SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: outlined ? (danger ? bookingRed : bookingNavy) : Colors.white,
+    final fgColor = outlined
+        ? (danger ? bookingRed : bookingNavy)
+        : Colors.white;
+    final Widget content;
+    if (busy) {
+      content = SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2, color: fgColor),
+      );
+    } else if (icon != null) {
+      content = Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          )
-        : Text(label, textAlign: TextAlign.center);
+          ),
+        ],
+      );
+    } else {
+      content = Text(label, textAlign: TextAlign.center);
+    }
+
     if (outlined) {
       final color = danger ? bookingRed : bookingNavy;
       return OutlinedButton(
         onPressed: busy ? null : onPressed,
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(double.infinity, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          backgroundColor: Colors.white,
           foregroundColor: color,
-          side: BorderSide(color: color),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          side: BorderSide(color: color, width: 1.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         child: content,
       );
@@ -260,11 +414,16 @@ class BookingButton extends StatelessWidget {
       onPressed: busy ? null : onPressed,
       style: ElevatedButton.styleFrom(
         minimumSize: const Size(double.infinity, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         elevation: 0,
         backgroundColor: danger ? bookingRed : bookingNavy,
         foregroundColor: Colors.white,
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        textStyle: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: content,
     );
@@ -284,6 +443,7 @@ class BookingSection extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
+            fontFamily: 'Poppins',
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: bookingNavy,
@@ -306,7 +466,7 @@ class BookingCard extends StatelessWidget {
     padding: padding ?? const EdgeInsets.all(14),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(12),
       border: Border.all(color: bookingOutline),
     ),
     child: child,
@@ -351,6 +511,7 @@ class BookingSteps extends StatelessWidget {
                       child: Text(
                         '${index + 1}',
                         style: TextStyle(
+                          fontFamily: 'Poppins',
                           color: index <= step ? Colors.white : bookingMuted,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -371,6 +532,7 @@ class BookingSteps extends StatelessWidget {
               Text(
                 ['Schedule', 'Details', 'Review', 'Submit'][index],
                 style: TextStyle(
+                  fontFamily: 'Poppins',
                   fontSize: 11,
                   fontWeight: index == step ? FontWeight.w700 : FontWeight.w500,
                   color: index <= step ? bookingNavy : bookingMuted,
@@ -414,7 +576,11 @@ class BookingValue extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(fontSize: 12, color: bookingMuted),
+            style: const TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 12,
+              color: bookingMuted,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -423,6 +589,7 @@ class BookingValue extends StatelessWidget {
             value,
             textAlign: TextAlign.right,
             style: TextStyle(
+              fontFamily: 'Poppins',
               fontSize: valueSize ?? 13,
               color: valueColor ?? bookingNavy,
               fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
@@ -443,7 +610,7 @@ class BookingFacilitySummary extends StatelessWidget {
     child: Row(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
           child: SizedBox(
             width: 72,
             height: 72,
@@ -461,6 +628,7 @@ class BookingFacilitySummary extends StatelessWidget {
               Text(
                 facility.name,
                 style: const TextStyle(
+                  fontFamily: 'Poppins',
                   color: bookingNavy,
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
@@ -469,12 +637,20 @@ class BookingFacilitySummary extends StatelessWidget {
               const SizedBox(height: 4),
               const Text(
                 FacilityItem.campusName,
-                style: TextStyle(fontSize: 12, color: bookingMuted),
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  color: bookingMuted,
+                ),
               ),
               if (facility.location.isNotEmpty)
                 Text(
                   facility.location,
-                  style: const TextStyle(fontSize: 12, color: bookingMuted),
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    color: bookingMuted,
+                  ),
                 ),
             ],
           ),

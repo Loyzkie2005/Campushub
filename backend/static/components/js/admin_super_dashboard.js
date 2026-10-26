@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const navy = '#1A1851';
-    const gold = '#FCB316';
+    const gold = '#FCB315';
     const pesos = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
     function readData(id) {
         return JSON.parse(document.getElementById(id).textContent);
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         return;
     }
-    Chart.defaults.font.family = 'Montserrat, sans-serif';
+    Chart.defaults.font.family = 'Inter, sans-serif';
     Chart.defaults.font.size = 10;
 
     const salesCanvas = document.getElementById('superSalesChart');

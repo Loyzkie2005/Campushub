@@ -140,18 +140,19 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(products, reverse("admin_products_page"))
         self.assertContains(products, reverse("admin_orders_page"))
         self.assertContains(products, reverse("admin_sellers_page"))
+        # Analytics is available under Reports for users with its permission.
         self.assertContains(products, reverse("admin_marketplace_analytics_page"))
-        self.assertContains(products, "Marketplace Reports")
+        self.assertContains(products, "Generate Reports")
         self.assertContains(products, "System")
 
-        # Marketplace admin sidebar does NOT have facilities, users, or backup
+        # Marketplace support links are scoped; facilities, roles and backups remain unavailable.
         self.assertNotContains(products, reverse("admin_facility_page"))
         self.assertNotContains(products, reverse("admin_bookings_page"))
         self.assertNotContains(products, reverse("admin_calendar_page"))
         self.assertNotContains(products, reverse("admin_facility_analytics_page"))
-        self.assertNotContains(products, reverse("admin_users_page"))
+        self.assertContains(products, reverse("admin_users_page"))
+        self.assertContains(products, reverse("admin_user_monitoring_page"))
         self.assertNotContains(products, reverse("admin_roles_page"))
-        self.assertNotContains(products, reverse("admin_user_monitoring_page"))
         self.assertNotContains(products, reverse("admin_backup_page"))
 
         self.assertEqual(self.client.get(reverse("admin_messages_page")).status_code, 200)
@@ -174,7 +175,7 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(facilities_page, reverse("admin_bookings_page"))
         self.assertContains(facilities_page, reverse("admin_calendar_page"))
         self.assertContains(facilities_page, reverse("admin_facility_analytics_page"))
-        self.assertContains(facilities_page, "Facility Reports")
+        self.assertContains(facilities_page, "Generate Reports")
         self.assertContains(facilities_page, "System")
 
         # Facilities admin sidebar does NOT have marketplace, users, or backup
@@ -268,13 +269,13 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(users_page, reverse("admin_messages_page"))
         self.assertContains(users_page, reverse("admin_notifications_page"))
         self.assertContains(users_page, reverse("admin_settings_page"))
-        self.assertContains(users_page, reverse("admin_backup_page"))
+        self.assertNotContains(users_page, reverse("admin_backup_page"))
         self.assertContains(users_page, "Generate Reports")
         self.assertContains(users_page, "System Settings")
 
-        # Super Admin sidebar MUST NOT contain specialized Sellers or Analytics links
-        self.assertNotContains(users_page, reverse("admin_sellers_page"))
-        self.assertNotContains(users_page, reverse("admin_marketplace_analytics_page"))
+        # Final sidebar keeps Sellers and one permission-scoped Reports Analytics link.
+        self.assertContains(users_page, reverse("admin_sellers_page"))
+        self.assertContains(users_page, reverse("admin_marketplace_analytics_page"))
         self.assertNotContains(users_page, reverse("admin_facility_analytics_page"))
 
 
@@ -370,6 +371,12 @@ class DedicatedDomainDashboardTests(TestCase):
             password=self.password,
             role="Seller",
         )
+        # A program administrator must have an assignment matching these fixtures.
+        program, _ = Department.objects.get_or_create(code="BSIT", defaults={"name": "BSIT", "is_program": True})
+        self.seller.department = program
+        self.seller.save(update_fields=["department"])
+        self.marketplace_admin.department = program
+        self.marketplace_admin.save(update_fields=["department"])
         self.prod_approved = Product.objects.create(
             seller=self.seller,
             name="USTP Lanyard",
@@ -458,18 +465,18 @@ class DedicatedDomainDashboardTests(TestCase):
             "Monitor marketplace products, orders, sellers, and sales activity",
         )
         self.assertContains(response, "Total Products")
-        self.assertContains(response, "Pending Listings")
+        self.assertContains(response, "Pending Product Approvals")
         self.assertContains(response, "Total Orders")
-        self.assertContains(response, "Total Sales (Cash on Pickup)")
+        self.assertContains(response, "Marketplace Revenue")
         self.assertContains(response, "300.00")
         self.assertNotContains(response, "345.00")
         self.assertContains(response, "2026ORDER001")
         self.assertContains(response, "USTP Notebook")
         self.assertContains(response, "Sales Overview")
-        self.assertContains(response, "Completed and paid Cash on Pickup orders")
-        self.assertContains(response, "sales-chart-legend")
+        self.assertContains(response, "Completed and paid marketplace orders")
+        self.assertNotContains(response, "sales-chart-legend")
         self.assertNotContains(response, "sales-summary")
-        self.assertContains(response, "Order Status")
+        self.assertNotContains(response, 'id="orderStatusChart"')
 
         # Must NOT contain facilities content
         self.assertNotContains(response, "Facilities Dashboard")
@@ -535,9 +542,9 @@ class DedicatedDomainDashboardTests(TestCase):
         self.assertTemplateNotUsed(response, "facilities/pages/admin_facilities_dashboard.html")
 
         self.assertContains(response, "System Overview")
-        self.assertContains(response, "Sales Overview")
-        self.assertContains(response, "Completed and paid Cash on Pickup orders")
-        self.assertContains(response, "sales-chart-legend")
+        self.assertContains(response, "Sales Summary")
+        self.assertContains(response, "Monitor marketplace performance and activity.")
+        self.assertContains(response, "topSellingProductsChart")
         self.assertNotContains(response, "dashboard-sales-summary")
 
 
@@ -578,6 +585,7 @@ class AdminOrderWorkflowTests(TestCase):
         response = self.update_order(
             status="completed",
             payment_status="paid",
+            pickup_confirmed=True,
             official_receipt_no="OR-1001",
             pickup_location="Campus cashier",
         )
@@ -617,6 +625,7 @@ class AdminOrderWorkflowTests(TestCase):
         response = self.update_order(
             status="completed",
             payment_status="paid",
+            pickup_confirmed=True,
             cash_confirmed=True,
             official_receipt_no="OR-2026-88",
         )
@@ -678,7 +687,7 @@ class MarketplaceAdminOrderAccessTests(TestCase):
             username="marketplace-orders-admin",
             password=self.password,
             role="Marketplace Admin",
-            department=admin_department,
+            department=seller_department,
             is_staff=True,
         )
         sync_user_admin_permissions(self.marketplace_admin)
@@ -749,7 +758,7 @@ class MarketplaceAdminOrderAccessTests(TestCase):
         self.client.force_login(user)
         return self.client.get(reverse("admin_orders_page"))
 
-    def test_super_and_marketplace_admin_share_the_same_order_records(self):
+    def test_super_sees_all_orders_and_marketplace_admin_sees_assigned_program(self):
         marketplace_response = self._orders_page(self.marketplace_admin)
         super_response = self._orders_page(self.super_admin)
 
@@ -758,7 +767,7 @@ class MarketplaceAdminOrderAccessTests(TestCase):
         expected_ids = {self.pending_order.id, self.cancelled_order.id}
         self.assertEqual(
             {order.id for order in marketplace_response.context["orders"]},
-            expected_ids,
+            {self.pending_order.pk},
         )
         self.assertEqual(
             {order.id for order in super_response.context["orders"]},
@@ -768,20 +777,20 @@ class MarketplaceAdminOrderAccessTests(TestCase):
     def test_kpis_and_table_use_the_same_authorized_queryset(self):
         response = self._orders_page(self.marketplace_admin)
 
-        self.assertEqual(len(response.context["orders"]), 2)
+        self.assertEqual(len(response.context["orders"]), 1)
         self.assertEqual(
             response.context["order_stats"],
             {
-                "total": 2,
+                "total": 1,
                 "completed": 0,
                 "pending": 1,
                 "processing": 0,
                 "ready_for_pickup": 0,
-                "cancelled": 1,
+                "cancelled": 0,
             },
         )
         self.assertContains(response, "2026ORDERAAA")
-        self.assertContains(response, "2026ORDERBBB")
+        self.assertNotContains(response, "2026ORDERBBB")
         self.assertContains(response, "Student Buyer")
         self.assertContains(response, "Campus Meal")
 
@@ -798,7 +807,7 @@ class MarketplaceAdminOrderAccessTests(TestCase):
         self.assertContains(response, 'data-payment-status="unpaid"')
         self.assertContains(response, 'data-created-date=')
 
-    def test_marketplace_admin_can_update_an_order_from_another_department(self):
+    def test_marketplace_admin_can_update_an_order_in_assigned_program(self):
         self.client.force_login(self.marketplace_admin)
 
         response = self.client.post(
@@ -816,6 +825,12 @@ class MarketplaceAdminOrderAccessTests(TestCase):
         self.pending_order.refresh_from_db()
         self.assertEqual(self.pending_order.status, MarketplaceOrder.STATUS_PROCESSING)
         self.assertEqual(self.pending_order.payment_status, MarketplaceOrder.PAYMENT_UNPAID)
+
+    def test_marketplace_admin_cannot_update_an_order_from_another_program(self):
+        self.client.force_login(self.marketplace_admin)
+        response = self.client.post(reverse("admin_order_update", args=[self.cancelled_order.pk]),
+                                   json.dumps({"status": "processing"}), content_type="application/json")
+        self.assertEqual(response.status_code, 404)
 
     def test_unauthorized_user_cannot_modify_order_status(self):
         ordinary_user = User.objects.create_user(
@@ -892,7 +907,7 @@ class AdminAccessControlTests(TestCase):
         )
 
         response = self.client.post(
-            reverse("admin_roles_save"),
+            reverse("admin_role_permissions_save"),
             {
                 "role_id": role.id,
                 "role_name": role.role_name,
@@ -944,7 +959,7 @@ class RolePermissionsManagementTests(TestCase):
 
     def save_role(self, role=None, **overrides):
         return self.client.post(
-            reverse("admin_roles_save"),
+            reverse("admin_role_permissions_save" if role and "assigned_users_present" not in overrides else "admin_roles_save"),
             self.role_payload(role, **overrides),
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
@@ -964,10 +979,10 @@ class RolePermissionsManagementTests(TestCase):
         )
 
         self.assertContains(page, "Full Access")
-        self.assertContains(page, "Base User Access")
-        self.assertContains(page, "Standard User")
-        self.assertContains(page, "Access Type")
-        self.assertContains(page, "Manage system roles, assigned users, and access permissions.")
+        self.assertNotContains(page, "Base User Access")
+        self.assertNotContains(page, "Standard User")
+        self.assertContains(page, "Access Level")
+        self.assertContains(page, "Manage system roles, administrator assignments, access scope, and module permissions.")
         self.assertContains(page, "Available system permissions")
         self.assertContains(page, "Add Custom Role")
         self.assertNotContains(page, "Permission Rules")
@@ -1020,7 +1035,7 @@ class RolePermissionsManagementTests(TestCase):
         self.assertTrue(marketplace_user.has_perm("accounts.can_manage_orders"))
         self.assertFalse(marketplace_user.has_perm("accounts.can_manage_products"))
         self.assertTrue(facilities_user.has_perm("accounts.can_manage_facilities"))
-        self.assertFalse(facilities_user.has_perm("accounts.can_book_facilities"))
+        self.assertTrue(facilities_user.has_perm("accounts.can_book_facilities")) # Ordinary capability retained.
 
     def test_super_admin_permissions_are_enforced_by_shared_helper(self):
         role = self.roles["Super Admin"]
@@ -1053,7 +1068,7 @@ class RolePermissionsManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertSetEqual(
             set(role.granted_permissions.values_list("codename", flat=True)),
-            allowed | {"can_manage_orders"},
+            allowed | {"can_manage_orders", "can_view_orders", "can_browse_products", "can_buy_products"},
         )
         user.refresh_from_db()
         for codename in restricted:
@@ -1077,7 +1092,7 @@ class RolePermissionsManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertSetEqual(
             set(role.granted_permissions.values_list("codename", flat=True)),
-            allowed | {"can_manage_bookings"},
+            allowed | {"can_manage_bookings", "can_view_bookings", "can_browse_products", "can_buy_products", "can_browse_facilities", "can_book_facilities"},
         )
         user.refresh_from_db()
         for codename in restricted:
@@ -1129,7 +1144,7 @@ class RolePermissionsManagementTests(TestCase):
         self.assertTrue(role.is_active)
         self.assertSetEqual(
             set(role.granted_permissions.values_list("codename", flat=True)),
-            {"can_manage_products", "can_manage_orders"},
+            {"can_manage_products", "can_view_products", "can_manage_orders", "can_view_orders", "can_browse_products", "can_buy_products"},
         )
         self.assertTrue(assigned_user.has_perm("accounts.can_manage_products"))
         self.assertFalse(assigned_user.has_perm("accounts.can_view_reports"))
@@ -1142,28 +1157,24 @@ class RolePermissionsManagementTests(TestCase):
         self.assertEqual(empty_response.status_code, 400)
 
     def test_custom_role_creation_assignment_and_duplicate_rejection(self):
-        assignable_admin = User.objects.create_user(
-            username="custom-role-admin",
-            email="custom-role@example.com",
-            password=self.password,
-            role="User",
-        )
-        response = self.save_role(
-            role_name="Department Auditor",
-            assigned_users_present="1",
-            assigned_users=[str(assignable_admin.id)],
-        )
-
-        self.assertEqual(response.status_code, 200)
-        created_role = Role.objects.get(role_name="Department Auditor")
-        assignable_admin.refresh_from_db()
-        self.assertEqual(assignable_admin.role, created_role.role_name)
-        self.assertTrue(assignable_admin.has_perm("accounts.can_manage_orders"))
-        self.assertTrue(assignable_admin.has_perm("accounts.can_view_reports"))
-
-        duplicate = self.save_role(role_name="department auditor")
-        self.assertEqual(duplicate.status_code, 400)
-        self.assertEqual(Role.objects.filter(role_name__iexact="Department Auditor").count(), 1)
+        candidate = User.objects.create_user(username="custom-role-admin", role="User", is_staff=True)
+        premature = self.save_role(role_name="Department Auditor", assigned_users=[str(candidate.id)])
+        self.assertEqual(premature.status_code, 400)
+        self.assertFalse(Role.objects.filter(role_name="Department Auditor").exists())
+        created = self.save_role(role_name="Department Auditor")
+        self.assertEqual(created.status_code, 200)
+        role = Role.objects.get(role_name="Department Auditor")
+        self.assertFalse(role.granted_permissions.exists())
+        self.assertEqual(self.save_role(role, permissions=["can_manage_orders", "can_view_reports"]).status_code, 200)
+        assigned = self.client.post(reverse("admin_roles_save"), {
+            "operation": "assign", "role_id": role.pk, "assigned_users": [candidate.pk], "confirm_role_changes": "1",
+        }, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(assigned.status_code, 200, assigned.content)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.role, role.role_name)
+        self.assertTrue(candidate.has_perm("accounts.can_manage_orders"))
+        self.assertTrue(candidate.has_perm("accounts.can_view_reports"))
+        self.assertEqual(self.save_role(role_name="department auditor").status_code, 400)
 
     def test_inactive_role_cannot_receive_a_new_assignment(self):
         inactive_role = Role.objects.create(
@@ -1235,7 +1246,7 @@ class RolePermissionsManagementTests(TestCase):
         allowed = self.client.get(reverse("admin_orders_page"))
 
         self.client.force_login(self.super_admin)
-        update = self.save_role(role, permissions=[])
+        update = self.save_role(role, permissions=["can_access_messages"])
         self.client.force_login(user)
         denied = self.client.get(reverse("admin_orders_page"))
 
@@ -1322,11 +1333,9 @@ class RolePermissionsManagementTests(TestCase):
             is_active=True,
         )
         selected = [
-            "can_browse_products",
-            "can_buy_products",
+            "can_view_products",
             "can_manage_orders",
-            "can_browse_facilities",
-            "can_book_facilities",
+            "can_view_facilities",
             "can_manage_bookings",
         ]
 
@@ -1342,8 +1351,8 @@ class RolePermissionsManagementTests(TestCase):
         saved_role = reload_response.context["roles"][0]
 
         self.assertEqual(save_response.status_code, 200)
-        self.assertSetEqual(set(saved_role["assigned_permissions"]), set(selected))
-        self.assertContains(reload_response, "Browse Products")
+        self.assertSetEqual(set(saved_role["assigned_permissions"]), set(selected) | {"can_view_orders", "can_view_bookings"})
+        self.assertContains(reload_response, "View Products")
         self.assertContains(reload_response, "Manage Bookings")
         self.assertContains(reload_response, 'data-module="marketplace"')
         self.assertContains(reload_response, 'data-module="facilities"')
@@ -1357,7 +1366,7 @@ class AdminUserManagementTests(TestCase):
             name: Role.objects.get_or_create(role_name=name)[0]
             for name in ("User", "Super Admin", "Facilities Admin", "Marketplace Admin")
         }
-        self.department = Department.objects.create(name="Information Technology", code="IT")
+        self.department = Department.objects.get(code="BSIT")
         self.admin = User.objects.create_superuser(
             username="users-admin",
             email="users-admin@example.com",
@@ -1402,8 +1411,8 @@ class AdminUserManagementTests(TestCase):
             role="User",
         )
 
-        self.assertContains(student_response, "Add User can create only Super Admin")
-        self.assertContains(faculty_response, "Add User can create only Super Admin")
+        self.assertContains(student_response, "Add Admin can create only Super Admin")
+        self.assertContains(faculty_response, "Add Admin can create only Super Admin")
         self.assertFalse(CampusHubUser.objects.filter(username="campus-user").exists())
         self.assertFalse(CampusHubUser.objects.filter(username="faculty-user").exists())
 
@@ -1524,7 +1533,7 @@ class AdminUserManagementTests(TestCase):
         self.assertContains(page, '<span class="active">1</span>', html=True)
         self.assertContains(page, "Seller access does not apply to administrator accounts")
         self.assertNotContains(page, 'class="dropdown-item seller-access"')
-        self.assertContains(response, "Seller access does not apply to administrator accounts.")
+        self.assertEqual(response.status_code, 403)
         self.assertEqual(
             SellerRequest.objects.get(user=self.admin).status,
             SellerRequest.STATUS_PENDING,
@@ -1723,7 +1732,10 @@ class UserMonitoringTests(TestCase):
         self.assertNotContains(response, 'id="monitorPageSize"')
         self.assertNotContains(response, "10 / page")
         self.assertContains(response, "Recent User Activity Log")
-        self.assertContains(response, "Account Type / Role")
+        self.assertContains(response, "User Session Overview")
+        self.assertContains(response, "<th>User</th>")
+        self.assertNotContains(response, "<th>Actor</th>")
+        self.assertNotContains(response, "<th>Target</th>")
         self.assertContains(response, 'class="monitor-view js-activity-view"')
 
     def test_peak_period_filter_supports_today_last_30_days_and_custom_dates(self):
@@ -1798,13 +1810,14 @@ class UserMonitoringTests(TestCase):
         self.assertEqual(drawer_user["events"][0]["ip"], "192.168.10.25")
         recent_event = response.context["recent_activities"][0]
         self.assertIn(recent_event["account_type"], {"Student", "Faculty"})
-        self.assertEqual(recent_event["role"], "Standard User")
+        self.assertEqual(recent_event["role"], "User")
         self.assertEqual(recent_event["ip"], "192.168.10.25")
         self.assertContains(response, 'id="activityDetailModal"')
         self.assertContains(response, 'id="recentActivityData"')
         self.assertNotContains(response, "Browsing Products")
         self.assertNotContains(response, "\u00e2")
-        self.assertContains(response, "No recorded sessions for this account.")
+        self.assertEqual(drawer_user["sessions"], [])
+        self.assertContains(response, "admin_monitoring.js")
 
     def test_daily_login_trend_fills_missing_date_and_counts_only_successes(self):
         AccountActivity.objects.all().delete()
@@ -1936,8 +1949,8 @@ class UserMonitoringTests(TestCase):
 
         self.assertEqual(len(one_day_chart["daily"]["labels"]), 1)
         self.assertEqual(len(three_day_chart["daily"]["labels"]), 3)
-        self.assertContains(one_day_response, "Number of Successful Logins")
-        self.assertContains(one_day_response, 'value === 1 ? "login" : "logins"')
+        self.assertContains(one_day_response, "Successful login counts for selected monitoring period")
+        self.assertContains(one_day_response, "admin_monitoring.js")
 
     def test_admin_and_mobile_login_endpoints_record_success_and_failure(self):
         AccountActivity.objects.all().delete()
@@ -2117,7 +2130,7 @@ class UserDeactivationAndHistoryPreservationTests(TestCase):
 
         row = _row_from_admin(self.student, {}, self.super_admin)
         self.assertEqual(row["status"], "inactive")
-        self.assertEqual(row["status_label"], "Deactivated")
+        self.assertEqual(row["status_label"], "Inactive / Disabled")
         self.assertFalse(row["is_active"])
 
     def test_admin_access_control_page_lists_deactivated_status(self):
@@ -2127,8 +2140,8 @@ class UserDeactivationAndHistoryPreservationTests(TestCase):
 
         response = self.client.get(reverse("admin_users_page"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Deactivated")
-        self.assertContains(response, ">Activate Account<")
+        self.assertContains(response, "Inactive / Disabled")
+        self.assertContains(response, ">Reactivate Account<")
 
     def test_deactivating_user_preserves_orders(self):
         from api.models import MarketplaceOrder, Product

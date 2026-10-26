@@ -1,0 +1,54 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Account Recovery | CampusHub</title>
+    <link rel="stylesheet" href="{% static 'components/css/account_password_reset.css' %}?v=20261010-self-service">
+{% include 'partials/web_typography.html' %}
+</head>
+<body>
+<main class="reset-card" id="ownerRecovery" data-send-url="{% url 'mobile_password_reset' %}" data-verify-url="{% url 'mobile_password_reset_verify' %}" data-confirm-url="{% url 'mobile_password_reset_confirm' %}">
+    <p class="brand">CampusHub</p><h1 id="recoveryHeading">Account Recovery</h1>
+    <p id="ownerNotice" role="status" aria-live="polite" tabindex="-1"></p>
+    <form id="ownerIdentify">
+        <p>Recover your account using your recorded, verified email.</p>
+        <label for="ownerPurpose">Recovery action</label>
+        <select id="ownerPurpose"><option value="password">Reset Password</option><option value="username">Recover Username</option><option value="email_verification">Verify Email</option></select>
+        <label for="ownerEmail">Recorded Email</label><input id="ownerEmail" type="email" autocomplete="email" required maxlength="254">
+        <p class="helper">If your email is not verified yet, choose Verify Email first.</p>
+        <button type="submit">Send Verification Code</button>
+        <button type="button" id="ownerExistingCode" class="secondary">I already have a code</button>
+    </form>
+    <form id="ownerVerify" hidden>
+        <p>Enter the 6-digit verification code sent to <strong id="ownerMaskedEmail"></strong>.</p>
+        <label id="ownerCodeLabel">Verification Code</label>
+        <div class="code-boxes" role="group" aria-labelledby="ownerCodeLabel">
+            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="6" autocomplete="one-time-code" aria-label="Verification code digit 1 of 6" required>
+            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="6" aria-label="Verification code digit 2 of 6" required>
+            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="6" aria-label="Verification code digit 3 of 6" required>
+            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="6" aria-label="Verification code digit 4 of 6" required>
+            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="6" aria-label="Verification code digit 5 of 6" required>
+            <input type="text" inputmode="numeric" pattern="[0-9]" maxlength="6" aria-label="Verification code digit 6 of 6" required>
+        </div>
+        <p>Code expires in 15 minutes.</p><button type="submit">Verify Code</button>
+        <p>Didn't receive the code?</p><button type="button" id="ownerResend" class="secondary">Resend Code</button>
+        <button type="button" id="ownerChange" class="secondary">Change recovery action or email</button>
+    </form>
+    <form id="ownerPassword" hidden>
+        <label for="ownerNewPassword">New Password *</label>
+        <input id="ownerNewPassword" type="password" autocomplete="new-password" minlength="8" required>
+        <button type="button" class="secondary password-visibility" data-input="ownerNewPassword" aria-pressed="false">Show new password</button>
+        <p class="helper">Use at least 8 characters with uppercase and lowercase letters, a number and a symbol.</p>
+        <label for="ownerConfirmPassword">Confirm New Password *</label>
+        <input id="ownerConfirmPassword" type="password" autocomplete="new-password" minlength="8" required>
+        <button type="button" class="secondary password-visibility" data-input="ownerConfirmPassword" aria-pressed="false">Show confirmation</button>
+        <button type="submit">Update Password</button>
+    </form>
+    <div id="ownerComplete" hidden><p id="ownerCompletedMessage"></p><p id="ownerUsername" hidden></p></div>
+    <a href="{% url 'admin_login_page' %}">Back to Login</a>
+    <noscript><p>Enable JavaScript to enter your verification code in CampusHub.</p></noscript>
+</main>
+<script src="{% static 'components/js/account_recovery.js' %}?v=20261010-self-service"></script>
+</body>
+</html>

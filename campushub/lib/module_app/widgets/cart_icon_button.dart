@@ -49,7 +49,7 @@ class CartIconButton extends StatelessWidget {
                     padding: const EdgeInsets.all(4),
                     constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                     decoration: const BoxDecoration(
-                      color: Color(0xFFFCB316),
+                      color: Color(0xFFFCB315),
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,

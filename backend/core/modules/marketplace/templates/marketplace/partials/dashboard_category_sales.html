@@ -1,0 +1,14 @@
+<section class="marketplace-category-sales" aria-labelledby="marketplaceCategorySalesTitle">
+    <h3 id="marketplaceCategorySalesTitle">Sales by Product Category</h3>
+    <p>Share of marketplace sales by product category for the selected period.</p>
+    {% if marketplace.category_sales_chart.has_sales %}
+    {{ marketplace.category_sales_chart|json_script:"marketplaceCategorySalesData" }}
+    <div class="marketplace-category-canvas"><canvas id="marketplaceCategorySalesChart" role="img" aria-label="Category shares of eligible marketplace revenue. Exact sales and percentages are listed below."></canvas></div>
+    <p id="marketplaceCategorySalesError" role="status" hidden>Chart unavailable. Category sales and shares are listed below.</p>
+    <table class="table marketplace-preview-table marketplace-category-legend">
+        <caption class="visually-hidden">Sales by product category. Total eligible revenue: &#8369;{{ marketplace.category_sales_chart.total_sales }}.</caption>
+        <thead><tr><th scope="col">Category</th><th scope="col">Sales</th><th scope="col">Share</th></tr></thead>
+        <tbody>{% for category in marketplace.category_sales_chart.categories %}<tr><th scope="row"><i aria-hidden="true" style="background-color:{{ category.color }}"></i>{{ category.name }}</th><td>&#8369;{{ category.sales }}</td><td>{{ category.percentage }}%</td></tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<div class="marketplace-empty"><strong>No Category Sales Yet</strong><p>Category shares will appear when eligible marketplace orders are completed in the selected period.</p></div>{% endif %}
+</section>

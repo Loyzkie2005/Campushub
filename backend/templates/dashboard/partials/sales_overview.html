@@ -1,23 +1,26 @@
-<section class="sales-overview" id="sales-overview-card" aria-labelledby="salesOverviewTitle">
+{% if executive_mode %}{% include 'dashboard/partials/super_marketplace_sales.html' %}{% else %}
+<section class="sales-overview{% if marketplace %} sales-overview--dashboard{% endif %}{% if marketplace_compact %} sales-overview--compact{% endif %}" id="sales-overview-card" aria-labelledby="salesOverviewTitle">
     <header class="sales-overview__header">
         <div class="sales-overview__heading">
             <h2 id="salesOverviewTitle">Sales Overview</h2>
-            <p>Completed and paid Cash on Pickup orders</p>
+            <p>{% if marketplace %}Completed and paid marketplace orders{% if marketplace_compact %} · Recognized in selected period{% endif %}{% else %}Completed and paid Cash on Pickup orders{% endif %}</p>
+            {% if marketplace_compact and marketplace.date_range_error %}<p class="marketplace-date-error" id="marketplaceDateRangeError" role="alert">{{ marketplace.date_range_error }} The requested range was not applied. Showing Last 30 Days.</p>{% endif %}
         </div>
-        <form method="get" action="#sales-overview-card" id="salesOverviewFilters" class="sales-overview__filters">
+        <form data-action-filter method="get" action="#sales-overview-card" id="salesOverviewFilters" class="sales-overview__filters"{% if marketplace %} data-revenue-only{% endif %}>
             {% for key, value in sales_filter_parameters %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
-            <input type="hidden" name="sales_days" id="salesDaysHidden" value="{{ sales_days }}">
+            {% if not global_dashboard and not marketplace %}<input type="hidden" name="sales_days" id="salesDaysHidden" value="{{ sales_days }}">{% endif %}
             <div class="sales-overview__controls-top">
-                <div class="sales-filter-wrap">
+                {% if not global_dashboard and not marketplace_compact %}<div class="sales-filter-wrap">
                     <select name="period" id="salesPeriodSelect" aria-label="Date range" class="sales-select sales-select--date-range">
                         <option value="today"{% if sales_period_key == 'today' %} selected{% endif %}>Today</option>
                         <option value="7"{% if sales_period_key == '7' %} selected{% endif %}>Last 7 Days</option>
                         <option value="30"{% if sales_period_key == '30' or not sales_period_key %} selected{% endif %}>Last 30 Days</option>
+                        {% if marketplace %}<option value="90"{% if sales_period_key == '90' %} selected{% endif %}>Last 90 Days</option>{% endif %}
                         <option value="month"{% if sales_period_key == 'month' %} selected{% endif %}>This Month</option>
                         <option value="year"{% if sales_period_key == 'year' %} selected{% endif %}>This Year</option>
                         <option value="custom"{% if sales_period_key == 'custom' %} selected{% endif %}>Custom</option>
                     </select>
-                </div>
+                </div>{% endif %}
                 <div class="sales-filter-wrap">
                     <select name="grouping" id="salesGroupingSelect" aria-label="Sales grouping" class="sales-select">
                         <option value="daily"{% if sales_grouping == 'daily' or not sales_grouping %} selected{% endif %}>Daily</option>
@@ -26,7 +29,7 @@
                     </select>
                 </div>
             </div>
-            <div class="sales-overview__custom-dates{% if sales_period_key != 'custom' %} d-none{% endif %}" id="salesCustomDates">
+            {% if not global_dashboard and not marketplace_compact %}<div class="sales-overview__custom-dates{% if sales_period_key != 'custom' %} d-none{% endif %}" id="salesCustomDates">
                 <label class="sales-date-field">
                     <span>From</span>
                     <input type="date" name="date_from" id="salesDateFrom" value="{{ sales_period.start|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
@@ -36,54 +39,79 @@
                     <input type="date" name="date_to" id="salesDateTo" value="{{ sales_period.end|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
                 </label>
                 <button type="submit" class="sales-date-apply-btn" id="salesApplyCustom">Apply</button>
-            </div>
+            </div>{% endif %}
             <noscript><button type="submit">Apply</button></noscript>
         </form>
     </header>
+    {% if marketplace_compact and sales_overview.comparison %}<p class="marketplace-comparison-period">Previous period: {{ sales_overview.comparison.start|date:'M j, Y' }} – {{ sales_overview.comparison.end|date:'M j, Y' }} ({{ sales_overview.comparison.days }} day{{ sales_overview.comparison.days|pluralize }}).</p>{% endif %}
     <div class="sales-overview__metrics">
         {% for metric in sales_overview.metrics %}
+        {% if not executive_mode or metric.key != 'average' %}
         <article class="sales-overview__metric" data-metric="{{ metric.key }}">
-            <span class="sales-overview__icon{% if metric.key == 'orders' %} sales-overview__icon--gold{% endif %}" aria-hidden="true">
+            {% if not global_dashboard %}<span class="sales-overview__icon{% if metric.key == 'orders' %} sales-overview__icon--gold{% endif %}" aria-hidden="true">
                 {% if metric.key == 'sales' %}&#8369;{% elif metric.key == 'orders' %}{% include 'dashboard/partials/sales_overview_icon.html' with icon='cart' %}{% else %}{% include 'dashboard/partials/sales_overview_icon.html' with icon='receipt' %}{% endif %}
-            </span>
+            </span>{% endif %}
             <div class="sales-overview__metric-content">
-                <h3>{{ metric.label }}</h3>
-                <strong>{% if metric.currency %}&#8369;{% endif %}{{ metric.value }}</strong>
-                <p><b>{% if '-' not in metric.change and metric.change != 'No change' and metric.change != 'No previous sales' %}&#8599; {% elif '-' in metric.change %}&#8600; {% endif %}{{ metric.change }}</b> <span>vs. previous {% if sales_period_key == 'today' %}day{% elif sales_period_key == 'month' %}month{% elif sales_period_key == 'year' %}year{% else %}{{ sales_days }} days{% endif %}</span></p>
+                <h3>
+                    <span>{% if marketplace_compact and metric.key == 'sales' %}Marketplace Sales{% else %}{{ metric.label }}{% endif %}</span>
+                    {% if global_dashboard %}<span class="marketplace-definition">
+                        <button type="button" aria-label="Define {{ metric.label }}" aria-describedby="marketplace{{ metric.key|capfirst }}Definition">{% include 'dashboard/partials/marketplace_icon.html' with icon='info' %}</button>
+                        <span role="tooltip" id="marketplace{{ metric.key|capfirst }}Definition">{% if metric.key == 'sales' %}Total value of completed and paid marketplace orders within the selected period.{% elif metric.key == 'orders' %}Number of completed marketplace orders with confirmed payment within the selected period.{% else %}Marketplace sales divided by completed paid orders.{% endif %}</span>
+                    </span>{% endif %}
+                </h3>
+                {% if global_dashboard %}<div class="sales-overview__metric-value">{% endif %}
+                    <strong>{% if marketplace_compact and metric.comparison and not metric.comparison.defined %}&mdash;{% else %}{% if metric.currency %}&#8369;{% endif %}{{ metric.value }}{% endif %}</strong>
+                    {% if global_dashboard %}<span class="sales-overview__metric-symbol" aria-hidden="true">{% include 'dashboard/partials/marketplace_icon.html' with icon=metric.key %}</span>
+                </div>{% endif %}
+                {% if marketplace_compact and metric.comparison %}
+                <p class="marketplace-metric-comparison"><span>Previous: {% if metric.comparison.previous == None %}&mdash;{% else %}{% if metric.currency %}&#8369;{% endif %}{{ metric.comparison.previous }}{% endif %}</span><span>Change: {% if metric.comparison.change == None %}&mdash;{% else %}{{ metric.comparison.change }}{% endif %}</span></p>
+                {% if metric.comparison.note %}<small class="marketplace-metric-note">{{ metric.comparison.note }}</small>{% endif %}
+                {% elif not marketplace_compact or sales_overview.has_sales or metric.change != 'No change' %}
+                {% if global_dashboard %}<p class="dashboard-comparison" data-semantic-type="{% if not sales_overview.has_sales %}neutral{% else %}{{ metric.semantic_type }}{% endif %}">{% if not sales_overview.has_sales %}No completed {% if metric.key == 'sales' %}sales{% else %}orders{% endif %} this period.{% else %}{{ metric.comparison_text }}{% endif %}</p>{% else %}<p><b>{% if '-' not in metric.change and metric.change != 'No change' and metric.change != 'No previous sales' %}&#8599; {% elif '-' in metric.change %}&#8600; {% endif %}{{ metric.change }}</b> <span>vs. previous {% if sales_period_key == 'today' %}day{% elif sales_period_key == 'month' %}month{% elif sales_period_key == 'year' %}year{% else %}{{ sales_days }} days{% endif %}</span></p>{% endif %}
+                {% endif %}
             </div>
         </article>
+        {% endif %}
         {% endfor %}
+        {% if executive_mode %}<article class="sales-overview__metric"><div class="sales-overview__metric-content"><h3>Active Sellers</h3><div class="sales-overview__metric-value"><strong data-executive-sellers>{{ dashboard_stats.active_sellers }}</strong><span class="sales-overview__metric-symbol" aria-hidden="true">{% include 'dashboard/partials/marketplace_icon.html' with icon='products' %}</span></div><p>Current approved seller access</p></div></article>{% endif %}
     </div>
+    {% if marketplace_compact and not sales_overview.has_sales %}<p class="marketplace-sales-empty-summary">No completed and paid orders in the selected period.</p>{% endif %}
     <div class="sales-overview__trend">
         <div class="sales-overview__trend-header">
             <div>
-                <h3>Sales Trend</h3>
-                <p>{{ sales_grouping|capfirst }} sales and completed orders for {% if sales_period_key == 'today' %}today{% elif sales_period_key == 'custom' %}{{ sales_period.label }}{% elif sales_period_key == 'month' %}this month{% elif sales_period_key == 'year' %}this year{% else %}the last {{ sales_days }} days{% endif %}</p>
+                <h3>{% if global_dashboard %}{% include 'dashboard/partials/marketplace_icon.html' with icon='trend' %}{% endif %}Sales Trend</h3>
+                <p>{{ sales_grouping|capfirst }} {% if marketplace %}marketplace revenue{% else %}sales and completed orders{% endif %} for {% if sales_period_key == 'today' %}today{% elif sales_period_key == 'custom' %}{{ sales_period.label }}{% elif sales_period_key == 'month' %}this month{% elif sales_period_key == 'year' %}this year{% else %}the last {{ sales_days }} days{% endif %}</p>
             </div>
-            <div class="sales-overview__legend sales-chart-legend" aria-label="Chart legend">
-                <span><i class="sales-overview__swatch" aria-hidden="true"></i>Sales (&#8369;)</span>
-                <span><i class="sales-overview__swatch sales-overview__swatch--orders" aria-hidden="true"></i>Orders</span>
-            </div>
+            {% if not marketplace_compact %}<div class="sales-overview__legend sales-chart-legend" aria-label="Chart legend">
+                <span><i class="sales-overview__swatch" aria-hidden="true"></i>{% if marketplace %}Marketplace Revenue{% else %}Sales (&#8369;){% endif %}</span>
+                {% if not marketplace %}<span><i class="sales-overview__swatch sales-overview__swatch--orders" aria-hidden="true"></i>{% if global_dashboard %}Completed Orders{% else %}Orders{% endif %}</span>{% endif %}
+            </div>{% endif %}
         </div>
-        {% if not sales_overview.has_sales %}<p class="sales-overview__empty">No completed sales in the selected period.</p>{% endif %}
-        <div class="sales-overview__canvas">
-            <canvas id="salesOverviewChart" role="img" aria-label="Sales amounts and completed order counts by {{ sales_grouping }} period. Detailed values follow in the chart data table."></canvas>
+        {% if global_dashboard %}<div id="salesOverviewLoadError" class="sales-overview__load-error" role="alert" hidden><span>Unable to load sales analytics.</span><button type="button" id="salesOverviewRetry">Retry</button></div>
+        <div class="sales-overview__canvas" data-has-sales="{{ sales_overview.has_sales|yesno:'true,false' }}">{% else %}{% if not sales_overview.has_sales %}{% if marketplace_compact %}{% include 'dashboard/partials/empty_state.html' with title='No Sales Data Yet' description='Sales trends will appear when completed and paid orders are recorded in the selected period.' icon='trend' %}{% else %}<p class="sales-overview__empty">{% if marketplace %}<strong>No Sales Data Yet</strong><br>Sales trends will appear when eligible marketplace orders are completed in the selected period.{% else %}No completed sales in the selected period.{% endif %}</p>{% endif %}{% endif %}<div class="sales-overview__canvas"{% if marketplace and not sales_overview.has_sales %} hidden{% endif %}>{% endif %}
+            <canvas id="salesOverviewChart" role="img"{% if global_dashboard %} tabindex="0" aria-describedby="salesTrendDescription"{% endif %} aria-label="{% if marketplace %}Marketplace revenue{% else %}Sales amounts and completed order counts{% endif %} by {{ sales_grouping }} period.{% if global_dashboard %} Use left and right arrow keys to inspect each period.{% else %} Detailed values follow in the chart data table.{% endif %}"></canvas>
+            {% if global_dashboard %}<p id="salesOverviewChartError" class="sales-overview__chart-error" hidden>Chart unavailable. Sales totals are shown above; open View Detailed Analytics for details.</p>{% endif %}
         </div>
-        <p id="salesOverviewChartError" hidden>Chart unavailable. Sales totals are shown above; period values are available below.</p>
-        <details class="sales-overview__data">
+        {% if global_dashboard %}<p class="sales-overview__empty"{% if sales_overview.has_sales %} hidden{% endif %}>No completed sales in this period.</p>{% endif %}
+        {% if not global_dashboard %}<p id="salesOverviewChartError" hidden>Chart unavailable. Sales totals are shown above; period values are available below.</p>{% endif %}
+        {% if global_dashboard %}<div class="visually-hidden" id="salesTrendDescription"><ul data-sales-trend-description>{% for row in sales_overview.rows %}<li>{{ row.label }}: Marketplace Sales &#8369;{{ row.sales }}; Completed Orders {{ row.orders }}.</li>{% endfor %}</ul><span data-sales-chart-live aria-live="polite"></span></div>{% else %}
+        {% if not marketplace_compact or sales_overview.has_sales %}<details class="sales-overview__data">
             <summary>View chart data</summary>
-            <div><table><caption>Sales and orders by period</caption><thead><tr><th scope="col">Period</th><th scope="col">Sales (&#8369;)</th><th scope="col">Orders</th></tr></thead><tbody>
-                {% for row in sales_overview.rows %}<tr><th scope="row">{{ row.label }}</th><td>&#8369;{{ row.sales }}</td><td>{{ row.orders }}</td></tr>{% endfor %}
+            <div><table><caption>{% if marketplace %}Marketplace revenue{% else %}Sales and orders{% endif %} by period</caption><thead><tr><th scope="col">Period</th><th scope="col">Sales (&#8369;)</th>{% if not marketplace %}<th scope="col">Orders</th>{% endif %}</tr></thead><tbody>
+                {% for row in sales_overview.rows %}<tr><th scope="row">{{ row.label }}</th><td>&#8369;{{ row.sales }}</td>{% if not marketplace %}<td>{{ row.orders }}</td>{% endif %}</tr>{% endfor %}
             </tbody></table></div>
-        </details>
-    </div>
-    <footer class="sales-overview__footer">
-        <div class="sales-overview__footer-info">
-            <span class="sales-overview__info-icon" aria-hidden="true">i</span>
-            <p>Data is based on completed orders with confirmed payment (Cash on Pickup).</p>
-        </div>
-        {% if perms.accounts.can_view_marketplace_analytics or user.is_staff or user.is_superuser %}
-        <a href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ sales_overview.start|date:'Y-m-d' }}&amp;date_to={{ sales_overview.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}" class="sales-overview__cta-btn">View Detailed Analytics <span aria-hidden="true">&rarr;</span></a>
+        </details>{% endif %}
         {% endif %}
-    </footer>
+    </div>
+    {% if marketplace %}{% include 'marketplace/partials/dashboard_top_products.html' %}{% if not marketplace_compact %}{% include 'marketplace/partials/dashboard_category_sales.html' %}{% endif %}{% endif %}
+    {% if not global_dashboard %}<footer class="sales-overview__footer">
+        <div class="sales-overview__footer-info">
+            <span class="sales-overview__info-icon" aria-hidden="true">{% if global_dashboard %}{% include 'dashboard/partials/marketplace_icon.html' with icon='info' %}{% else %}i{% endif %}</span>
+            <p>{% if marketplace %}Data is based on completed marketplace orders with confirmed payment. Delivery and payment are recorded separately.{% else %}Data is based on completed orders with confirmed payment (Cash on Pickup).{% endif %}</p>
+        </div>
+        {% if not global_dashboard %}{% if perms.accounts.can_view_marketplace_analytics or user.is_staff or user.is_superuser %}
+        <a href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ sales_overview.start|date:'Y-m-d' }}&amp;date_to={{ sales_overview.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}" class="sales-overview__cta-btn">View Detailed Analytics <span aria-hidden="true">&rarr;</span></a>
+        {% endif %}{% endif %}
+    </footer>{% endif %}
 </section>
+{% endif %}

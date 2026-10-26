@@ -35,37 +35,48 @@ def normalize_customization_options(raw) -> list[dict]:
         return []
 
     groups: list[dict] = []
+    group_names = set()
     for item in raw:
         if not isinstance(item, dict):
             continue
         name = (item.get("name") or "").strip()
         if not name:
             continue
+        from .inventory import InventoryStockError, validate_stock_quantity
+        if name in group_names:
+            raise InventoryStockError("Variant group names must be unique.")
+        group_names.add(name)
 
         selection = (item.get("selection") or "single").strip().lower()
         if selection not in {"single", "multiple"}:
             selection = "single"
 
         options: list[dict] = []
+        option_names = set()
         for opt in item.get("options") or []:
             if not isinstance(opt, dict):
                 continue
             opt_name = (opt.get("name") or "").strip()
             if not opt_name:
                 continue
+            if opt_name in option_names:
+                raise InventoryStockError("Variant names must be unique within their group.")
+            option_names.add(opt_name)
             stock_raw = opt.get("stock", 0)
-            try:
-                stock = max(int(stock_raw), 0)
-            except (TypeError, ValueError):
-                stock = 0
+            stock = validate_stock_quantity(stock_raw)
             expiry_raw = (opt.get("expiry_date") or "").strip()
             option_payload = {
                 "name": opt_name,
                 "extra_price": str(_to_decimal(opt.get("extra_price", 0))),
                 "stock": stock,
             }
+            if "low_stock_threshold" in opt:
+                from .inventory import validate_low_stock_threshold
+                option_payload["low_stock_threshold"] = validate_low_stock_threshold(opt["low_stock_threshold"])
             if expiry_raw:
                 option_payload["expiry_date"] = expiry_raw
+            if "image" in opt:
+                option_payload["image"] = str(opt.get("image") or "").strip()
             options.append(option_payload)
 
         if not options:
@@ -142,7 +153,7 @@ def validate_order_selections(
             return [], Decimal("0.00"), f"Invalid customization group: {group_name}"
 
         bucket = selected_by_group.setdefault(group_name, [])
-        if group["selection"] == "single" and bucket:
+        if group.get("selection", "single") == "single" and bucket:
             return [], Decimal("0.00"), f"Choose one option only for {group_name}"
 
         if any(row["option"] == option_name for row in bucket):

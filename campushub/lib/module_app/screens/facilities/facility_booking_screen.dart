@@ -194,6 +194,48 @@ class _FacilityBookingScreenState extends State<FacilityBookingScreen> {
     ),
   );
 
+  Widget _jobOrderRequest() => BookingSection(
+    'Job Order Request',
+    child: BookingCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.description_outlined,
+                size: 20,
+                color: bookingNavy,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.facility.jobOrderService.isNotEmpty
+                      ? widget.facility.jobOrderService
+                      : 'Service to be confirmed by Facilities Admin',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: bookingNavy,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'After approval, CampusHub prepares a Job Order draft using your '
+            'requester information, facility, schedule, purpose, attendees and '
+            'additional requirements. Facilities staff will review and complete '
+            'the official fields. You do not need to submit a separate Job Order form.',
+            style: TextStyle(fontSize: 12, height: 1.6, color: bookingMuted),
+          ),
+        ],
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: _step == 0 || _step == 3,
@@ -264,7 +306,11 @@ class _FacilityBookingScreenState extends State<FacilityBookingScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, size: 20, color: bookingRed),
+                    const Icon(
+                      Icons.error_outline,
+                      size: 20,
+                      color: bookingRed,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -357,11 +403,15 @@ class _FacilityBookingScreenState extends State<FacilityBookingScreen> {
                       minimumSize: const Size(double.infinity, 52),
                       backgroundColor: selected
                           ? bookingGoldBg
-                          : (available ? Colors.white : const Color(0xFFF8FAFC)),
+                          : (available
+                                ? Colors.white
+                                : const Color(0xFFF8FAFC)),
                       side: BorderSide(
                         color: selected
                             ? bookingGold
-                            : (available ? bookingOutline : const Color(0xFFEEF0F6)),
+                            : (available
+                                  ? bookingOutline
+                                  : const Color(0xFFEEF0F6)),
                         width: selected ? 1.5 : 1,
                       ),
                       shape: RoundedRectangleBorder(
@@ -409,6 +459,7 @@ class _FacilityBookingScreenState extends State<FacilityBookingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  _jobOrderRequest(),
                   BookingSection(
                     'Requestor Information',
                     child: Column(
@@ -502,6 +553,7 @@ class _FacilityBookingScreenState extends State<FacilityBookingScreen> {
               ),
             ),
           if (_step == 2) ...[
+            _jobOrderRequest(),
             BookingSection(
               'Booking Summary',
               child: BookingCard(
@@ -577,7 +629,10 @@ class _FacilityBookingScreenState extends State<FacilityBookingScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    BookingValue('Event / Activity', _fields['event_name']!.text),
+                    BookingValue(
+                      'Event / Activity',
+                      _fields['event_name']!.text,
+                    ),
                     BookingValue('Purpose', _fields['purpose']!.text),
                     BookingValue(
                       'Attendees',
@@ -602,7 +657,10 @@ class _FacilityBookingScreenState extends State<FacilityBookingScreen> {
                               _fields['other_requirements']!.text.isNotEmpty)
                             _fields['other_requirements']!.text,
                         ].join(', '),
-                        style: const TextStyle(fontSize: 13, color: bookingNavy),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: bookingNavy,
+                        ),
                       ),
                     ],
                     if (_fields['notes']!.text.isNotEmpty) ...[
@@ -619,7 +677,10 @@ class _FacilityBookingScreenState extends State<FacilityBookingScreen> {
                       const SizedBox(height: 6),
                       Text(
                         _fields['notes']!.text,
-                        style: const TextStyle(fontSize: 13, color: bookingNavy),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: bookingNavy,
+                        ),
                       ),
                     ],
                     const Divider(color: bookingOutline),

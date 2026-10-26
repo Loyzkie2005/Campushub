@@ -1,0 +1,23 @@
+[Unit]
+Description=CampusHub Django website and API
+After=network.target postgresql@18-main.service
+
+[Service]
+Type=simple
+User=campushub
+Group=campushub
+WorkingDirectory=/srv/campushub/current/backend/core
+EnvironmentFile=/etc/campushub/django.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/srv/campushub/venvs/django/bin/gunicorn core.wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 90 --error-logfile -
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/campushub/shared
+
+[Install]
+WantedBy=multi-user.target

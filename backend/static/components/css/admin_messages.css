@@ -167,8 +167,8 @@
 }
 
 .messages-delete-btn:hover:not(:disabled) {
-    background: #FCB316;
-    border-color: #FCB316;
+    background: #FCB315;
+    border-color: #FCB315;
     color: #1A1851;
 }
 

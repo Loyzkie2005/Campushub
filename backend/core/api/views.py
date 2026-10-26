@@ -1,6 +1,11 @@
+from accounts.role_permissions import admin_read_permissions
+from modules.marketplace.services.fifo import order_request as fifo_order_request
+from modules.marketplace.services.fulfillment import fulfillment_buyer_guard
+from modules.facilities.services.activity import facility_activity_row, facility_snapshot, record_facility_activity
 import base64
 import binascii
 import json
+import logging
 import random
 import re
 from datetime import timedelta
@@ -9,16 +14,19 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import never_cache
+from django.views.decorators.debug import sensitive_variables
 import jwt
 from jwt import InvalidTokenError
 
@@ -28,7 +36,7 @@ from accounts.admin_tab_auth import (
     get_tab_token_from_request,
     revoke_admin_tab_token,
 )
-from accounts.activity_logging import log_account_activity
+from accounts.activity_logging import log_account_activity, log_marketplace_event, log_seller_event
 from accounts.models import AccountActivity, User
 from accounts.role_permissions import (
     ADMIN_PERMISSION_CODENAMES,
@@ -58,12 +66,25 @@ from .inventory import (
     count_customization_options,
     get_inventory_status_label,
     get_product_total_stock,
+    get_product_inventory_snapshot,
+    get_product_quantity_status,
+    product_variant_items,
+    validate_low_stock_threshold,
+    InventoryThresholdError,
+    InventoryStockError,
+    validate_stock_quantity,
+    validate_inventory_option_changes,
+    get_variant_stock_summary,
+    customization_has_stock_tracking,
+    sync_product_inventory_fields,
     is_perishable_category,
+    is_marketplace_available,
     low_stock_threshold,
     parse_expiry_date,
     PERISHABLE_CATEGORIES,
 )
 from .product_images import (
+    validate_product_images,
     persist_product_image,
     persist_product_images,
     persist_facility_image,
@@ -110,6 +131,7 @@ def serialize_mobile_user(user):
 
 
 def serialize_campushub_user(user):
+    from accounts.academic import academic_labels
     user_type = (user.user_type or "").strip().lower()
     return {
         "id": user.id,
@@ -123,11 +145,15 @@ def serialize_campushub_user(user):
         "account_type": user_type,
         "user_type": user_type,
         "department": user.department.name if user.department else None,
+        **academic_labels(user.department, user.major),
         "is_active": user.is_active,
         "is_suspended": user.is_suspended,
         "institutional_id": user.institutional_id,
         "contact_number": user.contact_number,
+        "year_section": user.year_section,
+        "profile_photo_url": user.profile_photo.url if user.profile_photo else "",
         "profile_completed": user.profile_completed,
+        "email_verified": user.email_verified,
         "last_login": user.last_login.isoformat() if user.last_login else None,
     }
 
@@ -167,6 +193,8 @@ def _mobile_user_from_bearer(request):
         return None, JsonResponse({"error": "User account not found."}, status=404)
     if not user.is_active or user.is_suspended:
         return None, JsonResponse({"error": "This account is inactive or suspended."}, status=403)
+    # Reuse verified claims for consumers such as push registration expiry.
+    request.mobile_auth_claims = claims
     return user, None
 
 
@@ -185,9 +213,13 @@ def _validate_mobile_profile(user_type, institutional_id, contact_number):
     return None
 
 
-def serialize_product(product, request=None):
+def serialize_product(product, request=None, *, include_inventory=False):
+    from modules.marketplace.services.bundles import is_bundle, bundle_inventory
+    from accounts.academic import product_academic
+    from modules.marketplace.services.inventory import inventory_sku
     image_url = ""
     images = []
+    seller_photo = getattr(product.owner, "profile_photo", None)
     if product.image_url:
         raw = product.image_url.strip()
         # Check if it's a JSON array
@@ -202,15 +234,21 @@ def serialize_product(product, request=None):
             image_url = raw
             images = [raw] if raw else []
 
-    return {
+    payload = {
         "id": product.id,
-        "seller_id": product.seller_id,
-        "seller": product.seller.get_full_name().strip()
-        or product.seller.username,
-        "department": str(product.seller.department)
-        if getattr(product.seller, "department_id", None)
-        else "",
+        "product_code": product.product_code or f"PRD-{product.pk:04d}",
+        "sku": inventory_sku(product),
+        **product_academic(product),
+        "seller_id": product.owner_key,
+        "seller_ref": product.owner_ref,
+        "seller_photo_url": seller_photo.url if seller_photo else "",
+        "seller": product.owner.get_full_name().strip()
+        or product.owner.username,
+        "department": str(product.department) if product.department_id else (str(product.owner.department) if getattr(product.owner, "department_id", None) else ""),
         "name": product.name,
+        "department_id": product.department_id,
+        "tags": product.tags,
+        "product_type": product.product_type,
         "description": product.description,
         "category": product.category,
         "price": str(product.price),
@@ -224,19 +262,35 @@ def serialize_product(product, request=None):
         "expiry_date": product.expiry_date.isoformat() if product.expiry_date else None,
         "inventory_status": product.get_inventory_status(),
         "inventory_status_label": product.get_inventory_status_label(),
-        "low_stock_threshold": low_stock_threshold(),
+        "low_stock_threshold": None if is_bundle(product) or product_variant_items(product) else low_stock_threshold(product),
+        **get_variant_stock_summary(product),
+        "quantity_status": get_product_quantity_status(product),
         "is_perishable": is_perishable_category(product.category),
         "perishable_categories": sorted(PERISHABLE_CATEGORIES),
         "image_url": image_url,
         "images": images,
-        "seller_contact": product.seller.email,
+        "seller_contact": product.owner.email,
         "approval_status": product.approval_status,
         "rejection_reason": product.rejection_reason,
         "submitted_at": product.submitted_at.isoformat(),
+        "updated_at": product.updated_at.isoformat(),
         "customization_enabled": bool(product.customization_enabled),
         "customization_options": product.customization_options or [],
         "is_archived": bool(getattr(product, "is_archived", False)),
     }
+    if is_bundle(product):
+        payload["bundle"] = bundle_inventory(product)
+    if include_inventory:
+        payload["inventory"] = get_product_inventory_snapshot(product)
+        payload["can_view_stock_movements"] = request is None or any(request.user.has_perm("accounts." + code) for code in ("can_manage_products", "can_approve_products", "can_view_stock_movements"))
+    if include_inventory and (request is None or request.user.has_perm("accounts.can_manage_products") or request.user.has_perm("accounts.can_approve_products") or request.user.has_perm("accounts.can_view_stock_movements")):
+        from modules.marketplace.services.inventory_monitor import inventory_movements
+        payload["stock_movements"] = []
+        for sku in product.inventory_skus.all():
+            for event in inventory_movements(sku):
+                payload["stock_movements"].append({**event, "date": event["date"].isoformat(), "sku": sku.code})
+        payload["stock_movements"] = sorted(payload["stock_movements"], key=lambda event: event["date"], reverse=True)[:100]
+    return payload
 
 
 def manageable_products_for(user):
@@ -246,6 +300,7 @@ def manageable_products_for(user):
 
 
 def serialize_marketplace_order(order):
+    from modules.marketplace.services.fulfillment import presentation
     return {
         "id": order.id,
         "order_code": order.order_code or "",
@@ -274,6 +329,7 @@ def serialize_marketplace_order(order):
         ),
         "cancellation_reason": order.cancellation_reason,
         "created_at": order.created_at.isoformat(),
+        **presentation(order),
     }
 
 
@@ -287,6 +343,8 @@ def serialize_seller_request(seller_request):
         "product_type": seller_request.product_type,
         "message": seller_request.message,
         "status": seller_request.status,
+        "is_suspended": seller_request.is_suspended,
+        "seller_access": "suspended" if seller_request.is_suspended and seller_request.status == "approved" else seller_request.status,
         "rejection_reason": seller_request.rejection_reason,
         "created_at": seller_request.created_at.isoformat(),
     }
@@ -573,6 +631,11 @@ def mobile_complete_profile(request):
         else institutional_id
     )
     contact_number = re.sub(r"[\s-]", "", data.get("contact_number") or "")
+    # Older installed clients omit this optional field; preserve their saved value.
+    year_section = data.get("year_section", user.year_section)
+    if not isinstance(year_section, str) or len(year_section.strip()) > 120:
+        return JsonResponse({"error": "Year / Section must be text of up to 120 characters."}, status=400)
+    year_section = year_section.strip()
     validation_error = _validate_mobile_profile(
         user_type,
         profile_id,
@@ -580,6 +643,15 @@ def mobile_complete_profile(request):
     )
     if validation_error:
         return JsonResponse({"error": validation_error}, status=400)
+
+    from accounts.academic import resolve_account_academic
+    try:
+        program, major = resolve_account_academic("User", user_type,
+            data.get("program_id", data.get("department_id", user.department_id)),
+            data.get("major_id", user.major_id),
+            existing=user if user.profile_completed and user.user_type == user_type else None)
+    except (ValueError, TypeError) as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
 
     if (
         user_type == CampusHubUser.USER_TYPE_STUDENT
@@ -597,6 +669,8 @@ def mobile_complete_profile(request):
         institutional_id if user_type == CampusHubUser.USER_TYPE_FACULTY else ""
     )
     user.contact_number = contact_number
+    user.year_section = year_section
+    user.department, user.major = program, major
     user.profile_completed = True
     user.save(
         update_fields=[
@@ -604,6 +678,9 @@ def mobile_complete_profile(request):
             "student_id",
             "institutional_id",
             "contact_number",
+            "year_section",
+            "department",
+            "major",
             "profile_completed",
             "updated_at",
         ]
@@ -619,69 +696,193 @@ def mobile_complete_profile(request):
 
 
 @csrf_exempt
+@never_cache
+def mobile_profile_photo(request):
+    """Read the current profile or replace only the authenticated owner's photo."""
+    if request.method not in {"GET", "POST"}:
+        return JsonResponse({"error": "GET or POST required."}, status=405)
+    user, error = _mobile_user_from_bearer(request)
+    if error is not None:
+        return error
+    if request.method == "GET":
+        return JsonResponse({"user": serialize_campushub_user(user)})
+
+    from uuid import uuid4
+    from .profile_photos import normalize_profile_photo
+    try:
+        content = normalize_profile_photo(request.FILES.get("photo"))
+    except ValidationError as exc:
+        return JsonResponse({"error": exc.messages[0]}, status=400)
+
+    storage = user.profile_photo.storage
+    saved_name = None
+    try:
+        with transaction.atomic():
+            user = CampusHubUser.objects.select_for_update().get(pk=user.pk)
+            if not user.is_active or user.is_suspended:
+                return JsonResponse({"error": "This account is inactive or suspended."}, status=403)
+            old_name = user.profile_photo.name
+            saved_name = storage.save(f"profile-photos/{user.pk}/{uuid4().hex}.jpg", content)
+            user.profile_photo = saved_name
+            user.save(update_fields=["profile_photo", "updated_at"])
+
+            def remove_previous():
+                if old_name and old_name.startswith(f"profile-photos/{user.pk}/"):
+                    try:
+                        storage.delete(old_name)
+                    except Exception:
+                        logging.getLogger(__name__).warning("Could not remove the previous profile photo.", exc_info=True)
+
+            transaction.on_commit(remove_previous)
+    except Exception:
+        if saved_name:
+            storage.delete(saved_name)
+        raise
+    return JsonResponse({"message": "Profile picture updated.", "user": serialize_campushub_user(user)})
+
+
+def mobile_academic_options(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "GET required."}, status=405)
+    from accounts.academic import academic_options
+    programs, majors = academic_options()
+    return JsonResponse({"programs": list(programs.values("id", "code", "name")),
+                         "majors": list(majors.values("id", "program_id", "code", "name"))})
+
+
+@csrf_exempt
 def seller_submit_product(request):
-    if request.method != "POST":
+    from modules.marketplace.services.seller_applications import applicant, latest
+    if request.method not in {"GET", "POST"}:
         return JsonResponse({"error": "Invalid request method"}, status=405)
-
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Authentication required"}, status=401)
-
+    # Existing web administrators keep their established product-management access.
+    is_web_manager = request.user.is_authenticated and request.user.is_active and (
+        request.user.is_superuser or request.user.has_perm("accounts.can_manage_products"))
+    if is_web_manager:
+        account, source = request.user, "admin"
+    else:
+        account, source, error = applicant(request, allow_seller=True)
+        if error is not None:
+            return error
+        application = latest(account, source)
+        if not application or application.status != "approved" or application.is_suspended:
+            return JsonResponse({"error": "Approved active seller access is required."}, status=403)
+    owned = Product.objects.filter(mobile_seller=account) if source == "mobile" else Product.objects.filter(seller=account)
+    if request.method == "GET":
+        return JsonResponse({"products": [serialize_product(row, request) for row in owned.select_related(
+            "seller", "seller__department", "seller__major", "mobile_seller", "mobile_seller__department", "mobile_seller__major", "department", "major").order_by("-submitted_at")]})
     try:
         data = json.loads(request.body)
+        if not isinstance(data, dict):
+            raise ValueError("Submit a valid product form.")
+        # Bundles use the same recipe validator/approval model as web products.
+        from modules.marketplace.services.bundles import validate_recipe
+        from api.models import BundleComponent
+        product_type = data.get("product_type", Product.TYPE_SINGLE)
+        if product_type not in {Product.TYPE_SINGLE, Product.TYPE_BUNDLE}:
+            raise ValueError("Select a valid product type.")
+        is_bundle_product = product_type == Product.TYPE_BUNDLE
+        if is_bundle_product and (data.get("stock") not in (None, "", 0, "0") or
+                data.get("low_stock_threshold") not in (None, "") or data.get("customization_options") or data.get("customization_enabled")):
+            raise ValueError("Bundle availability comes from components. Do not enter standalone stock, threshold, or variants.")
         name = (data.get("name") or "").strip()
         price = Decimal(str(data.get("price", "")))
-        stock = int(data.get("stock", 0))
+        stock = validate_stock_quantity(data.get("stock", 0))
+        threshold = validate_low_stock_threshold(data.get("low_stock_threshold"), stock=stock) if data.get("low_stock_threshold") is not None else None
         category = (data.get("category") or "").strip()
         expiry_date = parse_expiry_date(data.get("expiry_date"))
-
-        if not name:
-            return JsonResponse({"error": "Product name is required"}, status=400)
-
-        is_admin_user = (
-            request.user.is_superuser
-            or request.user.is_staff
-            or request.user.has_perm("accounts.can_approve_products")
-            or getattr(request.user, "role", "").lower() in ("admin", "marketplace admin")
-        )
-        approval_status = Product.STATUS_APPROVED if is_admin_user else Product.STATUS_PENDING
-        product = Product.objects.create(
-            seller=request.user,
-            name=name,
-            description=(data.get("description") or "").strip(),
-            category=category,
-            price=price,
-            stock=max(stock, 0),
-            expiry_date=expiry_date if is_perishable_category(category) else None,
-            image_url=(data.get("image_url") or "").strip(),
-            approval_status=approval_status,
-            approved_by=request.user if is_admin_user else None,
-            approved_at=timezone.now() if is_admin_user else None,
-        )
-
-        return JsonResponse(
-            {
-                "message": "Product submitted for marketplace approval.",
-                "product": serialize_product(product, request),
-            },
-            status=201,
-        )
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON format"}, status=400)
-    except (InvalidOperation, ValueError):
-        return JsonResponse({"error": "Valid price and stock are required"}, status=400)
+        if not name or len(name) > 150 or not price.is_finite() or price < 0 or price > Decimal("99999999.99") or price != price.quantize(Decimal("0.01")):
+            raise ValueError("Enter a product name and a valid non-negative price with at most two decimal places.")
+        if source == "mobile":
+            from modules.marketplace.services.seller_applications import categories
+            if category not in categories():
+                raise ValueError("Select an existing marketplace category.")
+        from accounts.academic import resolve_academic
+        program, major = resolve_academic(account.department_id or (application.application_data.get("program_id") if not is_web_manager else None), account.major_id or (application.application_data.get("major_id") if not is_web_manager else None), required=True)
+        raw_tags = data.get("tags")
+        if raw_tags:
+            if isinstance(raw_tags, str):
+                raw_tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
+            tags = list(dict.fromkeys(str(t).strip()[:60] for t in raw_tags if str(t).strip()))[:30]
+        else:
+            tags = []
+        # New gallery payload shares the admin image storage helper. Keep the
+        # legacy single-image field available to existing callers.
+        raw_images = validate_product_images(data["images"]) if "images" in data else None
+        raw_image = ""
+        if raw_images is None:
+            raw_image = data.get("image_url") or ""
+            if not isinstance(raw_image, str):
+                raise ValueError("Select a valid product image.")
+            raw_image = raw_image.strip()
+            # Older callers can encode galleries in this existing text field.
+            # Apply the same gallery limit instead of accepting a bypass.
+            if raw_image.startswith("["):
+                raw_images = validate_product_images(json.loads(raw_image))
+        with transaction.atomic():
+            # Serialize application review/revocation against listing creation.
+            if not is_web_manager:
+                application = SellerRequest.objects.select_for_update(of=("self",)).get(pk=application.pk)
+                if application.status != "approved" or application.is_suspended:
+                    return JsonResponse({"error": "Approved active seller access is required."}, status=403)
+            recipe = validate_recipe(data.get("bundle_components"), f"mobile:{account.pk}" if source == "mobile" else account.pk) if is_bundle_product else []
+            if is_bundle_product and source == "mobile":
+                from modules.marketplace.services.bundle_suggestions import build_bundle_suggestions
+                try:
+                    pair_ids = sorted(int(value) for value in str(data.get("suggestion_id", "")).split("|"))
+                except ValueError:
+                    raise ValueError("Choose a current bundle suggestion.")
+                if len(pair_ids) != 2 or len(set(pair_ids)) != 2 or set(pair_ids) != {row["product"].pk for row in recipe}:
+                    raise ValueError("Use both products from the selected suggestion.")
+                result = build_bundle_suggestions(None, mobile_seller=account)
+                if result["error"]:
+                    return JsonResponse({"error": "Unable to verify this suggestion. Retry."}, status=503)
+                if not any(sorted(int(product["id"]) for product in row["products"]) == pair_ids for row in result["rows"]):
+                    raise ValueError("This suggestion no longer qualifies. Refresh Suggested Product Bundles.")
+            product = Product.objects.create(
+                seller=account if source == "admin" else None,
+                mobile_seller=account if source == "mobile" else None,
+                department=program, major=major, name=name,
+                description=(data.get("description") or "").strip(), category=category,
+                price=price, product_type=product_type, stock=0 if is_bundle_product else stock,
+                low_stock_threshold=None if is_bundle_product else threshold,
+                tags=tags,
+                expiry_date=expiry_date if not is_bundle_product and is_perishable_category(category) else None,
+                approval_status=Product.STATUS_APPROVED if is_web_manager else Product.STATUS_PENDING,
+                approved_by=request.user if is_web_manager else None,
+                approved_at=timezone.now() if is_web_manager else None)
+            if recipe:
+                BundleComponent.objects.bulk_create([BundleComponent(bundle=product, **row) for row in recipe])
+            if is_bundle_product and source == "mobile":
+                from modules.marketplace.services.bundle_monitoring import link_created_bundle
+                link_created_bundle(request, product, pair_ids)
+            if raw_images is not None:
+                urls = persist_product_images(raw_images, product.pk, name)
+                product.image_url = json.dumps(urls) if urls else ""
+                product.save(update_fields=["image_url", "updated_at"])
+            elif raw_image:
+                product.image_url = persist_product_image(raw_image, product.pk, name)
+                product.save(update_fields=["image_url", "updated_at"])
+            log_marketplace_event(request, account=account, source=source, activity_type="PRODUCT_SUBMITTED",
+                activity=f"Product submitted: {product.name}", metadata={"product_id": product.pk})
+        return JsonResponse({"message": "Product submitted for marketplace approval.", "product": serialize_product(product, request)}, status=201)
+    except (ValueError, TypeError, InvalidOperation, ValidationError) as error:
+        return JsonResponse({"error": str(error)}, status=400)
 
 
 def approved_products(request):
+    from modules.marketplace.services.bundles import prime_bundle_inventory
     today = timezone.localdate()
     products = Product.objects.filter(
         approval_status=Product.STATUS_APPROVED,
         is_archived=False,
-        stock__gt=0,
+    ).filter(
+        Q(product_type=Product.TYPE_BUNDLE) | Q(stock__gt=0),
     ).filter(
         Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
     )
     return JsonResponse(
-        {"products": [serialize_product(product, request) for product in products]}
+        {"products": [serialize_product(product, request) for product in prime_bundle_inventory(products.select_related("mobile_seller", "mobile_seller__department", "mobile_seller__major", "seller", "seller__department", "department")) if is_marketplace_available(product)]}
     )
 
 
@@ -747,7 +948,14 @@ def product_image(request, product_id):
 
 @login_required(login_url="admin_login_page")
 @csrf_exempt
+@transaction.atomic
 def admin_save_product(request):
+    from django.http import Http404
+    from uuid import uuid4
+    from modules.marketplace.services.admin_product_validation import ProductInputError, validate_admin_product_input
+    from modules.marketplace.services.bundles import BundleError, validate_recipe, recipe_rows
+    from api.models import BundleComponent
+    from accounts.models import Department
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
@@ -758,24 +966,36 @@ def admin_save_product(request):
         return JsonResponse({"error": "Permission denied"}, status=403)
 
     try:
-        data = json.loads(request.body)
+        data = validate_admin_product_input(json.loads(request.body))
         product_id = data.get("id")
         seller_id = data.get("seller_id")
+        existing_product = get_object_or_404(manageable_products_for(request.user).select_for_update(of=("self",)), id=product_id) if product_id else None
+        product_type = data.get("product_type", existing_product.product_type if existing_product else Product.TYPE_SINGLE)
+        if product_type not in {Product.TYPE_SINGLE, Product.TYPE_BUNDLE}:
+            raise BundleError("Select a valid product type.")
+        is_bundle_product = product_type == Product.TYPE_BUNDLE
 
         # Verify if a specific seller_id was provided to assign the listing to
         target_seller = None
         if seller_id:
             from django.contrib.auth import get_user_model
             User = get_user_model()
-            target_seller = User.objects.filter(id=seller_id).first()
+            target_seller = CampusHubUser.objects.filter(pk=str(seller_id).split(":", 1)[1]).first() if str(seller_id).startswith("mobile:") else User.objects.filter(id=seller_id).first() if str(seller_id).isdecimal() else User.objects.filter(username=str(seller_id)).first()
             if not target_seller:
                 target_seller = User.objects.filter(username=str(seller_id)).first()
-            if not target_seller and not product_id:
+            if not target_seller or not target_seller.is_active:
                 return JsonResponse({"error": "Selected seller could not be found."}, status=400)
+        owner = target_seller or (existing_product.owner if existing_product else request.user)
+        from accounts.academic import resolve_academic, scope_users
+        from accounts.models import User
+        if not (existing_product and existing_product.mobile_seller_id and owner == existing_product.owner) and not scope_users((CampusHubUser if isinstance(owner, CampusHubUser) else User).objects.filter(pk=owner.pk), request.user).exists():
+            return JsonResponse({"error": "The selected owner is outside your program/major scope."}, status=403)
         
         name = (data.get("name") or "").strip()
         price = Decimal(str(data.get("price", "")))
-        stock = int(data.get("stock", 0))
+        if not price.is_finite() or price < 0 or price > Decimal("99999999.99") or price != price.quantize(Decimal("0.01")):
+            raise ValueError("Price must be a non-negative amount with at most two decimal places.")
+        stock = 0  # Parent stock is derived after options are inspected.
         category = (data.get("category") or "").strip()
         expiry_date = parse_expiry_date(data.get("expiry_date"))
 
@@ -785,6 +1005,8 @@ def admin_save_product(request):
         raw_image = (data.get("image_url") or "").strip()
         raw_images = data.get("images")  # JSON array of base64 strings
         customization_enabled = bool(data.get("customization_enabled"))
+        if is_bundle_product and (data.get("customization_options") or data.get("customization_enabled") or data.get("low_stock_threshold") not in (None, "") or data.get("stock") not in (None, "", 0, "0")):
+            raise BundleError("Bundle availability comes from components. Do not enter standalone stock, threshold, or variants.")
         customization_options = normalize_customization_options(
             data.get("customization_options")
         )
@@ -793,6 +1015,42 @@ def admin_save_product(request):
         elif customization_options:
             customization_enabled = True
 
+        old_options = {
+            ((group.get("name") or ""), (option.get("name") or "")): option
+            for group in (existing_product.customization_options or [] if existing_product else [])
+            for option in group.get("options") or []
+        }
+        for group in customization_options:
+            for option in group["options"]:
+                old = old_options.get((group["name"], option["name"]), {})
+                if "low_stock_threshold" not in option and "low_stock_threshold" in old:
+                    option["low_stock_threshold"] = old["low_stock_threshold"]
+                if "image" not in option and "image" in old:
+                    option["image"] = old["image"]
+                if "low_stock_threshold" in option:
+                    option["low_stock_threshold"] = validate_low_stock_threshold(
+                        option["low_stock_threshold"], stock=option["stock"],
+                        initial=not existing_product or not old,
+                    )
+
+        recipe = validate_recipe(data.get("bundle_components"), f"mobile:{owner.pk}" if isinstance(owner, CampusHubUser) else owner.pk, bundle_id=product_id) if is_bundle_product else []
+        if existing_product:
+            structural_change = existing_product.product_type != product_type or existing_product.owner != owner
+            if structural_change:
+                from modules.marketplace.services.inventory import active_inventory_reservations
+                if any(active_inventory_reservations(existing_product)):
+                    raise BundleError("Complete or cancel component reservations before changing this product's owner or type.")
+            old_recipe = [(row.product_id, row.required_quantity, sorted((s["group"], s["option"]) for s in row.selections)) for row in recipe_rows(existing_product)]
+            new_recipe = [(row["product"].pk, row["required_quantity"], sorted((s["group"], s["option"]) for s in row["selections"])) for row in recipe]
+            recipe_change = sorted(old_recipe) != sorted(new_recipe)
+            active_orders = MarketplaceOrder.objects.filter(product=existing_product, inventory_deducted=True, inventory_restored=False, status__in=(MarketplaceOrder.STATUS_PENDING, MarketplaceOrder.STATUS_PROCESSING, MarketplaceOrder.STATUS_READY_FOR_PICKUP))
+            if (structural_change or recipe_change) and active_orders.exists():
+                raise BundleError("Complete or cancel reserved orders before changing the product type, owner, or bundle components.")
+            if structural_change and existing_product.used_in_bundles.filter(bundle__is_archived=False).exists():
+                raise BundleError("Update the referencing bundles before changing this component's owner or product type.")
+            validate_inventory_option_changes(existing_product, customization_options)
+        if not customization_options and not is_bundle_product:
+            stock = validate_stock_quantity(data.get("stock", 0))
         if customization_options:
             stock = sum(
                 max(int(opt.get("stock", 0) or 0), 0)
@@ -811,6 +1069,7 @@ def admin_save_product(request):
                 expiry_date = None
 
         fields = {
+            "product_type": product_type,
             "name": name,
             "description": (data.get("description") or "").strip(),
             "category": category,
@@ -820,6 +1079,31 @@ def admin_save_product(request):
             "customization_enabled": customization_enabled,
             "customization_options": customization_options,
         }
+        if stock > 2147483647:
+            raise ProductInputError("Combined variant stock exceeds the supported inventory limit.", "customization_options")
+        program_id = data.get("program_id", data.get("department_id", existing_product.department_id if existing_product and existing_product.department_id else owner.department_id))
+        major_id = data.get("major_id", existing_product.major_id if existing_product and existing_product.department_id else owner.major_id)
+        program, major = resolve_academic(program_id, major_id, required=True)
+        if owner.department_id and (program.pk != owner.department_id or (owner.major_id and (not major or major.pk != owner.major_id))):
+            raise ValueError("Product program and major must match its assigned seller.")
+        if not request.user.is_superuser and (program.pk != request.user.department_id or (request.user.major_id and (not major or major.pk != request.user.major_id))):
+            return JsonResponse({"error": "This program/major is outside your assigned scope."}, status=403)
+        fields.update(department=program, major=major)
+        if "tags" in data:
+            tags = data["tags"]
+            if isinstance(tags, str):
+                tags = tags.split(",")
+            if not isinstance(tags, list) or len(tags) > 30:
+                raise ValueError("Tags must be a list with at most 30 entries.")
+            fields["tags"] = list(dict.fromkeys(str(tag).strip()[:60] for tag in tags if str(tag).strip()))
+        if is_bundle_product:
+            fields.update(stock=0, low_stock_threshold=None, expiry_date=None, customization_enabled=False, customization_options=[])
+        elif customization_options:
+            fields["low_stock_threshold"] = None  # Inventory is tracked by option, not parent.
+        elif "low_stock_threshold" in data:
+            fields["low_stock_threshold"] = validate_low_stock_threshold(
+                data["low_stock_threshold"], stock=stock, initial=not existing_product,
+            )
 
         raw_status = (
             data.get("approval_status")
@@ -863,45 +1147,58 @@ def admin_save_product(request):
             fields["approved_by"] = None
             fields["approved_at"] = None
 
+        image_name = f"{name}_{uuid4().hex}"  # Failed saves must not overwrite already referenced files.
         if product_id:
-            product = get_object_or_404(
-                manageable_products_for(request.user), id=product_id
-            )
+            product = existing_product
             for field, value in fields.items():
                 setattr(product, field, value)
             product.stock = fields["stock"]
             product.expiry_date = fields["expiry_date"]
-            if raw_images and isinstance(raw_images, list):
-                urls = persist_product_images(raw_images, product.id, name)
-                if urls:
-                    product.image_url = json.dumps(urls)
+            if raw_images is not None:
+                urls = persist_product_images(raw_images, product.id, image_name)
+                product.image_url = json.dumps(urls) if urls else ""
             elif raw_image and _should_update_product_image(raw_image):
-                product.image_url = persist_product_image(raw_image, product.id, name)
+                product.image_url = persist_product_image(raw_image, product.id, image_name)
                 
             if target_seller:
-                product.seller = target_seller
+                product.seller = None if isinstance(target_seller, CampusHubUser) else target_seller
+                product.mobile_seller = target_seller if isinstance(target_seller, CampusHubUser) else None
                 
+            product._inventory_actor = request.user.get_full_name().strip() or request.user.username
             product.save()
             status_code = 200
             message = "Product updated."
         else:
             product = Product.objects.create(
-                seller=target_seller if target_seller else request.user,
+                seller=None if isinstance(owner, CampusHubUser) else owner,
+                mobile_seller=owner if isinstance(owner, CampusHubUser) else None,
                 created_by=request.user,
                 image_url="",
                 **fields,
             )
-            if raw_images and isinstance(raw_images, list):
-                urls = persist_product_images(raw_images, product.id, name)
+            if raw_images is not None:
+                urls = persist_product_images(raw_images, product.id, image_name)
                 if urls:
                     product.image_url = json.dumps(urls)
                     product.save(update_fields=["image_url", "updated_at"])
             elif raw_image:
-                product.image_url = persist_product_image(raw_image, product.id, name)
+                product.image_url = persist_product_image(raw_image, product.id, image_name)
                 product.save(update_fields=["image_url", "updated_at"])
             status_code = 201
             message = "Product added."
 
+        # Keep each uploaded option image attached to that exact option.
+        if customization_options:
+            for group_index, group in enumerate(customization_options):
+                for option_index, option in enumerate(group["options"]):
+                    if option.get("image"):
+                        option["image"] = persist_product_image(option["image"], product.pk,
+                            f"{image_name}_variant_{group_index}_{option_index}")
+            product.customization_options = customization_options
+            product.save(update_fields=["customization_options", "updated_at"])
+        product.bundle_components.all().delete()
+        if is_bundle_product:
+            BundleComponent.objects.bulk_create([BundleComponent(bundle=product, **row) for row in recipe])
         return JsonResponse(
             {
                 "message": message,
@@ -909,12 +1206,30 @@ def admin_save_product(request):
             },
             status=status_code,
         )
+    except ProductInputError as error:
+        transaction.set_rollback(True)
+        return JsonResponse({"error": str(error), "field": error.field}, status=400)
+    except Http404:
+        transaction.set_rollback(True)
+        return JsonResponse({"error": "Product not found in your assigned scope."}, status=404)
     except json.JSONDecodeError:
+        transaction.set_rollback(True)
         return JsonResponse({"error": "Invalid JSON format"}, status=400)
+    except BundleError as e:
+        transaction.set_rollback(True)
+        return JsonResponse({"error": str(e), "field": "bundle_components"}, status=400)
+    except InventoryThresholdError as e:
+        transaction.set_rollback(True)
+        return JsonResponse({"error": str(e), "field": "low_stock_threshold"}, status=400)
+    except InventoryStockError as e:
+        transaction.set_rollback(True)
+        return JsonResponse({"error": str(e), "field": "stock"}, status=400)
     except (InvalidOperation, ValueError) as e:
+        transaction.set_rollback(True)
         return JsonResponse({"error": f"Valid price, stock, and expiry date are required: {e}"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": f"Server error: {e}"}, status=500)
+        transaction.set_rollback(True)
+        return JsonResponse({"error": "Could not save product. No database changes were saved. Reload the record before retrying."}, status=500)
 
 
 @csrf_exempt
@@ -935,37 +1250,56 @@ def admin_delete_product(request, product_id):
 @csrf_exempt
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_manage_products", raise_exception=True)
+@transaction.atomic
 def admin_update_product_stock(request, product_id):
     """Update product stock only (not full edit form)."""
+    from modules.marketplace.services.bundles import is_bundle
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
     product = get_object_or_404(
-        manageable_products_for(request.user), id=product_id
+        manageable_products_for(request.user).select_for_update(of=("self",)), id=product_id
     )
+    if is_bundle(product):
+        return JsonResponse({"error": "Bundle availability is derived. Update the component inventory instead."}, status=400)
     try:
         data = json.loads(request.body or "{}")
-        stock = int(data.get("stock", 0))
+        if not isinstance(data, dict):
+            raise ValueError("Send a stock update object.")
+        stock = validate_stock_quantity(data.get("stock", 0))
+        if stock > 2147483647:
+            raise ValueError("Stock exceeds the supported inventory limit.")
     except (TypeError, ValueError, json.JSONDecodeError):
         return JsonResponse({"error": "Valid stock quantity is required"}, status=400)
 
     if stock < 0:
         return JsonResponse({"error": "Stock cannot be negative"}, status=400)
 
-    product.stock = stock
-    # Keep a single-option variant in sync when product uses simple variants
+    # A tracked product must update one exact option, never only its parent sum.
     options = product.customization_options or []
-    if product.customization_enabled and isinstance(options, list) and len(options) == 1:
-        group = options[0] if isinstance(options[0], dict) else None
-        opts = (group or {}).get("options") or []
-        if len(opts) == 1 and isinstance(opts[0], dict):
-            opts[0]["stock"] = stock
-            product.customization_options = options
+    variants = product_variant_items(product)
+    if variants:
+        key = data.get("variant_key")
+        if not key and len(variants) == 1:
+            key = variants[0]["variant_key"]
+        item = next((item for item in variants if item["variant_key"] == key), None)
+        if not item:
+            return JsonResponse({"error": "Select the variant whose stock you want to update."}, status=400)
+        group_index, option_index = map(int, item["variant_key"].split(":"))
+        options[group_index]["options"][option_index]["stock"] = stock
+        product.customization_options = options
+        sync_product_inventory_fields(product)
+    else:
+        product.stock = stock
 
+    product._inventory_actor = request.user.get_full_name().strip() or request.user.username
     product.save(update_fields=["stock", "customization_options", "updated_at"])
+    log_marketplace_event(request, account=product.owner, source="mobile" if product.mobile_seller_id else "admin", activity_type="INVENTORY_UPDATED",
+        activity=f"Inventory updated: {product.name}", metadata={"product_id": product.pk, "program_id": product.department_id or product.owner.department_id,
+            "major_id": product.major_id if product.department_id else product.owner.major_id})
     return JsonResponse({
         "message": "Stock updated.",
-        "product": serialize_product(product, request),
+        "product": serialize_product(product, request, include_inventory=True),
     })
 
 
@@ -980,6 +1314,9 @@ def admin_archive_product(request, product_id):
         manageable_products_for(request.user), id=product_id
     )
     product.archive()
+    log_marketplace_event(request, account=product.owner, source="mobile" if product.mobile_seller_id else "admin", activity_type="PRODUCT_ARCHIVED",
+        activity=f"Product archived: {product.name}", metadata={"product_id": product.pk, "program_id": product.department_id or product.owner.department_id,
+            "major_id": product.major_id if product.department_id else product.owner.major_id})
     return JsonResponse({"message": "Product archived.", "id": product.id})
 
 
@@ -994,6 +1331,9 @@ def admin_restore_product(request, product_id):
         manageable_products_for(request.user), id=product_id
     )
     product.unarchive()
+    log_marketplace_event(request, account=product.owner, source="mobile" if product.mobile_seller_id else "admin", activity_type="PRODUCT_RESTORED",
+        activity=f"Product restored: {product.name}", metadata={"product_id": product.pk, "program_id": product.department_id or product.owner.department_id,
+            "major_id": product.major_id if product.department_id else product.owner.major_id})
     return JsonResponse({"message": "Product restored.", "id": product.id})
 
 
@@ -1001,104 +1341,22 @@ def admin_restore_product(request, product_id):
 def seller_access_request(request):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
-
-    try:
-        data = json.loads(request.body)
-        student_id = (data.get("student_id") or "").strip()
-        full_name = (data.get("full_name") or "").strip()
-        product_type = (data.get("product_type") or "").strip()
-        allowed_product_types = {
-            "Rice Meals",
-            "Snacks",
-            "Desserts",
-            "Beverages",
-            "Combo Meals",
-            "Breakfast",
-        }
-
-        if not student_id or not full_name or not product_type:
-            return JsonResponse(
-                {"error": "Student ID, full name, and product type are required"},
-                status=400,
-            )
-
-        if not re.fullmatch(r"\d{10}", student_id):
-            return JsonResponse(
-                {"error": "Student ID must be exactly 10 numbers"},
-                status=400,
-            )
-
-        normalized_full_name = re.sub(r"\s+", " ", full_name).strip()
-        if not re.fullmatch(r"[A-Za-z]+(?:[ '-][A-Za-z]+)+", normalized_full_name):
-            return JsonResponse(
-                {"error": "Full name must include first and last name"},
-                status=400,
-            )
-
-        course_section = (data.get("course_section") or "").strip()
-        if not course_section:
-            return JsonResponse(
-                {"error": "Course / section is required"},
-                status=400,
-            )
-
-        if product_type not in allowed_product_types:
-            return JsonResponse(
-                {"error": "Select a valid product type"},
-                status=400,
-            )
-
-        seller_request = SellerRequest.objects.create(
-            user=request.user if request.user.is_authenticated else None,
-            student_id=student_id,
-            full_name=normalized_full_name,
-            course_section=course_section,
-            contact_number=(data.get("contact_number") or "").strip(),
-            product_type=product_type,
-            message=(data.get("message") or "").strip(),
-        )
-
-        return JsonResponse(
-            {
-                "message": "Seller access request submitted.",
-                "seller_request": serialize_seller_request(seller_request),
-            },
-            status=201,
-        )
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON format"}, status=400)
+    from modules.marketplace.services.seller_applications import submit
+    return submit(request)
 
 
 def seller_access_status(request):
     if request.method != "GET":
         return JsonResponse({"error": "Invalid request method"}, status=405)
-
-    student_id = (request.GET.get("student_id") or "").strip()
-    if not student_id:
-        return JsonResponse({"error": "Student ID is required"}, status=400)
-
-    seller_request = (
-        SellerRequest.objects.filter(student_id=student_id)
-        .order_by("-created_at")
-        .first()
-    )
-    if not seller_request:
-        return JsonResponse({
-            "status": "none",
-            "is_approved_seller": False,
-        })
-
-    return JsonResponse({
-        "status": seller_request.status,
-        "is_approved_seller": seller_request.status == SellerRequest.STATUS_APPROVED,
-        "seller_request": serialize_seller_request(seller_request),
-    })
+    from modules.marketplace.services.seller_applications import state
+    return state(request)
 
 
 @login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_sellers", raise_exception=True)
+@admin_read_permissions("can_manage_sellers", "can_view_sellers")
 def marketplace_seller_requests(request):
-    seller_requests = SellerRequest.objects.select_related("user", "reviewed_by").all()
+    from accounts.academic import scope_users, scope_seller_requests
+    seller_requests = scope_seller_requests(SellerRequest.objects.select_related("user", "reviewed_by"), request.user)
     return JsonResponse({
         "seller_requests": [
             serialize_seller_request(seller_request)
@@ -1108,27 +1366,54 @@ def marketplace_seller_requests(request):
 
 
 @login_required(login_url="admin_login_page")
-@permission_required("accounts.can_manage_products", raise_exception=True)
+@admin_read_permissions("can_manage_products", "can_approve_products", "can_view_products", "can_view_inventory", "can_view_stock_movements")
 def seller_products_monitor(request):
+    from modules.marketplace.services.bundles import prime_bundle_inventory
+    product_id = request.GET.get("product_id")
+    if product_id and not product_id.isdecimal():
+        return JsonResponse({"error": "Valid product ID is required."}, status=400)
     products = (
         manageable_products_for(request.user)
-        .filter(is_archived=False)
-        .select_related("seller", "seller__department", "approved_by")
+        .select_related("mobile_seller", "mobile_seller__department", "mobile_seller__major", "seller", "seller__department", "seller__major", "approved_by", "department", "major").prefetch_related("inventory_skus")
         .order_by("-submitted_at")
     )
-    return JsonResponse({"products": [serialize_product(product, request) for product in products]})
+    # A scoped details request can inspect archived records without changing the list.
+    products = products.filter(pk=product_id) if product_id else products.filter(is_archived=False)
+    owner_id = request.GET.get("bundle_owner_id")
+    if owner_id:
+        mobile_owner = owner_id.startswith("mobile:")
+        raw_id = owner_id.split(":", 1)[1] if mobile_owner else owner_id
+        if not raw_id.isdecimal():
+            return JsonResponse({"error": "Select a valid product owner."}, status=400)
+        owner_filters = {"mobile_seller_id" if mobile_owner else "seller_id": raw_id,
+                         "mobile_seller__is_active" if mobile_owner else "seller__is_active": True}
+        products = products.filter(**owner_filters,
+            product_type=Product.TYPE_SINGLE, approval_status=Product.STATUS_APPROVED, is_archived=False)
+    products = prime_bundle_inventory(products)
+    if owner_id:
+        products = [product for product in products if is_marketplace_available(product)]
+    return JsonResponse({"products": [
+        serialize_product(product, request, include_inventory=bool(product_id))
+        for product in products
+    ]})
 
 
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_approve_products", raise_exception=True)
+@transaction.atomic
 def marketplace_approve_product(request, product_id):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
     product = get_object_or_404(
-        manageable_products_for(request.user), id=product_id
+        manageable_products_for(request.user).select_for_update(of=("self",)), id=product_id
     )
+    if product.is_archived or product.approval_status != Product.STATUS_PENDING:
+        return JsonResponse({"error": "Only pending, active listings can be reviewed. Reload the product before retrying."}, status=409)
     product.approve(request.user)
+    log_marketplace_event(request, account=product.owner, source="mobile" if product.mobile_seller_id else "admin", activity_type="PRODUCT_APPROVED",
+        activity=f"Product approved: {product.name}", metadata={"product_id": product.pk, "program_id": product.department_id or product.owner.department_id,
+            "major_id": product.major_id if product.department_id else product.owner.major_id})
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return JsonResponse({"ok": True, "product_id": product.id})
     return redirect(request.META.get("HTTP_REFERER") or "admin_dashboard_page")
@@ -1136,14 +1421,23 @@ def marketplace_approve_product(request, product_id):
 
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_approve_products", raise_exception=True)
+@transaction.atomic
 def marketplace_reject_product(request, product_id):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
     product = get_object_or_404(
-        manageable_products_for(request.user), id=product_id
+        manageable_products_for(request.user).select_for_update(of=("self",)), id=product_id
     )
-    product.reject(request.user, request.POST.get("rejection_reason", ""))
+    if product.is_archived or product.approval_status != Product.STATUS_PENDING:
+        return JsonResponse({"error": "Only pending, active listings can be reviewed. Reload the product before retrying."}, status=409)
+    reason = (request.POST.get("rejection_reason") or "").strip()
+    if not reason:
+        return JsonResponse({"error": "Enter a rejection reason."}, status=400)
+    product.reject(request.user, reason)
+    log_marketplace_event(request, account=product.owner, source="mobile" if product.mobile_seller_id else "admin", activity_type="PRODUCT_REJECTED",
+        activity=f"Product rejected: {product.name}", metadata={"product_id": product.pk, "program_id": product.department_id or product.owner.department_id,
+            "major_id": product.major_id if product.department_id else product.owner.major_id})
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return JsonResponse({"ok": True, "product_id": product.id})
     return redirect("admin_products_page")
@@ -1151,48 +1445,80 @@ def marketplace_reject_product(request, product_id):
 
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_manage_sellers", raise_exception=True)
+@transaction.atomic
 def marketplace_approve_seller_request(request, request_id):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
-    seller_request = get_object_or_404(SellerRequest, id=request_id)
+    from accounts.academic import scope_users, scope_seller_requests
+    seller_request = get_object_or_404(scope_seller_requests(SellerRequest.objects.select_for_update(of=("self",)), request.user), id=request_id)
+    if seller_request.status != "pending":
+        return JsonResponse({"error": "Only pending applications can be reviewed."}, status=409)
     seller_request.approve(request.user)
+    log_seller_event(request, seller_request, "SELLER_APPROVED")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "status": seller_request.status, "message": "Seller application approved successfully."})
+    messages.success(request, 'Seller application approved successfully.', fail_silently=True)
     return redirect(request.META.get("HTTP_REFERER") or "admin_dashboard_page")
 
 
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_manage_sellers", raise_exception=True)
+@transaction.atomic
 def marketplace_reject_seller_request(request, request_id):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
-    seller_request = get_object_or_404(SellerRequest, id=request_id)
-    seller_request.reject(request.user, request.POST.get("rejection_reason", ""))
+    from accounts.academic import scope_users, scope_seller_requests
+    seller_request = get_object_or_404(scope_seller_requests(SellerRequest.objects.select_for_update(of=("self",)), request.user), id=request_id)
+    if seller_request.status != "pending":
+        return JsonResponse({"error": "Only pending applications can be reviewed."}, status=409)
+    reason = (request.POST.get("rejection_reason") or "").strip()
+    if request.POST.get("decision") == "needs_revision":
+        if not reason:
+            return JsonResponse({"error": "Provide applicant-visible revision notes."}, status=400)
+        seller_request.request_revision(request.user, reason)
+        log_seller_event(request, seller_request, "SELLER_REVISION_REQUESTED")
+    else:
+        seller_request.reject(request.user, reason)
+        log_seller_event(request, seller_request, "SELLER_REJECTED")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "status": seller_request.status, "message": "Seller application review recorded."})
+    messages.success(request, 'Seller application review recorded.', fail_silently=True)
     return redirect(request.META.get("HTTP_REFERER") or "admin_dashboard_page")
 
 
 def serialize_facility(facility):
     from modules.facilities.services.operating_schedule import workflow_for_display
+    from modules.facilities.services.rental_configuration import capacity_label, pricing_label
+    from modules.facilities.services.job_order import default_job_order_service
 
+    from modules.facilities.services.service_configuration import is_service, service_pricing_label
     rate = facility.rate or 0
     facility_type = getattr(facility, "facility_type", None) or Facility.TYPE_OTHER
-    type_labels = dict(Facility.TYPE_CHOICES)
+    if not hasattr(facility, "configured_room_count"):
+        facility.configured_room_count = facility.rooms.count() if not facility._state.adding else 0
     return {
         "id": str(facility.id),
         "name": facility.facility_name,
         "facility_type": facility_type,
-        "facility_type_label": type_labels.get(facility_type, "Other"),
+        "facility_type_label": facility.get_facility_type_display(),
+        "job_order_service": default_job_order_service(facility),
+        "custom_facility_type": facility.custom_facility_type,
         "location": facility.location or "",
         "description": facility.description or "",
         "capacity": facility.capacity,
         "rate": str(rate),
         "price_type": facility.price_type or "hour",
-        "price_label": f"\u20b1{rate:,.0f} / {facility.price_type or 'hour'}",
+        "price_label": service_pricing_label(facility) if is_service(facility) else pricing_label(facility),
+        "capacity_label": capacity_label(facility),
         "booking_mode": facility.booking_mode or "room",
         "rooms_units": facility.rooms_units,
+        "configured_room_count": facility.configured_room_count,
         "room_type": facility.room_type or "",
         "amenities": list(facility.amenities or []),
         "status": normalize_facility_status(facility.availability_status),
+        "is_archived": facility.is_archived,
         "slots": facility.slots or "",
         "requirements": facility.requirements or "",
         "terms_conditions": facility.terms_conditions or "",
@@ -1232,7 +1558,10 @@ def _apply_facility_payload(facility, cleaned):
 
 def facilities_list(request):
     """Public list endpoint used by the mobile app."""
-    facilities = Facility.objects.filter(is_archived=False)
+    facilities = Facility.objects.filter(is_archived=False).annotate(configured_room_count=Count("rooms"))
+    if request.GET.get('resource_type') == 'facility':
+        from modules.facilities.services.catalog import service_resources_q
+        facilities = facilities.exclude(service_resources_q())
     return JsonResponse(
         {"facilities": [serialize_facility(f) for f in facilities]}
     )
@@ -1274,20 +1603,21 @@ def facilities_create(request):
             created_by_id=creator.id if creator else None,
         )
         _apply_facility_payload(facility, cleaned)
-        facility.save(force_insert=True)
-
-        # Save images as files if provided
-        raw_images = data.get("images") or data.get("image_url") or ""
-        if raw_images:
-            saved_images = persist_facility_images(raw_images, facility_id, cleaned["name"])
-            if saved_images:
-                facility.image_url = json.dumps(saved_images) if len(saved_images) > 1 else saved_images[0]
-                facility.save(update_fields=["image_url"])
+        with transaction.atomic():
+            facility.save(force_insert=True)
+            raw_images = data.get("images") or data.get("image_url") or ""
+            if raw_images:
+                saved_images = persist_facility_images(raw_images, facility_id, cleaned["name"])
+                if saved_images:
+                    facility.image_url = json.dumps(saved_images) if len(saved_images) > 1 else saved_images[0]
+                    facility.save(update_fields=["image_url"])
+            event = record_facility_activity(request, facility, action="facility_added")
 
         return JsonResponse(
             {
                 "message": "Facility added.",
                 "facility": serialize_facility(facility),
+                "activity": facility_activity_row(event),
             },
             status=201,
         )
@@ -1313,22 +1643,23 @@ def facilities_update(request, facility_id):
     try:
         data = json.loads(request.body)
         cleaned = validate_facility_payload(data, facility=facility)
-        _apply_facility_payload(facility, cleaned)
-
-        # Save images as files if provided
-        raw_images = data.get("images") or data.get("image_url") or ""
-        if raw_images:
-            saved_images = persist_facility_images(raw_images, facility_id, cleaned["name"])
-            facility.image_url = json.dumps(saved_images) if len(saved_images) > 1 else (saved_images[0] if saved_images else "")
-        elif "images" in data or "image_url" in data:
-            facility.image_url = ""
-
-        facility.save()
+        before = facility_snapshot(facility)
+        with transaction.atomic():
+            _apply_facility_payload(facility, cleaned)
+            raw_images = data.get("images") or data.get("image_url") or ""
+            if raw_images:
+                saved_images = persist_facility_images(raw_images, facility_id, cleaned["name"])
+                facility.image_url = json.dumps(saved_images) if len(saved_images) > 1 else (saved_images[0] if saved_images else "")
+            elif "images" in data or "image_url" in data:
+                facility.image_url = ""
+            facility.save()
+            event = record_facility_activity(request, facility, before=before)
 
         return JsonResponse(
             {
                 "message": "Facility updated.",
                 "facility": serialize_facility(facility),
+                "activity": facility_activity_row(event),
             }
         )
     except ValidationError as error:
@@ -1348,9 +1679,13 @@ def facilities_archive(request, facility_id):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
-    facility = get_object_or_404(Facility, id=facility_id)
-    facility.archive()
-    return JsonResponse({"message": "Facility archived.", "id": facility.id, "success": True})
+    with transaction.atomic():
+        facility = get_object_or_404(Facility.objects.select_for_update(), id=facility_id)
+        event = None
+        if not facility.is_archived:
+            facility.archive()
+            event = record_facility_activity(request, facility, action="facility_archived")
+    return JsonResponse({"message": "Facility archived.", "id": facility.id, "success": True, "activity": facility_activity_row(event)})
 
 
 @csrf_exempt
@@ -1360,9 +1695,13 @@ def facilities_restore(request, facility_id):
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
-    facility = get_object_or_404(Facility, id=facility_id)
-    facility.unarchive()
-    return JsonResponse({"message": "Facility restored.", "id": facility.id, "success": True})
+    with transaction.atomic():
+        facility = get_object_or_404(Facility.objects.select_for_update(), id=facility_id)
+        event = None
+        if facility.is_archived:
+            facility.unarchive()
+            event = record_facility_activity(request, facility, action="facility_reactivated")
+    return JsonResponse({"message": "Facility restored.", "id": facility.id, "success": True, "activity": facility_activity_row(event)})
 
 
 @csrf_exempt
@@ -1385,7 +1724,7 @@ def _serialize_booking_event(booking):
 
     purpose = (booking.purpose or "").strip()
     event_type = "reservation"
-    type_match = re.match(r"^\[(class|reservation|maintenance|assessment)\]\s*", purpose, re.I)
+    type_match = re.match(r"^\[(class|reservation|maintenance|assessment|official|hold|other|blocked)\]\s*", purpose, re.I)
     if type_match:
         event_type = type_match.group(1).lower()
         purpose = purpose[type_match.end():].strip()
@@ -1400,12 +1739,24 @@ def _serialize_booking_event(booking):
         full_name = f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}".strip()
         reserved_by = full_name or getattr(user, "username", "") or ""
 
+    from modules.facilities.services.schedules import metadata
+    details = metadata(booking)
+    schedule = details.get("schedule", {})
+    attachment = details.get("attachment")
     return {
         "id": str(booking.id),
         "type": event_type,
         "facility_id": str(booking.facility_id or ""),
         "facility": booking.facility.facility_name if booking.facility_id else "Facility",
-        "date": booking.booking_date.isoformat() if booking.booking_date else "",
+        "date": (booking.booking_date or booking.check_in_date).isoformat() if booking.booking_date or booking.check_in_date else "",
+        "end_date": booking.check_out_date.isoformat() if booking.check_out_date else "",
+        "schedule": schedule,
+        "source": "Facility Schedule" if schedule or event_type != "reservation" else ("Admin / Walk-in" if details.get("source") == "admin" else "Mobile App" if details else "Not recorded"),
+        "quote": details.get("quote", {}),
+        "attachment_url": f"/api/facility-schedules/{booking.pk}/attachment/" if attachment else "",
+        "attachment_name": attachment.get("name", "") if attachment else "",
+        "total_amount": str(booking.total_amount),
+        "created_at": booking.created_at.isoformat(),
         "start": booking.start_time.strftime("%H:%M") if booking.start_time else "",
         "end": booking.end_time.strftime("%H:%M") if booking.end_time else "",
         "reserved_by": reserved_by,
@@ -1414,93 +1765,9 @@ def _serialize_booking_event(booking):
     }
 
 
-@login_required(login_url="admin_login_page")
-@permission_required("accounts.can_book_facilities", login_url="admin_dashboard_page")
 def bookings_create(request):
-    """
-    Create a facility booking/schedule entry.
-    Requires authenticated admin with facility module access.
-    CSRF protected (send X-CSRFToken).
-    """
-    if request.method != "POST":
-        return JsonResponse({"error": "Invalid request method"}, status=405)
-
-    if not user_has_facility_module_access(request.user):
-        return JsonResponse({"error": "Forbidden"}, status=403)
-
-    try:
-        import uuid
-        from datetime import date, datetime
-
-        data = json.loads(request.body or "{}")
-        facility_id = (data.get("facility_id") or "").strip()
-        event_type = (data.get("type") or "reservation").strip().lower()
-        booking_date_raw = (data.get("date") or "").strip()
-        start_raw = (data.get("start") or "").strip()
-        end_raw = (data.get("end") or "").strip()
-        purpose_text = (data.get("purpose") or data.get("description") or "").strip()
-        reserved_by = (data.get("reserved_by") or "").strip()
-
-        valid_types = {"class", "reservation", "maintenance", "assessment"}
-        if event_type not in valid_types:
-            event_type = "reservation"
-
-        if not facility_id:
-            return JsonResponse({"error": "Facility is required."}, status=400)
-        if not booking_date_raw or not start_raw or not end_raw:
-            return JsonResponse({"error": "Date, start time, and end time are required."}, status=400)
-        if event_type == "reservation" and not reserved_by:
-            return JsonResponse({"error": "Reserved by is required for reservations."}, status=400)
-
-        facility = Facility.objects.filter(id=facility_id).first()
-        if facility is None:
-            return JsonResponse({"error": "Facility not found."}, status=404)
-
-        try:
-            booking_date = date.fromisoformat(booking_date_raw)
-            start_time = datetime.strptime(start_raw[:5], "%H:%M").time()
-            end_time = datetime.strptime(end_raw[:5], "%H:%M").time()
-        except ValueError:
-            return JsonResponse({"error": "Invalid date or time format."}, status=400)
-
-        if start_time >= end_time:
-            return JsonResponse({"error": "End time must be later than start time."}, status=400)
-
-        purpose_parts = [f"[{event_type}]"]
-        if purpose_text:
-            purpose_parts.append(purpose_text)
-        if reserved_by:
-            purpose_parts.append(f"Reserved by: {reserved_by}")
-        purpose = "\n".join(purpose_parts)
-
-        today = date.today().strftime("%Y%m%d")
-        booking_id = f"CAMBOOK{today}{uuid.uuid4().hex[:4].upper()}"
-
-        booking = Booking(
-            id=booking_id,
-            facility=facility,
-            purpose=purpose,
-            booking_date=booking_date,
-            start_time=start_time,
-            end_time=end_time,
-            status=Booking.STATUS_APPROVED if event_type != "reservation" else Booking.STATUS_PENDING,
-            total_amount=0,
-        )
-        from modules.facilities.services.mobile_booking import conflicting_bookings
-        with transaction.atomic():
-            Facility.objects.select_for_update().get(pk=facility.pk)
-            if conflicting_bookings(facility, booking_date, start_time, end_time).exists():
-                return JsonResponse({"error": "This schedule conflicts with an existing booking or blocked period."}, status=409)
-            booking.save(force_insert=True)
-        booking = Booking.objects.select_related("facility", "user").get(id=booking_id)
-        return JsonResponse(
-            {"message": "Booking saved.", "event": _serialize_booking_event(booking)},
-            status=201,
-        )
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON format"}, status=400)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+    from modules.facilities.admin_booking_views import create
+    return create(request)
 
 
 def _parse_json(request):
@@ -1510,157 +1777,96 @@ def _parse_json(request):
         return None
 
 
-def _generate_reset_code() -> str:
-    return f"{random.SystemRandom().randint(0, 999999):06d}"
-
-
-def _get_active_reset(email: str):
-    return (
-        PasswordResetCode.objects.filter(
-            email__iexact=email,
-            used=False,
-            expires_at__gt=timezone.now(),
-        )
-        .order_by("-created_at")
-        .first()
-    )
-
-
-@csrf_exempt
-def mobile_password_reset(request):
-    """POST { email } — generate code and send via Gmail SMTP."""
+@sensitive_variables()
+def _recovery_api(request, operation):
+    """JSON transport only; all recovery rules live in accounts.recovery_codes."""
+    from accounts.recovery_codes import (find_account, send_code, verify_code,
+                                        confirm_password, RecoveryError, mask_email)
+    from django.core.cache import cache
+    from django.core.validators import validate_email
+    from django.utils.crypto import salted_hmac
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
-
     data = _parse_json(request)
-    if data is None:
+    if not isinstance(data, dict):
         return JsonResponse({"error": "Invalid JSON format"}, status=400)
-
-    email = (data.get("email") or "").strip().lower()
-    if not email or "@" not in email:
-        return JsonResponse({"error": "Enter a valid email address."}, status=400)
-
-    user = CampusHubUser.objects.filter(email__iexact=email).first()
-    if user is None:
-        # Do not reveal whether email exists (security)
-        return JsonResponse(
-            {
-                "message": "If that email is registered, check Gmail for the 6-digit code.",
-                "email_sent": True,
-                "step": 2,
-            }
-        )
-
-    code = _generate_reset_code()
-    PasswordResetCode.objects.filter(email__iexact=email, used=False).update(used=True)
-    PasswordResetCode.objects.create(
-        email=email,
-        code_hash=make_password(code),
-        expires_at=timezone.now()
-        + timedelta(minutes=settings.PASSWORD_RESET_CODE_MINUTES),
-    )
-
-    full_name = f"{user.first_name} {user.last_name}".strip()
-    email_sent = False
-    email_error = ""
+    # Bound unauthenticated traffic, including unknown emails. Do not store raw identifiers.
+    key = "recovery-ip:" + salted_hmac("recovery-ip", request.META.get("REMOTE_ADDR", "")).hexdigest()
+    cache.add(key, 0, 900)
     try:
-        email_sent = send_password_reset_email(
-            to_email=email,
-            code=code,
-            full_name=full_name,
-        )
-    except Exception as exc:
-        email_sent = False
-        email_error = str(exc)
-
-    if not email_sent:
-        if not is_gmail_configured():
-            return JsonResponse(
-                {
-                    "error": (
-                        "Gmail is not set up. Open backend/core/core/gmail_local.py "
-                        "and paste your 16-character Google App Password, then restart Django."
-                    ),
-                },
-                status=503,
-            )
-        detail = email_error or "Check App Password and 2-Step Verification on Gmail."
-        return JsonResponse(
-            {"error": f"Could not send email to Gmail. {detail}"},
-            status=503,
-        )
-
-    return JsonResponse(
-        {
-            "message": "A 6-digit code was sent to your Gmail. Check Inbox and Spam.",
-            "email_sent": True,
-            "step": 2,
-        }
-    )
+        attempts = cache.incr(key)
+    except ValueError:
+        attempts = 1
+        cache.set(key, attempts, 900)
+    if attempts > 60:
+        return JsonResponse({"error": "Too many requests. Please try again later."}, status=429)
+    purpose = data.get("purpose", "password")
+    if not isinstance(purpose, str) or purpose not in {"password", "username", "email_verification"}:
+        return JsonResponse({"error": "Unsupported recovery purpose."}, status=400)
+    # First-login verification uses the recorded email from the authenticated account.
+    if request.headers.get("Authorization"):
+        account, error = _mobile_user_from_bearer(request)
+        if error is not None:
+            return error
+        source, email = "mobile", account.email
+        if purpose != "email_verification":
+            return JsonResponse({"error": "Use the account recovery screen."}, status=400)
+    else:
+        email = data.get("email", "")
+        if not isinstance(email, str):
+            return JsonResponse({"error": "Enter a valid email address."}, status=400)
+        email = email.strip().lower()
+        try:
+            validate_email(email)
+        except ValidationError:
+            return JsonResponse({"error": "Enter a valid email address."}, status=400)
+        source, account = find_account(email)
+    # Request responses do not disclose whether an account exists/is verified.
+    if account is None or not account.is_active or account.is_suspended or (operation == "send" and purpose != "email_verification" and not account.email_verified):
+        if operation == "send":
+            return JsonResponse({"message": "If that email is eligible, check your inbox for the code.",
+                                 "email_sent": True, "masked_email": mask_email(email),
+                                 "step": 2, "resend_after": 60, "expires_in": 900})
+        return JsonResponse({"error": "Invalid verification code."}, status=400)
+    account = type(account).objects.select_for_update().get(pk=account.pk)
+    try:
+        if operation == "send":
+            result = send_code(request, source, account, purpose)
+        elif operation == "verify":
+            result = verify_code(request, source, account, data.get("code"), purpose)
+        else:
+            password, confirmation = data.get("new_password", ""), data.get("confirm_password", "")
+            if not isinstance(password, str) or not isinstance(confirmation, str):
+                raise RecoveryError("Enter a valid password.")
+            result = confirm_password(request, source, account, data.get("recovery_grant", ""), password, confirmation)
+    except RecoveryError as exc:
+        return JsonResponse({"error": exc.message}, status=exc.status)
+    if purpose == "email_verification" and operation == "verify" and request.headers.get("Authorization"):
+        result["user"] = serialize_campushub_user(account)
+    response = JsonResponse(result)
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @csrf_exempt
+@never_cache
+@transaction.atomic
+def mobile_password_reset(request):
+    return _recovery_api(request, "send")
+
+
+@csrf_exempt
+@never_cache
+@transaction.atomic
 def mobile_password_reset_verify(request):
-    """POST { email, code } — verify 6-digit code."""
-    if request.method != "POST":
-        return JsonResponse({"error": "Invalid request method"}, status=405)
-
-    data = _parse_json(request)
-    if data is None:
-        return JsonResponse({"error": "Invalid JSON format"}, status=400)
-
-    email = (data.get("email") or "").strip().lower()
-    code = (data.get("code") or "").strip()
-
-    if not email or len(code) != 6 or not code.isdigit():
-        return JsonResponse({"error": "Email and 6-digit code are required."}, status=400)
-
-    reset_row = _get_active_reset(email)
-    if reset_row is None or not check_password(code, reset_row.code_hash):
-        return JsonResponse({"error": "Invalid or expired code."}, status=400)
-
-    return JsonResponse({"message": "Code verified. You may set a new password."})
+    return _recovery_api(request, "verify")
 
 
 @csrf_exempt
+@never_cache
+@transaction.atomic
 def mobile_password_reset_confirm(request):
-    """POST { email, code, new_password, confirm_password } — update password."""
-    if request.method != "POST":
-        return JsonResponse({"error": "Invalid request method"}, status=405)
-
-    data = _parse_json(request)
-    if data is None:
-        return JsonResponse({"error": "Invalid JSON format"}, status=400)
-
-    email = (data.get("email") or "").strip().lower()
-    code = (data.get("code") or "").strip()
-    new_password = data.get("new_password") or ""
-    confirm_password = data.get("confirm_password") or ""
-
-    if not email or len(code) != 6:
-        return JsonResponse({"error": "Email and code are required."}, status=400)
-
-    password_error = _password_validation_error(new_password)
-    if password_error:
-        return JsonResponse({"error": password_error}, status=400)
-
-    if new_password != confirm_password:
-        return JsonResponse({"error": "Passwords do not match."}, status=400)
-
-    reset_row = _get_active_reset(email)
-    if reset_row is None or not check_password(code, reset_row.code_hash):
-        return JsonResponse({"error": "Invalid or expired code."}, status=400)
-
-    user = CampusHubUser.objects.filter(email__iexact=email).first()
-    if user is None:
-        return JsonResponse({"error": "Account not found."}, status=404)
-
-    user.password_hash = make_password(new_password)
-    user.save(update_fields=["password_hash", "updated_at"])
-    reset_row.used = True
-    reset_row.save(update_fields=["used"])
-
-    return JsonResponse({"message": "Password updated successfully."})
+    return _recovery_api(request, "confirm")
 
 
 @csrf_exempt
@@ -1683,11 +1889,13 @@ def recommended_products(request):
 
     uid = int(user_id) if user_id and str(user_id).isdigit() else None
     pid = int(seed_product_id) if seed_product_id and str(seed_product_id).isdigit() else None
+    personalized_only = request.GET.get("personalized_only") == "1"
 
     products = get_recommended_products(
         user_id=uid,
         limit=limit_n,
         seed_product_id=pid,
+        personalized_only=personalized_only,
     )
 
     return JsonResponse(
@@ -1696,17 +1904,28 @@ def recommended_products(request):
             "engine": "scikit-learn-tfidf-cosine",
             "user_id": uid,
             "seed_product_id": pid,
+            "personalized_only": personalized_only,
         }
     )
 
 
 @csrf_exempt
+@never_cache
+@fulfillment_buyer_guard
+@fifo_order_request
 def marketplace_orders(request):
     if request.method == "GET":
-        user_id = request.GET.get("user_id")
-        orders = MarketplaceOrder.objects.select_related("product").all()
-        if user_id and str(user_id).isdigit():
-            orders = orders.filter(buyer_user_id=int(user_id))
+        if request.headers.get("Authorization"):
+            buyer, error = _mobile_user_from_bearer(request)
+            if error is not None: return error
+            # Legacy Django/mobile IDs share a numeric namespace; require the saved email too.
+            orders = MarketplaceOrder.objects.filter(buyer_user_id=buyer.pk, buyer_email__iexact=buyer.email) if buyer.email else MarketplaceOrder.objects.none()
+        elif request.user.is_authenticated:
+            from modules.marketplace.services.order_access import admin_order_queryset
+            orders = admin_order_queryset(request.user)
+        else:
+            return JsonResponse({"error": "Sign in to view authorized orders."}, status=401)
+        orders = orders.select_related("product")
         return JsonResponse({"orders": [serialize_marketplace_order(o) for o in orders]})
 
     if request.method != "POST":
@@ -1716,12 +1935,22 @@ def marketplace_orders(request):
     if data is None:
         return JsonResponse({"error": "Invalid JSON format"}, status=400)
 
+    from modules.marketplace.services.fulfillment import creation_fields
+    try:
+        fulfillment = creation_fields(data)
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
     product_id = data.get("product_id")
     quantity = max(int(data.get("quantity") or 1), 1)
     option = (data.get("option") or "").strip()
     buyer_user_id = data.get("buyer_user_id")
     buyer_name = (data.get("buyer_name") or "").strip()
     buyer_email = (data.get("buyer_email") or "").strip()
+    verified_buyer = getattr(request, "fulfillment_buyer", None)
+    if verified_buyer is not None:
+        buyer_name = verified_buyer.get_full_name().strip() or verified_buyer.username
+        buyer_email = verified_buyer.email or ""
     message_to_seller = (data.get("message_to_seller") or "").strip()
 
     if len(message_to_seller) > 300:
@@ -1755,7 +1984,7 @@ def marketplace_orders(request):
 
     try:
         with transaction.atomic():
-            product = Product.objects.select_for_update().select_related("seller").filter(
+            product = Product.objects.select_for_update(of=("self",)).select_related("seller").filter(
                 id=product_id,
                 approval_status=Product.STATUS_APPROVED,
                 is_archived=False,
@@ -1768,7 +1997,12 @@ def marketplace_orders(request):
             customization_payload: dict = {}
             option_summary = option
 
-            if product.customization_enabled:
+            from modules.marketplace.services.bundles import is_bundle, reserve_bundle
+            if is_bundle(product):
+                customization_payload = reserve_bundle(product, quantity)
+                option_summary = customization_payload["summary"]
+                unit_price = base_price
+            elif product.customization_enabled or customization_has_stock_tracking(product.customization_options):
                 raw_selections = data.get("customization")
                 if raw_selections is None and option:
                     raw_selections = [{"group": "Option", "option": option, "extra_price": "0"}]
@@ -1785,10 +2019,11 @@ def marketplace_orders(request):
             else:
                 unit_price = base_price
 
-            adjust_product_stock(product, selections, quantity)
-            product.save(update_fields=["stock", "customization_options", "updated_at"])
+            if not is_bundle(product):
+                adjust_product_stock(product, selections, quantity)
+                product.save(update_fields=["stock", "customization_options", "updated_at"])
             total_price = (unit_price * quantity).quantize(Decimal("0.01"))
-            seller_name = product.seller.get_full_name() or product.seller.username
+            seller_name = product.owner.get_full_name() or product.owner.username
 
             order = MarketplaceOrder.objects.create(
                 product=product,
@@ -1798,7 +2033,7 @@ def marketplace_orders(request):
                 product_name=product.name,
                 category=product.category,
                 seller_name=seller_name,
-                seller_contact=product.seller.email,
+                seller_contact=product.owner.email,
                 message_to_seller=message_to_seller,
                 option=option_summary,
                 customization=customization_payload,
@@ -1807,7 +2042,11 @@ def marketplace_orders(request):
                 total_price=total_price,
                 image_url=serialize_product(product, request).get("image_url", ""),
                 inventory_deducted=True,
+                **fulfillment,
             )
+
+            from modules.marketplace.services.inventory_records import attach_reservation_movements
+            attach_reservation_movements(product, order)
 
             ProductInteraction.objects.create(
                 user_id=order.buyer_user_id,

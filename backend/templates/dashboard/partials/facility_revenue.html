@@ -1,0 +1,23 @@
+{% load humanize %}
+<article id="facilityRevenueCard" class="dash-card facility-revenue-analytics h-100" data-facility-revenue aria-labelledby="facilityRevenueTitle">
+    <div class="dash-card-header"><h2 id="facilityRevenueTitle">Facility Revenue</h2></div>
+    <div data-revenue-content>
+        <div class="facility-revenue-total">
+            <strong data-revenue-total>₱{{ facility_analytics.revenue_overview.total|floatformat:2|intcomma }}</strong>
+            <span class="facility-revenue-comparison" data-revenue-comparison>{{ facility_analytics.revenue_overview.comparison.comparison_text }}</span>
+            <span>Paid facility transactions in the selected period</span>
+        </div>
+        <div class="facility-revenue-chart-wrap">
+            <canvas id="facilityPaidRevenueChart" role="img" tabindex="0" aria-label="Facility revenue trend. Use Left and Right arrow keys to inspect daily revenue." aria-describedby="facilityRevenueKeyboardValue"></canvas>
+        </div>
+        <p id="facilityRevenueKeyboardValue" class="visually-hidden" data-revenue-keyboard aria-live="polite" hidden></p>
+        {% if super_analytics %}<div data-revenue-table{% if not facility_analytics.revenue_overview.transactions %} hidden{% endif %}>{% include 'reports/partials/analytics_chart_data.html' with chart_table=facility_revenue_table caption='Verified facility revenue by recognition date' %}</div>{% endif %}
+        <p class="facility-revenue-message" data-revenue-empty{% if facility_analytics.revenue_overview.transactions %} hidden{% endif %}>No paid facility transactions in selected period.</p>
+    </div>
+    <p class="facility-revenue-message" data-revenue-loading role="status" hidden>Loading facility revenue…</p>
+    <div class="facility-revenue-message" data-revenue-error role="alert" hidden>
+        <p>Unable to load facility revenue.</p><button type="button" data-revenue-retry>Retry</button>
+    </div>
+    <a href="{% url 'admin_generate_reports_page' %}?report_type=facility_revenue&amp;date_from={{ facility_analytics.revenue_overview.start_date }}&amp;date_to={{ facility_analytics.revenue_overview.end_date }}" class="facility-report-link" data-revenue-report>View Facility Reports →</a>
+    {{ facility_analytics.revenue_overview|json_script:'facilityPaidRevenueData' }}
+</article>

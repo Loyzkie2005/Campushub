@@ -1,0 +1,61 @@
+/* One web UI type system. SugarPie branding is the only display-face exception. */
+@font-face {
+    font-family: 'Inter';
+    src: url('../../assets/fonts/InterVariable.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+/* Keep the 24px page title and existing icon targets usable on very narrow web views. */
+@media screen and (max-width: 359px) {
+    .dashboard-header[data-inline-system-status] { grid-template-columns: minmax(0, 1fr); }
+    .dashboard-header[data-inline-system-status] .header-left { grid-column: 1; grid-row: 1; }
+    .dashboard-header[data-inline-system-status] .header-right { grid-column: 1; grid-row: 2; justify-self: end; }
+    .dashboard-header[data-inline-system-status] .header-system-status { grid-column: 1; grid-row: 3; }
+}
+:root {
+    --ch-font-ui: 'Inter', sans-serif;
+    --ch-surface-page: #F7F8FC;
+    --ch-type-page: 24px;
+    --ch-type-section: 18px;
+    --ch-type-card: 16px;
+    --ch-type-body: 14px;
+    --ch-type-support: 13px;
+    --ch-type-chart: 12px;
+}
+html body,
+html body :is(h1,h2,h3,h4,h5,h6,p,div,section,main,header,footer,nav,aside,caption,legend,option,optgroup,output,b,em,span,strong,small,a,label,button,input,select,textarea,table,th,td,li,dt,dd,summary,text,tspan) {
+    font-family: var(--ch-font-ui) !important;
+}
+html body { font-size: var(--ch-type-body); line-height: 1.5; }
+.main-wrapper { background-color: var(--ch-surface-page); }
+/* Reuse the existing local wordmark; keep its dimensions/colors in brand.css. */
+html body .login-brand .login-brand-name,
+html body .login-brand .login-brand-name span,
+html body .sidebar-logo .sidebar-logo-text,
+html body .sidebar-logo .sidebar-logo-text span { font-family: 'SugarPie', cursive !important; }
+@media screen {
+    html body h1 { font-size: var(--ch-type-page); font-weight: 600; line-height: 1.3; }
+    html body h2 { font-size: var(--ch-type-section); font-weight: 600; line-height: 1.4; }
+    html body h3 { font-size: var(--ch-type-card); font-weight: 600; line-height: 1.4; }
+    .header-page-title, .admin-page-title, .page-title { font-size: var(--ch-type-page) !important; font-weight: 600 !important; line-height: 1.3; }
+    .dashboard-section-heading h2, .marketplace-section-title { font-size: var(--ch-type-section) !important; font-weight: 600; line-height: 1.4; text-transform: none; letter-spacing: 0; }
+    .dash-card-header h2, .bundle-panel-heading h2, .analytics-panel-header h2, .fd-card h2 { font-size: var(--ch-type-card) !important; font-weight: 600; line-height: 1.4; }
+    .fd-card-heading h2, .dash-card-header h3, .analytics-panel-header h3 { font-size: var(--ch-type-card) !important; font-weight: 600; line-height: 1.4; }
+    .fd-heading h2, .login-title { font-size: var(--ch-type-page) !important; font-weight: 600; }
+    .sidebar :is(.nav-link,.nav-group-toggle,.sidebar-link) { font-size: 14px; font-weight: 500; line-height: 1.5; }
+    html body table :is(th,td) { font-size: 13px !important; line-height: 1.5; }
+    table th { font-weight: 600; }
+    table td { font-weight: 400; }
+    html body label, .form-label { font-size: 13px; font-weight: 500; }
+    html body :is(input,select,textarea,.form-control,.form-select) { font-size: 14px; font-weight: 400; line-height: 1.5; }
+    html body button,.btn { font-size: 14px; font-weight: 600; }
+    .dashboard-overview-kpis .dashboard-stat-card strong { font-size: clamp(24px,12cqi,30px) !important; font-weight: 700; }
+    .dashboard-overview-kpis .dashboard-stat-card > div > span { font-size: 13px !important; font-weight: 500; }
+    .dashboard-overview-kpis .dashboard-stat-card small, .bundle-dashboard-description, .bundle-dashboard-state p { font-size: 13px !important; font-weight: 400; }
+    .bundle-dashboard-state h3 { font-size: 15px; font-weight: 600; }
+    .fd-kpi-copy strong { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .fd-kpi-copy h3 { font-size: 13px; font-weight: 500; }
+    .fd-kpi-copy p, .fd-card-note, .fd-chart-summary { font-size: 13px; font-weight: 400; }
+    [data-dashboard-kpi],.sales-overview__metric strong,.text-end,.low-stock-qty { font-variant-numeric: tabular-nums; }
+}

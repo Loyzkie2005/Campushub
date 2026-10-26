@@ -1,0 +1,58 @@
+<section class="executive-section executive-services" data-services-overview aria-labelledby="servicesOverviewTitle">
+    <div class="dashboard-section-heading executive-section-header">
+        <div><h2 id="servicesOverviewTitle">Services Overview</h2><p class="services-note executive-section-subtitle">Monitor service availability and request processing.</p></div>
+        <div class="executive-section-actions">
+            <a class="dash-view-all-link" data-executive-analytics="services" href="{{ executive.analytics_urls.services }}">View Analytics <span aria-hidden="true">&rarr;</span></a>
+        </div>
+    </div>
+    <div data-services-content>
+        <h3 class="services-summary-title">Service Summary</h3>
+        <div class="services-kpis">
+            <div class="dash-card"><h3>Active Services</h3><strong data-service-metric="active_services">{{ executive.services.active_services }}</strong></div>
+            <div class="dash-card"><h3>Open Requests</h3><strong data-service-metric="open_requests">{{ executive.services.open_requests }}</strong></div>
+            <div class="dash-card"><h3>Pending Requests</h3><strong data-service-metric="pending_requests">{{ executive.services.pending_requests }}</strong></div>
+            <div class="dash-card"><h3>Completed Requests</h3><strong data-service-metric="completed_requests">{{ executive.services.completed_requests }}</strong></div>
+        </div>
+        <p class="services-note">Request counts use the selected submission period. Active Services reflects the current service catalog.</p>
+        <div class="services-grid">
+            <article class="dash-card" aria-labelledby="serviceTrendTitle" data-empty-region="service-trend">
+                <div class="services-card-heading"><h3 id="serviceTrendTitle">Service Request Trend</h3><label class="visually-hidden" for="serviceGroupingSelect">Service request trend grouping</label><select id="serviceGroupingSelect" class="sales-select"><option value="daily"{% if executive.services.request_trend.grouping == 'daily' %} selected{% endif %}>Daily</option><option value="weekly"{% if executive.services.request_trend.grouping == 'weekly' %} selected{% endif %}>Weekly</option><option value="monthly"{% if executive.services.request_trend.grouping == 'monthly' %} selected{% endif %}>Monthly</option></select></div>
+                <p class="services-note">Service requests submitted over the selected period.</p>
+                <div data-service-trend-content>
+                    <div class="services-chart" data-service-trend-wrap{% if not executive.services.total_requests %} hidden{% endif %}><canvas id="serviceRequestTrendChart" tabindex="0" role="img" aria-label="Service request activity over time" aria-describedby="serviceTrendDescription"></canvas></div>
+                    <div class="services-empty" data-service-trend-empty{% if executive.services.total_requests %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Service Request Data Yet' description='Request trends will appear once users begin submitting service requests.' icon='trend' %}</div>
+                    <p class="services-note" data-service-trend-fallback hidden>Chart unavailable. Request counts are listed below.</p>
+                    <ul class="visually-hidden services-chart-data" id="serviceTrendDescription" data-service-trend-description>{% for row in executive.services.request_trend.trend %}<li>{{ row.label }}: {{ row.count }} requests.</li>{% endfor %}</ul>
+                </div>
+                <p class="services-note" data-service-chart-live aria-live="polite"></p>
+                <div data-service-trend-error role="alert" hidden><p>Unable to load service request trend.</p><button type="button" class="dashboard-filter-button" id="serviceTrendRetry">Retry</button></div>
+            </article>
+            <article class="dash-card" aria-labelledby="serviceDistributionTitle" data-empty-region="service-distribution">
+                <h3 id="serviceDistributionTitle">Requests by Service</h3><p class="services-note">Compare request activity across available services.</p>
+                <div class="services-chart" data-service-distribution-wrap{% if not executive.services.requests_by_service %} hidden{% endif %}><canvas id="serviceDistributionChart" tabindex="0" role="img" aria-label="Requests by service, highest to lowest" aria-describedby="serviceDistributionDescription"></canvas></div>
+                <div class="services-empty" data-service-distribution-empty{% if executive.services.requests_by_service %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Service Request Activity Yet' description='Request distribution by service will appear after submissions are recorded.' icon='categories' %}</div>
+                <p class="services-note" data-service-distribution-fallback hidden>Chart unavailable. Service request counts are listed below.</p>
+                <ol class="visually-hidden services-chart-data" id="serviceDistributionDescription" data-service-distribution-description>{% for row in executive.services.requests_by_service %}<li>{{ row.facility__facility_name }}: {{ row.total }} requests.</li>{% endfor %}</ol>
+                <span class="visually-hidden" data-service-distribution-live aria-live="polite"></span>
+            </article>
+        </div>
+        <div class="services-grid services-operations">
+            <article class="dash-card" aria-labelledby="serviceRecentTitle" data-empty-region="service-recent">
+                <div class="services-card-heading"><h3 id="serviceRecentTitle">Recent Service Requests</h3><a class="dash-view-all-link" href="{% url 'admin_service_requests_page' %}">View All</a></div>
+                <p class="services-note">Latest requests submitted for campus services.</p>
+                <div class="services-table-scroll" data-service-recent-wrap tabindex="0" role="region" aria-label="Recent service requests table"{% if not executive.services.recent_requests %} hidden{% endif %}>
+                    <table class="services-table"><caption class="visually-hidden">Latest five service requests submitted in the selected period.</caption><thead><tr><th scope="col">Request No.</th><th scope="col">Service</th><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Date</th></tr></thead><tbody data-service-recent>{% for row in executive.services.recent_requests %}<tr><td><a href="{{ row.url }}">{{ row.id }}</a></td><td>{{ row.service }}</td><td>{{ row.requester }}</td><td>{{ row.status }}</td><td><time datetime="{{ row.submitted_at }}">{{ row.submitted_at }}</time></td></tr>{% endfor %}</tbody></table>
+                </div>
+                <div class="services-empty" data-service-recent-empty{% if executive.services.recent_requests %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Recent Service Requests' description='New service requests will appear here after users submit them.' icon='average' %}</div>
+            </article>
+            <article class="dash-card" aria-labelledby="serviceAttentionTitle" data-empty-region="service-attention">
+                <h3 id="serviceAttentionTitle">Service Attention</h3><p class="services-note">Requests and services requiring administrator attention.</p>
+                <ul class="services-attention" data-service-attention>{% for row in executive.services.attention %}<li><a href="{{ row.url }}">{{ row.reference }} &middot; {{ row.service }}</a><span>{{ row.status }}</span><p>{{ row.reason }}</p></li>{% endfor %}</ul>
+                <div class="services-empty" data-service-attention-empty{% if executive.services.attention %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Service Attention Needed' description='Requests or services requiring administrator action will appear here.' icon='info' %}</div>
+            </article>
+        </div>
+    </div>
+    <p class="services-note" data-services-loading role="status" hidden>Loading services overview.</p>
+    <div class="dash-card" data-services-error role="alert" hidden><p>Unable to load services overview.</p><button type="button" class="dashboard-filter-button" id="servicesOverviewRetry">Retry</button></div>
+    {{ executive.services|json_script:'servicesOverviewData' }}
+</section>

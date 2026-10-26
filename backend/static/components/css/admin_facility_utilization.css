@@ -1,0 +1,21 @@
+/* Only the Super Admin capacity-based utilization card. */
+.facility-utilization-card { min-width: 0; min-height: 400px; padding: 20px; }
+.facility-utilization-card [hidden] { display: none !important; }
+.facility-utilization-empty { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 8px; text-align: center; color: #1A1851; }
+.facility-utilization-empty > p { margin: 0; font-size: 12px; line-height: 1.5; }
+.facility-utilization-card h2 { color: #1A1851; font-size: 14px; font-weight: 600; text-transform: uppercase; }
+.facility-utilization-subtitle, .facility-utilization-message { margin: 0 0 12px; color: #626781; font-size: 12px; line-height: 1.5; }
+.facility-utilization-types { list-style: none; padding: 0; margin: 0; }
+.facility-utilization-type { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 5px 12px; padding: 10px 0; }
+.facility-utilization-type + .facility-utilization-type { border-top: 1px solid rgba(26,24,81,.1); }
+.facility-utilization-type > strong { color: #1A1851; font-size: 12px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.facility-utilization-type > b { color: #1A1851; font-size: 12px; line-height: 1.5; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.facility-utilization-type[data-state="unavailable"] > b { max-width: 108px; font-weight: 400; }
+.facility-utilization-type[data-state="unavailable"] > b::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 5px; border-radius: 50%; background: #FCB315; vertical-align: middle; }
+.facility-utilization-context { grid-column: 1 / -1; color: #626781; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.facility-utilization-meter { grid-column: 1 / -1; height: 6px; overflow: hidden; border-radius: 3px; background: #f8fafc; border: 1px solid rgba(26,24,81,.12); }
+.facility-utilization-meter > span { display: block; height: 100%; background: #1A1851; }
+.facility-utilization-message { margin-top: 12px; }
+.facility-utilization-loading, .facility-utilization-error { padding: 28px 0; margin: 0; color: #1A1851; font-size: 12px; line-height: 1.5; }
+.facility-utilization-error button { min-height: 36px; padding: 6px 12px; border: 1px solid #1A1851; border-radius: 6px; background: #FFFFFF; color: #1A1851; font: inherit; font-weight: 600; }
+.facility-utilization-error button:focus-visible { outline: 2px solid #1A1851; outline-offset: 3px; }

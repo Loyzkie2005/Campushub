@@ -10,6 +10,16 @@ class CustomUserAdmin(UserAdmin):
     add_form = AdminUserCreationForm
     form = AdminUserChangeForm
 
+    def has_delete_permission(self, request, obj=None):
+        return False  # Preserve account and transaction history in Django admin too.
+
+    def save_model(self, request, obj, form, change):
+        from .role_permissions import sync_user_admin_permissions
+        from .user_management import log_management_event
+        super().save_model(request, obj, form, change)
+        sync_user_admin_permissions(obj)
+        log_management_event(request, source="admin", account=obj, action="USER_UPDATED" if change else "ADMIN_CREATED")
+
     list_display = (
         "username",
         "email",
@@ -29,7 +39,7 @@ class CustomUserAdmin(UserAdmin):
     )
 
     fieldsets = UserAdmin.fieldsets + (
-        ("Extra Info", {"fields": ("role", "department")}),
+        ("Extra Info", {"fields": ("role", "department", "major")}),
     )
 
     add_fieldsets = (
@@ -44,6 +54,7 @@ class CustomUserAdmin(UserAdmin):
                     "email",
                     "role",
                     "department",
+                    "major",
                     "is_staff",
                     "is_active",
                     "password1",

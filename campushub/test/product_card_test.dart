@@ -75,7 +75,7 @@ void main() {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
-                            color: isHot ? const Color(0xFFFCB316) : const Color(0xFF1A1851),
+                            color: isHot ? const Color(0xFFFCB315) : const Color(0xFF1A1851),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -139,7 +139,7 @@ void main() {
                                           ? Icons.star_half
                                           : Icons.star_border),
                                   size: 12,
-                                  color: const Color(0xFFFCB316),
+                                  color: const Color(0xFFFCB315),
                                 ),
                               const SizedBox(width: 3),
                               Text(

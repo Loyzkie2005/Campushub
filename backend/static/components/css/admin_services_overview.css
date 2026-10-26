@@ -1,0 +1,36 @@
+/* Executive service monitoring only; service catalog/workflow pages keep their styles. */
+.dashboard-executive .executive-services { --service-ink: #1A1851; --service-muted: #626781; --service-border: #E8EAF0; color: var(--service-ink); }
+.executive-services .services-note { margin: 4px 0 12px; font-size: 13px; line-height: 1.5; color: var(--service-muted); }
+.executive-services .services-summary-title { margin: 0 0 10px; font-size: 14px; }
+.executive-services .services-kpis { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.dashboard-executive .executive-services .dash-card { min-width: 0; padding: 16px; border: 1px solid var(--service-border); border-radius: 14px; background: #FFFFFF; box-shadow: none; }
+.dashboard-executive .executive-services .dash-card h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.4; }
+.dashboard-executive .executive-services .services-kpis h3 { margin: 0 0 8px; font-size: 13px; font-weight: 500; }
+.executive-services .services-kpis strong { font-size: 28px; font-weight: 700; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.executive-services .services-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+.executive-services .services-operations { margin-top: 16px; }
+.executive-services .services-card-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.executive-services .sales-select { width: auto; min-width: 96px; }
+.executive-services .services-chart { position: relative; height: 240px; width: 100%; min-width: 0; margin-top: 12px; }
+.executive-services canvas { width: 100% !important; height: 100% !important; max-width: 100%; }
+.executive-services .services-empty { display: grid; align-content: center; min-height: 130px; padding: 16px 0; }
+.executive-services .services-empty h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.executive-services .services-empty p { margin: 0; font-size: 13px; color: var(--service-muted); line-height: 1.5; }
+.executive-services .services-table-scroll { max-width: 100%; overflow-x: auto; }
+.executive-services .services-table { width: 100%; min-width: 570px; table-layout: fixed; border-collapse: collapse; }
+.executive-services .services-table :is(th, td) { text-align: left; vertical-align: top; padding: 10px 8px; border-bottom: 1px solid var(--service-border); overflow-wrap: anywhere; }
+.executive-services .services-table th { background: #f8fafc; font-weight: 600; }
+.executive-services a { color: var(--service-ink); text-underline-offset: 3px; }
+.executive-services .services-attention { padding: 0; margin: 0; list-style: none; }
+.executive-services .services-attention li { display: grid; gap: 4px; padding: 10px 0; font-size: 13px; overflow-wrap: anywhere; }
+.executive-services .services-attention li + li { border-top: 1px solid var(--service-border); }
+.executive-services .services-attention a { font-weight: 600; }
+.executive-services .services-attention span { font-weight: 500; }
+.executive-services .services-attention p { margin: 0; color: var(--service-muted); }
+.executive-services .services-chart-data:not(.visually-hidden) { max-height: 160px; overflow-y: auto; font-size: 13px; }
+.executive-services :is(a, button, select, canvas, [tabindex]):focus-visible { outline: 2px solid var(--service-ink); outline-offset: 3px; }
+@media (min-width: 600px) { .executive-services .services-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) {
+    .executive-services .services-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .executive-services .services-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}

@@ -1,15 +1,13 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../theme/app_typography.dart';
 
 /// Brief centered loading spinner, then check + label after add to cart.
 class AddToCartFeedback {
   AddToCartFeedback._();
 
-  static void show(
-    BuildContext context, {
-    String message = 'Add to Cart',
-  }) {
+  static void show(BuildContext context, {String message = 'Add to Cart'}) {
     final overlay = Overlay.of(context, rootOverlay: true);
     late final OverlayEntry entry;
 
@@ -109,8 +107,10 @@ class _AddToCartCheckOverlayState extends State<_AddToCartCheckOverlay>
 
   double get _checkDrawProgress {
     if (_t < _loadingEndAt) return 0;
-    return ((_t - _loadingEndAt) / (_checkDoneAt - _loadingEndAt))
-        .clamp(0.0, 1.0);
+    return ((_t - _loadingEndAt) / (_checkDoneAt - _loadingEndAt)).clamp(
+      0.0,
+      1.0,
+    );
   }
 
   double get _textOpacity {
@@ -171,8 +171,8 @@ class _AddToCartCheckOverlayState extends State<_AddToCartCheckOverlay>
                         opacity: _textOpacity.clamp(0.0, 1.0),
                         child: Text(
                           widget.message,
-                          style: const TextStyle(
-                            color: Color(0xFF1A1851),
+                          style: AppTypography.text(
+                            color: const Color(0xFF1A1851),
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.2,

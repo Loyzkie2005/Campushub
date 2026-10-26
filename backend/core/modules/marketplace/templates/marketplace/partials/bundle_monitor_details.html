@@ -1,0 +1,67 @@
+{% load tz %}
+{% timezone 'Asia/Manila' %}
+<div class="bm-record-detail" data-bundle-record="{{ item.id }}">
+    <section class="bm-drawer-section">
+        <h3>Product Combination</h3>
+        <p class="bm-note">Suggestion #{{ item.id }} · {{ item.seller }}</p>
+        <div class="bm-drawer-products">
+            {% for product in item.products %}
+            <article>
+                {% include 'marketplace/partials/bundle_photo.html' with product=product %}
+                <div><h4>{{ product.name }}</h4><p>{{ product.category|default:'Uncategorized' }}</p><strong>₱{{ product.price|floatformat:2 }}</strong><small>{{ product.availability }}</small></div>
+            </article>
+            {% endfor %}
+        </div>
+        <p class="bm-note">Individual product prices are shown. No suggested bundle price or publication is implied.</p>
+    </section>
+    <section class="bm-drawer-section">
+        <h3>Association Evidence</h3>
+        <p>{{ evidence.note }}</p>
+        <dl class="bm-drawer-facts">
+            <div><dt>Antecedent (IF)</dt><dd>{{ evidence.antecedent|default:'Not recorded' }}</dd></div>
+            <div><dt>Consequent (THEN)</dt><dd>{{ evidence.consequent|default:'Not recorded' }}</dd></div>
+            <div><dt>Support</dt><dd>{% if evidence.available %}{{ evidence.support|floatformat:2 }}%{% else %}Not recorded{% endif %}</dd></div>
+            <div><dt>Confidence</dt><dd>{% if evidence.available %}{{ evidence.confidence|floatformat:2 }}%{% else %}Not recorded{% endif %}</dd></div>
+            <div><dt>Lift</dt><dd>{% if evidence.available %}{{ evidence.lift|floatformat:2 }}{% else %}Not recorded{% endif %}</dd></div>
+            <div><dt>Supporting Basket Count</dt><dd>Not recorded</dd></div>
+            <div><dt>Analysis Source Snapshot</dt><dd>Not recorded</dd></div>
+            <div><dt>Completed Analysis Date</dt><dd>Not recorded</dd></div>
+        </dl>
+        <p class="bm-note">Saved live recommendation record. A complete original dataset, denominator and run link are not stored. Last verification is not a completed analysis timestamp. Association does not prove causation or purchase sequence.</p>
+    </section>
+    <section class="bm-drawer-section">
+        <h3>Seller Information</h3>
+        <dl class="bm-drawer-facts">
+            <div><dt>Seller</dt><dd>{{ item.seller }}</dd></div>
+            <div><dt>Program / Major</dt><dd>{{ item.academic.program_major }}</dd></div>
+            <div><dt>Seller Eligibility</dt><dd>{% if item.eligible %}Currently eligible{% else %}No longer eligible{% endif %}</dd></div>
+            <div><dt>Ownership</dt><dd>Same-seller ownership and current eligibility are checked before highlighting.</dd></div>
+        </dl>
+    </section>
+    <section class="bm-drawer-section">
+        <h3>Recommendation History</h3>
+        <dl class="bm-drawer-facts">
+            <div><dt>Generated</dt><dd><time datetime="{{ item.record.generated_at|date:'c' }}">{{ item.record.generated_at|date:'M j, Y · g:i A' }} PHT</time></dd></div>
+            <div><dt>Last Algorithm Verification</dt><dd>{% if item.record.verified_at %}<time datetime="{{ item.record.verified_at|date:'c' }}">{{ item.record.verified_at|date:'M j, Y · g:i A' }} PHT</time>{% else %}Not recorded{% endif %}</dd></div>
+            <div><dt>Administrative Review Decision</dt><dd>Not recorded separately</dd></div>
+            <div><dt>Workspace Highlight</dt><dd>{{ item.delivery }}{% if item.record.sent_at %}<small><time datetime="{{ item.record.sent_at|date:'c' }}">{{ item.record.sent_at|date:'M j, Y · g:i A' }} PHT</time></small>{% endif %}</dd></div>
+            {% if item.record.sent_by %}<div><dt>Highlighted By</dt><dd>{{ item.record.sent_by.get_full_name|default:item.record.sent_by.username }}</dd></div>{% endif %}
+            <div><dt>Seller Response</dt><dd>{{ item.response }}{% if item.response_at %}<small><time datetime="{{ item.response_at|date:'c' }}">{{ item.response_at|date:'M j, Y · g:i A' }} PHT</time></small>{% endif %}</dd></div>
+            <div><dt>Bundle Creation Outcome</dt><dd>{% if item.bundles %}Linked seller submissions recorded{% else %}No linked bundle recorded{% endif %}</dd></div>
+        </dl>
+        <p class="bm-note">A workspace highlight does not confirm email or push delivery. Linked submissions follow normal product approval.</p>
+        <h4>Recorded Events</h4>
+        <ol class="bm-event-list">
+            {% for event in current %}
+            <li><strong>{{ event.activity }}</strong><small>{{ event.metadata.actor_username|default:event.full_name|default:event.username|default:'Actor not recorded' }} · <time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:'M j, Y · g:i A' }} PHT</time></small></li>
+            {% empty %}<li>No recommendation activity has been recorded.</li>{% endfor %}
+        </ol>
+        <a href="{% url 'bundle_monitor_section' item.id 'history' %}">View recorded history{% if current.paginator.num_pages > 1 %} ({{ current.paginator.count }} events){% endif %}</a>
+    </section>
+    <nav class="bm-drawer-section bm-drawer-actions" aria-label="Existing recommendation actions">
+        <a class="bm-button" href="{% url 'bundle_monitor_section' item.id 'response' %}">{% if can_highlight %}Review Seller Highlight{% else %}View Seller Response{% endif %}</a>
+        {% if item.bundles %}<a class="bm-button" href="{% url 'bundle_monitor_section' item.id 'bundle' %}">View Created Bundles</a>{% endif %}
+        <p class="bm-note">Read-only details. Existing authorized actions open their normal pages.</p>
+    </nav>
+</div>
+{% endtimezone %}

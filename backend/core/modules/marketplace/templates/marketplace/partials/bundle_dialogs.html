@@ -1,0 +1,20 @@
+{{ bundle_analysis|json_script:"bundleSuggestionsData" }}
+<template id="bundlePhotoPlaceholder">{% include 'marketplace/partials/inventory_kpi_icon.html' with kind='product' %}</template>
+{% if global_dashboard %}
+<dialog class="bundle-review-dialog" id="bundleReviewDialog" aria-labelledby="bundleReviewTitle">
+    <header><h2 id="bundleReviewTitle">Suggested Product Bundle</h2></header>
+    <div class="bundle-review-body">
+        <div class="bundle-review-products" id="bundleReviewProducts"></div>
+        <p id="bundleReviewCombination"></p>
+        <p id="bundleReviewSeller"></p>
+    </div>
+    <footer><button type="button" class="bundle-close-primary" data-bundle-close>Close</button></footer>
+</dialog>
+{% endif %}
+<dialog class="bundle-review-dialog bundle-all-dialog" id="bundleAllDialog" aria-labelledby="bundleAllTitle">
+    <header><h2 id="bundleAllTitle">Frequently Bought Together</h2></header>
+    <div class="bundle-review-body"><div class="bundle-pair-list" id="bundleAllRows"></div>
+        <nav class="bundle-pagination" id="bundleAllPagination" aria-label="Product pair pages"></nav>
+    </div>
+    <footer><button type="button" class="bundle-close-primary" data-bundle-close>Close</button></footer>
+</dialog>

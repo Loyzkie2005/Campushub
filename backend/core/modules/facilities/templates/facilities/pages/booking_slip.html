@@ -1,0 +1,11 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampusHub | {{ slip.title }}</title>
+{% if pdf_render %}<style>{{ slip_styles|safe }}</style>{% else %}<link rel="stylesheet" href="{% static 'components/css/booking_slip.css' %}?v=20261022-inter">{% endif %}
+{% include 'partials/web_typography.html' %}
+</head><body class="bk-official-print-page">
+{% if not pdf_render %}<nav class="bk-slip-toolbar" aria-label="Document actions"><button class="bk-slip-print" type="button" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 8V3h10v5M7 17H4V9h16v8h-3M7 14h10v7H7z"/><path d="M17 11h.01"/></svg>Print</button><a href="{{ pdf_url }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg>Export PDF</a></nav>{% endif %}
+<main>{% include 'facilities/partials/official_booking_slip.html' %}</main>
+{% if not pdf_render %}<script src="{% static 'components/js/admin_session.js' %}?v=20260708"></script>{% endif %}
+</body></html>

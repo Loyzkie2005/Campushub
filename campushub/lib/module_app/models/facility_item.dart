@@ -21,11 +21,14 @@ class FacilityItem {
     required this.reviews,
     required this.icon,
     required this.imageUrl,
+    this.images = const [],
+    this.capacityLabel = '',
     this.description = '',
     this.amenities = const [],
     this.requirements = '',
     this.termsConditions = '',
     this.location = '',
+    this.jobOrderService = '',
   });
 
   factory FacilityItem.fromJson(Map<String, dynamic> json) {
@@ -43,6 +46,14 @@ class FacilityItem {
         ? rawAmenities.map((e) => e.toString()).toList()
         : <String>[];
 
+    final rawImages = json['images'];
+    final images = rawImages is List
+        ? rawImages
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList()
+        : <String>[];
+
     final name = json['name'] as String? ?? 'Untitled Facility';
     final facilityType = (json['facility_type'] as String? ?? 'other');
     final facilityTypeLabel =
@@ -57,6 +68,7 @@ class FacilityItem {
       facilityTypeLabel: facilityTypeLabel,
       status: statusLabel,
       capacity: (json['capacity'] ?? 0).toString(),
+      capacityLabel: (json['capacity_label'] ?? '').toString(),
       rate: (json['rate']?.toString() ?? '0'),
       priceType: (json['price_type'] as String? ?? 'hour'),
       bookingMode: (json['booking_mode'] as String? ?? 'room'),
@@ -66,11 +78,13 @@ class FacilityItem {
       reviews: (json['reviews']?.toString() ?? ''),
       icon: iconForFacility(name, facilityType: facilityType),
       imageUrl: (json['image_url'] as String? ?? ''),
+      images: images,
       description: (json['description'] as String?) ?? '',
       amenities: amenities,
       requirements: (json['requirements'] as String?) ?? '',
       termsConditions: (json['terms_conditions'] as String?) ?? '',
       location: (json['location'] as String?) ?? '',
+      jobOrderService: (json['job_order_service'] as String?)?.trim() ?? '',
     );
   }
 
@@ -80,6 +94,7 @@ class FacilityItem {
   final String facilityTypeLabel;
   final String status;
   final String capacity;
+  final String capacityLabel;
   final String rate;
   final String priceType;
   final String bookingMode;
@@ -89,11 +104,13 @@ class FacilityItem {
   final String reviews;
   final IconData icon;
   final String imageUrl;
+  final List<String> images;
   final String description;
   final List<String> amenities;
   final String requirements;
   final String termsConditions;
   final String location;
+  final String jobOrderService;
 
   bool get supportsSlotBooking =>
       (bookingMode == 'slot' || bookingMode == 'assessment') &&
@@ -114,6 +131,9 @@ class FacilityItem {
 
   String get resolvedImageUrl {
     var url = imageUrl.trim();
+    if (url.isEmpty && images.isNotEmpty) {
+      url = images.first.trim();
+    }
     if (url.isEmpty) return '';
     if (url.startsWith('[')) {
       try {
@@ -129,18 +149,32 @@ class FacilityItem {
   }
 
   List<String> get allImageUrls {
+    String resolveSingle(String rawUrl) {
+      final s = rawUrl.trim();
+      if (s.isEmpty) return '';
+      if (s.startsWith('http') || s.startsWith('data:image/')) return s;
+      if (s.startsWith('/')) return '${ApiConfig.effectiveBaseUrl}$s';
+      return s;
+    }
+
+    if (images.isNotEmpty) {
+      final resolvedList = images
+          .map(resolveSingle)
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (resolvedList.isNotEmpty) return resolvedList;
+    }
+
     final raw = imageUrl.trim();
     if (raw.isEmpty) return const [];
     if (raw.startsWith('[')) {
       try {
         final parsed = jsonDecode(raw);
         if (parsed is List) {
-          return parsed.map((e) {
-            final s = e.toString().trim();
-            if (s.startsWith('http') || s.startsWith('data:image/')) return s;
-            if (s.startsWith('/')) return '${ApiConfig.effectiveBaseUrl}$s';
-            return s;
-          }).toList();
+          return parsed
+              .map((e) => resolveSingle(e.toString()))
+              .where((s) => s.isNotEmpty)
+              .toList();
         }
       } catch (_) {}
     }

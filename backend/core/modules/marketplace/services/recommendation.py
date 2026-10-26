@@ -48,6 +48,7 @@ def get_recommended_products(
     user_id: int | None = None,
     limit: int = 8,
     seed_product_id: int | None = None,
+    personalized_only: bool = False,
 ) -> list[Product]:
     """
     Return ML-ranked product recommendations.
@@ -59,7 +60,7 @@ def get_recommended_products(
         Product.objects.filter(
             approval_status=Product.STATUS_APPROVED,
             is_archived=False,
-        ).select_related("seller")
+        ).select_related("seller", "mobile_seller")
     )
     if not approved:
         return []
@@ -68,7 +69,7 @@ def get_recommended_products(
     similarity, ordered = _content_similarity_matrix(approved)
 
     # Seed from explicit product (e.g. product detail screen)
-    if seed_product_id and seed_product_id in product_by_id:
+    if seed_product_id and seed_product_id in product_by_id and not personalized_only:
         return _similar_from_seed(
             seed_product_id,
             product_by_id,
@@ -99,6 +100,11 @@ def get_recommended_products(
             if scores:
                 ranked = [product_by_id[i] for i, _ in scores.most_common(limit)]
                 return ranked
+
+    # Search must not label the general catalog as a personal recommendation.
+    # Existing callers retain their fallback unless they explicitly opt out.
+    if personalized_only:
+        return []
 
     # Fallback: products with most interactions, then TF-IDF diversity
     popular_ids = list(

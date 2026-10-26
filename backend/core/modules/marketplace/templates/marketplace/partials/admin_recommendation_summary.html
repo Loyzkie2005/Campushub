@@ -1,0 +1,60 @@
+<section class="dash-card bundle-dss marketplace-recommendation-summary" aria-labelledby="marketplaceRecommendationsTitle">
+    <header>
+        <h2 id="marketplaceRecommendationsTitle">{{ recommendation_title|default:'Marketplace Recommendations'|force_escape }}</h2>
+        <p class="marketplace-recommendation-subtitle super-recommendation-subtitle">Saved product combinations and seller responses.</p>
+    </header>
+    {% if dashboard_preview %}
+    <div class="marketplace-bundle-preview-region">
+        {% if bundle_analysis.monitor_error %}
+        <p class="marketplace-recommendation-note" role="alert">Unable to load bundle suggestions. Open Recommendations to retry.</p>
+        {% elif bundle_analysis.monitor_rows %}
+        <ul class="marketplace-bundle-preview">
+            {% for suggestion in bundle_analysis.monitor_rows %}
+            <li><strong>{% for product in suggestion.products %}{{ product.name }}{% if not forloop.last %} + {% endif %}{% endfor %}</strong><small>{{ suggestion.seller }}<br>{{ suggestion.delivery }}{% if suggestion.response != 'Not Applicable' %} &middot; {{ suggestion.response }}{% endif %}</small></li>
+            {% endfor %}
+        </ul>
+        {% elif bundle_analysis.dashboard_summary.suggested %}
+        {% include 'dashboard/partials/empty_state.html' with title='No Eligible Preview' description='Open Recommendations to review saved suggestions and their current eligibility.' icon='bag' %}
+        {% else %}
+        {% include 'dashboard/partials/empty_state.html' with title='No Bundle Suggestions Yet' description='Eligible saved recommendations will appear here.' icon='bag' %}
+        {% endif %}
+    </div>
+    {% endif %}
+    <div class="marketplace-recommendation-activity super-recommendation-activity" aria-labelledby="marketplaceRecommendationActivityTitle">
+        <h3 id="marketplaceRecommendationActivityTitle">Recommendation Activity</h3>
+        {% if bundle_analysis.activity.error %}
+        <p class="marketplace-recommendation-note" role="alert">Unable to load recommendation activity. Open Recommendations to retry.</p>
+        {% endif %}
+        <dl class="marketplace-recommendation-counts">
+            <div><dt>{% if dashboard_preview %}Saved Suggestions{% else %}Suggested Product Bundles{% endif %}</dt><dd>{% if bundle_analysis.dashboard_summary.suggested == None %}&mdash;{% else %}{{ bundle_analysis.dashboard_summary.suggested }}{% endif %}</dd></div>
+            <div><dt>Sent to Sellers</dt><dd>{% if bundle_analysis.dashboard_summary.sent == None %}&mdash;{% else %}{{ bundle_analysis.dashboard_summary.sent }}{% endif %}</dd></div>
+            <div><dt>Awaiting Seller Response</dt><dd>{% if bundle_analysis.dashboard_summary.awaiting == None %}&mdash;{% else %}{{ bundle_analysis.dashboard_summary.awaiting }}{% endif %}</dd></div>
+            <div><dt>Bundles Created</dt><dd>{% if bundle_analysis.dashboard_summary.created == None %}&mdash;{% else %}{{ bundle_analysis.dashboard_summary.created }}{% endif %}</dd></div>
+        </dl>
+        {% if not bundle_analysis.activity.error and bundle_analysis.activity.rates %}
+        <details class="marketplace-dashboard-details">
+            <summary>Seller response and bundle rates</summary>
+            <dl class="marketplace-dashboard-breakdown">
+                <div><dt>Seller Response Rate</dt><dd>{% if bundle_analysis.activity.rates.response_rate == None %}&mdash;{% else %}{{ bundle_analysis.activity.rates.response_rate }}%{% endif %}</dd></div>
+                <div><dt>Bundle Creation Rate</dt><dd>{% if bundle_analysis.activity.rates.creation_rate == None %}&mdash;{% else %}{{ bundle_analysis.activity.rates.creation_rate }}%{% endif %}</dd></div>
+            </dl>
+            <p>{% if bundle_analysis.activity.rates.sent %}All dates: {{ bundle_analysis.activity.rates.responded }} seller response{{ bundle_analysis.activity.rates.responded|pluralize }} (created or dismissed), {{ bundle_analysis.activity.rates.created }} bundle{{ bundle_analysis.activity.rates.created|pluralize }} from {{ bundle_analysis.activity.rates.sent }} sent suggestion{{ bundle_analysis.activity.rates.sent|pluralize }}.{% else %}Rates are unavailable until suggestions are sent.{% endif %}</p>
+        </details>
+        {% endif %}
+    </div>
+    {% if dashboard_preview and bundle_analysis.analysis_summary %}
+    <div class="marketplace-analysis-summary" role="group" aria-labelledby="marketplaceAnalysisSummaryTitle">
+        <h3 id="marketplaceAnalysisSummaryTitle">Analysis Summary</h3>
+        <dl class="marketplace-recommendation-counts">
+            <div><dt>Analyzed Baskets</dt><dd>{% if bundle_analysis.analysis_summary.basket_count == None %}&mdash;{% else %}{{ bundle_analysis.analysis_summary.basket_count }}{% endif %}</dd></div>
+            <div><dt>Last Analysis</dt><dd>{% if bundle_analysis.analysis_summary.state == 'unrecorded' %}Not recorded{% elif bundle_analysis.analysis_summary.completed_at %}<time datetime="{{ bundle_analysis.analysis_summary.completed_at }}">{{ bundle_analysis.analysis_summary.completed_label }}</time>{% else %}{{ bundle_analysis.analysis_summary.history_label }}{% endif %}</dd></div>
+            <div><dt>Data Source</dt><dd>{% if bundle_analysis.analysis_summary.state == 'unrecorded' %}Not recorded{% else %}{{ bundle_analysis.analysis_summary.source_label }}{% endif %}</dd></div>
+        </dl>
+        <p class="marketplace-recommendation-note"{% if bundle_analysis.analysis_summary.state == 'unavailable' %} role="alert"{% endif %}>{% if bundle_analysis.analysis_summary.state == 'unrecorded' %}No completed analysis record is available for your scope.{% elif bundle_analysis.analysis_summary.state == 'unavailable' %}{{ bundle_analysis.analysis_summary.note }}{% else %}{% if bundle_analysis.analysis_summary.state != 'recommendations' %}{{ bundle_analysis.analysis_summary.note }} {% endif %}{{ bundle_analysis.analysis_summary.scope_note }}{% endif %}</p>
+    </div>
+    {% endif %}
+    {% if bundle_analysis.error and not bundle_analysis.activity.error %}
+    <p class="marketplace-recommendation-note" role="alert">Unable to load bundle suggestions. Open Recommendations to retry.</p>
+    {% endif %}
+    <a class="marketplace-recommendation-action" href="{% url 'bundle_monitor_list' %}">View Recommendations <span aria-hidden="true">&rarr;</span></a>
+</section>

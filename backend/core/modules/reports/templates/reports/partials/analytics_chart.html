@@ -1,0 +1,5 @@
+{% if has_data %}
+<div class="analytics-chart {{ size|default:'analytics-chart-medium' }}"><canvas id="{{ chart_id }}" role="img" aria-label="{{ label }}" aria-describedby="{{ chart_id }}Description"></canvas></div>
+<p class="visually-hidden" id="{{ chart_id }}Description">{{ label }}. Exact values are available in View chart data below.</p>
+{% include 'reports/partials/analytics_chart_data.html' with chart_table=table caption=label %}
+{% else %}<div class="analytics-empty-state"><strong>{{ empty_title|default:'No activity in the selected period' }}</strong><span>{{ empty_text|default:'Recorded activity will appear when available for these dates.' }}</span></div>{% endif %}

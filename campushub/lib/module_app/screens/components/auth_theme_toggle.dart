@@ -6,7 +6,7 @@ class AuthThemeToggle extends StatelessWidget {
   const AuthThemeToggle({super.key});
 
   static const _navy = Color(0xFF1A1851);
-  static const _gold = Color(0xFFFCB316);
+  static const _gold = Color(0xFFFCB315);
 
   @override
   Widget build(BuildContext context) {

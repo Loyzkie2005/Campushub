@@ -1,3 +1,15 @@
+{% if marketplace %}
+<div class="marketplace-insight-grid">
+    <div class="marketplace-insight-content">
+        <h2 class="marketplace-section-title" id="marketplaceSalesOverviewTitle">Marketplace Overview</h2>
+        {% include 'dashboard/partials/sales_overview.html' %}
+    </div>
+    {% if marketplace.show_bundle_suggestions %}{% include 'marketplace/partials/admin_recommendation_summary.html' %}{% endif %}
+</div>
+<div class="marketplace-insight-grid">
+    <div class="marketplace-insight-content">{% include 'dashboard/partials/marketplace_product_performance.html' %}</div>
+</div>
+{% else %}
 <section class="row g-3 mt-3 dash-overview-row">
     <div class="col-12 col-xl-6">
         {% include 'dashboard/partials/sales_overview.html' %}
@@ -58,3 +70,4 @@
         </div>
     </div>
 </section>
+{% endif %}

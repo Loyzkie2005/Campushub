@@ -2,7 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
     'use strict';
 
     const NAVY = '#1A1851';
-    const GOLD = '#FCB316';
+    const superAnalytics = document.body.classList.contains('super-admin-analytics');
+    const GOLD = superAnalytics ? '#FCB316' : '#FCB315';
     const MUTED = '#68728A';
     const GRID = '#EDF0F5';
 
@@ -17,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function formatPeso(value) {
-        return `₱${Number(value || 0).toLocaleString(undefined, {
+        return `₱${Number(value || 0).toLocaleString(superAnalytics ? 'en-PH' : undefined, {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
         })}`;
@@ -53,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (typeof Chart === 'undefined') return;
 
-    Chart.defaults.font.family = 'Roboto, sans-serif';
+    Chart.defaults.font.family = 'Inter, sans-serif';
     Chart.defaults.color = MUTED;
 
     function lineOptions({ yTitle, tooltipLabel, tooltipTitles = [] }) {
@@ -70,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         boxWidth: 10,
                         boxHeight: 3,
                         color: NAVY,
-                        font: { family: 'Montserrat', size: 10, weight: '600' },
+                        font: { family: 'Inter, sans-serif', size: 12, weight: '600' },
                     },
                 },
                 tooltip: {
@@ -83,14 +84,14 @@ document.addEventListener('DOMContentLoaded', () => {
             scales: {
                 x: {
                     grid: { display: false },
-                    title: { display: true, text: 'Date / Time Period', color: MUTED, font: { size: 10, weight: '600' } },
-                    ticks: { color: MUTED, maxRotation: 0, autoSkip: true, maxTicksLimit: 10, font: { size: 9 } },
+                    title: { display: true, text: 'Date / Time Period', color: MUTED, font: { size: 12, weight: '600' } },
+                    ticks: { color: MUTED, maxRotation: 0, autoSkip: true, maxTicksLimit: 10, font: { size: 12 } },
                 },
                 y: {
                     beginAtZero: true,
                     grid: { color: GRID },
-                    title: { display: true, text: yTitle, color: MUTED, font: { size: 10, weight: '600' } },
-                    ticks: { color: MUTED, precision: 0, font: { size: 9 } },
+                    title: { display: true, text: yTitle, color: MUTED, font: { size: 12, weight: '600' } },
+                    ticks: { color: MUTED, precision: 0, font: { size: 12 } },
                 },
             },
         };
@@ -152,40 +153,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 color: GOLD,
                 precision: 0,
                 stepSize: 10,
-                font: { size: 9 },
+                font: { size: 12 },
             },
         };
         delete options.scales.y;
+        if (superAnalytics) {
+            delete options.scales.ySales.suggestedMax;
+            delete options.scales.ySales.ticks.stepSize;
+            delete options.scales.yOrders.suggestedMax;
+            delete options.scales.yOrders.ticks.stepSize;
+            options.scales.ySales.title = {display: true, text: 'Revenue (₱)'};
+            options.scales.yOrders.title = {display: true, text: 'Completed paid orders'};
+            options.scales.ySales.ticks.callback = value => formatPeso(value);
+        }
         new Chart(salesCanvas, {
             type: 'bar',
             data: {
                 labels: data.labels || [],
                 datasets: [
                     {
-                        type: 'line',
-                        label: 'Sales (₱)',
+                        type: 'bar',
+                        label: 'Sales Revenue (₱)',
                         data: (data.sales || []).map(Number),
                         yAxisID: 'ySales',
                         borderColor: NAVY,
                         backgroundColor: NAVY,
-                        borderWidth: 2,
-                        pointRadius: 3,
-                        pointHoverRadius: 5,
-                        tension: 0.35,
-                        fill: false,
+                        borderWidth: 1,
+                        borderRadius: 3,
+                        borderSkipped: false,
+                        maxBarThickness: 32,
                         order: 1,
                     },
                     {
-                        type: 'bar',
-                        label: 'Orders',
+                        type: 'line',
+                        label: 'Completed Orders',
                         data: (data.orders || []).map(Number),
                         yAxisID: 'yOrders',
                         borderColor: GOLD,
                         backgroundColor: GOLD,
-                        borderWidth: 1,
-                        borderRadius: 2,
-                        borderSkipped: false,
-                        maxBarThickness: 14,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        tension: 0.25,
+                        fill: false,
                         order: 2,
                     },
                 ],
@@ -313,11 +323,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     tooltip: { callbacks: { label: (context) => ` Sales: ${formatPeso(context.raw)}` } },
                 },
                 scales: {
-                    x: { grid: { display: false }, ticks: { color: MUTED, maxRotation: 0, font: { size: 8 } } },
+                    x: { grid: { display: false }, ticks: { color: MUTED, maxRotation: 0, font: { size: 12 } } },
                     y: {
                         beginAtZero: true,
                         grid: { color: GRID },
-                        ticks: { color: MUTED, callback: (value) => `₱${Number(value).toLocaleString()}`, font: { size: 8 } },
+                        ticks: { color: MUTED, callback: (value) => `₱${Number(value).toLocaleString()}`, font: { size: 12 } },
                     },
                 },
             },

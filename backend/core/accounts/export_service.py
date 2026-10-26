@@ -161,7 +161,7 @@ def _order_item_rows(order):
 def _marketplace_datasets(user, start_date=None, end_date=None):
     products = list(
         admin_product_queryset(user)
-        .select_related("seller__department", "approved_by", "created_by")
+        .select_related("mobile_seller__department", "seller__department", "approved_by", "created_by")
         .order_by("id")
     )
     orders_queryset = _apply_created_range(
@@ -177,7 +177,7 @@ def _marketplace_datasets(user, start_date=None, end_date=None):
     )
     seller_requests = list(
         _apply_created_range(
-            SellerRequest.objects.select_related("user__department", "reviewed_by"),
+            SellerRequest.objects.select_related("user__department", "mobile_user__department", "reviewed_by"),
             start_date,
             end_date,
         ).order_by("id")
@@ -185,17 +185,19 @@ def _marketplace_datasets(user, start_date=None, end_date=None):
 
     seller_users = {}
     for product in products:
-        seller_users[product.seller_id] = product.seller
+        seller_users[product.owner_key] = product.owner
     for seller_request in seller_requests:
         if seller_request.user_id:
             seller_users[seller_request.user_id] = seller_request.user
+        elif seller_request.mobile_user_id:
+            seller_users[f"mobile:{seller_request.mobile_user_id}"] = seller_request.mobile_user
 
     product_rows = [{
         "id": product.id,
         "product_code": product.product_code or "",
-        "seller_id": product.seller_id,
-        "seller_name": _display_name(product.seller),
-        "seller_department": _department_name(product.seller),
+        "seller_id": product.owner_key,
+        "seller_name": _display_name(product.owner),
+        "seller_department": _department_name(product.owner),
         "name": product.name,
         "description": product.description,
         "category": product.category,
@@ -230,6 +232,7 @@ def _marketplace_datasets(user, start_date=None, end_date=None):
 
     seller_rows = [{
         "user_id": seller.id,
+        "account_ref": seller.owner_ref if hasattr(seller, "owner_ref") else f"admin:{seller.pk}",
         "username": seller.username,
         "full_name": _display_name(seller),
         "email": seller.email,
@@ -237,11 +240,14 @@ def _marketplace_datasets(user, start_date=None, end_date=None):
         "department": _department_name(seller),
         "account_active": seller.is_active,
         "account_suspended": seller.is_suspended,
-    } for _seller_id, seller in sorted(seller_users.items())]
+    } for _seller_id, seller in sorted(seller_users.items(), key=lambda item: str(item[0]))]
 
     seller_request_rows = [{
         "id": request.id,
         "user_id": request.user_id,
+        "mobile_user_id": request.mobile_user_id,
+        "application_data": request.application_data,
+        "revision_notes": request.revision_notes,
         "student_id": request.student_id,
         "full_name": request.full_name,
         "course_section": request.course_section,

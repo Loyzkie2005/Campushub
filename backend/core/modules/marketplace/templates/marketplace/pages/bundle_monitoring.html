@@ -1,0 +1,129 @@
+{% load static tz %}
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ heading }} | CampusHub</title>
+<link rel="icon" href="{% static 'assets/img/icon.png' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter">
+<link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
+<link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261022-activity">
+<link rel="stylesheet" href="{% static 'marketplace/css/bundle_monitoring.css' %}?v=20261026-source-tabs">
+{% include 'partials/web_typography.html' %}
+</head><body class="bundle-monitoring admin-module-shell{% if workspace %} bm-workspace{% endif %}">
+{% timezone 'Asia/Manila' %}
+<a class="bm-skip" href="#bundleMain">Skip to recommendations</a>
+<div class="sidebar-section">
+{% include 'partials/admin_sidebar.html' with active_page='bundle_suggestions' %}
+<div class="main-wrapper" id="mainWrapper">
+{% include 'partials/admin_header.html' with page_title='Bundle Recommendations' header_breadcrumb_template='marketplace/partials/bundle_header_breadcrumb.html' %}
+<main class="bm-page" id="bundleMain">
+<div class="bm-title"><div><h1>{{ heading }}</h1><p>{% if mode == 'list' %}Review suggested product combinations and seller responses across the marketplace.{% elif mode == 'activity' %}Monitor suggestions shared with sellers and track their responses.{% elif mode == 'research' %}Research demonstration and algorithm validation.{% elif mode == 'analysis_readonly' %}Read-only saved evidence within your authorized Program/Major scope.{% else %}Review the product combination, seller information, and recorded activity.{% endif %}</p></div>
+<div class="bm-actions">{% if mode == 'list' %}<a class="bm-button" href="{% url 'bundle_monitor_research' %}">View Dataset &amp; Analysis</a>{% else %}<a class="bm-button" href="{% url 'bundle_monitor_list' %}">Back to Suggestions</a>{% endif %}</div></div>
+{% if mode == 'error' %}<section class="bm-empty" role="alert"><h2>Information unavailable</h2><p>{{ failure }}</p><a href="{% if retry_url %}{{ retry_url }}{% else %}{% url 'bundle_monitor_list' %}{% endif %}" class="bm-button">Retry</a></section>
+{% elif mode == 'activity' %}
+<section class="bm-panel bm-activity-panel">
+{% if activity.has_activity %}{% include 'marketplace/partials/bundle_activity_metrics.html' %}{% endif %}
+<h2 class="bm-panel-title">Recorded Recommendation Events</h2>
+<div class="bm-table-scroll" role="region" aria-label="Recommendation activity" tabindex="0"><table><caption class="visually-hidden">Authorized recommendation sharing and seller actions</caption>
+<thead><tr><th scope="col">Activity</th><th scope="col">Product Combination</th><th scope="col">Seller</th><th scope="col">Performed By</th><th scope="col">Date &amp; Time</th><th scope="col">Suggestion</th></tr></thead><tbody>
+{% for row in rows %}<tr><td>{{ row.event.activity }}</td><td>{{ row.recommendation.product_a.name }} + {{ row.recommendation.product_b.name }}</td><td>{{ row.recommendation.product_a.owner.get_full_name|default:row.recommendation.product_a.owner.username }}</td><td>{{ row.event.metadata.actor_username|default:row.event.full_name|default:row.event.username|default:'Not recorded' }}</td><td>{{ row.event.created_at|date:'M d, Y · g:i A' }} PHT</td><td><a class="bm-button" href="{% url 'bundle_monitor_detail' row.recommendation.pk %}">View Details</a></td></tr>
+{% empty %}<tr><td colspan="6"><div class="bundle-dashboard-state">{% include 'marketplace/partials/bundle_state_icon.html' with kind='activity' %}<h3>{% if activity.has_activity %}No recorded activity events{% else %}No Recommendation Activity Yet{% endif %}</h3><p>Activity will appear here when suggestions are shared with sellers or sellers take action on their recommendations.</p></div></td></tr>{% endfor %}
+</tbody></table></div>{% include 'marketplace/partials/bundle_monitor_pagination.html' %}</section>
+{% elif mode == 'list' %}
+<nav class="bm-tabs bm-source-tabs" aria-label="Recommendation sources">
+<a href="{{ dataset_url }}"{% if recommendation_view == 'dataset' %} aria-current="page"{% endif %}>Dataset-Based Recommendations</a>
+<a href="{{ live_url }}"{% if recommendation_view == 'live' %} aria-current="page"{% endif %}>Live Recommendations</a>
+</nav>
+{% if recommendation_view == 'dataset' %}
+{% include 'marketplace/partials/bundle_dataset_recommendations.html' %}
+{% else %}
+<p class="bm-source-subtitle">Product bundle suggestions generated from actual CampusHub marketplace transactions.</p>
+{% if workspace %}<h2 class="bm-overview-title">Recommendation Overview</h2>{% endif %}
+<div class="bm-summary" aria-label="Recommendation summary">
+<div><span>Total Suggestions</span><strong>{{ summary.total }}</strong></div><div><span>Sent to Sellers</span><strong>{{ summary.sent }}</strong></div>
+<div><span>Suggestions with Bundles Created</span><strong>{{ summary.created }}</strong></div><div><span>Awaiting Seller Response</span><strong>{{ summary.awaiting }}</strong></div></div>
+<p class="bm-note">Sent counts recorded workspace highlights. Delivery by push notification or email is not tracked here.</p>
+{% if workspace %}
+<section class="bm-panel bm-analysis" aria-labelledby="aprioriSummaryTitle">
+<div class="bm-section-heading"><h2 id="aprioriSummaryTitle">Apriori Analysis Summary</h2><p>Overview of transaction datasets and product association analysis.</p></div>
+<dl class="bm-analysis-facts">
+<div><dt>Data Source</dt><dd>{{ analysis.source_label }}</dd></div>
+<div><dt>Analyzed Baskets</dt><dd>{{ analysis.basket_count|default_if_none:'&mdash;' }}</dd></div>
+<div><dt>Multi-Product Baskets</dt><dd>{{ analysis.multi_item_basket_count|default_if_none:'&mdash;' }}</dd></div>
+<div><dt>Association Rules Found</dt><dd>{{ analysis.rule_count|default_if_none:'&mdash;' }}<small>Raw rule count not recorded</small></dd></div>
+<div><dt>Last Analysis</dt><dd>{% if analysis.completed_at %}<time datetime="{{ analysis.completed_at }}">{{ analysis.completed_label }} PHT</time>{% else %}Not recorded{% endif %}</dd></div>
+<div><dt>Analysis Outcome</dt><dd>{{ analysis.outcome_label }}</dd></div>
+</dl>
+<p class="bm-analysis-note">{{ analysis.note }}{% if analysis.completed_at and analysis.scope_note %} {{ analysis.scope_note }}{% endif %} Saved recommendation counts are separate from association-rule counts.</p>
+</section>
+<section class="bm-panel bm-section" aria-labelledby="frequentTogetherTitle">
+<div class="bm-section-heading"><h2 id="frequentTogetherTitle">Frequently Bought Together</h2><p>Product associations identified through Apriori analysis.</p></div>
+<div class="bm-empty bm-analysis-empty"><h3>{{ analysis.rules_title }}</h3><p>{{ analysis.rules_note }}</p></div>
+<div class="bm-table-scroll" role="region" aria-label="Association rules" tabindex="0"><table class="bm-rule-table"><caption class="visually-hidden">Verified saved analysis rules. Historical rule snapshots are not currently stored.</caption><thead><tr><th scope="col">Antecedent (IF)</th><th scope="col">Consequent (THEN)</th><th scope="col">Support</th><th scope="col">Confidence</th><th scope="col">Lift</th><th scope="col">Supporting Basket Count</th><th scope="col">Data Source</th><th scope="col">Actions</th></tr></thead><tbody><tr><td colspan="8">No verified rule snapshot available.</td></tr></tbody></table></div>
+<details class="bm-method"><summary>How to read association evidence</summary>
+<dl><div><dt>Antecedent (IF) and Consequent (THEN)</dt><dd>The conditional and associated products in a directional rule. An association does not establish causation or purchase sequence.</dd></div><div><dt>Support</dt><dd>Baskets containing both products ÷ all eligible analyzed baskets, expressed as a percentage.</dd></div><div><dt>Confidence</dt><dd>Baskets containing both products ÷ baskets containing the antecedent, expressed as a percentage.</dd></div><div><dt>Lift</dt><dd>Confidence ÷ the consequent's share of analyzed baskets. It compares the association with independent purchasing.</dd></div><div><dt>Supporting Basket Count</dt><dd>Distinct analyzed baskets containing the entire combination. Quantities and bundle recipes do not create independent co-purchases.</dd></div></dl>
+<p>Metrics must use the original analyzed dataset and its denominator. Current settings are not evidence of historical thresholds. Real orders currently record one purchased product per order, without a verified shared multi-product checkout identifier. Synthetic research is kept separate from live seller recommendations.</p>
+</details>
+</section>
+{% endif %}
+<section class="bm-panel{% if workspace %} bm-section{% endif %}"><h2 class="bm-panel-title">Saved Bundle Suggestions</h2>
+{% if workspace %}<p class="bm-saved-filter-note">Filters apply to saved recommendations, not to the historical analysis dataset.</p>{% endif %}
+<form class="bm-filters" data-action-filter method="get" aria-label="Filter suggestions">
+<input type="hidden" name="view" value="live">
+<label class="bm-search">Search suggestions<input name="q" value="{{ request.GET.q }}" placeholder="Product, seller, or suggestion ID" maxlength="150" type="search"></label>
+<label>Program<select name="program"><option value="">All programs</option>{% for program in programs %}<option value="{{ program.pk }}"{% if request.GET.program == program.pk|stringformat:'s' %} selected{% endif %}>{{ program.code }}</option>{% endfor %}</select></label>
+<label data-major-filter>Major<select name="major"><option value="">All applicable majors</option>{% for major in majors %}<option value="{{ major.pk }}" data-program="{{ major.program_id }}"{% if request.GET.major == major.pk|stringformat:'s' %} selected{% endif %}>{{ major.name }}</option>{% endfor %}</select></label>
+<label>Seller<select name="seller"><option value="">All authorized sellers</option>{% for ref, name in sellers %}<option value="{{ ref }}"{% if request.GET.seller == ref %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+<label>Seller Response<select name="response"><option value="">All responses</option><option value="awaiting"{% if request.GET.response == 'awaiting' %} selected{% endif %}>Awaiting Response</option><option value="created"{% if request.GET.response == 'created' %} selected{% endif %}>Bundle Created</option><option value="dismissed"{% if request.GET.response == 'dismissed' %} selected{% endif %}>Dismissed</option><option value="na"{% if request.GET.response == 'na' %} selected{% endif %}>Not Applicable</option></select></label>
+<label>Generated from<input type="date" name="start" value="{{ request.GET.start }}"></label><label>Generated through<input type="date" name="end" value="{{ request.GET.end }}"></label>
+<button class="bm-button bm-primary" type="submit">Apply filters</button><a href="{% url 'bundle_monitor_list' %}">Reset</a>
+</form>{% if form_error %}<p role="alert">{{ form_error }}</p>{% endif %}
+<div class="bm-table-scroll" role="region" aria-label="Suggestions table" tabindex="0"><table><caption class="visually-hidden">Saved live product bundle recommendations</caption><thead><tr><th scope="col">Product Combination</th><th scope="col">Seller</th><th scope="col">Program / Major</th><th scope="col">Seller Response</th><th scope="col">Generated Date</th><th scope="col">Actions</th></tr></thead><tbody>
+{% for row in rows %}<tr><td><div class="bm-pair">{% include 'marketplace/partials/bundle_photo.html' with product=row.products.0 %}<span aria-hidden="true">+</span>{% include 'marketplace/partials/bundle_photo.html' with product=row.products.1 %}<span><strong>{{ row.product_a }} + {{ row.product_b }}</strong><small>Suggestion #{{ row.id }}</small></span></div></td><td>{{ row.seller }}</td><td>{{ row.academic.program_major }}</td><td><span class="bm-status">{{ row.response }}</span></td><td>{% timezone 'Asia/Manila' %}{{ row.record.generated_at|date:'M d, Y' }}<small>{{ row.record.generated_at|date:'g:i A' }} PHT</small>{% endtimezone %}</td><td><a class="bm-button" href="{% url 'bundle_monitor_detail' row.id %}" data-bundle-detail aria-label="View details for suggestion {{ row.id }}" aria-controls="bundleDetailsDrawer" aria-haspopup="dialog"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>View Details</a></td></tr>
+{% empty %}<tr><td colspan="6"><div class="bm-empty"><h2>{% if summary.total and has_active_filters %}No Matching Suggestions{% else %}No Saved Bundle Suggestions Yet{% endif %}</h2><p>{% if summary.total and has_active_filters %}Try a different search or reset your filters.{% else %}Saved product recommendations will appear here when available.{% endif %}</p></div></td></tr>{% endfor %}
+</tbody></table></div>{% include 'marketplace/partials/bundle_monitor_pagination.html' %}</section>
+{% if workspace %}
+<section class="bm-panel bm-section bm-export" aria-labelledby="analysisExportTitle"><div><h2 id="analysisExportTitle">Excel Analysis Export</h2><p>Export is unavailable: a verified real-analysis dataset, complete rule snapshot and execution-time configuration are not stored.</p><p class="bm-note">No new analysis runs when this page loads or when details open. A real .xlsx download requires separately approved analysis persistence. Synthetic data will never be substituted.</p></div><span class="bm-status">Unavailable</span></section>
+{% endif %}
+<div class="offcanvas offcanvas-end bm-detail-drawer" tabindex="-1" id="bundleDetailsDrawer" aria-labelledby="bundleDetailsTitle"><div class="offcanvas-header"><div><h2 id="bundleDetailsTitle">Recommendation Details</h2><p class="bm-note" id="bundleDetailsSubtitle"></p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close recommendation details"></button></div><div class="offcanvas-body" id="bundleDetailsBody"></div></div>
+{% endif %}
+{% elif mode == 'analysis_readonly' %}
+{% include 'marketplace/partials/bundle_analysis_readonly.html' %}
+{% elif mode == 'research' %}
+<section class="bm-panel bm-research-panel">
+<aside class="bm-disclosure" aria-labelledby="syntheticNoticeTitle">
+<svg class="bm-disclosure-icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v7l-6 9a1.3 1.3 0 0 0 1.1 2h13.8a1.3 1.3 0 0 0 1.1-2l-6-9V3M7 16h10"/></svg>
+<div class="bm-disclosure-content"><h2 id="syntheticNoticeTitle">Synthetic Dataset</h2><p>Simulated marketplace transactions for Apriori analysis. Not actual customer purchases.</p></div>
+</aside>
+{% if research_error %}<section class="bm-empty" role="alert"><h2>Dataset unavailable</h2><p>{{ research_error }}</p><a class="bm-button" href="{% url 'bundle_monitor_research' %}">Retry</a></section>{% else %}
+<dl class="bm-dataset-stats" aria-label="Synthetic dataset statistics">
+<div><dt>Transactions</dt><dd>{{ result.transaction_count }}</dd></div>
+<div><dt>Order Items</dt><dd>{{ result.item_count }}</dd></div>
+<div><dt>Unique Products</dt><dd>{{ distinct_products }}</dd></div>
+</dl>
+<nav class="bm-tabs" aria-label="Research views"><a href="?tab=dataset"{% if tab == 'dataset' %} aria-current="page"{% endif %}>Dataset Preview</a><a href="?tab=results"{% if tab == 'results' %} aria-current="page"{% endif %}>Apriori Results</a></nav>
+{% if tab == 'results' %}<form class="bm-action-form" method="post" action="{% url 'bundle_monitor_research_run' %}">{% csrf_token %}<button class="bm-button">Run Demo Analysis</button><small>Recomputes research rules only. Live recommendations and transactions stay unchanged.</small></form>{% endif %}
+<form class="bm-filters" data-action-filter method="get"><input type="hidden" name="tab" value="{{ tab }}"><label class="bm-search">Search {% if tab == 'results' %}rules{% else %}dataset{% endif %}<input type="search" name="q" value="{{ request.GET.q }}" maxlength="150" placeholder="Search this research view"></label><button class="bm-button bm-primary">Search</button><a href="?tab={{ tab }}">Reset</a></form>
+{% if tab == 'results' %}<p class="bm-note">Calculated by the shared product-pair association helper. Support ≥ {{ result.thresholds.support }}%; confidence ≥ {{ result.thresholds.confidence }}%; lift &gt; {{ result.thresholds.lift }}. Results never become live recommendations.</p>{% endif %}
+<div class="bm-table-scroll" role="region" aria-label="Synthetic research table" tabindex="0"><table><caption class="visually-hidden">Synthetic {% if tab == 'results' %}association rules{% else %}CSV records{% endif %}</caption><thead><tr>{% if tab == 'results' %}<th scope="col">Antecedent</th><th scope="col">Consequent</th><th scope="col">Support</th><th scope="col">Confidence</th><th scope="col">Lift</th>{% else %}{% for column in columns %}<th scope="col">{{ column }}</th>{% endfor %}{% endif %}</tr></thead><tbody>
+{% if tab == 'results' %}{% for rule in current %}<tr><td>{{ rule.product_a }}</td><td>{{ rule.product_b }}</td><td>{{ rule.support }}%</td><td>{{ rule.confidence }}%</td><td>{{ rule.lift }}</td></tr>{% empty %}<tr><td colspan="5"><div class="bm-empty">No qualifying research rules match this view.</div></td></tr>{% endfor %}
+{% else %}{% for values in dataset_page %}<tr>{% for value in values %}<td>{{ value }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="10"><div class="bm-empty">No matching synthetic records.</div></td></tr>{% endfor %}{% endif %}</tbody></table></div>{% include 'marketplace/partials/bundle_monitor_pagination.html' %}{% endif %}</section>
+{% else %}
+<nav class="bm-tabs bm-detail-nav" aria-label="Suggestion views"><a href="{% url 'bundle_monitor_detail' item.id %}"{% if mode == 'details' %} aria-current="page"{% endif %}>Details</a><a href="{% url 'bundle_monitor_section' item.id 'response' %}"{% if mode == 'response' %} aria-current="page"{% endif %}>Seller Response</a><a href="{% url 'bundle_monitor_section' item.id 'bundle' %}"{% if mode == 'bundle' %} aria-current="page"{% endif %}>Created Bundles</a><a href="{% url 'bundle_monitor_section' item.id 'history' %}"{% if mode == 'history' %} aria-current="page"{% endif %}>History</a></nav>
+{% if mode == 'details' %}
+<div class="bm-panel bm-detail-page">{% include 'marketplace/partials/bundle_monitor_details.html' %}</div>
+{% else %}
+{% if mode == 'response' %}<section class="bm-panel bm-section"><h2 class="bm-panel-title">{% if mode == 'response' %}Seller Response{% else %}Recommendation Status{% endif %}</h2><dl class="bm-facts bm-facts-grid"><div><dt>Recommendation State</dt><dd>{% if item.eligible %}Current{% else %}No longer eligible{% endif %}</dd></div><div><dt>Seller Notification Status</dt><dd>{{ item.delivery }}</dd></div><div><dt>Seller Response</dt><dd>{{ item.response }}</dd></div><div><dt>Date Sent</dt><dd>{% if item.record.sent_at %}{{ item.record.sent_at|date:'M d, Y · g:i A' }} PHT{% else %}Not recorded{% endif %}</dd></div><div><dt>Response Date</dt><dd>{% if item.response_at %}{{ item.response_at|date:'M d, Y · g:i A' }} PHT{% else %}Not recorded{% endif %}</dd></div>{% if item.record.sent_by %}<div><dt>Highlighted by</dt><dd>{{ item.record.sent_by.get_full_name|default:item.record.sent_by.username }}</dd></div>{% endif %}</dl>
+{% if item.response == 'Not Applicable' %}<p class="bm-note">Not Sent to Seller. No seller response has been recorded.</p>{% elif item.response == 'Awaiting Response' %}<p class="bm-note">Awaiting Seller Response.</p>{% endif %}
+{% if item.bundles %}<a class="bm-button" href="{% url 'bundle_monitor_section' item.id 'bundle' %}">View Created Bundle</a>{% endif %}
+{% if can_highlight %}<form method="post" action="{% url 'bundle_monitor_highlight' item.id %}" class="bm-action-form" data-confirm="Highlight this recommendation in the seller workspace? This does not send a push notification or email.">{% csrf_token %}<button class="bm-button bm-primary">Highlight for Seller</button><small>Prioritizes this qualifying pair in the seller workspace. It does not send a push notification or email.</small></form>{% endif %}</section>{% endif %}
+{% if mode == 'bundle' %}<section class="bm-panel"><h2 class="bm-panel-title">Bundles Created from Suggestion #{{ item.id }}</h2>{% for bundle in item.bundles %}<article class="bm-linked-bundle"><h3>{{ bundle.name }}</h3><dl class="bm-facts bm-facts-grid"><div><dt>Actual bundle price</dt><dd>₱{{ bundle.price|floatformat:2 }}</dd></div><div><dt>Status</dt><dd>{% if bundle.is_archived %}Archived{% else %}{{ bundle.get_approval_status_display }}{% endif %}</dd></div><div><dt>Seller</dt><dd>{{ item.seller }}</dd></div><div><dt>Created</dt><dd>{{ bundle.submitted_at|date:'M d, Y · g:i A' }} PHT</dd></div></dl><div class="bm-bundle-images">{% for image in bundle.get_image_list %}<img src="{{ image }}" alt="{{ bundle.name }}" width="96" height="96" loading="lazy">{% empty %}<p>No bundle image available.</p>{% endfor %}</div><h4>Bundle Components</h4><ul>{% for component in bundle.bundle_components.all %}<li>{{ component.product.name }} × {{ component.required_quantity }}</li>{% endfor %}</ul><p class="bm-note">Source: Suggestion #{{ item.id }}. This is the existing product record, #{{ bundle.pk }}.</p></article>{% empty %}<div class="bm-empty"><h3>No created bundle recorded</h3><p>A bundle appears here only when its seller submission was explicitly linked to this suggestion.</p></div>{% endfor %}</section>{% endif %}
+{% if mode == 'history' %}<section class="bm-panel bm-section"><h2 class="bm-panel-title">Recommendation History</h2><div class="bm-table-scroll" role="region" aria-label="Recommendation history" tabindex="0"><table><caption class="visually-hidden">Recorded activity for suggestion #{{ item.id }}</caption><thead><tr><th scope="col">Event</th><th scope="col">Product Combination</th><th scope="col">Seller</th><th scope="col">Performed By</th><th scope="col">Date &amp; Time</th></tr></thead><tbody>{% for event in current %}<tr><td>{{ event.activity }}</td><td>{{ item.product_a }} + {{ item.product_b }}</td><td>{{ item.seller }}</td><td>{{ event.metadata.actor_username|default:event.full_name|default:event.username|default:'Not recorded' }}</td><td>{{ event.created_at|date:'M d, Y · g:i A' }} PHT</td></tr>{% empty %}<tr><td colspan="5"><div class="bm-empty">No recommendation activity has been recorded.</div></td></tr>{% endfor %}</tbody></table></div>{% include 'marketplace/partials/bundle_monitor_pagination.html' %}</section>{% endif %}
+{% endif %}
+{% endif %}
+</main></div></div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'components/js/admin_notifications.js' %}?v=20260726-empty-messages"></script>
+<script src="{% static 'marketplace/js/bundle_monitoring.js' %}?v=20261026-workspace"></script>
+{% endtimezone %}
+</body></html>

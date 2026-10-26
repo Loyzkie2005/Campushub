@@ -1,12 +1,15 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../routes/app_routes.dart';
 import '../services/auth_service.dart';
 import '../session/session_service.dart';
+import 'components/account_recovery_dialog.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
-  const ProfileSetupScreen({super.key});
+  const ProfileSetupScreen({super.key, this.editingUser});
+  final AuthUser? editingUser;
 
   @override
   State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
@@ -19,16 +22,69 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _contactFormKey = GlobalKey<FormState>();
   final _institutionalIdController = TextEditingController();
   final _contactController = TextEditingController();
+  final _yearSectionController = TextEditingController();
 
   int _section = 0;
   String? _userType;
   String? _error;
   bool _submitting = false;
+  bool _academicLoading = false;
+  String? _academicError;
+  List<Map<String, dynamic>> _programs = [], _majors = [];
+  int? _programId, _majorId;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = widget.editingUser;
+    if (user != null) {
+      _userType = user.userType;
+      _programId = user.programId;
+      _majorId = user.majorId;
+      _institutionalIdController.text = user.userType == 'student'
+          ? user.profileStudentId
+          : user.institutionalId;
+      _contactController.text = user.contactNumber;
+      _yearSectionController.text = user.yearSection;
+      _section = 1;
+    }
+    _loadAcademic();
+  }
+
+  Future<void> _loadAcademic() async {
+    setState(() {
+      _academicLoading = true;
+      _academicError = null;
+    });
+    try {
+      final data = await AuthService.academicOptions();
+      if (!mounted) return;
+      setState(() {
+        _programs = (data['programs'] as List).cast<Map<String, dynamic>>();
+        _majors = (data['majors'] as List).cast<Map<String, dynamic>>();
+        _academicLoading = false;
+        if (_programs.isEmpty) {
+          _academicError = 'No programs configured. Contact the administrator.';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _academicLoading = false;
+        _academicError =
+            'Unable to load programs. Check your connection and retry.';
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get _selectedMajors =>
+      _majors.where((major) => major['program_id'] == _programId).toList();
 
   @override
   void dispose() {
     _institutionalIdController.dispose();
     _contactController.dispose();
+    _yearSectionController.dispose();
     super.dispose();
   }
 
@@ -37,6 +93,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   Future<void> _handleBack() async {
     if (_submitting) return;
+    if (widget.editingUser != null && _section <= 1) {
+      Navigator.of(context).pop();
+      return;
+    }
     if (_section > 0) {
       setState(() {
         _section -= 1;
@@ -67,6 +127,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   void _nextToContact() {
+    if (_userType == 'student' &&
+        (_academicLoading || _academicError != null)) {
+      setState(() => _error = _academicError ?? 'Wait for programs to load.');
+      return;
+    }
     if (!(_institutionalIdFormKey.currentState?.validate() ?? false)) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
@@ -98,6 +163,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       userType: _userType!,
       institutionalId: _institutionalIdController.text,
       contactNumber: _contactController.text,
+      programId: _userType == 'student' ? _programId : null,
+      majorId: _userType == 'student' ? _majorId : null,
+      yearSection: _userType == 'student' ? _yearSectionController.text : null,
     );
     if (!mounted) return;
 
@@ -112,6 +180,21 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     await SessionService.updateUser(user, chatToken: result.chatToken);
     if (!mounted) return;
+    if (widget.editingUser != null) {
+      Navigator.of(context).pop(user);
+      return;
+    }
+    if (!user.emailVerified) {
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AccountRecoveryDialog(
+          initialEmail: user.email,
+          verificationToken: result.chatToken ?? token,
+        ),
+      );
+      if (!mounted) return;
+    }
     Navigator.of(
       context,
     ).pushNamedAndRemoveUntil(AppRoutes.dashboard, (_) => false);
@@ -140,7 +223,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             tooltip: 'Back',
           ),
           title: Text(
-            'Additional Information',
+            widget.editingUser == null
+                ? 'Additional Information'
+                : 'Edit Profile',
             style: TextStyle(color: foreground, fontWeight: FontWeight.w700),
           ),
           centerTitle: true,
@@ -216,6 +301,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           ),
           const SizedBox(height: 24),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _userType,
             decoration: _inputDecoration(
               hint: 'Select account type',
@@ -265,7 +351,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   ) {
     return SizedBox(
       key: const ValueKey('institutional-id-section'),
-      height: availableHeight,
+      height: _userType == 'student'
+          ? math.max(availableHeight, 560)
+          : availableHeight,
       child: Form(
         key: _institutionalIdFormKey,
         child: Column(
@@ -305,6 +393,85 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 return null;
               },
             ),
+            if (_userType == 'student') ...[
+              const SizedBox(height: 18),
+              if (_academicLoading) const LinearProgressIndicator(color: _navy),
+              if (_academicError != null) ...[
+                Text(_academicError!, style: TextStyle(color: foreground)),
+                TextButton(
+                  onPressed: _loadAcademic,
+                  child: const Text('Retry'),
+                ),
+              ],
+              DropdownButtonFormField<int>(
+                isExpanded: true,
+                key: ValueKey('program-$_programId-${_programs.length}'),
+                initialValue: _programs.any((item) => item['id'] == _programId)
+                    ? _programId
+                    : null,
+                decoration:
+                    _inputDecoration(
+                      hint: 'Program *',
+                      icon: Icons.school_outlined,
+                      isDark: isDark,
+                    ).copyWith(
+                      labelText: 'Program *',
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                    ),
+                items: _programs
+                    .map(
+                      (program) => DropdownMenuItem<int>(
+                        value: program['id'] as int,
+                        child: Text(program['code'] as String),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _academicLoading
+                    ? null
+                    : (value) => setState(() {
+                        _programId = value;
+                        _majorId = null;
+                      }),
+                validator: (value) =>
+                    value == null ? 'Select your program.' : null,
+              ),
+              if (_selectedMajors.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                DropdownButtonFormField<int>(
+                  key: ValueKey(
+                    'major-$_programId-$_majorId-${_selectedMajors.length}',
+                  ),
+                  initialValue:
+                      _selectedMajors.any((item) => item['id'] == _majorId)
+                      ? _majorId
+                      : null,
+                  isExpanded: true,
+                  decoration:
+                      _inputDecoration(
+                        hint: 'Major *',
+                        icon: Icons.school_outlined,
+                        isDark: isDark,
+                      ).copyWith(
+                        labelText: 'Major *',
+                        floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      ),
+                  items: _selectedMajors
+                      .map(
+                        (major) => DropdownMenuItem<int>(
+                          value: major['id'] as int,
+                          child: Text(
+                            major['name'] as String,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _majorId = value),
+                  validator: (value) =>
+                      value == null ? 'Select your BTLED major.' : null,
+                ),
+              ],
+            ],
             if (_error != null) _InlineError(message: _error!),
             const Spacer(),
             const SizedBox(height: 26),
@@ -381,6 +548,25 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 return null;
               },
             ),
+            if (_userType == 'student') ...[
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _yearSectionController,
+                key: const ValueKey('profile-year-section-input'),
+                maxLength: 120,
+                textInputAction: TextInputAction.done,
+                decoration:
+                    _inputDecoration(
+                      hint: 'Enter your year and section',
+                      icon: Icons.school_outlined,
+                      isDark: isDark,
+                    ).copyWith(
+                      labelText: 'Year / Section',
+                      helperText: 'Optional',
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                    ),
+              ),
+            ],
             if (_error != null) _InlineError(message: _error!),
             const Spacer(),
             const SizedBox(height: 26),
@@ -406,7 +592,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       )
                     : const Icon(Icons.check, size: 19),
                 label: Text(
-                  _submitting ? 'Saving...' : 'Finish',
+                  _submitting
+                      ? 'Saving...'
+                      : widget.editingUser == null
+                      ? 'Finish'
+                      : 'Save Changes',
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),

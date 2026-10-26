@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../routes/app_routes.dart';
 import '../services/auth_service.dart';
 import '../session/session_service.dart';
-import '../validation/password_policy.dart';
+import 'components/account_recovery_dialog.dart';
 import 'components/auth_theme_toggle.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -23,7 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _loginError;
 
   static const Color primaryNavy = Color(0xFF1A1851);
-  static const Color accentGold = Color(0xFFFCB316);
+  static const Color accentGold = Color(0xFFFCB315);
 
   @override
   void dispose() {
@@ -65,24 +65,35 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (!mounted) return;
 
+    if (user.profileCompleted &&
+        !user.emailVerified &&
+        result.chatToken != null) {
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AccountRecoveryDialog(
+          initialEmail: user.email,
+          verificationToken: result.chatToken,
+        ),
+      );
+      if (!mounted) return;
+    }
     Navigator.of(context).pushReplacementNamed(
       user.profileCompleted ? AppRoutes.dashboard : AppRoutes.profileSetup,
     );
   }
 
-  Future<void> _showForgotPasswordDialog() async {
+  Future<void> _showAccountRecoveryDialog() async {
     final success = await showDialog<bool>(
       context: context,
-      builder: (_) => _ForgotPasswordDialog(initialEmail: _studentIdOrEmail),
+      builder: (_) => AccountRecoveryDialog(initialEmail: _studentIdOrEmail),
     );
 
     if (!mounted || success != true) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text(
-          'Password updated. You can log in with your new password.',
-        ),
+        content: Text('Account recovery complete. You can return to login.'),
         backgroundColor: primaryNavy,
       ),
     );
@@ -543,9 +554,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                                       Alignment.centerRight,
                                                   child: GestureDetector(
                                                     onTap:
-                                                        _showForgotPasswordDialog,
+                                                        _showAccountRecoveryDialog,
                                                     child: const Text(
-                                                      'Forgot password?',
+                                                      'Forgot Username or Password?',
                                                       maxLines: 1,
                                                       overflow:
                                                           TextOverflow.ellipsis,
@@ -777,402 +788,6 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ForgotPasswordDialog extends StatefulWidget {
-  const _ForgotPasswordDialog({required this.initialEmail});
-
-  final String initialEmail;
-
-  @override
-  State<_ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
-}
-
-enum _ResetStep { email, code, newPassword }
-
-class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
-  late final TextEditingController _resetEmailController =
-      TextEditingController(text: widget.initialEmail);
-  late final List<TextEditingController> _codeControllers = List.generate(
-    6,
-    (_) => TextEditingController(),
-  );
-  late final List<FocusNode> _codeFocusNodes = List.generate(
-    6,
-    (_) => FocusNode(),
-  );
-  final _newPasswordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-
-  _ResetStep _step = _ResetStep.email;
-  bool _isLoading = false;
-  String? _verifiedCode;
-
-  @override
-  void dispose() {
-    _resetEmailController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
-    for (final controller in _codeControllers) {
-      controller.dispose();
-    }
-    for (final focusNode in _codeFocusNodes) {
-      focusNode.dispose();
-    }
-    super.dispose();
-  }
-
-  String get _email => _resetEmailController.text.trim();
-
-  String get _code =>
-      _codeControllers.map((controller) => controller.text).join();
-
-  Future<void> _sendLink(BuildContext formContext) async {
-    if (!Form.of(formContext).validate()) return;
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _isLoading = true);
-
-    final result = await AuthService.sendPasswordResetCode(email: _email);
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (!result.success) {
-      _showError(result.message ?? 'Failed to send reset code.');
-      return;
-    }
-
-    if (!result.emailSent) {
-      _showError(
-        result.message ??
-            'Gmail did not send. Add App Password in gmail_local.py and restart Django.',
-      );
-      return;
-    }
-
-    for (final controller in _codeControllers) {
-      controller.clear();
-    }
-
-    setState(() => _step = _ResetStep.code);
-
-    _showSuccess(
-      result.message ?? 'Check your Gmail inbox for the 6-digit code.',
-    );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _codeFocusNodes.first.requestFocus();
-    });
-  }
-
-  Future<void> _verifyCode() async {
-    if (_code.length < 6) return;
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _isLoading = true);
-
-    final result = await AuthService.verifyPasswordResetCode(
-      email: _email,
-      code: _code,
-    );
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (!result.success) {
-      _showError(result.message ?? 'Invalid code.');
-      return;
-    }
-
-    setState(() {
-      _verifiedCode = _code;
-      _step = _ResetStep.newPassword;
-    });
-  }
-
-  Future<void> _confirmNewPassword(BuildContext formContext) async {
-    if (!Form.of(formContext).validate()) return;
-    if (_verifiedCode == null) return;
-
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _isLoading = true);
-
-    final result = await AuthService.confirmPasswordReset(
-      email: _email,
-      code: _verifiedCode!,
-      newPassword: _newPasswordController.text,
-      confirmPassword: _confirmPasswordController.text,
-    );
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (!result.success) {
-      _showError(result.message ?? 'Could not update password.');
-      return;
-    }
-
-    Navigator.of(context).pop(true);
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
-    );
-  }
-
-  void _showSuccess(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: _LoginScreenState.primaryNavy,
-      ),
-    );
-  }
-
-  String _titleForStep() {
-    switch (_step) {
-      case _ResetStep.email:
-        return 'Step 1 — Email';
-      case _ResetStep.code:
-        return 'Step 2 — 6-Digit Code';
-      case _ResetStep.newPassword:
-        return 'Step 3 — New Password';
-    }
-  }
-
-  Widget _stepIndicator() {
-    final stepIndex = switch (_step) {
-      _ResetStep.email => 1,
-      _ResetStep.code => 2,
-      _ResetStep.newPassword => 3,
-    };
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (i) {
-        final n = i + 1;
-        final active = n <= stepIndex;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: active
-                  ? _LoginScreenState.primaryNavy
-                  : Colors.grey.shade300,
-            ),
-            child: Text(
-              '$n',
-              style: TextStyle(
-                color: active ? Colors.white : Colors.black54,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Form(
-      child: Builder(
-        builder: (formContext) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            title: Text(
-              _titleForStep(),
-              style: const TextStyle(
-                color: _LoginScreenState.primaryNavy,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _stepIndicator(),
-                  const SizedBox(height: 16),
-                  if (_step == _ResetStep.email) ...[
-                    const Text(
-                      'Enter the email you used when you signed up (any address — '
-                      'Gmail, Yahoo, school email, etc.). We will send a 6-digit code there.',
-                      style: TextStyle(color: Colors.black54, fontSize: 14),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _resetEmailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!value.contains('@')) return 'Enter a valid email';
-                        return null;
-                      },
-                    ),
-                  ] else if (_step == _ResetStep.code) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF81C784)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.mark_email_read_outlined,
-                            color: Color(0xFF2E7D32),
-                            size: 22,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Open Gmail app for $_email.\n'
-                              'Subject: CampusHub Password Reset Code\n'
-                              '(Also check Spam folder.)',
-                              style: const TextStyle(
-                                color: Color(0xFF2E7D32),
-                                fontSize: 13,
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(6, (index) {
-                        return SizedBox(
-                          width: 38,
-                          height: 48,
-                          child: TextField(
-                            controller: _codeControllers[index],
-                            focusNode: _codeFocusNodes[index],
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            maxLength: 1,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            decoration: const InputDecoration(
-                              counterText: '',
-                              contentPadding: EdgeInsets.zero,
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (value) {
-                              if (value.isNotEmpty && index < 5) {
-                                _codeFocusNodes[index + 1].requestFocus();
-                              }
-                              if (value.isEmpty && index > 0) {
-                                _codeFocusNodes[index - 1].requestFocus();
-                              }
-                              setState(() {});
-                            },
-                          ),
-                        );
-                      }),
-                    ),
-                  ] else ...[
-                    const Text(
-                      'Choose a new password for your account.',
-                      style: TextStyle(color: Colors.black54, fontSize: 14),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _newPasswordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'New password',
-                        helperText: PasswordPolicy.requirements,
-                        helperMaxLines: 2,
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: PasswordPolicy.validate,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _confirmPasswordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Confirm password',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        if (v != _newPasswordController.text) {
-                          return 'Passwords do not match';
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: _isLoading
-                    ? null
-                    : () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: _isLoading
-                    ? null
-                    : () {
-                        switch (_step) {
-                          case _ResetStep.email:
-                            _sendLink(formContext);
-                          case _ResetStep.code:
-                            _verifyCode();
-                          case _ResetStep.newPassword:
-                            _confirmNewPassword(formContext);
-                        }
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _LoginScreenState.primaryNavy,
-                  foregroundColor: Colors.white,
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        _step == _ResetStep.email
-                            ? 'Send Code'
-                            : _step == _ResetStep.code
-                            ? 'Verify'
-                            : 'Save Password',
-                      ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }

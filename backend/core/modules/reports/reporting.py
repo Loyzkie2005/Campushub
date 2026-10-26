@@ -1,4 +1,5 @@
 """Single source of truth for report previews and exported files."""
+from modules.facilities.services.schedules import schedule_blocks_q
 
 from collections import OrderedDict
 from datetime import datetime, timedelta
@@ -9,7 +10,8 @@ from django.utils import timezone
 
 from accounts.models import User
 from api.models import Booking, FacilityPayment, MarketplaceOrder, Product
-from modules.marketplace.services.inventory import low_stock_threshold
+from modules.marketplace.services.inventory import get_inventory_status_label, get_product_quantity_status
+from modules.facilities.revenue import valid_facility_payments
 
 
 REPORT_GROUPS = OrderedDict(
@@ -32,6 +34,7 @@ REPORT_GROUPS = OrderedDict(
                     ("bookings", "Facility Booking Report"),
                     ("facility_utilization", "Facility Utilization Report"),
                     ("facility_payments", "Facility Payments & OR Report"),
+                    ("facility_revenue", "Facility Revenue"),
                 )
             ),
         ),
@@ -144,39 +147,36 @@ def _latest_payment(booking):
     return payments[0] if payments else None
 
 
-def _order_report(report_type, date_from, date_to):
-    orders = _filter_dates(
-        MarketplaceOrder.objects.select_related("product").order_by("created_at"),
-        "created_at",
-        date_from,
-        date_to,
-    )
+def _order_report(report_type, date_from, date_to, user=None):
     if report_type == "sales":
-        orders = orders.filter(
-            Q(payment_status=MarketplaceOrder.PAYMENT_PAID)
-            | Q(status=MarketplaceOrder.STATUS_COMPLETED)
-        )
+        from modules.marketplace.services.analytics import valid_sales_queryset
+        # Same eligibility, scope and recognition date as dashboard/Analytics.
+        orders = _filter_dates(valid_sales_queryset(user), "analytics_at", date_from, date_to).order_by("analytics_at", "pk")
         rows = [
             {
                 "Order ID": order.order_code or str(order.pk),
-                "Date": _date_label(order.created_at),
+                "Date": _date_label(order.analytics_at),
                 "Product": order.product_name,
                 "Quantity": order.quantity,
                 "Amount (PHP)": order.total_price,
                 "Payment": order.get_payment_status_display(),
-                "_day": order.created_at,
+                "_day": order.analytics_at,
             }
             for order in orders
         ]
         total = sum((Decimal(row["Amount (PHP)"]) for row in rows), Decimal("0"))
         summary = [
-            ("Paid/Completed Orders", len(rows)),
+            ("Completed & Paid Orders", len(rows)),
             ("Products Sold", sum(row["Quantity"] for row in rows)),
             ("Revenue", _money(total)),
             ("Average Order Value", _money(total / len(rows) if rows else 0)),
         ]
         columns = ["Order ID", "Date", "Product", "Quantity", "Amount (PHP)", "Payment"]
     else:
+        orders = _filter_dates(
+            _scope_marketplace(MarketplaceOrder.objects.select_related("product").order_by("created_at"), user, "product__"),
+            "created_at", date_from, date_to,
+        )
         rows = [
             {
                 "Order ID": order.order_code or str(order.pk),
@@ -205,9 +205,10 @@ def _order_report(report_type, date_from, date_to):
     return rows, summary, _chart_from_rows(rows, "_day", "Amount (PHP)"), columns
 
 
-def _product_report(report_type, date_from, date_to):
+def _product_report(report_type, date_from, date_to, user=None):
+    from modules.marketplace.services.bundles import prime_bundle_inventory
     products = _filter_dates(
-        Product.objects.select_related("seller").order_by("submitted_at"),
+        _scope_marketplace(Product.objects.select_related("seller", "mobile_seller").order_by("submitted_at"), user),
         "submitted_at",
         date_from,
         date_to,
@@ -216,27 +217,30 @@ def _product_report(report_type, date_from, date_to):
         {
             "Product ID": product.product_code or str(product.pk),
             "Product": product.name,
-            "Seller": product.seller.get_full_name() or product.seller.username,
+            "Seller": product.owner.get_full_name() or product.owner.username,
             "Category": product.category or "Uncategorized",
             "Price (PHP)": product.price,
             "Stock": product.get_total_stock(),
-            "Inventory Status": product.get_inventory_status_label(),
+            "Quantity Basis": "Derived bundles" if product.product_type == Product.TYPE_BUNDLE else "Physical units",
+            "_product_type": product.product_type,
+            "_quantity_state": get_product_quantity_status(product),
             "Expiry Date": _date_label(product.expiry_date),
             "Approval": product.get_approval_status_display(),
             "Archived": "Yes" if product.is_archived else "No",
         }
-        for product in products
+        for product in prime_bundle_inventory(products)
     ]
+    for row in product_rows:
+        row["Inventory Status"] = get_inventory_status_label(row["_quantity_state"])
     if report_type == "low_stock":
-        threshold = low_stock_threshold()
         rows = [
             row for row in product_rows
-            if row["Stock"] <= threshold and row["Approval"] == "Approved" and row["Archived"] == "No"
+            if row["_product_type"] == Product.TYPE_SINGLE and row["_quantity_state"] in {"low_stock", "out_of_stock"} and row["Approval"] == "Approved" and row["Archived"] == "No"
         ]
         summary = [
             ("Low Stock Alerts", len(rows)),
             ("Out of Stock", sum(row["Stock"] == 0 for row in rows)),
-            ("Low Stock", sum(0 < row["Stock"] <= threshold for row in rows)),
+            ("Low Stock", sum(row["_quantity_state"] == "low_stock" for row in rows)),
             ("Units Remaining", sum(row["Stock"] for row in rows)),
         ]
         columns = [
@@ -249,19 +253,21 @@ def _product_report(report_type, date_from, date_to):
             ("Total Products", len(rows)),
             ("Approved", sum(row["Approval"] == "Approved" for row in rows)),
             ("Pending", sum(row["Approval"] == "Pending" for row in rows)),
-            ("Total Stock", sum(row["Stock"] for row in rows)),
+            ("Available Physical Units", sum(row["Stock"] for row in rows if row["_product_type"] == Product.TYPE_SINGLE)),
+            ("Derived Bundles Available", sum(row["Stock"] for row in rows if row["_product_type"] == Product.TYPE_BUNDLE)),
         ]
         columns = [
             "Product ID", "Product", "Seller", "Category", "Price (PHP)",
-            "Stock", "Inventory Status", "Expiry Date", "Approval", "Archived",
+            "Stock", "Quantity Basis", "Inventory Status", "Expiry Date", "Approval", "Archived",
         ]
-    chart = {"labels": [row["Product"] for row in rows[:12]], "values": [row["Stock"] for row in rows[:12]]}
+    chart_rows = [row for row in rows if row["_product_type"] == Product.TYPE_SINGLE][:12]
+    chart = {"labels": [row["Product"] for row in chart_rows], "values": [row["Stock"] for row in chart_rows]}
     return rows, summary, chart, columns
 
 
 def _booking_queryset(date_from, date_to):
     return _filter_date_field(
-        Booking.objects.select_related("facility", "user").prefetch_related("payments").order_by("booking_date", "start_time"),
+        Booking.objects.exclude(schedule_blocks_q()).select_related("facility", "user").prefetch_related("payments").order_by("booking_date", "start_time"),
         "booking_date",
         date_from,
         date_to,
@@ -341,8 +347,9 @@ def _facility_utilization_report(date_from, date_to):
     return rows, summary, chart, columns
 
 
-def _facility_payment_report(date_from, date_to):
-    payments = _filter_dates(
+def _facility_payment_report(date_from, date_to, *, revenue_only=False):
+    payments = valid_facility_payments(date_from, date_to).select_related(
+        "booking__facility", "booking__user").order_by("revenue_date", "pk") if revenue_only else _filter_dates(
         FacilityPayment.objects.select_related("booking__facility", "booking__user").order_by("created_at"),
         "created_at",
         date_from,
@@ -355,14 +362,14 @@ def _facility_payment_report(date_from, date_to):
             {
                 "Payment ID": payment.id,
                 "Booking ID": getattr(booking, "id", None) or "-",
-                "Date": _date_label(payment.paid_at or payment.created_at),
+                "Date": _date_label(payment.revenue_date if revenue_only else payment.paid_at or payment.created_at),
                 "Requester": _display_user(getattr(booking, "user", None)),
                 "Facility": getattr(getattr(booking, "facility", None), "facility_name", None) or "-",
                 "Amount Due (PHP)": getattr(booking, "total_amount", 0) or 0,
                 "Paid Amount (PHP)": payment.paid_amount,
                 "Payment": payment.get_payment_status_display(),
                 "OR No.": payment.official_receipt_no or "-",
-                "_day": payment.paid_at or payment.created_at,
+                "_day": payment.revenue_date if revenue_only else payment.paid_at or payment.created_at,
             }
         )
     collected = sum(
@@ -375,6 +382,8 @@ def _facility_payment_report(date_from, date_to):
         ("Unpaid/Failed", sum(row["Payment"] != "Paid" for row in rows)),
         ("Collected", _money(collected)),
     ]
+    if revenue_only:
+        summary = [("Paid Transactions", len(rows)), ("Facility Revenue", _money(collected))]
     columns = [
         "Payment ID", "Booking ID", "Date", "Requester", "Facility",
         "Amount Due (PHP)", "Paid Amount (PHP)", "Payment", "OR No.",
@@ -436,20 +445,26 @@ def _user_report(report_type, date_from, date_to):
     return rows, summary, _chart_from_rows(rows, "_day", "_count"), columns
 
 
-def build_report(report_type, date_from=None, date_to=None):
+def _scope_marketplace(queryset, user, prefix=""):
+    from accounts.academic import scope_products
+    return scope_products(queryset, user, prefix=prefix) if user is not None else queryset
+
+
+def build_report(report_type, date_from=None, date_to=None, *, user=None):
     if report_type not in REPORT_TITLES:
         raise ValueError("Unsupported report type.")
 
     if report_type in {"sales", "orders"}:
-        rows, summary, chart, columns = _order_report(report_type, date_from, date_to)
+        rows, summary, chart, columns = _order_report(report_type, date_from, date_to, user)
     elif report_type in {"products", "low_stock"}:
-        rows, summary, chart, columns = _product_report(report_type, date_from, date_to)
+        rows, summary, chart, columns = _product_report(report_type, date_from, date_to, user)
     elif report_type == "bookings":
         rows, summary, chart, columns = _booking_report(date_from, date_to)
     elif report_type == "facility_utilization":
         rows, summary, chart, columns = _facility_utilization_report(date_from, date_to)
-    elif report_type == "facility_payments":
-        rows, summary, chart, columns = _facility_payment_report(date_from, date_to)
+    elif report_type in {"facility_payments", "facility_revenue"}:
+        rows, summary, chart, columns = _facility_payment_report(date_from, date_to,
+            revenue_only=report_type == "facility_revenue")
     else:
         rows, summary, chart, columns = _user_report(report_type, date_from, date_to)
 
@@ -465,6 +480,12 @@ def build_report(report_type, date_from=None, date_to=None):
     return {
         "report_type": report_type,
         "title": REPORT_TITLES[report_type],
+        "description": {
+            "sales": "Completed and paid marketplace orders, dated when revenue is recognized: completion date, then payment date, then placement date for historical records.",
+            "products": "Current available inventory snapshot. Dates filter product submission, not historical stock balances. Physical units and derived bundles are reported separately; the chart shows physical units only.",
+            "low_stock": "Current stock alerts. Dates filter product submission, not historical stock movements.",
+            "user_activity": "Latest login per administrator/web account, not a complete login history. Dates filter each account's latest login.",
+        }.get(report_type, ""),
         "range": _range_label(date_from, date_to),
         "columns": columns,
         "rows": serial_rows,

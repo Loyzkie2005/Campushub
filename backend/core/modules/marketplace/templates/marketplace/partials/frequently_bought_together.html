@@ -1,0 +1,11 @@
+<section class="dash-card bundle-dss" id="frequentlyBoughtTogether" aria-labelledby="frequentlyBoughtTogetherTitle">
+    <header class="bundle-panel-heading">
+        <h2 id="frequentlyBoughtTogetherTitle">Frequently Bought Together</h2>
+    </header>
+    <div class="bundle-pair-list" data-bundle-list="frequent" aria-live="polite">
+        {% for row in bundle_analysis.frequent_rows %}
+        {% include 'marketplace/partials/bundle_pair.html' %}
+        {% empty %}{% include 'marketplace/partials/bundle_empty.html' with kind='frequent' %}{% endfor %}
+    </div>
+    <button type="button" class="bundle-view-all" data-bundle-view-all="frequent"{% if not bundle_analysis.frequent_has_more %} hidden{% endif %}>View All <span aria-hidden="true">&rarr;</span></button>
+</section>

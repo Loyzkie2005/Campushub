@@ -66,7 +66,11 @@ class _FacilityBookingStatusScreenState
           'Cancel this request?',
           style: TextStyle(fontWeight: FontWeight.w700, color: bookingNavy),
         ),
-        content: const Text('Your selected schedule will be released.'),
+        content: Text(
+          (num.tryParse('${_booking['paid_amount']}') ?? 0) > 0
+              ? 'Your selected schedule will be released. Recorded payments will be kept. Any refund must be handled separately.'
+              : 'Your selected schedule will be released.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -225,7 +229,7 @@ class _FacilityBookingStatusScreenState
                     ],
                   ),
                 ),
-                BookingStatusBadge(status),
+                BookingStatusBadge(status, label: _booking['status_label']?.toString()),
               ],
             ),
             const SizedBox(height: 6),
@@ -458,10 +462,10 @@ class _BookingSlip extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'Facilities and Spaces Rental Booking Slip',
+                Text(
+                  '${details['quote']?['form_label'] ?? 'Facilities and Spaces Rental Booking Slip'}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: bookingMuted),
+                  style: const TextStyle(fontSize: 13, color: bookingMuted),
                 ),
                 const SizedBox(height: 20),
                 BookingValue('Booking No.', booking['id'], bold: true),
@@ -476,7 +480,7 @@ class _BookingSlip extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      BookingStatusBadge(booking['status']),
+                      BookingStatusBadge(booking['status'], label: booking['status_label']?.toString()),
                     ],
                   ),
                 ),
@@ -491,10 +495,16 @@ class _BookingSlip extends StatelessWidget {
                 BookingValue('Facility', '${booking['facility']?['name'] ?? ''}'),
                 BookingValue(
                   'Date',
-                  bookingDate(booking['date'], withWeekday: true),
+                  '${bookingDate(booking['date'], withWeekday: true)}${booking['check_out_date']?.toString().isNotEmpty == true ? ' – ${bookingDate(booking['check_out_date'])}' : ''}',
                 ),
-                BookingValue('Start', bookingTime(booking['start'])),
-                BookingValue('End', bookingTime(booking['end'])),
+                if (booking['start']?.toString().isNotEmpty == true)
+                  BookingValue('Start', bookingTime(booking['start'])),
+                if (booking['end']?.toString().isNotEmpty == true)
+                  BookingValue('End', bookingTime(booking['end'])),
+                if (details['check_in_time']?.toString().isNotEmpty == true)
+                  BookingValue('Check-in Time', details['check_in_time']),
+                if (details['check_out_time']?.toString().isNotEmpty == true)
+                  BookingValue('Check-out Time', details['check_out_time']),
                 if (details['event_name'] != null &&
                     '${details['event_name']}'.isNotEmpty)
                   BookingValue('Event', '${details['event_name']}'),

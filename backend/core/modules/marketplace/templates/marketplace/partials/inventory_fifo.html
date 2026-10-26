@@ -1,0 +1,50 @@
+{% load tz %}
+<section class="fifo-workspace" aria-labelledby="fifoHeading">
+    <h3 id="fifoHeading">{% if inventory_section == 'fifo' %}Stock Batches{% else %}Stock Movements{% endif %}</h3>
+    {% if not fifo_ready %}
+        <p>Stock receiving is not available yet. Contact your system administrator.</p>
+        <p>Existing stock movements remain available through each inventory row’s History action.</p>
+    {% else %}
+    {% if inventory_section == 'fifo' %}
+    <p class="create-product-help">Oldest eligible stock is reserved first. Available Quantity excludes reservations. Reserved stock is awaiting order completion; consumed allocations appear in batch details.</p>
+    {% if perms.accounts.can_manage_products %}
+    <details class="fifo-receive"><summary>Receive Stock</summary>
+        <form id="fifoReceiveForm" aria-label="Stock Receiving" action="{% url 'admin_receive_stock' %}" data-receiver="{{ request.user.pk }}" class="fifo-receive-grid">
+            {% csrf_token %}
+            <label>Product / Variant<select class="form-select" name="sku" required><option value="">Select inventory item</option>{% for row in fifo_receivable %}<option value="{{ row.sku_id }}">{{ row.product_name }}{% if row.group %} — {{ row.group }}: {{ row.name }}{% endif %} ({{ row.sku }})</option>{% endfor %}</select></label>
+            <label>Received Quantity<input class="form-control" name="quantity" type="number" min="1" max="2147483647" step="1" required></label>
+            <label>Receiving Transaction Reference<input class="form-control" name="reference" maxlength="150" required></label>
+            <button class="primary-action" type="submit">Record Receipt</button>
+        </form>
+        <p class="create-product-help">Receipt time and receiving administrator are recorded automatically. Existing product and variant expiry rules remain.</p>
+        <p id="fifoReceiveFeedback" role="status" aria-live="polite"></p>
+    </details>
+    {% endif %}
+    <div class="inventory-table-scroll" tabindex="0" role="region" aria-label="Stock batches; scroll horizontally on smaller screens">
+        <table class="inventory-ledger-table fifo-batches-table"><thead><tr><th scope="col">Batch Reference</th><th scope="col">Product / Variant</th><th scope="col">Date Received</th><th scope="col" class="inventory-ledger-number">Batch Quantity</th><th scope="col" class="inventory-ledger-number">Available Quantity</th><th scope="col" class="inventory-ledger-number">Reserved Quantity</th><th scope="col">Batch Status</th><th scope="col">Actions</th></tr></thead>
+        <tbody>{% for batch in fifo_batches %}<tr>
+            <td class="fifo-reference"><strong>{{ batch.code }}</strong><small>{% if batch.origin == 'opening' %}Starting Stock{% else %}{{ batch.get_origin_display }}{% endif %}</small></td>
+            <td class="inventory-batch-product">{{ batch.sku.product.name }}{% if batch.sku.variant_name %}<small>{{ batch.sku.group_name }}: {{ batch.sku.variant_name }}</small>{% endif %}<small>Seller: {{ batch.owner_label }}</small></td>
+            <td class="inventory-batch-date">{% if batch.received_at %}{% timezone 'Asia/Manila' %}<time datetime="{{ batch.received_at|date:'c' }}">{{ batch.received_at|date:'M d, Y' }}<small>{{ batch.received_at|date:'g:i A' }}</small></time>{% endtimezone %}{% else %}Not recorded<small>Recorded {% timezone 'Asia/Manila' %}<time datetime="{{ batch.recorded_at|date:'c' }}">{{ batch.recorded_at|date:'M d, Y g:i A' }}</time>{% endtimezone %}</small>{% endif %}</td>
+            <td class="inventory-ledger-number"><span class="inventory-batch-quantity">{% if batch.origin == 'opening' %}Starting Qty:{% elif batch.origin == 'receipt' %}Received Qty:{% else %}Adjustment Qty:{% endif %} <strong>{{ batch.initial_quantity }} pcs</strong></span></td>
+            <td class="inventory-ledger-number">{{ batch.remaining_quantity }}</td><td class="inventory-ledger-number">{{ batch.reserved_quantity }}</td><td><span class="inventory-batch-status inventory-batch-status--{{ batch.status_label|slugify }}">{{ batch.status_label|title }}</span></td>
+            <td><button type="button" class="inventory-detail-action inventory-icon-action" aria-controls="inventoryDetailsDrawer" data-inventory-detail="inventoryBatchDetail{{ batch.pk }}" data-detail-title="Stock Batch Details" title="View Details" aria-label="View Details for {{ batch.code }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></td>
+        </tr>{% empty %}<tr><td colspan="8" class="inventory-ledger-empty">No inventory batches match the selected filters.</td></tr>{% endfor %}</tbody></table>
+    </div>
+    {% include 'marketplace/partials/inventory_fifo_pagination.html' with page=fifo_batches batch_pagination=True %}
+    {% else %}
+    <div class="inventory-table-scroll" tabindex="0" role="region" aria-label="Stock movements and batch allocations; scroll horizontally on smaller screens">
+        <table class="inventory-ledger-table fifo-movements-table"><thead><tr><th scope="col">Movement Date</th><th scope="col">Product / Variant</th><th scope="col">Movement</th><th scope="col" class="inventory-ledger-number">Quantity</th><th scope="col">Order / Transaction</th><th scope="col">Recorded By</th><th scope="col">Batch Allocations</th></tr></thead>
+        <tbody>{% for movement in fifo_movements %}<tr>
+            <td class="inventory-movement-date">{% timezone 'Asia/Manila' %}<time datetime="{{ movement.created_at|date:'c' }}">{{ movement.created_at|date:'M d, Y' }}<small>{{ movement.created_at|date:'g:i A' }}</small></time>{% endtimezone %}</td>
+            <td class="inventory-movement-product">{{ movement.sku.product.name }}{% if movement.sku.variant_name %}<small>{{ movement.sku.group_name }}: {{ movement.sku.variant_name }}</small>{% endif %}</td>
+            <td>{{ movement.get_kind_display }}</td>
+            <td class="inventory-ledger-number">{% if movement.quantity_change > 0 %}+{% endif %}{{ movement.quantity_change }}</td>
+            <td>{{ movement.transaction_label }}</td><td>{{ movement.actor|default:'—' }}</td>
+            <td class="inventory-movement-action">{% if movement.display_allocations %}<button type="button" class="inventory-detail-action inventory-icon-action" aria-controls="inventoryDetailsDrawer" data-inventory-detail="inventoryMovementDetail{{ movement.pk }}" data-detail-title="Batch Allocation Details" title="View Allocation" aria-label="View Allocation for {{ movement.sku.product.name }} — {{ movement.transaction_label }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>{% else %}—{% endif %}</td>
+        </tr>{% empty %}<tr><td colspan="7" class="inventory-ledger-empty">No recorded stock movements match the selected filters.</td></tr>{% endfor %}</tbody></table>
+    </div>
+    {% include 'marketplace/partials/inventory_fifo_pagination.html' with page=fifo_movements movement_pagination=True %}
+    {% endif %}
+    {% endif %}
+</section>

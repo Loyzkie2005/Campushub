@@ -1,15 +1,16 @@
 from decimal import Decimal
 import json
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import Department, User
 from accounts.role_permissions import sync_user_admin_permissions
-from api.models import Product
+from api.models import MarketplaceOrder, Product, SellerRequest
 from modules.marketplace.services.inventory import (
     InsufficientStockError,
     adjust_product_stock,
+    get_product_inventory_snapshot,
 )
 
 
@@ -276,12 +277,13 @@ class MarketplaceAdminProductAccessTests(TestCase):
         seller_department = Department.objects.create(
             name="Student Enterprise",
             code="STU-ENT",
+            is_program=True,
         )
         self.marketplace_admin = User.objects.create_user(
             username="marketplace-products-admin",
             password=self.password,
             role="Marketplace Admin",
-            department=admin_department,
+            department=seller_department,
             is_staff=True,
         )
         sync_user_admin_permissions(self.marketplace_admin)
@@ -318,6 +320,162 @@ class MarketplaceAdminProductAccessTests(TestCase):
     def _product_page(self, user):
         self.client.force_login(user)
         return self.client.get(reverse("admin_products_page"))
+
+    def _held_order(self, product, status, quantity, **kwargs):
+        return MarketplaceOrder.objects.create(
+            product=product, product_name=product.name, quantity=quantity,
+            status=status, inventory_deducted=True, **kwargs)
+
+    @override_settings(CAMPUSHUB_LOW_STOCK_THRESHOLD=10)
+    def test_details_snapshot_counts_only_actual_active_holds_without_double_deduction(self):
+        self.pending_product.stock = 20
+        adjust_product_stock(self.pending_product, [], 7)
+        self.pending_product.save(update_fields=["stock"])
+        self._held_order(self.pending_product, MarketplaceOrder.STATUS_PENDING, 2)
+        self._held_order(self.pending_product, MarketplaceOrder.STATUS_PROCESSING, 3)
+        self._held_order(self.pending_product, MarketplaceOrder.STATUS_READY_FOR_PICKUP, 2)
+        self._held_order(self.pending_product, MarketplaceOrder.STATUS_COMPLETED, 50)
+        self._held_order(self.pending_product, MarketplaceOrder.STATUS_CANCELLED, 50)
+        self._held_order(self.pending_product, MarketplaceOrder.STATUS_PENDING, 50, inventory_restored=True)
+        MarketplaceOrder.objects.create(product=self.pending_product, product_name="Legacy undeducted",
+                                        quantity=50, status=MarketplaceOrder.STATUS_PENDING)
+        with self.assertNumQueries(2):  # Stable SKU registry and active reservations.
+            inventory = get_product_inventory_snapshot(self.pending_product)
+        self.assertEqual(inventory, {"sku": self.pending_product.inventory_skus.get(variant_name="").code, "on_hand": 20, "reserved": 7, "available": 13,
+                                    "low_stock_threshold": 10, "variant_thresholds": [], "status": "in_stock", "status_label": "In Stock"})
+        for stock, expected in ((10, "low_stock"), (1, "low_stock"), (0, "out_of_stock")):
+            self.pending_product.stock = stock
+            self.assertEqual(get_product_inventory_snapshot(self.pending_product)["status"], expected)
+
+    def test_details_snapshot_sums_variants_and_reuses_selected_option_deductions(self):
+        product = self.pending_product
+        product.customization_enabled = True
+        product.customization_options = [{"name": "Size", "options": [
+            {"name": "Small", "stock": 8}, {"name": "Large", "stock": 12}]},
+            {"name": "Extra", "options": [{"name": "Item", "stock": 5}]}]
+        selections = [{"group": "Size", "option": "Small"}, {"group": "Extra", "option": "Item"}]
+        adjust_product_stock(product, selections, 2)
+        product.save(update_fields=["stock", "customization_options"])
+        self._held_order(product, MarketplaceOrder.STATUS_PROCESSING, 2, customization={"selections": selections})
+        with self.assertNumQueries(2):
+            inventory = get_product_inventory_snapshot(product)
+        self.assertEqual((inventory["on_hand"], inventory["reserved"], inventory["available"]), (25, 4, 21))
+        # A zero option does not zero the total; the other low option still warns.
+        product.customization_options[0]["options"][0]["stock"] = 0
+        self.assertEqual(get_product_inventory_snapshot(product)["status"], "low_stock")
+        product.customization_options[0]["options"][0]["name"] = "Renamed option"
+        self.assertIsNone(get_product_inventory_snapshot(product))
+        product.customization_enabled = False  # existing legacy tracked-option support
+        product.customization_options[0]["options"][0]["name"] = "Small"  # Restore the held identity.
+        self.assertEqual(get_product_inventory_snapshot(product)["available"], 15)
+
+    def test_details_endpoint_reuses_approval_listing_dates_and_archived_access(self):
+        self.client.force_login(self.super_admin)
+        product = self.low_stock_product
+        product.is_archived = True
+        product.save(update_fields=["is_archived", "updated_at"])
+        url = reverse("seller_products_monitor")
+        detail = self.client.get(url, {"product_id": product.pk})
+        self.assertEqual(detail.status_code, 200)
+        payload = detail.json()["products"][0]
+        self.assertEqual(payload["approval_status"], "approved")
+        self.assertTrue(payload["is_archived"])
+        self.assertEqual(payload["updated_at"], product.updated_at.isoformat())
+        self.assertEqual(payload["submitted_at"], product.submitted_at.isoformat())
+        self.assertEqual(payload["inventory"]["status"], "low_stock")
+        self.assertNotIn(product.pk, [p["id"] for p in self.client.get(url).json()["products"]])
+        self.assertEqual(self.client.get(url, {"product_id": "bad"}).status_code, 400)
+        self.client.force_login(self.seller)
+        self.assertEqual(self.client.get(url, {"product_id": product.pk}).status_code, 403)
+
+    def test_stock_save_returns_fresh_inventory_snapshot_and_details_markup(self):
+        self.client.force_login(self.super_admin)
+        self._held_order(self.low_stock_product, MarketplaceOrder.STATUS_PROCESSING, 2)
+        response = self.client.post(reverse("admin_update_product_stock", args=[self.low_stock_product.pk]),
+                                    data=json.dumps({"stock": 1}), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        inventory = response.json()["product"]["inventory"]
+        self.assertEqual((inventory["on_hand"], inventory["reserved"], inventory["available"]), (3, 2, 1))
+        page = self._product_page(self.super_admin)
+        for label in ("Approval Status:", "Listing Status:", "Inventory Status:", "On Hand", "Low Stock Threshold"):
+            self.assertContains(page, label)
+        self.assertNotContains(page, '<tr><td>Status:</td>')
+        self.assertNotContains(page, 'id="pdDetailStock"')
+        import os
+        from pathlib import Path
+        from api.views import serialize_product
+        directory = os.environ.get("PRODUCT_DETAILS_REVIEW_DIR")
+        if directory:
+            target = Path(directory)
+            target.mkdir(parents=True, exist_ok=True)
+            # Only isolated test database records are exported for local UI checks.
+            products = list(page.context["seller_products"])
+            for status, archived, stock in ((Product.STATUS_REJECTED, True, 0), (Product.STATUS_APPROVED, False, 20)):
+                products.append(Product.objects.create(seller=self.seller, name=f"Details {status} {stock}",
+                    price=1, stock=stock, approval_status=status, is_archived=archived))
+            variant = Product.objects.create(seller=self.seller, name="Detail Sizes", price=50, stock=999,
+                approval_status=Product.STATUS_APPROVED, customization_enabled=True,
+                customization_options=[{"name": "Size", "options": [
+                    {"name": "Small", "stock": 0}, {"name": "Large", "stock": 12}]}],
+                image_url='["/test-small.png", "/test-large.png"]')
+            products.append(variant)
+            (target / "products.html").write_bytes(page.content)
+            (target / "products.json").write_text(json.dumps([
+                serialize_product(p, include_inventory=True) for p in products]), encoding="utf-8")
+            saved = self.client.post(reverse("admin_update_product_stock", args=[self.low_stock_product.pk]),
+                data=json.dumps({"stock": 0}), content_type="application/json")
+            self.assertEqual(saved.status_code, 200)
+            (target / "stock-save.json").write_text(json.dumps(saved.json()), encoding="utf-8")
+
+    @override_settings(CAMPUSHUB_LOW_STOCK_THRESHOLD=10)
+    def test_inventory_column_uses_remaining_parent_quantity_and_separate_approval(self):
+        import os
+        from pathlib import Path
+        from api.views import serialize_product
+
+        self.pending_product.stock = 20
+        adjust_product_stock(self.pending_product, [], 7)
+        self.pending_product.save(update_fields=["stock"])
+        zero = Product.objects.create(seller=self.seller, name="Zero Stock", price=1, stock=0,
+                                      approval_status=Product.STATUS_REJECTED)
+        single = Product.objects.create(seller=self.seller, name="Single Available Unit", price=1, stock=1,
+                                        approval_status=Product.STATUS_APPROVED)
+        variants = Product.objects.create(seller=self.seller, name="Tracked Sizes", price=1, stock=999,
+            customization_enabled=True, approval_status=Product.STATUS_APPROVED,
+            customization_options=[{"name": "Size", "options": [
+                {"name": "Small", "stock": 3}, {"name": "Medium", "stock": 3}, {"name": "Large", "stock": 2}]}])
+        mixed = Product.objects.create(seller=self.seller, name="Legacy Tracked Sizes", price=1, stock=999,
+            customization_enabled=False, approval_status=Product.STATUS_APPROVED,
+            customization_options=[{"name": "Size", "options": [
+                {"name": "Small", "stock": 0}, {"name": "Medium", "stock": 20}, {"name": "Large", "stock": 1}]}])
+        untracked = Product.objects.create(seller=self.seller, name="Untracked Options", price=1, stock=0,
+            customization_enabled=True,
+            customization_options=[{"name": "Flavor", "options": [{"name": "Vanilla"}, {"name": "Plain"}]}])
+        page = self._product_page(self.super_admin)
+        rows = {p.pk: p for p in page.context["seller_products"]}
+        for product, count, state, variant_count in (
+            (self.pending_product, 13, "in_stock", 0), (self.low_stock_product, 3, "low_stock", 0),
+            (zero, 0, "out_of_stock", 0), (single, 1, "low_stock", 0), (variants, 8, "low_stock", 3),
+            (mixed, 21, "low_stock", 3), (untracked, 0, "out_of_stock", 2),
+        ):
+            with self.subTest(product=product.name):
+                self.assertEqual(rows[product.pk].admin_total_stock, count)
+                self.assertEqual(rows[product.pk].admin_quantity_status, state)
+                self.assertEqual(rows[product.pk].admin_variant_count, variant_count)
+                unit = "pc" if count == 1 else "pcs"
+                self.assertContains(page, f'<span class="inventory-number">{count} {unit}</span>')
+        self.assertContains(page, 'data-product-stock="13"')
+        self.assertContains(page, 'data-product-status="pending"')
+        self.assertContains(page, 'data-product-status="rejected"')
+        self.assertContains(page, 'meta name="low-stock-threshold" content="10"')
+        self.assertNotContains(page, '<span class="inventory-pill inventory-in_stock">In Stock</span>')
+        directory = os.environ.get("PRODUCT_INVENTORY_REVIEW_DIR")
+        if directory:
+            target = Path(directory)
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "products.html").write_bytes(page.content)
+            (target / "products.json").write_text(json.dumps([
+                serialize_product(p) for p in page.context["seller_products"]]), encoding="utf-8")
 
     def test_super_and_marketplace_admin_share_the_same_active_products(self):
         marketplace_response = self._product_page(self.marketplace_admin)
@@ -543,6 +701,8 @@ class MarketplaceAdminProductAccessTests(TestCase):
         self.assertEqual(delete_resp.status_code, 405)
 
     def test_seller_submission_keeps_seller_ownership(self):
+        SellerRequest.objects.create(user=self.seller, student_id=self.seller.username,
+            full_name="Approved Seller", product_type="Supplies", status="approved")
         self.client.force_login(self.seller)
 
         response = self.client.post(

@@ -4,6 +4,11 @@
   const REMEMBER_KEY = "campushub_remember";
   const USERNAME_KEY = "campushub_username";
 
+  (function () {
+    var theme = localStorage.getItem("campushub_admin_theme") || "light";
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+
   function initializeLogin() {
     const form = document.getElementById("adminLoginForm");
     if (!form) return;
@@ -72,7 +77,7 @@
       passwordButton.setAttribute("aria-pressed", String(showPassword));
       passwordButton.setAttribute(
         "aria-label",
-        showPassword ? "Hide password" : "Show password"
+        showPassword ? "Hide password" : "Show password",
       );
     }
 
@@ -120,7 +125,7 @@
           window.CampusHubAdminSession?.urlWithToken?.(nextUrl) || nextUrl;
       } catch (error) {
         showError(
-          `Cannot connect to login server at ${resolvedLoginUrl}. Start Django and open the login page from the Django URL.`
+          `Cannot connect to login server at ${resolvedLoginUrl}. Start Django and open the login page from the Django URL.`,
         );
         setLoading(false);
         console.error("Login error:", error);
@@ -143,17 +148,20 @@
 
     function applyTheme(theme) {
       const isDark = theme === "dark";
-      document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+      document.documentElement.setAttribute(
+        "data-theme",
+        isDark ? "dark" : "light",
+      );
       localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
 
       if (toggleBtn) {
         toggleBtn.setAttribute(
           "title",
-          isDark ? "Switch to light mode" : "Switch to dark mode"
+          isDark ? "Switch to light mode" : "Switch to dark mode",
         );
         toggleBtn.setAttribute(
           "aria-label",
-          isDark ? "Switch to light mode" : "Switch to dark mode"
+          isDark ? "Switch to light mode" : "Switch to dark mode",
         );
       }
 
@@ -168,12 +176,16 @@
       }
 
       if (brandLogo) {
-        const targetSrc = isDark ? brandLogo.dataset.darkSrc : brandLogo.dataset.lightSrc;
+        const targetSrc = isDark
+          ? brandLogo.dataset.darkSrc
+          : brandLogo.dataset.lightSrc;
         if (targetSrc) brandLogo.src = targetSrc;
       }
 
       if (favicon) {
-        const targetFavicon = isDark ? favicon.dataset.darkSrc : favicon.dataset.lightSrc;
+        const targetFavicon = isDark
+          ? favicon.dataset.darkSrc
+          : favicon.dataset.lightSrc;
         if (targetFavicon) favicon.href = targetFavicon;
       }
     }

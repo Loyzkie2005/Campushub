@@ -1,0 +1,4 @@
+<span class="bundle-product-photo">
+    {% if product.image_url %}<img src="{{ product.image_url }}" alt="{{ product.name }}" width="52" height="52" loading="lazy" decoding="async">{% endif %}
+    <span class="bundle-photo-placeholder" role="img" aria-label="No image available for {{ product.name }}"{% if product.image_url %} hidden{% endif %}>{% include 'marketplace/partials/inventory_kpi_icon.html' with kind='product' %}</span>
+</span>

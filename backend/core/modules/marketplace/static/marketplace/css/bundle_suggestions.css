@@ -1,0 +1,129 @@
+/* Live marketplace recommendations; existing CampusHub cards and View flow. */
+/* Marketplace dashboard only: retain intrinsic sizes and existing shared components. */
+.marketplace-dashboard .bundle-dss.marketplace-recommendation-summary {gap:10px;}
+.marketplace-dashboard .marketplace-recommendation-summary .ch-dashboard-empty {gap:6px;padding:8px 4px;}
+.marketplace-dashboard .marketplace-recommendation-activity {padding-top:10px;}
+.marketplace-dashboard .bundle-dss.marketplace-recommendation-summary .marketplace-recommendation-counts>div {padding:4px 0;}
+.marketplace-dashboard .marketplace-recommendation-activity>.marketplace-recommendation-counts dd {font-size:14px;text-align:right;}
+.marketplace-dashboard .marketplace-recommendation-summary .marketplace-analysis-summary {padding-top:10px;}
+.marketplace-dashboard .marketplace-recommendation-summary .marketplace-analysis-summary .marketplace-recommendation-note {margin-top:6px;}
+.marketplace-recommendation-summary .marketplace-analysis-summary {min-width:0;border-top:1px solid #E8EAF0;padding-top:12px;}
+.marketplace-recommendation-summary .marketplace-analysis-summary h3 {margin:0 0 8px;color:#1A1851;font-size:13px;font-weight:600;line-height:1.4;}
+.marketplace-recommendation-summary .marketplace-analysis-summary .marketplace-recommendation-counts>div {gap:8px;}
+.marketplace-recommendation-summary .marketplace-analysis-summary dd {min-width:0;max-width:60%;overflow-wrap:anywhere;text-align:right;font-size:12px;font-weight:500;line-height:1.5;}
+.marketplace-recommendation-summary .marketplace-analysis-summary .marketplace-recommendation-note {margin:8px 0 0;}
+.bundle-dss.marketplace-recommendation-summary { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 16px; border: 1px solid #E8EAF0; border-radius: 14px; background: #FFFFFF; color: #17172A; font-family: var(--ch-font-ui, 'Inter', sans-serif); height: auto; box-shadow: none; }
+.marketplace-recommendation-summary header h2 { margin: 0; color: #1A1851; font-size: 16px; font-weight: 600; line-height: 1.4; }
+.marketplace-recommendation-summary header p, .marketplace-recommendation-summary .marketplace-recommendation-subtitle { margin: 6px 0 0; color: #667085; font-size: 12px; line-height: 1.5; font-weight: 400; }
+.marketplace-recommendation-summary .ch-dashboard-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 12px 8px; text-align: center; color: #1A1851; font-family: var(--ch-font-ui, 'Inter', sans-serif); }
+.marketplace-recommendation-summary .ch-dashboard-empty > svg { flex: 0 0 24px; width: 24px; height: 24px; color: #626781; margin: 0 auto; }
+.marketplace-recommendation-summary .ch-dashboard-empty > h4 { margin: 0; font-size: 14px; font-weight: 600; color: #1A1851; line-height: 1.4; }
+.marketplace-recommendation-summary .ch-dashboard-empty > p { margin: 0 auto; max-width: 44ch; font-size: 12px; line-height: 1.5; color: #667085; overflow-wrap: anywhere; }
+.marketplace-recommendation-activity { padding-top: 12px; border-top: 1px solid #E8EAF0; margin: 0; }
+.marketplace-recommendation-activity h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; line-height: 1.5; color: #17172A; }
+.marketplace-recommendation-counts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin: 0; }
+.marketplace-recommendation-counts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 5px 0; }
+.marketplace-recommendation-counts dt { font-size: 12px; font-weight: 400; line-height: 1.5; color: #667085; margin: 0; }
+.marketplace-recommendation-counts dd { flex-shrink: 0; margin: 0; color: #1A1851; font-size: 16px; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.marketplace-recommendation-summary .marketplace-dashboard-details { margin-top: 8px; border-top: 1px solid #E8EAF0; padding-top: 4px; }
+.marketplace-recommendation-summary .marketplace-dashboard-details summary { cursor: pointer; min-height: 36px; padding: 8px 0; color: #1A1851; font-size: 12px; font-weight: 500; line-height: 1.5; }
+.marketplace-recommendation-summary .marketplace-dashboard-details p { font-size: 11px; line-height: 1.5; color: #667085; margin: 4px 0 8px; }
+.marketplace-recommendation-summary .marketplace-dashboard-breakdown { display: grid; gap: 4px; margin: 6px 0; }
+.marketplace-recommendation-summary .marketplace-dashboard-breakdown > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; }
+.marketplace-recommendation-summary .marketplace-dashboard-breakdown dt { font-weight: 400; color: #667085; margin: 0; }
+.marketplace-recommendation-summary .marketplace-dashboard-breakdown dd { font-weight: 600; color: #1A1851; margin: 0; font-variant-numeric: tabular-nums; }
+.marketplace-recommendation-summary .marketplace-bundle-preview { list-style: none; margin: 0; padding: 0; }
+.marketplace-recommendation-summary .marketplace-bundle-preview li { padding: 8px 0; border-bottom: 1px solid #E8EAF0; font-size: 12px; overflow-wrap: anywhere; }
+.marketplace-recommendation-summary .marketplace-bundle-preview li:last-child { border-bottom: 0; padding-bottom: 4px; }
+.marketplace-recommendation-summary .marketplace-bundle-preview strong { display: block; font-size: 12px; font-weight: 600; color: #17172A; line-height: 1.4; }
+.marketplace-recommendation-summary .marketplace-bundle-preview small { display: block; margin-top: 3px; color: #667085; font-size: 11px; line-height: 1.4; }
+.marketplace-recommendation-summary .marketplace-recommendation-note { margin: 0; font-size: 12px; color: #667085; line-height: 1.5; }
+.marketplace-recommendation-summary .marketplace-recommendation-note h3 { margin: 0 0 4px; color: #17172A; font-size: 13px; font-weight: 600; }
+.marketplace-recommendation-summary .marketplace-recommendation-note p { margin: 0; font-size: 12px; line-height: 1.5; }
+.marketplace-recommendation-summary .marketplace-recommendation-action { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 40px; color: #1A1851; font-size: 13px; font-weight: 600; text-decoration: none; padding-top: 4px; }
+.marketplace-recommendation-summary .marketplace-recommendation-action:hover { text-decoration: underline; text-decoration-color: #FCB316; text-underline-offset: 4px; }
+.marketplace-recommendation-summary a:focus-visible, .marketplace-recommendation-summary summary:focus-visible { outline: 2px solid #1A1851; outline-offset: 3px; border-radius: 4px; }
+.bundle-dashboard-card { font-family: 'Montserrat',Arial,sans-serif; }
+.bundle-dashboard-card .bundle-panel-heading { align-items: baseline; margin-bottom: 8px; }
+.bundle-dashboard-card .bundle-view-all { margin: 0; padding: 2px 0; min-height: 28px; white-space: nowrap; }
+.bundle-dashboard-description { margin: 0 0 16px; font-size: 12px; line-height: 1.65; color: rgba(26,24,81,.7); }
+.bundle-dashboard-state { padding: 14px 8px 6px; text-align: center; }
+.bundle-dashboard-state .bundle-state-icon { width: 30px; height: 30px; margin-bottom: 10px; color: rgba(26,24,81,.65); }
+.bundle-dashboard-state h3 { font: 600 13px/1.6 'Montserrat',Arial,sans-serif; margin: 0 0 7px; color: #1A1851; }
+.bundle-dashboard-state p { margin: 0 auto; max-width: 48ch; font-size: 12px; line-height: 1.7; color: rgba(26,24,81,.7); }
+.bundle-dashboard-card .bundle-pair { grid-template-columns: auto minmax(0,1fr); align-items: start; }
+.bundle-dashboard-card .bundle-pair-images { grid-row: 1; gap: 7px; }
+.bundle-dashboard-card .bundle-product-photo { width: 42px; height: 42px; }
+.bundle-suggestion-summary { min-width: 0; }
+.bundle-dashboard-card .bundle-suggestion-summary h3 { font-family: 'Montserrat',Arial,sans-serif; margin-bottom: 6px; }
+.bundle-suggestion-summary .bundle-pair-seller { margin: 0 0 5px; }
+.bundle-suggestion-summary .bundle-review-button { display: inline-flex; align-items: center; margin-top: 6px; text-decoration: none; min-height: 34px; }
+.bundle-activity-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 0; }
+.bundle-activity-metrics > div { padding: 12px; border: 1px solid rgba(26,24,81,.12); border-radius: 8px; background: #F7F8FC; min-width: 0; }
+.bundle-activity-metrics dt { color: rgba(26,24,81,.7); font: 400 12px/1.5 'Montserrat',Arial,sans-serif; }
+.bundle-activity-metrics dd { font: 600 22px/1.4 'Montserrat',Arial,sans-serif; color: #1A1851; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.bundle-activity-note { color: rgba(26,24,81,.7); font-size: 11px; line-height: 1.6; margin: 10px 0 0; }
+.bm-activity-panel > .bundle-activity-metrics { margin: 20px 20px 0; }
+.bm-activity-panel > .bundle-activity-note { margin: 10px 20px; }
+.dashboard-recommendations-stack { display: grid; align-content: start; gap: 16px; min-width: 0; }
+.marketplace-insight-grid { display: grid; grid-template-columns: minmax(0,13fr) minmax(0,7fr); align-items: start; gap: 16px; margin-top: 24px; }
+.marketplace-insight-grid:not(:has(> .bundle-dss)) { grid-template-columns: minmax(0,1fr); }
+.marketplace-insight-content { min-width: 0; container-type: inline-size; }
+.marketplace-insight-content > .marketplace-section-title { margin-top: 0 !important; }
+.marketplace-insight-content .sales-overview { margin: 0; }
+.bundle-dss { min-width: 0; padding: 20px; background: #fff; border: 1px solid rgba(26,24,81,.14); border-radius: 8px; color: #1A1851; box-shadow: none; }
+.bundle-panel-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.bundle-panel-heading h2 { margin: 0; font: 600 15px/1.5 'Montserrat',Arial,sans-serif; color: #1A1851; }
+.bundle-pair-list { display: grid; gap: 14px; }
+.bundle-pair { display: grid; grid-template-columns: 134px minmax(0,1fr); column-gap: 12px; row-gap: 4px; min-width: 0; padding-bottom: 14px; border-bottom: 1px solid rgba(26,24,81,.12); }
+.bundle-pair:last-child { border-bottom: 0; padding-bottom: 0; }
+.bundle-pair-images { grid-column: 1; grid-row: 1 / 3; display: flex; align-items: center; align-self: start; gap: 10px; }
+.bundle-pair--suggested .bundle-pair-images { grid-row: 1 / 4; }
+.bundle-pair-footer { grid-column: 2; padding-top: 6px; }
+.bundle-product-photo { display: inline-grid; width: 52px; height: 52px; border-radius: 6px; background: #f8fafc; overflow: hidden; flex-shrink: 0; }
+.bundle-product-photo img { width: 100%; height: 100%; object-fit: contain; }
+.bundle-photo-placeholder { display: grid; place-items: center; width: 100%; height: 100%; color: #1A1851; }
+.bundle-photo-placeholder svg { width: 24px; height: 24px; }
+.bundle-pair-plus { font-size: 16px; }
+.bundle-pair h3 { grid-column: 2; grid-row: 1; font: 600 13px/1.5 Arial,sans-serif; color: #1A1851; margin: 0; overflow-wrap: anywhere; }
+.bundle-pair h3 > span { display: block; }
+.bundle-pair .bundle-relation-label { padding: 2px 0; font-size: 12px; font-weight: 400; }
+.bundle-pair--cross-sell .bundle-pair-plus { color: #FCB315; font-size: 21px; font-weight: 600; }
+.bundle-pair-seller { grid-column: 2; grid-row: 2; margin: 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.bundle-review-button, .bundle-close-primary, .bundle-pagination button { min-height: 44px; padding: 8px 12px; border: 1px solid rgba(26,24,81,.22); border-radius: 6px; color: #1A1851; background: #fff; font-size: 12px; font-weight: 600; }
+.bundle-review-button:hover { background: #f8fafc; border-color: #1A1851; }
+.bundle-view-all { display: block; margin: 12px 0 -8px auto; padding: 8px 0 8px 12px; min-height: 44px; border: 0; background: transparent; color: #1A1851; font-size: 12px; font-weight: 600; }
+.bundle-view-all:hover { text-decoration: underline; }
+.bundle-empty { margin: 0; padding: 20px 0; font-size: 13px; line-height: 1.6; color: #1A1851; }
+.bundle-empty-detail { margin: -12px 0 20px; font-size: 12px; line-height: 1.6; color: #1A1851; }
+.bundle-review-dialog { width: min(640px,calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 0; border: 1px solid rgba(26,24,81,.2); border-radius: 8px; color: #1A1851; background: #fff; overflow-y: auto; overscroll-behavior: contain; }
+.bundle-review-dialog::backdrop { background: rgba(26,24,81,.3); }
+body:has(.bundle-review-dialog[open]) { overflow: hidden; }
+.bundle-review-dialog > header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 20px 24px; border-bottom: 1px solid rgba(26,24,81,.14); }
+.bundle-review-dialog h2 { margin: 0; font: 600 17px/1.5 'Montserrat',Arial,sans-serif; overflow-wrap: anywhere; }
+.bundle-review-body { padding: 20px 24px; }
+.bundle-review-products { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin-bottom: 20px; }
+.bundle-product-card { min-width: 0; }
+.bundle-product-card > span:first-child { display: block; font-size: 12px; margin-bottom: 8px; }
+.bundle-product-card .bundle-product-photo { display: grid; width: 100%; height: 120px; margin-bottom: 10px; }
+.bundle-product-card h3 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.bundle-review-body > p { font-size: 13px; margin: 0 0 16px; }
+.bundle-review-dialog > footer { display: flex; justify-content: end; padding: 16px 24px; border-top: 1px solid rgba(26,24,81,.14); }
+.bundle-close-primary { background: #1A1851; color: #fff; min-width: 80px; }
+.bundle-pagination { display: flex; flex-wrap: wrap; justify-content: end; gap: 6px; padding-top: 20px; }
+.bundle-pagination button { min-width: 44px; }
+.bundle-pagination [aria-current="page"] { background: #1A1851; color: #fff; }
+.bundle-pagination button:disabled { opacity: .45; }
+.bundle-dss :focus-visible, .bundle-review-dialog :focus-visible { outline: 2px solid #FCB315; outline-offset: 3px; }
+.bundle-dss [hidden], .bundle-review-dialog [hidden] { display: none !important; }
+@container (max-width: 800px) { .marketplace-insight-content .row > .col-xl-6 { flex: 0 0 100%; width: 100%; } }
+@media (max-width: 1199px) { .marketplace-insight-grid { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 599px) {
+    .bundle-dss { padding: 16px; }
+    .bundle-panel-heading { flex-wrap: wrap; }
+    .bundle-dashboard-card .bundle-pair { grid-template-columns: minmax(0,1fr); }
+    .bundle-pair { grid-template-columns: minmax(0,1fr); }
+    .bundle-pair-images, .bundle-pair h3, .bundle-pair-seller, .bundle-pair-footer,
+    .bundle-pair--suggested .bundle-pair-images { grid-column: 1; grid-row: auto; }
+    .bundle-review-dialog > header, .bundle-review-body, .bundle-review-dialog > footer { padding: 16px; }
+}

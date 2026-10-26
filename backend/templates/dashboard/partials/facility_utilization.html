@@ -1,0 +1,23 @@
+<section class="dash-card facility-utilization-card h-100" id="facilityUtilizationCard" data-facility-utilization aria-labelledby="facilityUtilizationTitle" aria-busy="false">
+    <div class="dash-card-header"><h2 id="facilityUtilizationTitle">Facility Utilization</h2></div>
+    <p class="facility-utilization-subtitle">Valid usage against configured capacity for the selected dates.</p>
+    <div data-utilization-content{% if facility_analytics.utilization_summary.state == 'error' %} hidden{% endif %}>
+        <p class="facility-utilization-message" data-utilization-message{% if not facility_analytics.utilization_summary.message %} hidden{% endif %}>{{ facility_analytics.utilization_summary.message }}</p>
+        <ul class="facility-utilization-types" id="facilityUtilizationList"{% if not facility_analytics.utilization_summary.has_usage %} hidden{% endif %}>
+            {% for row in facility_analytics.utilization_summary.rows %}
+            <li class="facility-utilization-type" data-state="{{ row.state }}">
+                <strong title="{{ row.context }}">{{ row.name }}</strong>
+                <b>{% if row.state == 'ready' %}{{ row.percentage|floatformat:'-1' }}%{% else %}Utilization unavailable{% endif %}</b>
+                <span class="facility-utilization-context{% if row.state == 'unavailable' %} visually-hidden{% endif %}">{{ row.context }}</span>
+                {% if row.state == 'ready' %}<div class="facility-utilization-meter" role="progressbar" aria-label="{{ row.name }} utilization" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ row.percentage }}" aria-valuetext="{{ row.context }}"><span style="width: {{ row.percentage }}%"></span></div>{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        <div class="facility-utilization-empty" data-utilization-empty{% if facility_analytics.utilization_summary.has_usage %} hidden{% endif %}>
+            <p>No facility utilization data yet.</p>
+        </div>
+        <p class="facility-utilization-message" data-utilization-unclassified{% if not facility_analytics.utilization_summary.unclassified_count %} hidden{% endif %}>Unclassified facilities are excluded. Set their facility type in Facilities.</p>
+    </div>
+    <p class="facility-utilization-loading" data-utilization-loading role="status" hidden>Updating facility utilization…</p>
+    <div class="facility-utilization-error" data-utilization-error role="alert"{% if facility_analytics.utilization_summary.state != 'error' %} hidden{% endif %}><p>Unable to load facility utilization.</p><button type="button" data-utilization-retry>Retry</button></div>
+</section>

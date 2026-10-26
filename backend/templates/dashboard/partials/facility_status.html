@@ -1,0 +1,20 @@
+<article class="dash-card facility-availability-card h-100" data-facility-operational-status aria-labelledby="facilityOperationalTitle">
+    <div class="dash-card-header"><h2 id="facilityOperationalTitle">Facility Status</h2></div>
+    <div class="facility-status-layout" data-operational-layout{% if facility_analytics.operational_status.state != 'ready' %} hidden{% endif %}>
+        <div class="facility-status-chart-wrap">
+            <canvas id="facilityOperationalStatusChart" role="img" aria-label="Facility operational status distribution; exact counts are listed alongside."></canvas>
+            <div class="facility-status-chart-label"><strong data-operational-total>{{ facility_analytics.operational_status.total }}</strong><span data-operational-unit>{% if facility_analytics.operational_status.total == 1 %}Facility{% else %}Facilities{% endif %}</span></div>
+        </div>
+        <div class="facility-operational-status-legend" data-operational-legend>
+            {% for row in facility_analytics.operational_status.rows %}
+            <div><span><i class="facility-availability-dot operational-dot--{{ row.key }}" aria-hidden="true"></i><span>{{ row.label }}</span></span><strong>{{ row.count }}</strong></div>
+            {% endfor %}
+        </div>
+    </div>
+    <p class="facility-operational-state" data-operational-empty{% if facility_analytics.operational_status.state != 'empty' %} hidden{% endif %}>No facilities available.</p>
+    <p class="facility-operational-state" data-operational-loading role="status" hidden>Loading facility status…</p>
+    <div class="facility-operational-state" data-operational-error role="alert"{% if facility_analytics.operational_status.state != 'error' %} hidden{% endif %}>
+        <p>Unable to load facility status.</p><button type="button" data-operational-retry>Retry</button>
+    </div>
+    {{ facility_analytics.operational_status|json_script:'facilityOperationalStatusData' }}
+</article>

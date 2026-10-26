@@ -727,6 +727,7 @@
             for (const conversationId of ids) {
                 await api(`/conversations/${conversationId}`, { method: 'DELETE' });
             }
+            window.CampusHubAlerts?.success(ids.length===1?'Conversation deleted successfully.':'Selected conversations deleted successfully.');
             if (activeConversation && ids.includes(activeConversation.id)) {
                 clearActiveConversation();
             }
@@ -736,6 +737,7 @@
         } catch (error) {
             setConnectionStatus(error.message, false);
             updateEditControls();
+            window.CampusHubAlerts?.error(error.message);
         } finally {
             if (deleteBtn) deleteBtn.textContent = originalText;
         }

@@ -1,5 +1,7 @@
 """Authentication bridge and contact discovery for FastAPI chat."""
 
+from urllib.parse import urlsplit
+
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
 from django.http import JsonResponse
@@ -15,10 +17,14 @@ def _chat_service_config(request):
 
     # Loopback is valid for a browser on the same PC, but not for a browser
     # opened from another device on the LAN.
-    host = request.get_host().split(":", 1)[0]
-    if host not in {"127.0.0.1", "localhost", "[::1]"}:
-        http_url = f"http://{host}:8001"
-        ws_url = f"ws://{host}:8001/ws"
+    host = urlsplit("//" + request.get_host()).hostname
+    loopback_hosts = {"127.0.0.1", "localhost", "::1"}
+    if host not in loopback_hosts:
+        # Preserve explicit public HTTPS/WSS URLs behind the reverse proxy.
+        if urlsplit(http_url).hostname in loopback_hosts:
+            http_url = f"http://{host}:8001"
+        if urlsplit(ws_url).hostname in loopback_hosts:
+            ws_url = f"ws://{host}:8001/ws"
     return {
         "http_url": http_url,
         "ws_url": ws_url,

@@ -1,0 +1,30 @@
+{% load static %}
+<!doctype html><html lang="en"><head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
+    <title>CampusHub | {{ title }}</title>
+    <link rel="stylesheet" href="{% static 'components/css/account_password_reset.css' %}">
+{% include 'partials/web_typography.html' %}
+</head><body><main class="reset-card">
+    <p class="brand">CampusHub</p><h1>{{ title }}</h1>
+    {% if complete %}
+        {% if recovered_username %}<p>Your username:</p><strong>{{ recovered_username }}</strong>
+        {% elif purpose == 'email_verification' %}<p>Email verified. You may now use account recovery.</p>
+        {% else %}<p>Password updated. Sign in with your new password.</p>{% endif %}
+        <p>Return to CampusHub on your device to continue.</p>
+    {% elif valid_link %}
+        {% if errors %}<ul role="alert">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+        <form method="post">{% csrf_token %}
+        {% if proved %}
+            <p>Choose your new password privately.</p>
+            <label for="newPassword">New Password</label><input id="newPassword" type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+            <label for="confirmPassword">Confirm New Password</label><input id="confirmPassword" type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+            <p class="helper">Use at least 8 characters with uppercase and lowercase letters, a number and a special character.</p>
+            <button type="submit">Save New Password</button>
+        {% else %}
+            <p>Enter the six-digit code sent to {{ masked_email }}.</p>
+            <label for="verificationCode">Verification Code</label><input id="verificationCode" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus>
+            <button type="submit">Verify Code</button>
+        {% endif %}
+        </form>
+    {% else %}<p>This link is invalid, expired or already used. Request new instructions from an authorized administrator.</p>{% endif %}
+</main></body></html>

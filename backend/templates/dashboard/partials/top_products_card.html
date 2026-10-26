@@ -1,0 +1,15 @@
+    <article class="marketplace-summary-card dashboard-top-selling" id="topSellingProductsCard">
+        <h2><span class="marketplace-card-symbol" aria-hidden="true">{% include 'dashboard/partials/marketplace_icon.html' with icon='products' %}</span><span>Top Best-Selling Products</span></h2>
+        <p class="marketplace-card-note">Top products by units sold in this period.</p>
+        <div class="marketplace-product-columns" data-products-heading{% if not dashboard_marketplace.top_products %} hidden{% endif %}><span>Product</span><span>Units Sold / Sales</span></div>
+        <ol class="marketplace-product-list" data-marketplace-products tabindex="0" aria-label="Products ranked by units sold; scroll for more products">
+            {% for product in ranked_products|default:dashboard_marketplace.top_products %}
+            <li>
+                {% if product.image_url %}<img class="marketplace-product-image" data-product-image-url="{{ product.image_url }}" alt="" width="40" height="40" loading="lazy" decoding="async" hidden>{% endif %}
+                <div class="marketplace-product-details"><strong><span class="marketplace-product-rank" aria-hidden="true">{{ product.rank }}.</span> {{ product.product_name }}</strong><span>{{ product.category }}</span></div>
+                <div class="marketplace-product-stats"><span class="marketplace-product-units" aria-label="{{ product.units_sold }} unit{{ product.units_sold|pluralize }} sold">{{ product.units_sold }}</span><span class="marketplace-product-amount" aria-label="Sales amount: {{ product.sales }} pesos">&#8369;{{ product.sales }}</span></div>
+            </li>
+            {% endfor %}
+        </ol>
+        <div class="marketplace-card-empty" data-products-empty{% if dashboard_marketplace.top_products %} hidden{% endif %}>{% include 'dashboard/partials/marketplace_icon.html' with icon='bag' %}<p>No completed product sales yet.</p></div>
+    </article>

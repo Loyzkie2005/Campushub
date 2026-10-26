@@ -1,0 +1,104 @@
+{% if can_book_facilities %}
+<div class="bk-modal" id="bkReservationModal" aria-hidden="true">
+  <div class="bk-modal-backdrop" data-bk-close></div>
+  <div class="bk-modal-dialog bk-reservation-dialog" role="dialog" aria-modal="true" aria-labelledby="bkReservationTitle" tabindex="-1">
+    <div class="bk-modal-header"><h3 id="bkReservationTitle">Add Reservation</h3><button type="button" class="bk-modal-close" data-bk-close aria-label="Close">&times;</button></div>
+    <form id="bkReservationForm" class="bk-modal-body">
+      <p class="bk-form-hint">Create a booking on behalf of a client.</p>
+      <div class="bk-reservation-section bk-admin-form-grid">
+        <label class="bk-field bk-field-wide"><span>Facility *</span><select id="bkResFacility" required><option value="">Select facility</option>{% for f in facilities %}<option value="{{ f.id }}">{{ f.facility_name }}</option>{% endfor %}</select></label>
+        <p class="bk-form-hint bk-field-wide" id="bkFormLabel" role="status"></p>
+      </div>
+      <fieldset class="bk-reservation-section bk-admin-form-grid">
+        <legend>Client Information</legend>
+        <label class="bk-field bk-field-wide" id="bkClientTypeField"><span>Client Type *</span><select id="bkClientMode" required><option value="">Select client type</option><option value="existing">CampusHub User</option><option value="walkin">Walk-in / External Client</option></select></label>
+        <div id="bkClientLookup" class="bk-field" hidden>
+          <label class="bk-field"><span>Search Client *</span><input type="search" id="bkClientSearch" list="bkClientOptions" placeholder="Search by name, student ID, or email" autocomplete="off" required aria-describedby="bkClientHelp"><datalist id="bkClientOptions"></datalist></label>
+          <input type="hidden" id="bkClientSelect"><small id="bkClientHelp" role="status">Select a matching CampusHub user.</small>
+        </div>
+        <div id="bkClientFields" class="bk-field-wide bk-admin-form-grid" hidden>
+          <label class="bk-field"><span id="bkNameLabel">Full Name</span><input id="bkResName" maxlength="200" placeholder="Filled after selecting a CampusHub user" required readonly></label>
+          <label class="bk-field"><span>Organization / Office</span><input id="bkResOrganization" maxlength="200" placeholder="Enter organization or office (optional)"></label>
+          <label class="bk-field"><span>Contact Number *</span><input type="tel" id="bkResContact" minlength="7" maxlength="30" placeholder="Enter contact number" required></label>
+          <label class="bk-field"><span>Email Address</span><input type="email" id="bkResEmail" maxlength="150" placeholder="Enter email address (optional)"></label>
+          <label class="bk-field bk-field-wide" id="bkAddressField" hidden><span id="bkAddressLabel">Address</span><input id="bkResAddress" maxlength="2000" placeholder="Enter client address"></label>
+        </div>
+      </fieldset>
+      <fieldset class="bk-reservation-section bk-admin-form-grid">
+        <legend>Reservation Schedule</legend>
+        <p id="bkScheduleHint" class="bk-form-hint bk-field-wide">Select a facility to load its reservation fields.</p>
+        <div id="bkSlotFields" class="bk-field-wide bk-admin-form-grid" hidden>
+          <label class="bk-field"><span>Date *</span><input type="date" id="bkResDate"></label>
+          <label class="bk-field" id="bkSlotChoiceField" hidden><span>Configured Time Slot *</span><select id="bkSlotChoice"><option value="">Select time slot</option></select></label>
+          <div class="bk-field-wide bk-admin-form-grid">
+            <label class="bk-field"><span>Start Time *</span><input type="time" id="bkResStart"></label>
+            <label class="bk-field"><span>End Time *</span><input type="time" id="bkResEnd"></label>
+          </div>
+        </div>
+        <div id="bkStayFields" class="bk-field-wide bk-admin-form-grid" hidden>
+          <label class="bk-field"><span>Check-in Date *</span><input type="date" id="bkCheckIn"></label>
+          <label class="bk-field"><span>Check-out Date *</span><input type="date" id="bkCheckOut"></label>
+          <label class="bk-field" id="bkCheckInTimeField" hidden><span>Check-in Time</span><input id="bkCheckInTime" readonly></label>
+          <label class="bk-field" id="bkCheckOutTimeField" hidden><span>Check-out Time</span><input id="bkCheckOutTime" readonly></label>
+          <label class="bk-field bk-field-wide" id="bkRoomField" hidden><span>Room / Unit *</span><select id="bkRoom"><option value="">Select configured room/unit</option></select></label>
+        </div>
+      </fieldset>
+      <fieldset class="bk-reservation-section bk-admin-form-grid">
+        <legend>Booking Information</legend>
+        <label class="bk-field"><span id="bkAttendeesLabel">Number of Participants *</span><input type="number" id="bkAttendees" min="1" step="1" placeholder="Enter number of participants" required></label>
+        <label class="bk-field"><span id="bkPurposeLabel">Purpose *</span><input id="bkResPurpose" maxlength="2000" placeholder="Enter reservation purpose" required></label>
+        <div id="bkGuestFields" class="bk-field-wide bk-admin-form-grid" hidden>
+          <label class="bk-field"><span>Adults</span><input type="number" id="bkAdults" min="1" step="1" placeholder="Enter number of adults"></label>
+          <label class="bk-field"><span>Children</span><input type="number" id="bkChildren" min="0" step="1" value="0"></label>
+          <label class="bk-check bk-field-wide" id="bkSharedField" hidden><input type="checkbox" id="bkSharedRate">Apply configured shared room rate (guests occupy the same room)</label>
+        </div>
+        <label class="bk-field bk-field-wide"><span>Additional Notes</span><textarea id="bkResNotes" rows="2" maxlength="2000" placeholder="Add any special instructions (optional)"></textarea></label>
+        <label class="bk-field bk-field-wide" id="bkDiscountField" hidden><span>Discount Rule</span><select id="bkDiscount"><option value="">No discount</option></select></label>
+        <fieldset class="bk-field-wide bk-admin-form-grid bk-eligibility" id="bkDiscountReasonField" hidden><legend>Eligibility Verification *</legend>
+          <label class="bk-field"><span>Verification Method *</span><select id="bkVerificationMethod"><option value="">Select verification method</option><option>Student ID</option><option>Faculty / Staff ID</option><option>University Office Verification</option><option>Recognized Student Organization</option><option>Immediate Family Proof</option><option>Other</option></select></label>
+          <label class="bk-field" id="bkVerificationOtherField" hidden><span>Specify Verification Method *</span><input id="bkVerificationOther" maxlength="150" placeholder="Enter verification method"></label>
+          <label class="bk-field bk-field-wide"><span>Verification Notes</span><textarea id="bkVerificationNotes" rows="2" maxlength="500" placeholder="Add verification notes (optional)"></textarea></label>
+          <input type="hidden" id="bkDiscountReason">
+        </fieldset>
+        <div class="bk-field-wide bk-admin-form-grid" id="bkFeeFields"></div>
+      </fieldset>
+      <div class="bk-reservation-results">
+        <section class="bk-quote-result" aria-labelledby="bkAvailabilityHeading"><h4 id="bkAvailabilityHeading">Availability</h4><div id="bkQuoteResult" role="status" aria-live="polite" tabindex="-1">Complete the reservation schedule to check availability automatically.</div></section>
+        <section class="bk-quote-result" id="bkCostSummary" aria-labelledby="bkCostHeading" hidden><h4 id="bkCostHeading">Reservation Cost Summary</h4><dl id="bkCostValues"></dl></section>
+      </div>
+      <div class="bk-modal-footer"><button type="button" class="bk-btn-ghost" data-bk-close>Cancel</button><button type="submit" class="bk-btn-primary" id="bkSaveReservation" disabled>Save Reservation</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% if can_manage_schedules %}
+<div class="bk-modal" id="bkUploadModal" aria-hidden="true">
+  <div class="bk-modal-backdrop" data-bk-close></div>
+  <div class="bk-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="bkUploadTitle" tabindex="-1">
+    <div class="bk-modal-header"><h3 id="bkUploadTitle">Manage Facility Schedule</h3><button type="button" class="bk-modal-close" data-bk-close aria-label="Close">&times;</button></div>
+    <div class="bk-modal-body"><p class="bk-form-hint">Add unavailable schedules for classes, maintenance, or official use.</p>
+      <div id="bkScheduleSummary" class="bk-block-list" hidden></div>
+      <form id="bkUploadForm">
+        <input type="hidden" id="bkBlockId">
+        <div class="bk-form-grid bk-admin-form-grid">
+          <label class="bk-field"><span>Facility *</span><select id="bkUploadFacility" required><option value="">Select facility</option>{% for f in facilities %}<option value="{{ f.id }}">{{ f.facility_name }}</option>{% endfor %}</select></label>
+          <label class="bk-field"><span>Schedule Type *</span><select id="bkUploadType" required><option value="">Select schedule type</option><option value="class">Class / Academic Schedule</option><option value="official">Official Campus Use</option><option value="maintenance">Maintenance</option><option value="hold">Administrative Hold / Unavailable</option><option value="other">Other</option></select></label>
+          <label class="bk-field bk-field-wide" id="bkOtherTypeField" hidden><span>Specify Schedule Type *</span><input id="bkOtherType" maxlength="150"></label>
+          <label class="bk-field bk-field-wide"><span>Title / Description *</span><textarea id="bkUploadDesc" rows="2" maxlength="500" required></textarea></label>
+          <label class="bk-field"><span>Start Date / Effective From *</span><input type="date" id="bkUploadDate" required></label>
+          <label class="bk-field"><span>End Date / Effective Until</span><input type="date" id="bkUploadUntil"></label>
+          <label class="bk-check bk-field-wide"><input type="checkbox" id="bkAllDay">All Day</label>
+          <label class="bk-field" id="bkBlockStartField"><span>Start Time *</span><input type="time" id="bkUploadStart" required></label>
+          <label class="bk-field" id="bkBlockEndField"><span>End Time *</span><input type="time" id="bkUploadEnd" required></label>
+          <label class="bk-field bk-field-wide"><span>Recurrence</span><select id="bkRepeat"><option value="none">Does not repeat</option><option value="weekly">Weekly</option></select></label>
+          <fieldset class="bk-weekdays bk-field-wide" id="bkWeekdays" hidden><legend>Days of Week *</legend><label><input type="checkbox" value="0">Mon</label><label><input type="checkbox" value="1">Tue</label><label><input type="checkbox" value="2">Wed</label><label><input type="checkbox" value="3">Thu</label><label><input type="checkbox" value="4">Fri</label><label><input type="checkbox" value="5">Sat</label><label><input type="checkbox" value="6">Sun</label></fieldset>
+          <label class="bk-field bk-field-wide"><span>Supporting Attachment (Optional)</span><input type="file" id="bkUploadImage" accept="image/png,image/jpeg,image/webp,application/pdf"><small>PNG, JPEG, WebP or PDF up to 1 MB. Dates and times control availability.</small></label>
+          <p class="bk-form-hint bk-field-wide" id="bkSavedAttachment"></p>
+        </div>
+        <p id="bkScheduleResult" class="bk-quote-result" role="status" aria-live="polite"></p>
+        <div class="bk-modal-footer"><button type="button" class="bk-btn-ghost" data-bk-close>Cancel</button><button type="submit" class="bk-btn-primary">Save Schedule</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}

@@ -11,9 +11,11 @@ class ProductItem {
     this.color, {
     this.id,
     this.sellerId,
+    this.sellerRef,
     this.imageUrl = '',
     this.images = const [],
     this.seller = '',
+    this.sellerPhotoUrl = '',
     this.sellerContact = '',
     this.category = '',
     this.description = '',
@@ -23,6 +25,7 @@ class ProductItem {
     this.inventoryStatusLabel = 'In Stock',
     this.lowStockThreshold = 5,
     this.soldCount = 0,
+    this.submittedAt,
     this.rating,
     this.reviewsCount = 0,
     this.customization = const ProductCustomizationConfig(),
@@ -56,9 +59,7 @@ class ProductItem {
         ? thresholdRaw
         : int.tryParse('$thresholdRaw') ?? 5;
     final soldRaw = json['sold'] ?? json['sold_count'] ?? json['units_sold'];
-    final soldCount = soldRaw is int
-        ? soldRaw
-        : int.tryParse('$soldRaw') ?? 0;
+    final soldCount = soldRaw is int ? soldRaw : int.tryParse('$soldRaw') ?? 0;
     final ratingRaw = json['rating'] ?? json['average_rating'];
     final rating = ratingRaw is num
         ? ratingRaw.toDouble()
@@ -78,9 +79,11 @@ class ProductItem {
       colorForProduct(category.isEmpty ? name : category),
       id: id,
       sellerId: _parseInt(json['seller_id']),
+      sellerRef: json['seller_ref'] as String?,
       imageUrl: images.isNotEmpty ? images.first : primaryImage,
       images: images,
       seller: (json['seller'] as String? ?? '').trim(),
+      sellerPhotoUrl: (json['seller_photo_url'] as String? ?? '').trim(),
       sellerContact: (json['seller_contact'] as String? ?? '').trim(),
       category: category,
       description: (json['description'] as String? ?? '').trim(),
@@ -92,6 +95,7 @@ class ProductItem {
           (json['inventory_status_label'] as String? ?? 'In Stock').trim(),
       lowStockThreshold: lowStockThreshold,
       soldCount: soldCount,
+      submittedAt: DateTime.tryParse('${json['submitted_at'] ?? ''}'),
       rating: rating,
       reviewsCount: reviewsCount,
       customization: ProductCustomizationConfig.fromJson(json),
@@ -100,6 +104,7 @@ class ProductItem {
 
   final int? id;
   final int? sellerId;
+  final String? sellerRef;
   final String name;
   final String price;
   final IconData icon;
@@ -107,6 +112,7 @@ class ProductItem {
   final String imageUrl;
   final List<String> images;
   final String seller;
+  final String sellerPhotoUrl;
   final String sellerContact;
   final String category;
   final String description;
@@ -116,6 +122,7 @@ class ProductItem {
   final String inventoryStatusLabel;
   final int lowStockThreshold;
   final int soldCount;
+  final DateTime? submittedAt;
   final double? rating;
   final int reviewsCount;
   final ProductCustomizationConfig customization;

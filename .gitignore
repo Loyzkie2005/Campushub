@@ -1,0 +1,48 @@
+# Local review output, caches and downloaded installers.
+/scratch/
+/output/
+/*.zip
+/*.exe
+**/__pycache__/
+**/*.py[cod]
+**/node_modules/
+
+# Local assistant/editor state, not CampusHub application source.
+**/.agents/
+**/.claude/
+**/.gemini/
+**/.impeccable/
+**/.obsidian/
+**/.vscode/
+**/agent/
+**/skills-lock.json
+
+# Private environment and database material.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+**/*.pem
+**/*.key
+**/*.p12
+**/*.jks
+**/*.keystore
+**/*.dump
+**/*.backup
+/backend/core/venv/
+/backend/core/.venv/
+/backend/core/.cache/
+/backend/backups/*
+!/backend/backups/.gitignore
+/backend/media/
+
+# Flutter build output and device-generated plugin registrations.
+/campushub/.dart_tool/
+/campushub/build/
+/campushub/coverage/
+/campushub/**/generated_plugin_registrant.*
+/campushub/**/GeneratedPluginRegistrant.*
+/campushub/**/generated_plugins.cmake
+
+# Local scratch note; keep actual feature guides under docs/.
+/docs/Untitled.base

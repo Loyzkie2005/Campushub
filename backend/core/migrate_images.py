@@ -1,4 +1,3 @@
-"""One-time script: convert existing base64 image_url fields to media files."""
 import django, os
 os.environ['DJANGO_SETTINGS_MODULE'] = 'core.settings'
 django.setup()

@@ -1,0 +1,6 @@
+{% comment %}Presentation only. Keep each caller's existing state/visibility hook outside this component.{% endcomment %}
+<div class="ch-dashboard-empty{% if left %} ch-dashboard-empty--left{% endif %}">
+    {% include 'dashboard/partials/marketplace_icon.html' with icon=icon|default:'info' %}
+    <h4>{{ title }}</h4>
+    <p>{{ description }}</p>
+</div>

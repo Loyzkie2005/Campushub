@@ -34,7 +34,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? _generalError;
 
   static const Color primaryNavy = Color(0xFF1A1851);
-  static const Color accentGold = Color(0xFFFCB316);
+  static const Color accentGold = Color(0xFFFCB315);
 
   @override
   void dispose() {
@@ -781,7 +781,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                                           states.contains(
                                                             WidgetState.hovered,
                                                           )) {
-                                                        return accentGold; // #FCB316 on click and hover
+                                                        return accentGold; // #FCB315 on click and hover
                                                       }
                                                       return isLightMode
                                                           ? primaryNavy

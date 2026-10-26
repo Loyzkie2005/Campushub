@@ -1,0 +1,17 @@
+/* Reuse the Top Selling Products classes; only scope facility-card sizing/state. */
+[data-most-booked-facilities] { width: 100%; padding: 16px; min-height: 380px; }
+[data-most-booked-facilities] [hidden] { display: none !important; }
+[data-most-booked-facilities] h2 { gap: 10px; }
+[data-most-booked-facilities] .marketplace-product-columns { margin-top: 12px; padding-bottom: 6px; }
+[data-most-booked-facilities] .marketplace-product-list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+[data-most-booked-facilities] .marketplace-product-list::-webkit-scrollbar { display: none; }
+[data-most-booked-facilities] .marketplace-product-list li { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; min-height: 56px; padding: 8px 0; }
+[data-most-booked-facilities] .facility-ranking-image { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 6px; background: #f8fafc; overflow: hidden; color: #1A1851; }
+[data-most-booked-facilities] .facility-ranking-image img { width: 100%; height: 100%; object-fit: cover; }
+[data-most-booked-facilities] [data-facility-image-fallback] { display: grid; place-items: center; width: 100%; height: 100%; }
+[data-most-booked-facilities] [data-facility-image-fallback] svg { width: 22px; height: 22px; }
+[data-most-booked-facilities] .marketplace-product-list:focus-visible { outline: 2px solid #1A1851; outline-offset: -2px; }
+[data-most-booked-facilities] .facility-ranking-loading,
+[data-most-booked-facilities] .facility-ranking-error { margin: auto 0; padding: 24px 0; color: #1A1851; text-align: center; font-size: 13px; line-height: 1.5; }
+[data-most-booked-facilities] .facility-ranking-error button { min-height: 44px; padding: 8px 12px; border: 1px solid #1A1851; border-radius: 6px; color: #1A1851; background: #FFFFFF; font: inherit; cursor: pointer; }
+[data-most-booked-facilities] .facility-ranking-error button:focus-visible { outline: 2px solid #1A1851; outline-offset: 3px; }

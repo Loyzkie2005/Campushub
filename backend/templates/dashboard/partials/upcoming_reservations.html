@@ -1,0 +1,29 @@
+<article id="upcomingReservationsCard" class="marketplace-summary-card{% if not executive_mode %} h-100{% endif %}" data-upcoming-reservations aria-labelledby="upcomingReservationsTitle">
+    <div class="upcoming-reservations-header">
+        <h2 id="upcomingReservationsTitle">Upcoming Reservations</h2>
+        <a href="{% url 'admin_calendar_page' %}">View Calendar <span aria-hidden="true">→</span></a>
+    </div>
+    {% if executive_mode %}
+    <p class="facilities-note">Next 5 approved reservations, across all dates.</p>
+    <div class="facilities-table-scroll" tabindex="0" role="region" aria-label="Upcoming reservations table"{% if not facility_analytics.upcoming_reservations %} hidden{% endif %}>
+        <table class="facilities-reservations-table"><caption class="visually-hidden">Upcoming approved reservations. Approval alone does not confirm full payment.</caption><thead><tr><th scope="col">Booking No.</th><th scope="col">Facility</th><th scope="col">Client</th><th scope="col">Date / Time</th><th scope="col">Status</th></tr></thead>
+        <tbody data-upcoming-list{% if not facility_analytics.upcoming_reservations %} hidden{% endif %}>{% for reservation in facility_analytics.upcoming_reservations %}<tr><td><a href="{{ reservation.url }}">{{ reservation.id }}</a></td><td>{{ reservation.facility }}</td><td>{{ reservation.requester }}</td><td>{{ reservation.when }}</td><td><span class="upcoming-reservation-status">{{ reservation.status_label }}</span></td></tr>{% endfor %}</tbody></table>
+    </div>
+    {% else %}
+    <ul class="upcoming-reservations-list" data-upcoming-list tabindex="0" aria-label="Upcoming reservations; scroll for more reservations"{% if not facility_analytics.upcoming_reservations %} hidden{% endif %}>
+        {% for reservation in facility_analytics.upcoming_reservations %}
+        <li>
+            <strong>{{ reservation.facility }}</strong>
+            <span class="upcoming-reservation-when">{{ reservation.when }}</span>
+            <span class="upcoming-reservation-status">{{ reservation.status_label }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <div class="upcoming-reservations-state" data-upcoming-empty{% if facility_analytics.upcoming_reservations %} hidden{% endif %}>{% if executive_mode %}{% include 'dashboard/partials/empty_state.html' with title='No Upcoming Reservations' description='Approved reservations scheduled for upcoming dates will appear here.' icon='facilities' %}{% else %}No approved upcoming reservations.{% endif %}</div>
+    <p class="upcoming-reservations-state" data-upcoming-loading role="status" hidden>Loading upcoming reservations…</p>
+    <div class="upcoming-reservations-state" data-upcoming-error role="alert" hidden>
+        <p>Upcoming reservations could not be loaded.</p>
+        <button type="button" data-upcoming-retry>Retry</button>
+    </div>
+</article>

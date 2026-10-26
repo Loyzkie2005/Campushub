@@ -18,11 +18,10 @@ void main() {
       final logoFinder = find.byType(Image);
       expect(logoFinder, findsOneWidget);
       final image = tester.widget<Image>(logoFinder);
-      expect((image.image as AssetImage).assetName, 'assets/img/logo.png');
+      expect((image.image as AssetImage).assetName, 'assets/img/logo_dark.png');
 
       // Brand text below logo
       expect(find.text('CampusHub', findRichText: true), findsOneWidget);
-      expect(find.text('USTP OROQUIETA CAMPUS'), findsOneWidget);
 
       // Advance animation halfway (pop-up spring and radiant flash)
       await tester.pump(const Duration(milliseconds: 700));

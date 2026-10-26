@@ -1,0 +1,3 @@
+<a class="breadcrumb-link" href="{% url 'admin_dashboard_page' %}">Dashboard</a><span class="breadcrumb-sep" aria-hidden="true">&gt;</span>
+<span class="breadcrumb-text">Marketplace</span><span class="breadcrumb-sep" aria-hidden="true">&gt;</span>
+{% if mode == 'list' %}<span class="breadcrumb-current" aria-current="page">Bundle Suggestions</span>{% else %}<a class="breadcrumb-link" href="{% url 'bundle_monitor_list' %}">Bundle Suggestions</a><span class="breadcrumb-sep" aria-hidden="true">&gt;</span><span class="breadcrumb-current" aria-current="page">{{ heading }}</span>{% endif %}

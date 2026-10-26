@@ -1,0 +1,9 @@
+<section class="dash-card bundle-dss" id="crossSellSuggestions" aria-labelledby="crossSellSuggestionsTitle">
+    <header class="bundle-panel-heading"><h2 id="crossSellSuggestionsTitle">{% if super_dashboard %}Cross-Selling Opportunities{% else %}Cross-Sell Suggestions{% endif %}</h2></header>
+    <div class="bundle-pair-list" data-bundle-list="cross_sell" aria-live="polite">
+        {% for row in bundle_analysis.cross_sell_rows %}
+        {% include 'marketplace/partials/bundle_pair.html' with directional=True %}
+        {% empty %}{% include 'marketplace/partials/bundle_empty.html' with kind='cross_sell' %}{% endfor %}
+    </div>
+    <button type="button" class="bundle-view-all" data-bundle-view-all="cross_sell"{% if not bundle_analysis.cross_sell_has_more %} hidden{% endif %}>View All <span aria-hidden="true">&rarr;</span></button>
+</section>

@@ -1,4 +1,4 @@
-{% load static %}
+{% load static tz %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -8,13 +8,16 @@
     <link rel="icon" type="image/png" href="{% static 'assets/img/icon.png' %}?v=20260529d" />
     <title>CampusHub | Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Roboto:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20260828-action-feedback-right" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
-    <link rel="stylesheet" href="{% static 'marketplace/css/admin_marketplace_dashboard.css' %}?v=20260904-sales-grid" />
     <link rel="stylesheet" href="{% static 'components/css/admin_dashboard.css' %}?v=20260823-facility-analytics" />
-    <link rel="stylesheet" href="{% static 'components/css/admin_sales_overview.css' %}?v=20260920-marketplace-panels" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_sales_overview.css' %}?v=20261022-inter" />
+    <link rel="stylesheet"
+        href="{% static 'marketplace/css/admin_marketplace_dashboard.css' %}?v=20261026-header-row" />
+    {% if marketplace.show_bundle_suggestions %}
+    <link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261026-compact-card">{% endif %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    {% include 'partials/web_typography.html' %}
 </head>
 
 <body class="marketplace-dashboard">
@@ -32,183 +35,147 @@
             <main class="dashboard-content">
                 <div class="container-fluid py-4 px-4">
 
-                    <!-- 1. KPI Cards -->
-                    <section class="dashboard-stats-grid row g-3">
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <article class="dashboard-stat-card h-100">
-                                <div class="dashboard-stat-icon icon-navy">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <strong>{{ marketplace.total_products|default:0 }}</strong>
-                                    <span>Total Products</span>
-                                </div>
-                            </article>
+                    <header class="marketplace-dashboard-toolbar" aria-labelledby="marketplaceWelcomeTitle">
+                        <div class="marketplace-welcome-copy">
+                            <h1 id="marketplaceWelcomeTitle">Welcome back, {{ user.first_name|default:user.username }}!</h1>
+                            <p>Here's what's happening in your marketplace today.</p>
                         </div>
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <article class="dashboard-stat-card h-100">
-                                <div class="dashboard-stat-icon icon-gold">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <strong>{{ marketplace.pending_listings|default:0 }}</strong>
-                                    <span>Pending Listings</span>
-                                </div>
-                            </article>
-                        </div>
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <article class="dashboard-stat-card h-100">
-                                <div class="dashboard-stat-icon icon-navy">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <strong>{{ marketplace.total_orders|default:0 }}</strong>
-                                    <span>Total Orders</span>
-                                </div>
-                            </article>
-                        </div>
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <article class="dashboard-stat-card h-100">
-                                <div class="dashboard-stat-icon icon-gold">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <strong>&#8369; {{ marketplace.total_sales|default:"0.00" }}</strong>
-                                    <span>Total Sales (Cash on Pickup)</span>
-                                </div>
-                            </article>
-                        </div>
-                    </section>
-
-                    {{ marketplace.sales_chart|json_script:"revenueChartData" }}
-                    {{ marketplace.order_status|json_script:"orderStatusChartData" }}
-                    {% include 'dashboard/partials/marketplace_overview_row.html' %}
-
-                    <!-- Marketplace operational lists -->
-                    <section class="row g-3 mt-3">
-                        <div class="col-12 col-xl-4 d-flex">
-                            <div class="dash-card h-100 w-100 d-flex flex-column">
-                                <div class="dash-card-header">
-                                    <h2>Pending Product Approvals</h2>
-                                    <a href="{% url 'admin_products_page' %}" class="dash-view-all-link">View All</a>
-                                </div>
-                                <div class="table-responsive flex-grow-1">
-                                    <table class="table dashboard-table dashboard-table--compact align-middle mb-0">
-                                        <thead><tr><th>Product</th><th>Seller</th><th>Category</th><th class="text-end">Action</th></tr></thead>
-                                        <tbody>
-                                            {% for p in marketplace.pending_approvals %}
-                                            <tr>
-                                                <td class="fw-medium dashboard-cell-truncate">{{ p.name }}</td>
-                                                <td class="text-muted small dashboard-cell-truncate">{{ p.seller }}</td>
-                                                <td class="text-muted small dashboard-cell-truncate">{{ p.category }}</td>
-                                                <td class="text-end"><a href="{% url 'admin_products_page' %}" class="btn btn-sm btn-outline-navy">Review</a></td>
-                                            </tr>
-                                            {% empty %}
-                                            <tr><td colspan="4" class="text-center text-muted py-4">No products waiting for approval.</td></tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
+                        <div class="marketplace-reporting-controls">
+                            <div class="marketplace-reporting-actions">
+                                <label class="visually-hidden" for="salesPeriodSelect">Dashboard reporting period</label>
+                                <select name="period" id="salesPeriodSelect" form="salesOverviewFilters" class="dash-select sales-select sales-select--date-range">
+                                    <option value="today"{% if sales_period_key == 'today' %} selected{% endif %}>Today</option>
+                                    <option value="7"{% if sales_period_key == '7' %} selected{% endif %}>Last 7 Days</option>
+                                    {% if sales_period_key == '14' %}<option value="14" selected>Last 14 Days</option>{% endif %}
+                                    <option value="30"{% if sales_period_key == '30' or not sales_period_key %} selected{% endif %}>Last 30 Days</option>
+                                    <option value="90"{% if sales_period_key == '90' %} selected{% endif %}>Last 90 Days</option>
+                                    <option value="month"{% if sales_period_key == 'month' %} selected{% endif %}>This Month</option>
+                                    <option value="year"{% if sales_period_key == 'year' %} selected{% endif %}>This Year</option>
+                                    <option value="custom"{% if sales_period_key == 'custom' %} selected{% endif %}>Custom</option>
+                                </select>
+                                <button type="button" id="marketplaceDashboardRefresh" class="marketplace-refresh-button" aria-label="Refresh marketplace dashboard data" title="Reload the dashboard for the applied reporting period" hidden>
+                                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg>
+                                    <span>Refresh</span>
+                                </button>
+                                <noscript><button type="submit" form="salesOverviewFilters" class="marketplace-refresh-button">Apply</button><a class="marketplace-refresh-button" href="{{ request.get_full_path }}">Refresh</a></noscript>
                             </div>
-                        </div>
-                        <div class="col-12 col-xl-4 d-flex">
-                            <div class="dash-card h-100 w-100 d-flex flex-column">
-                                <div class="dash-card-header">
-                                    <h2>Low Stock Products</h2>
-                                    <a href="{% url 'admin_products_page' %}" class="dash-view-all-link">View All</a>
-                                </div>
-                                <div class="table-responsive flex-grow-1">
-                                    <table class="table dashboard-table dashboard-table--compact align-middle mb-0">
-                                        <thead><tr><th>Product</th><th>Seller</th><th class="text-end">Stock</th><th class="text-end">Status</th></tr></thead>
-                                        <tbody>
-                                            {% for p in marketplace.low_stock_products %}
-                                            <tr>
-                                                <td class="fw-medium dashboard-cell-truncate">{{ p.name }}</td>
-                                                <td class="text-muted small dashboard-cell-truncate">{{ p.seller }}</td>
-                                                <td class="text-end fw-semibold">{{ p.stock }}</td>
-                                                <td class="text-end"><span class="status-pill {% if p.is_out_of_stock %}status-out-of-stock{% else %}status-low-stock{% endif %}">{% if p.is_out_of_stock %}Out of Stock{% else %}Low Stock{% endif %}</span></td>
-                                            </tr>
-                                            {% empty %}
-                                            <tr><td colspan="4" class="text-center text-muted py-4">All products have healthy inventory.</td></tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
+                            <div class="sales-overview__custom-dates{% if sales_period_key != 'custom' %} d-none{% endif %}" id="salesCustomDates">
+                                <label class="sales-date-field"><span>From</span><input type="date" name="date_from" id="salesDateFrom" form="salesOverviewFilters" value="{{ sales_period.start|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}"></label>
+                                <label class="sales-date-field"><span>To</span><input type="date" name="date_to" id="salesDateTo" form="salesOverviewFilters" value="{{ sales_period.end|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}"></label>
+                                <button type="submit" form="salesOverviewFilters" class="sales-date-apply-btn" id="salesApplyCustom">Apply</button>
                             </div>
+                            <p class="marketplace-reporting-metadata" id="marketplaceSelectedRange">{{ sales_period.start|date:'M j, Y' }} &ndash; {{ sales_period.end|date:'M j, Y' }}</p>
+                            {% timezone "Asia/Manila" %}<time class="marketplace-reporting-metadata" id="marketplaceUpdatedAt" datetime="{{ dashboard_updated_at|date:'c' }}" title="Time this dashboard response was generated, not a live synchronization timestamp">Last Updated: {{ dashboard_updated_at|date:'M j, Y g:i A' }} PHT</time>{% endtimezone %}
                         </div>
-                        <div class="col-12 col-xl-4 d-flex">
-                            <div class="dash-card dash-card-overview h-100 w-100">
-                                <div class="dash-card-header">
-                                    <h2>Order Status</h2>
-                                    <a href="{% url 'admin_orders_page' %}" class="dash-view-all-link">View Orders</a>
-                                </div>
-                                <div class="order-status-layout">
-                                    <div class="order-status-chart-wrap">
-                                        <canvas id="orderStatusChart"></canvas>
-                                        <div class="order-status-total"><strong>{{ marketplace.total_orders|default:0 }}</strong><span>Total Orders</span></div>
-                                    </div>
-                                    <div class="order-status-list">
-                                        {% for status in marketplace.order_status %}
-                                        <div class="order-status-row">
-                                            <span class="order-status-key"><i class="order-status-dot order-status-dot--{{ status.key }}"></i>{{ status.label }}</span>
-                                            <strong>{{ status.count }}</strong>
-                                            <span>{{ status.percent }}%</span>
+                    </header>
+
+                    <section class="marketplace-overview" aria-labelledby="marketplaceOverviewTitle">
+                        <header class="marketplace-overview-heading">
+                            <h2 class="marketplace-section-title" id="marketplaceOverviewTitle">Marketplace Overview
+                            </h2>
+                            <p class="dash-card-subtitle">Current products in your scope. Orders and sales: {{ marketplace.sales_period.label }}.</p>
+                        </header>
+                        <div class="marketplace-dashboard-top">
+                            <div class="marketplace-summary-left">
+                                <div class="marketplace-kpis">
+                                    <div>
+                                        <div class="dashboard-stats-grid row g-3">
+                                            <div class="col-12 col-sm-6">
+                                                <article class="dashboard-stat-card h-100">
+                                                    <div class="dashboard-stat-icon icon-navy" aria-hidden="true">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                                            stroke-width="1.8" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}<a class="marketplace-kpi-link"
+                                                            href="{% url 'admin_products_page' %}">{% endif %}<strong>{{ marketplace.total_products|default:0 }}</strong>
+                                                            <span>Total Products</span>
+                                                            {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}</a>{% endif %}<small class="marketplace-kpi-note">Current catalog</small></div>
+                                                </article>
+                                            </div>
+                                            <div class="col-12 col-sm-6">
+                                                <article class="dashboard-stat-card h-100">
+                                                    <div class="dashboard-stat-icon icon-gold" aria-hidden="true">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                                            stroke-width="1.8" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}<a class="marketplace-kpi-link"
+                                                            href="{% url 'admin_products_page' %}?status=pending">{% endif %}<strong>{{ marketplace.pending_listings|default:0 }}</strong>
+                                                            <span>Pending Product Approvals</span>
+                                                            {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}</a>{% endif %}<small class="marketplace-kpi-note">Currently awaiting review</small></div>
+                                                </article>
+                                            </div>
+                                            <div class="col-12 col-sm-6">
+                                                <article class="dashboard-stat-card h-100">
+                                                    <div class="dashboard-stat-icon icon-navy" aria-hidden="true">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                                            stroke-width="1.8" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        {% if perms.accounts.can_view_orders or perms.accounts.can_manage_orders %}<a class="marketplace-kpi-link"
+                                                            href="{% url 'admin_orders_page' %}?date=custom&amp;date_from={{ marketplace.sales_period.start|date:'Y-m-d' }}&amp;date_to={{ marketplace.sales_period.end|date:'Y-m-d' }}">{% endif %}<strong>{{ marketplace.total_orders|default:0 }}</strong>
+                                                            <span>Total Orders</span>
+                                                            {% if perms.accounts.can_view_orders or perms.accounts.can_manage_orders %}</a>{% endif %}<small class="marketplace-kpi-note">Created in selected period</small></div>
+                                                </article>
+                                            </div>
+                                            <div class="col-12 col-sm-6">
+                                                <article class="dashboard-stat-card h-100">
+                                                    <div class="dashboard-stat-icon icon-gold" aria-hidden="true">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                                            stroke-width="1.8" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div>
+                                                        {% if perms.accounts.can_view_marketplace_analytics %}<a
+                                                            class="marketplace-kpi-link"
+                                                            href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ marketplace.sales_period.start|date:'Y-m-d' }}&amp;date_to={{ marketplace.sales_period.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}">{% endif %}<strong>&#8369; {{ marketplace.total_sales|default:"0.00" }}</strong>
+                                                            <span>Marketplace Revenue</span>
+                                                            {% if perms.accounts.can_view_marketplace_analytics %}</a>{% endif %}
+                                                            {% with metric=marketplace.sales_overview.metrics.0 %}
+                                                            <small class="marketplace-kpi-comparison">{% if metric.comparison.change == None %}&mdash;{% else %}{{ metric.comparison.change }}{% endif %} vs. previous period</small>
+                                                            {% endwith %}</div>
+                                                </article>
+                                            </div>
                                         </div>
-                                        {% endfor %}
                                     </div>
+
                                 </div>
+                                {% include 'dashboard/partials/attention_required.html' with attention_required=marketplace.attention_required %}
                             </div>
+                            {% if marketplace.show_bundle_suggestions %}
+                            {% include 'marketplace/partials/admin_recommendation_summary.html' with recommendation_title='Suggested Product Bundles' dashboard_preview=True %}
+                            {% endif %}
                         </div>
                     </section>
-
-                    <!-- Seller overview and recent orders -->
-                    <section class="row g-3 mt-3">
-                        <div class="col-12 col-xl-4 d-flex">
-                            <div class="dash-card h-100 w-100 d-flex flex-column justify-content-between">
-                                <div>
-                                    <div class="dash-card-header">
-                                        <h2>Seller Overview</h2>
-                                        {% if perms.accounts.can_manage_sellers %}<a href="{% url 'admin_sellers_page' %}" class="dash-view-all-link">View All Sellers</a>{% endif %}
-                                    </div>
-                                    <div class="seller-summary-grid">
-                                        <div><strong>{{ marketplace.seller_overview.approved|default:0 }}</strong><span>Approved Sellers</span></div>
-                                        <div><strong>{{ marketplace.seller_overview.pending|default:0 }}</strong><span>Pending Applications</span></div>
-                                        <div><strong>{{ marketplace.seller_overview.suspended|default:0 }}</strong><span>Suspended Sellers</span></div>
-                                    </div>
-                                </div>
-                                {% if perms.accounts.can_view_marketplace_reports %}<a href="{% url 'admin_generate_reports_page' %}" class="btn btn-sm btn-outline-navy w-100 mt-3">Marketplace Reports</a>{% endif %}
-                            </div>
-                        </div>
-                        <div class="col-12 col-xl-8 d-flex">
-                            <div class="dash-card h-100 w-100">
-                                <div class="dash-card-header"><h2>Recent Orders</h2><a href="{% url 'admin_orders_page' %}" class="dash-view-all-link">View All Orders</a></div>
-                                <div class="table-responsive">
-                                    <table class="table dashboard-table dashboard-table--compact align-middle mb-0">
-                                        <thead><tr><th>Order ID</th><th>Customer</th><th class="text-center">Items</th><th class="text-end">Total</th><th class="text-center">Order Status</th><th class="text-center">Payment</th><th>Date</th><th class="text-end">Action</th></tr></thead>
-                                        <tbody>
-                                            {% for order in marketplace.recent_orders %}
-                                            <tr>
-                                                <td class="fw-bold font-monospace text-navy">{{ order.code }}</td><td class="dashboard-cell-truncate">{{ order.buyer_name }}</td><td class="text-center">{{ order.quantity }}</td><td class="text-end fw-semibold text-navy">&#8369;{{ order.total }}</td>
-                                                <td class="text-center"><span class="status-pill status-{{ order.status_key }}">{{ order.status }}</span></td><td class="text-center"><span class="status-pill status-{{ order.payment_key }}">{{ order.payment_status }}</span></td><td class="text-muted small">{{ order.date }}</td><td class="text-end"><a href="{% url 'admin_orders_page' %}" class="btn btn-sm btn-outline-navy">View</a></td>
-                                            </tr>
-                                            {% empty %}
-                                            <tr><td colspan="8" class="text-center text-muted py-4">No recent orders found.</td></tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
+                    {{ marketplace.sales_chart|json_script:"revenueChartData" }}
+                    {{ marketplace.top_selling_products|json_script:"marketplaceTopProductsData" }}
+                    {% include 'dashboard/partials/sales_overview.html' with marketplace_compact=True %}
+                    {% include 'marketplace/partials/dashboard_order_inventory.html' %}
+                    <section class="dash-card" aria-labelledby="marketplaceActivityTitle">
+                        <header class="dash-card-header">
+                            <h2 id="marketplaceActivityTitle">Recent Marketplace Activities</h2>
+                        </header>
+                        <p class="dash-card-subtitle">Latest recorded marketplace activity &middot; All dates.</p>
+                        <ul class="marketplace-activity-list">
+                            {% for event in marketplace.activities %}
+                            <li>
+                                <div><strong>{% if event.url %}<a href="{{ event.url }}">{{ event.message }}</a>{% else %}{{ event.message }}{% endif %}</strong><small>{{ event.type }} &middot; {{ event.performed_by }}</small></div><time>{{ event.date }}</time>
+                            </li>
+                            {% empty %}<li class="marketplace-activity-empty">No marketplace activities yet.</li>{% endfor %}
+                        </ul>
                     </section>
-
                 </div>
             </main>
         </div>
@@ -218,8 +185,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'components/js/admin_notifications.js' %}?v=20260726-empty-messages"></script>
-    <script src="{% static 'marketplace/js/admin_marketplace_dashboard.js' %}?v=20260904-offset-zero"></script>
-    <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20260920-graph-bigger-rect"></script>
+    <script src="{% static 'marketplace/js/admin_marketplace_dashboard.js' %}?v=20261026-marketplace-header"></script>
+    <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20261026-external-period"></script>
 </body>
 
 </html>

@@ -1,0 +1,12 @@
+<nav class="analytics-module-nav" aria-label="Analytics modules">
+    {% if perms.accounts.can_view_marketplace_analytics or user.is_superuser or user.role|lower == 'super admin' %}
+    <a href="{{ analytics_links.marketplace|default:'/admin-marketplace-analytics/?module=marketplace' }}" data-analytics-module="marketplace" class="analytics-module-tab{% if analytics_module == 'marketplace' or not analytics_module %} active{% endif %}"{% if analytics_module == 'marketplace' or not analytics_module %} aria-current="page"{% endif %}>Marketplace</a>
+    {% endif %}
+    {% if perms.accounts.can_view_facility_analytics or user.is_superuser or user.role|lower == 'super admin' %}
+    <a href="{{ analytics_links.facilities|default:'/admin-marketplace-analytics/?module=facilities' }}" data-analytics-module="facilities" class="analytics-module-tab{% if analytics_module == 'facilities' %} active{% endif %}"{% if analytics_module == 'facilities' %} aria-current="page"{% endif %}>Facilities</a>
+    {% endif %}
+    {% if user.is_superuser or user.role|lower == 'super admin' %}
+    <a href="{{ analytics_links.services|default:'/admin-marketplace-analytics/?module=services' }}" data-analytics-module="services" class="analytics-module-tab{% if analytics_module == 'services' %} active{% endif %}"{% if analytics_module == 'services' %} aria-current="page"{% endif %}>Services</a>
+    <a href="{{ analytics_links.users|default:'/admin-marketplace-analytics/?module=users' }}" data-analytics-module="users" class="analytics-module-tab{% if analytics_module == 'users' %} active{% endif %}"{% if analytics_module == 'users' %} aria-current="page"{% endif %}>Users</a>
+    {% endif %}
+</nav>

@@ -1,0 +1,46 @@
+/* Super Admin only. Shared Analytics and Facility Admin cards retain their layout. */
+.dashboard-executive .executive-facilities {
+    --facility-ink: #1A1851;
+    --facility-muted: #626781;
+    --facility-border: #E8EAF0;
+    color: var(--facility-ink);
+}
+.executive-facilities .facilities-note { margin: 4px 0 12px; color: var(--facility-muted); font-size: 13px; line-height: 1.5; }
+.executive-facilities .facilities-summary-title { margin: 0 0 10px; font-size: 14px; }
+.dashboard-executive .executive-facilities .booking-overview__metrics { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 16px; }
+.dashboard-executive .executive-facilities .booking-overview__metric { padding: 14px 16px; border-color: var(--facility-border); border-radius: 14px; min-height: 0; }
+.executive-facilities .booking-overview__metric h3 { margin: 0 0 6px; min-height: 0; font-size: 13px; font-weight: 500; }
+.executive-facilities .booking-overview__metric > strong { display: block; font-size: 26px; font-weight: 700; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.executive-facilities .booking-overview__metric p { margin: 6px 0 0; font-size: 12px; color: var(--facility-muted); }
+.executive-facilities :is(.facilities-chart-grid, .facilities-operations-grid) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+.executive-facilities .facilities-operations-grid { margin-top: 16px; }
+.dashboard-executive .executive-facilities :is(.dash-card, .marketplace-summary-card) { padding: 16px; border: 1px solid var(--facility-border); border-radius: 14px; background: #FFFFFF; box-shadow: none; min-width: 0; }
+.executive-facilities :is(.facilities-card-heading, .upcoming-reservations-header) { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 4px; }
+.dashboard-executive .executive-facilities :is(.dash-card h3, .marketplace-summary-card h2) { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; }
+.executive-facilities .sales-select { width: auto; min-width: 96px; }
+.dashboard-executive .executive-facilities :is(.facility-booking-chart-wrap, .facilities-ranking-chart) { position: relative; height: 240px; width: 100%; min-width: 0; margin: 12px 0; }
+.executive-facilities canvas { width: 100% !important; height: 100% !important; max-width: 100%; }
+.executive-facilities #bookingTrendDescription:not(.visually-hidden) { max-height: 160px; overflow-y: auto; font-size: 12px; }
+.dashboard-executive .executive-facilities :is(.facilities-empty, [data-facility-ranking-empty]) { display: grid; place-content: center; text-align: center; min-height: 100px; padding: 16px; margin: 0; color: var(--facility-muted); font-size: 13px; }
+.executive-facilities .facilities-trend:has([data-booking-empty]:not([hidden])) .facility-booking-chart-wrap { display: none; }
+.executive-facilities .marketplace-card-note { margin: 4px 0 12px; font-size: 13px; color: var(--facility-muted); }
+.executive-facilities .facilities-table-scroll { overflow-x: auto; max-width: 100%; }
+.executive-facilities .facilities-reservations-table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; }
+.executive-facilities .facilities-reservations-table :is(th, td) { padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--facility-border); overflow-wrap: anywhere; }
+.executive-facilities .facilities-reservations-table th { background: #f8fafc; font-weight: 600; }
+.executive-facilities .facilities-reservations-table a { color: var(--facility-ink); font-weight: 600; text-underline-offset: 3px; }
+.executive-facilities .facilities-attention { padding: 0; margin: 0; list-style: none; }
+.executive-facilities .facilities-attention li + li { border-top: 1px solid var(--facility-border); }
+.executive-facilities .facilities-attention a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 0; color: var(--facility-ink); font-size: 13px; text-decoration: none; }
+.executive-facilities .facilities-attention strong { font-variant-numeric: tabular-nums; min-width: 28px; text-align: center; }
+.executive-facilities .facilities-attention [data-needs-attention] { background: rgba(252, 179, 21, .15); border-radius: 6px; }
+.executive-facilities :is(a, button, select, canvas, [tabindex]):focus-visible { outline: 2px solid var(--facility-ink); outline-offset: 3px; }
+.executive-facilities a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.executive-facilities [data-booking-error] { padding: 16px; border: 1px solid var(--facility-border); border-radius: 14px; background: #FFFFFF; }
+@media (min-width: 600px) {
+    .dashboard-executive .executive-facilities .booking-overview__metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1100px) {
+    .executive-facilities .facilities-chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .executive-facilities .facilities-operations-grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+}

@@ -1,0 +1,19 @@
+<section class="dashboard-attention{% if global_dashboard %} executive-section{% endif %}" data-empty-region="attention" aria-labelledby="dashboardAttentionTitle">
+    <div class="dashboard-section-heading{% if global_dashboard %} executive-section-header{% endif %}"><div><h2 id="dashboardAttentionTitle">Attention Required</h2>{% if global_dashboard %}<p class="executive-section-subtitle">Items requiring administrator review or action.</p>{% endif %}</div></div>
+    <div class="dashboard-attention-body">
+        <ul class="dashboard-attention-list" id="dashboardAttentionItems">
+            {% for item in attention_required.items %}
+            <li class="dashboard-attention-row" data-attention-key="{{ item.key }}" data-severity="{{ item.severity }}">
+                <svg class="dashboard-attention-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v5m0 3h.01M10.3 3.8 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z"/></svg>
+                <strong class="dashboard-attention-count">{{ item.count }}</strong>
+                <span class="dashboard-attention-label">{{ item.label }}</span>
+                <a class="dashboard-attention-action" href="{{ item.url }}" aria-label="{{ item.action }}: {{ item.label }}">{{ item.action }} <span aria-hidden="true">&rarr;</span></a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% if global_dashboard %}<div class="dashboard-attention-empty" id="dashboardAttentionEmpty"{% if attention_required.items %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Items Require Attention' description='There are currently no pending approvals, inventory alerts, booking issues, or service requests requiring immediate action.' icon='info' left=True %}</div>
+        <p class="dashboard-attention-error" role="alert">Unable to update attention items. Use Refresh above to retry.</p>{% elif marketplace %}<div class="dashboard-attention-empty" id="dashboardAttentionEmpty"{% if attention_required.items %} hidden{% endif %}><strong>No Items Require Attention</strong><p>There are currently no product approvals, inventory issues, orders, seller applications, or recommendation items requiring immediate action.</p></div>{% else %}<p class="dashboard-attention-empty" id="dashboardAttentionEmpty"{% if attention_required.items %} hidden{% endif %}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6"/></svg>No urgent items require attention.</p>{% endif %}
+        <p class="dashboard-attention-loading" role="status">Loading attention items&hellip;</p>
+    </div>
+</section>
+{{ attention_required|json_script:"dashboardAttentionData" }}

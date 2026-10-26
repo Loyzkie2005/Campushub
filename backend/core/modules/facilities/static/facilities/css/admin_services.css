@@ -1,0 +1,91 @@
+/* The existing catalog/editor is shared; service lists expose six columns. */
+.service-catalog .facility-col-capacity { display: none; }
+.service-catalog .facility-status { color:#1A1851; background:#f8fafc; border:1px solid #dedfea; }
+.service-catalog .facility-status-unavailable, .service-catalog .facility-status-maintenance { color:#1A1851; background:#fffbf1; border-color:#FCB315; }
+.service-catalog #facilitiesListSection .facility-page-left { grid-template-columns: minmax(0, 1fr); }
+.service-catalog #facilitiesListSection .facility-page-left,
+.service-catalog #facilitiesListSection .facility-table-panel { min-width: 0; max-width: 100%; }
+.service-catalog #facilitiesListSection .facility-table-panel .table-responsive {
+    width: 100%; max-width: 100%; margin: 0;
+    overflow-x: auto !important; overflow-y: hidden !important;
+}
+.service-catalog #facilitiesListSection .facility-table-container { width: 100%; min-width: 880px; }
+.service-catalog #facilitiesListSection .facility-table { width: 100%; margin: 0; }
+.service-catalog #facilitiesListSection .facility-table .facility-col-name { width: 28%; }
+.service-catalog #facilitiesListSection .facility-table .facility-col-type,
+.service-catalog #facilitiesListSection .facility-table .facility-col-rate,
+.service-catalog #facilitiesListSection .facility-table .facility-col-bookings { width: auto; overflow-wrap: anywhere; white-space: normal; }
+.service-catalog #facilitiesListSection .facility-table .facility-col-status { width: 120px; }
+.service-catalog #facilitiesListSection .facility-table .facility-col-actions {
+    position: sticky; right: 0; z-index: 2; width: 112px; background: #fff;
+    box-shadow: -1px 0 0 rgba(26,24,81,.12);
+}
+.service-catalog #facilitiesListSection .facility-table thead .facility-col-actions { z-index: 3; background: #f8fafc; }
+.service-catalog #facilitiesListSection .facility-table tbody .facility-col-actions:focus-within,
+.service-catalog #facilitiesListSection .facility-table tbody .facility-col-actions:has(.dropdown-menu.show) { z-index: 4; }
+.service-catalog #facilitiesListSection .facility-table-toolbar { flex-wrap: wrap; }
+.service-catalog #facilitiesListSection .facility-table-toolbar { display:grid; grid-template-columns:minmax(180px,2fr) repeat(4,minmax(120px,1fr)) auto; align-items:end; gap:12px; }
+.service-catalog .facility-filter-field { display:grid; gap:8px; min-width:0; }
+.service-catalog .facility-filter-field > label { font-size:12px; font-weight:600; color:#1A1851; }
+.service-catalog #facilitiesListSection .facility-table-filter { width:100%; min-width:0; max-width:none; }
+.service-catalog .facility-filter-field .facility-table-search { width:100%; }
+.service-catalog .facility-row-dropdown .dropdown-item { min-height:40px; }
+@media(max-width:1200px) { .service-catalog #facilitiesListSection .facility-table-toolbar { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:760px) { .service-catalog #facilitiesListSection .facility-table-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:480px) { .service-catalog #facilitiesListSection .facility-table-toolbar { grid-template-columns:minmax(0,1fr); } }
+.service-catalog .facility-table .facility-col-type,
+.service-catalog .facility-table .facility-col-bookings,
+.service-catalog .facility-booking-mode-label { white-space: normal; }
+.service-requests .bk-bookings-list-header { display:grid; gap:16px; }
+.service-requests .bk-booking-filters { display:grid; grid-template-columns:minmax(180px,2fr) minmax(160px,1fr) auto auto; align-items:end; gap:12px; width:100%; }
+.service-requests .facility-filter-field { display:grid; gap:8px; min-width:0; }
+.service-requests .facility-filter-field > label:first-child { color:#1A1851; font-size:12px; font-weight:600; }
+.service-requests .facility-filter-field input, .service-requests .facility-filter-field select { width:100%; min-width:0; text-align:left; }
+.service-requests .service-request-action { display:inline-flex; align-items:center; justify-content:center; min-height:40px; }
+.service-requests .bk-bookings-table { min-width: 1050px; }
+.service-requests .bk-bookings-table-wrap { max-width: 100%; overflow-x: auto; }
+.service-requests .bk-bookings-table td { color: #1A1851; }
+.service-request-action { color: #1A1851; border: 1px solid #1A1851; border-radius: 6px; background: #fff; min-height: 36px; padding: 6px 10px; }
+.service-request-action:focus-visible { outline: 2px solid #FCB315; outline-offset: 3px; }
+.service-request-details { border: 1px solid #1A1851; border-radius: 12px; padding: 24px; color: #1A1851; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; }
+.service-request-details::backdrop { background: rgb(26 24 81 / 30%); }
+.service-request-details dl { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; margin: 20px 0; }
+.service-request-details dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.service-request-pagination { display: flex; justify-content: flex-end; gap: 16px; align-items: center; margin-top: 16px; color: #1A1851; }
+.service-request-pagination a { color: #1A1851; }
+@media (max-width: 576px) {
+    .service-requests .bk-booking-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .service-requests .facility-filter-field { grid-column:1/-1; }
+    .service-requests-page .dashboard-header { height: auto; min-height: 64px; padding: 8px 12px; gap: 8px; }
+    .service-requests-page .header-left { min-width: 0; flex: 1; }
+    .service-requests-page .header-title-group { min-width: 0; }
+    .service-requests-page .header-right { gap: 8px; }
+    .service-requests-page .header-page-title { font-size: 1rem; white-space: normal; }
+    .service-requests-page .admin-breadcrumb { flex-wrap: wrap; gap: 4px; }
+    .service-requests .bk-booking-filters, .service-requests .bk-booking-search { width: 100%; }
+    .service-request-details dl { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* Service configuration is separate from physical facility reservation controls. */
+.service-form-body { display:grid; gap:24px; color:#1A1851; }
+.service-form-body > section { padding-bottom:24px; border-bottom:1px solid #e2e8f0; min-width:0; }
+.service-form-body .facility-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.service-form-body .facility-form-field-wide { grid-column:1 / -1; }
+.service-check { display:grid; grid-template-columns:18px minmax(0,1fr); gap:6px 8px; align-content:start; font-size:13px; font-weight:500; margin:8px 0; }
+.service-check input { margin-top:3px; accent-color:#1A1851; }
+.service-form-body input[type=checkbox] { accent-color:#1A1851; }
+.service-check small { grid-column:2; font-size:12px; font-weight:400; color:rgba(26,24,81,.75); line-height:1.5; }
+.service-form-note { font-size:12px; color:rgba(26,24,81,.75); margin:10px 0 0; }
+.service-analysis-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,2fr) minmax(100px,1fr) minmax(120px,1fr) auto auto; gap:12px; align-items:end; padding:16px 0; border-bottom:1px solid #e2e8f0; font-size:12px; }
+.service-assessment-date { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) auto; gap:12px; align-items:end; padding:12px 0; }
+.service-lease-space { border-top:1px solid #dedfea; padding-top:16px; margin-top:16px; }
+.service-lease-space h4 { font-size:14px; font-weight:600; margin-bottom:16px; }
+.service-assessment-date label, .service-lease-space label { font-size:12px; font-weight:500; min-width:0; }
+.service-form-body button:focus-visible, .service-form-body input:focus-visible, .service-form-body select:focus-visible, .service-form-body textarea:focus-visible { outline:2px solid #1A1851; outline-offset:2px; }
+.service-form-body [hidden] { display:none !important; }
+@media(max-width:900px) { .service-analysis-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) {
+    .service-form-body .facility-form-grid, .service-analysis-row, .service-assessment-date { grid-template-columns:minmax(0,1fr); }
+    .service-form-body .facility-form-field-wide { grid-column:auto; }
+    .service-form-body { gap:20px; }
+}

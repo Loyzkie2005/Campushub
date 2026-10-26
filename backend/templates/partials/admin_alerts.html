@@ -1,0 +1,7 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'components/css/admin_alerts.css' %}?v=20261014-shared-alerts">
+<script src="{% static 'components/js/admin_alerts.js' %}?v=20261014-shared-alerts" defer></script>
+<script src="{% static 'components/js/admin_action_feedback.js' %}?v=20261024-actions" defer></script>
+{% for message in messages %}
+<div class="admin-flash-fallback" data-admin-flash data-alert-type="{{ message.tags }}">{{ message }}</div>
+{% endfor %}

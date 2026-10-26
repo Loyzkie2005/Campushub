@@ -1,0 +1,132 @@
+/* Dashboard-only institutional palette. Status text and chart labels retain meaning. */
+[data-dashboard-palette] {
+    --dashboard-navy: #1A1851;
+    --dashboard-gold: #FCB315;
+    --dashboard-white: #FFFFFF;
+    --dashboard-surface: #f8fafc;
+    --dashboard-icon-surface: #EAF3FF;
+    --dashboard-muted: #626781;
+    --dashboard-gray: #9396ac;
+    --dashboard-gray-light: #d5d7e0;
+    color: var(--dashboard-navy);
+}
+
+[data-dashboard-palette] .dashboard-stat-card,
+[data-dashboard-palette] .dash-card {
+    background: var(--dashboard-white);
+    box-shadow: none;
+}
+
+[data-dashboard-palette] .dashboard-stat-icon,
+[data-dashboard-palette] .activity-feed-icon,
+[data-dashboard-palette] .approval-summary-icon,
+[data-dashboard-palette] .approval-queue-icon,
+[data-dashboard-palette] .dashboard-empty-icon,
+[data-dashboard-palette] .facility-highlight-icon,
+[data-dashboard-palette] .dashboard-top-selling-icon,
+[data-dashboard-palette] .dashboard-service-icon {
+    color: var(--dashboard-navy);
+    background: var(--dashboard-icon-surface);
+    box-shadow: none;
+}
+
+[data-dashboard-palette] .dashboard-stat-card .dashboard-stat-icon,
+[data-dashboard-palette] .dashboard-stat-card .dashboard-stat-icon.icon-orange {
+    color: var(--dashboard-navy);
+    background: var(--dashboard-icon-surface);
+}
+
+[data-dashboard-palette] .dashboard-stat-card strong,
+[data-dashboard-palette] .facility-revenue-total strong,
+[data-dashboard-palette] .facility-highlight-body strong,
+[data-dashboard-palette] .facility-status-summary strong,
+[data-dashboard-palette] .facility-status-chart-label strong,
+[data-dashboard-palette] .facility-operation-metric strong,
+[data-dashboard-palette] .facility-conflict-summary strong,
+[data-dashboard-palette] .low-stock-qty,
+[data-dashboard-palette] .recent-order-amount {
+    color: var(--dashboard-navy) !important;
+}
+
+[data-dashboard-palette] .dash-view-all-link,
+[data-dashboard-palette] .facility-report-link,
+[data-dashboard-palette] .facility-upcoming-all,
+[data-dashboard-palette] .facility-upcoming-date,
+[data-dashboard-palette] .approval-review-link,
+[data-dashboard-palette] .dashboard-service-action {
+    color: var(--dashboard-navy);
+}
+
+[data-dashboard-palette] .dash-view-all-link:hover,
+[data-dashboard-palette] .facility-report-link:hover,
+[data-dashboard-palette] .facility-upcoming-all:hover {
+    color: var(--dashboard-navy);
+    text-decoration: underline;
+    text-decoration-color: var(--dashboard-gold);
+    text-underline-offset: 4px;
+}
+
+[data-dashboard-palette] .approval-review-link:hover {
+    background: var(--dashboard-navy);
+    color: var(--dashboard-white);
+}
+
+[data-dashboard-palette] .activity-view-all-btn:hover {
+    background: var(--dashboard-navy);
+    color: var(--dashboard-white);
+    transform: none;
+}
+
+[data-dashboard-palette] .status-pill {
+    color: var(--dashboard-navy);
+    background: var(--dashboard-surface);
+    border-color: transparent;
+}
+
+[data-dashboard-palette] .status-pending,
+[data-dashboard-palette] .status-processing,
+[data-dashboard-palette] .status-ready_for_pickup {
+    color: var(--dashboard-navy);
+    background: rgba(252, 179, 21, .12);
+    border-color: var(--dashboard-gold);
+}
+
+[data-dashboard-palette] .dashboard-service-state--online {
+    color: var(--dashboard-navy);
+}
+
+[data-dashboard-palette] .dashboard-service-state--online::before {
+    background: var(--dashboard-navy);
+}
+
+[data-dashboard-palette] .dashboard-service-state--offline {
+    color: var(--dashboard-navy);
+}
+
+[data-dashboard-palette] .dashboard-service-state--offline::before {
+    background: var(--dashboard-gold);
+}
+
+[data-dashboard-palette] .facility-status-dot--approved,
+[data-dashboard-palette] .facility-availability-dot--available,
+[data-dashboard-palette] .facility-utilization-track span,
+[data-dashboard-palette] .booking-bar,
+[data-dashboard-palette] .util-bar {
+    background: var(--dashboard-navy);
+}
+
+[data-dashboard-palette] .facility-status-dot--pending,
+[data-dashboard-palette] .facility-availability-dot--maintenance {
+    background: var(--dashboard-gold);
+}
+
+[data-dashboard-palette] .facility-status-dot--completed,
+[data-dashboard-palette] .facility-availability-dot--occupied {
+    background: var(--dashboard-muted);
+}
+
+[data-dashboard-palette] .facility-status-dot--cancelled,
+[data-dashboard-palette] .facility-availability-dot--blocked {
+    background: var(--dashboard-gray-light);
+    border: 1px solid var(--dashboard-muted);
+}

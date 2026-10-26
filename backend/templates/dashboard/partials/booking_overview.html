@@ -1,0 +1,46 @@
+<article id="bookingOverviewCard" class="dash-card facility-booking-overview booking-overview h-100" data-booking-overview aria-labelledby="bookingOverviewTitle">
+    <div class="dash-card-header"><div><h2 id="bookingOverviewTitle">Booking Overview</h2><p class="booking-overview__subtitle">Current status of facility requests submitted in the selected period</p></div></div>
+    <div data-booking-content>
+        <div class="booking-overview__metrics" aria-label="Booking request status totals">
+            <div class="booking-overview__metric booking-overview__total">
+                <h3>Total Bookings</h3>
+                <div class="booking-overview__metric-value"><strong data-booking-total>{{ overview.total }}</strong><span class="booking-overview__metric-icon">{% include 'dashboard/partials/booking_overview_icon.html' with icon='total' %}</span></div>
+                <p data-booking-comparison>{% if overview.total and overview.comparison.previous_value == 0 %}New booking activity{% else %}{{ overview.comparison.comparison_text }}{% endif %}</p>
+            </div>
+            {% if executive_mode %}
+            <a href="{% url 'admin_bookings_page' %}?status=pending" class="booking-overview__metric" data-booking-status="pending"><h3>Pending Approval</h3><div class="booking-overview__metric-value"><strong>{{ overview.pending }}</strong></div><p>Awaiting review</p></a>
+            <div class="booking-overview__metric" data-booking-status="reserved_confirmed"><h3>Reserved / Confirmed</h3><div class="booking-overview__metric-value"><strong>{{ overview.reserved_confirmed }}</strong></div><p>Approved and fully paid</p></div>
+            <a href="{% url 'admin_bookings_page' %}?status=completed" class="booking-overview__metric" data-booking-status="completed"><h3>Completed</h3><div class="booking-overview__metric-value"><strong>{{ overview.completed }}</strong></div><p>Completed bookings</p></a>
+            {% else %}{% for item in overview.statuses %}
+            {% if item.url %}<a href="{{ item.url }}" class="booking-overview__metric booking-overview__status" data-booking-status="{{ item.key }}"{% if item.key == 'pending' and item.count %} data-attention{% endif %}>{% else %}<div class="booking-overview__metric booking-overview__status" data-booking-status="{{ item.key }}">{% endif %}
+                <h3>{{ item.label }}</h3>
+                <div class="booking-overview__metric-value"><strong>{{ item.count }}</strong><span class="booking-overview__metric-icon">{% include 'dashboard/partials/booking_overview_icon.html' with icon=item.key %}</span></div>
+                <p>{% if item.key == 'pending' %}Awaiting review{% elif item.key == 'approved' %}Approved requests{% elif item.key == 'completed' %}Completed bookings{% else %}Closed requests{% endif %}</p>
+            {% if item.url %}</a>{% else %}</div>{% endif %}
+            {% endfor %}
+            {% endif %}
+        </div>
+        <p class="booking-overview__attention" data-booking-attention{% if not overview.pending %} hidden{% endif %}>{% include 'dashboard/partials/booking_overview_icon.html' with icon='caution' %}<span data-booking-attention-text>{{ overview.pending }} pending request{{ overview.pending|pluralize }} may need review.</span></p>
+        <div class="booking-overview__trend">
+            <div class="booking-overview__trend-header">
+                <h3>Booking Trend</h3>
+                <label class="visually-hidden" for="bookingGroupingSelect">Booking trend grouping</label>
+                <select id="bookingGroupingSelect" name="booking_grouping" class="sales-select" aria-label="Booking trend grouping">
+                    <option value="daily"{% if overview.grouping == 'daily' %} selected{% endif %}>Daily</option>
+                    <option value="weekly"{% if overview.grouping == 'weekly' %} selected{% endif %}>Weekly</option>
+                    <option value="monthly"{% if overview.grouping == 'monthly' %} selected{% endif %}>Monthly</option>
+                </select>
+            </div>
+            <p data-booking-period>{{ overview.grouping|title }} requests submitted · {{ overview.start_date }} – {{ overview.end_date }}</p>
+            <div class="booking-overview__legend" aria-label="Booking status chart legend"><span><i data-booking-swatch="approved" aria-hidden="true"></i>Approved</span><span><i data-booking-swatch="pending" aria-hidden="true"></i>Pending</span><span><i data-booking-swatch="completed" aria-hidden="true"></i>Completed</span><span><i data-booking-swatch="rejected_cancelled" aria-hidden="true"></i>Rejected / Cancelled</span></div>
+            <div class="facility-booking-chart-wrap"><canvas id="facilityBookingOverviewChart" role="img" tabindex="0" aria-label="Booking requests stacked by status. Use left and right arrow keys to inspect each period." aria-describedby="bookingTrendDescription"></canvas></div>
+            <p class="booking-overview__empty" data-booking-empty{% if overview.total %} hidden{% endif %}>No bookings in selected period.</p>
+            <p class="booking-overview__empty" data-booking-chart-error hidden>Chart unavailable. Booking totals are shown above; open View All Bookings for details.</p>
+            <div class="visually-hidden" id="bookingTrendDescription"><ul data-booking-trend-description>{% for item in overview.trend %}<li>{{ item.label }}: Total Bookings {{ item.count }}; Approved {{ item.approved }}; Pending {{ item.pending }}; Completed {{ item.completed }}; Rejected / Cancelled {{ item.rejected_cancelled }}.</li>{% endfor %}</ul><span data-booking-chart-live aria-live="polite"></span></div>
+        </div>
+    </div>
+    <div class="booking-overview__loading" data-booking-loading role="status"><span class="visually-hidden">Loading booking overview.</span><span></span><span></span><span></span></div>
+    <div class="booking-overview__error" data-booking-error role="alert" hidden><p>Unable to load booking overview.</p><button type="button" id="bookingOverviewRetry">Retry</button></div>
+    <a href="{{ overview.view_all_url }}" class="booking-overview__all" data-booking-view-all>View All Bookings <span aria-hidden="true">→</span></a>
+    {{ overview|json_script:"bookingOverviewData" }}
+</article>

@@ -1,0 +1,38 @@
+<section class="sales-overview marketplace-sales-summary" id="sales-overview-card" aria-labelledby="salesOverviewTitle">
+    <header class="executive-kpi-heading"><h3 id="salesOverviewTitle">Sales Summary</h3></header>
+    <div class="sales-overview__metrics">
+        {% for metric in sales_overview.metrics %}
+        <article class="sales-overview__metric" data-metric="{{ metric.key }}">
+            <div class="sales-overview__metric-content">
+                <h3>{% if metric.key == 'sales' %}Marketplace Sales{% else %}{{ metric.label }}{% endif %}</h3>
+                <div class="sales-overview__metric-value"><strong>{% if metric.currency %}&#8369;{% endif %}{{ metric.value }}</strong></div>
+                <p class="dashboard-comparison" data-semantic-type="{{ metric.semantic_type }}">{% if not sales_overview.has_sales %}No completed sales in this period.{% else %}{{ metric.comparison_text }}{% endif %}</p>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    <div id="salesOverviewLoadError" class="sales-overview__load-error" role="alert" hidden><span>Unable to load sales analytics.</span><button type="button" id="salesOverviewRetry">Retry</button></div>
+    <div class="marketplace-chart-row">
+        <article class="marketplace-chart-card sales-overview__trend" data-empty-region="sales" aria-labelledby="salesTrendTitle">
+            <header class="sales-overview__trend-header">
+                <div><h3 id="salesTrendTitle">Sales Trend</h3><p>Marketplace revenue over the selected period.</p></div>
+                <form method="get" id="salesOverviewFilters" class="sales-overview__filters">
+                    <label class="visually-hidden" for="salesGroupingSelect">Sales grouping</label>
+                    <select name="grouping" id="salesGroupingSelect" aria-label="Sales grouping" class="sales-select">
+                        <option value="daily"{% if sales_grouping == 'daily' %} selected{% endif %}>Daily</option>
+                        <option value="weekly"{% if sales_grouping == 'weekly' %} selected{% endif %}>Weekly</option>
+                        <option value="monthly"{% if sales_grouping == 'monthly' %} selected{% endif %}>Monthly</option>
+                    </select>
+                </form>
+            </header>
+            <div class="sales-overview__legend" aria-label="Chart legend"{% if not sales_overview.has_sales %} hidden{% endif %}><span><i class="sales-overview__swatch" aria-hidden="true"></i>Marketplace Revenue</span></div>
+            <div class="sales-overview__canvas" data-has-sales="{{ sales_overview.has_sales|yesno:'true,false' }}"{% if not sales_overview.has_sales %} hidden{% endif %}>
+                <canvas id="salesOverviewChart" role="img" tabindex="0" aria-describedby="salesTrendDescription" aria-label="Marketplace revenue by {{ sales_grouping }} period. Use left and right arrow keys to inspect each period."></canvas>
+            </div>
+            <p id="salesOverviewChartError" class="sales-overview__chart-error" role="alert" hidden>Chart unavailable. Open Marketplace Analytics for details.</p>
+            <div class="sales-overview__empty marketplace-empty"{% if sales_overview.has_sales %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Sales Data Yet' description='Sales trends will appear when eligible marketplace orders are completed in the selected period.' icon='trend' %}</div>
+            <div class="visually-hidden" id="salesTrendDescription"><ul data-sales-trend-description>{% for row in sales_overview.rows %}<li>{{ row.label }}: Marketplace Revenue &#8369;{{ row.sales }}.</li>{% endfor %}</ul><span data-sales-chart-live aria-live="polite"></span></div>
+        </article>
+        {% include 'dashboard/partials/super_marketplace_products.html' %}
+    </div>
+</section>

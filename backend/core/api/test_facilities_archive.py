@@ -6,7 +6,7 @@ from django.urls import reverse
 
 from accounts.models import Department, User
 from accounts.role_permissions import sync_user_admin_permissions
-from api.models import Booking, Facility
+from api.models import Booking, CampusHubUser, Facility
 
 
 class FacilityArchiveAndRestoreAPITests(TestCase):
@@ -14,6 +14,10 @@ class FacilityArchiveAndRestoreAPITests(TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Booking owners belong to the mobile identity table, which is unmanaged.
+        if CampusHubUser._meta.db_table not in connection.introspection.table_names():
+            with connection.schema_editor() as editor:
+                editor.create_model(CampusHubUser)
         super().setUpClass()
         with connection.cursor() as cursor:
             cursor.execute(
@@ -137,13 +141,21 @@ class FacilityArchiveAndRestoreAPITests(TestCase):
         self.assertEqual(resp2.status_code, 403)
 
     def test_archived_facility_preserves_historical_bookings(self):
+        requestor = CampusHubUser.objects.create(
+            username="booking-requestor",
+            first_name="Test",
+            last_name="Requestor",
+            email="booking-requestor@example.edu",
+            password_hash="unused",
+            user_type=CampusHubUser.USER_TYPE_STUDENT,
+        )
         booking = Booking.objects.create(
             id="BKG-TEST-01",
-            user_id=self.student.id,
+            user=requestor,
             facility=self.facility,
             purpose="Annual Academic Symposium",
             total_amount=Decimal("3000.00"),
-            status="confirmed",
+            status=Booking.STATUS_APPROVED,
         )
 
         self.client.force_login(self.facility_admin)
@@ -156,4 +168,5 @@ class FacilityArchiveAndRestoreAPITests(TestCase):
         booking.refresh_from_db()
         self.assertEqual(booking.facility_id, self.facility.id)
         self.assertEqual(booking.facility.facility_name, "Function Hall Alpha")
-        self.assertEqual(booking.status, "confirmed")
+        self.assertEqual(booking.user_id, requestor.pk)
+        self.assertEqual(booking.status, Booking.STATUS_APPROVED)

@@ -13,6 +13,7 @@ class GeneratedReport(models.Model):
         ("bookings", "Facility Booking Report"),
         ("facility_utilization", "Facility Utilization Report"),
         ("facility_payments", "Facility Payments & OR Report"),
+        ("facility_revenue", "Facility Revenue"),
         ("user_accounts", "User Accounts Report"),
         ("user_activity", "User Login Activity Report"),
     )

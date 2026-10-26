@@ -1,0 +1,9 @@
+{% load static %}
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CampusHub | {{ title }}</title><link rel="stylesheet" href="{% static 'components/css/admin_booking.css' %}?v=20261013-booking-workflow">{% include 'partials/web_typography.html' %}
+</head>
+<body class="bk-slip-page"><main class="bk-saved-slip">
+<header><p>CampusHub · USTP Oroquieta</p><h1>{{ title }}</h1></header>
+<dl>{% for label,value in values %}<div><dt>{{ label }}</dt><dd>{{ value|linebreaksbr }}</dd></div>{% endfor %}</dl>
+<p class="bk-slip-note">Generated from recorded CampusHub data. This document is not an Official Receipt.</p>
+<button type="button" class="bk-slip-print" onclick="window.print()">Print</button> <a class="bk-btn-ghost" href="{{ pdf_url }}">Export PDF</a>
+</main></body></html>

@@ -1,0 +1,127 @@
+{% load static tz %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CAMPUSHUB | Inventory</title>
+    <link rel="icon" href="{% static 'assets/img/icon.png' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter">
+    <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
+    <link rel="stylesheet" href="{% static 'components/css/admin_products.css' %}?v=20261025-batches-final">
+{% include 'partials/web_typography.html' %}
+</head>
+<body class="inventory-page">
+<div class="sidebar-section">
+    {% include 'partials/admin_sidebar.html' with active_page='inventory' %}
+    <div class="main-wrapper" id="mainWrapper">
+        {% include 'partials/admin_header.html' with page_title='Inventory' breadcrumb_section='Marketplace' breadcrumb_page='Inventory' %}
+        <main class="dashboard-content p-4">
+            <div class="products-page-shell container-fluid px-0">
+            {% include 'marketplace/partials/inventory_kpis.html' %}
+            <section class="seller-products-panel inventory-page-panel">
+                <div class="product-list-toolbar">
+                    <div class="product-list-heading"><h2>Inventory</h2><p>Available stock and warning levels for each product variant.</p></div>
+                    <a class="inventory-product-link" href="{% url 'admin_products_page' %}">View Products →</a>
+                </div>
+                <nav class="inventory-workspace-tabs" aria-label="Inventory workspace">
+                    {% for tab in inventory_tabs %}<a href="{{ tab.url }}" {% if inventory_section == tab.key %}aria-current="page"{% endif %}>{{ tab.label }}</a>{% endfor %}
+                </nav>
+                <h3 class="inventory-filter-heading" id="inventoryFilterHeading">Filters</h3>
+                <form class="inventory-page-filters" method="get" data-auto-filters data-action-filter aria-labelledby="inventoryFilterHeading">
+                    <input type="hidden" name="view" value="inventory">
+                    <input type="hidden" name="inventory_section" value="{{ inventory_section }}">
+                    {% if inventory_tab_token %}<input type="hidden" name="__at" value="{{ inventory_tab_token }}">{% endif %}
+                    {% if inventory_product_id %}<input type="hidden" name="product_id" value="{{ inventory_product_id }}">{% endif %}
+                    <label>Search<input class="form-control" type="search" name="search" value="{{ inventory_search }}" placeholder="{% if inventory_section == 'fifo' %}Search batch, product, variant, SKU or seller...{% else %}Search product, variant, or SKU...{% endif %}"></label>
+                    <label>Inventory Status<select class="form-select" name="inventory_status">
+                        <option value="">All stock</option>
+                        {% for value, label in inventory_status_options %}<option value="{{ value }}" {% if inventory_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select></label>
+                    <label>Program<select class="form-select" name="program" data-program-select>
+                        <option value="">All Programs</option>
+                        {% for program in programs %}<option value="{{ program.pk }}" {% if program.pk|stringformat:'s' == inventory_program %}selected{% endif %}>{{ program.code }}</option>{% endfor %}
+                    </select></label>
+                    <label>Major<select class="form-select" name="major" data-major-select>
+                        <option value="">All Majors</option>
+                        {% for major in majors %}<option data-program="{{ major.program_id }}" value="{{ major.pk }}" {% if major.pk|stringformat:'s' == inventory_major %}selected{% endif %}>{{ major.name }}</option>{% endfor %}
+                    </select></label>
+                    <label>Seller<select class="form-select" name="seller">
+                        <option value="">All Sellers</option>
+                        {% for seller in inventory_sellers %}<option value="{{ seller.pk }}" {% if seller.pk|stringformat:'s' == inventory_seller %}selected{% endif %}>{{ seller.get_full_name|default:seller.username }}</option>{% endfor %}{% for seller in inventory_mobile_sellers %}<option value="mobile:{{ seller.pk }}" {% if inventory_seller == seller.owner_ref %}selected{% endif %}>{{ seller.get_full_name|default:seller.username }}</option>{% endfor %}
+                    </select></label>
+                    <label>Category<select class="form-select" name="category">
+                        <option value="">All Categories</option>
+                        {% for category in inventory_categories %}<option value="{{ category }}" {% if inventory_category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
+                    </select></label>
+                    <a class="inventory-product-link catalog-clear-filters" href="{{ inventory_reset_url }}">Clear Filters</a>
+                    <noscript><button class="primary-action" type="submit">Filter</button></noscript>
+                </form>
+                {% if inventory_section != 'overview' %}
+                    {% include 'marketplace/partials/inventory_fifo.html' %}
+                {% else %}
+                {% if inventory_detail %}{% include 'marketplace/partials/inventory_detail.html' with item=inventory_detail %}{% endif %}
+                <div class="inventory-table-scroll" tabindex="0" role="region" aria-label="Product and variant inventory; scroll horizontally on smaller screens">
+                    <table class="inventory-ledger-table">
+                        <thead><tr>
+                            <th scope="col">Product</th><th scope="col">Variant</th><th scope="col">SKU</th><th scope="col">Seller</th><th scope="col">Program / Major</th>
+                            <th scope="col" class="inventory-ledger-number">On Hand</th><th scope="col" class="inventory-ledger-number">Reserved</th>
+                            <th scope="col" class="inventory-ledger-number">Available</th><th scope="col" class="inventory-ledger-number">Threshold</th>
+                            <th scope="col">Status</th><th scope="col">Last Updated</th><th scope="col">Actions</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for item in inventory_page %}
+                            <tr data-product-id="{{ item.product_id }}">
+                                <td><div class="inventory-product-cell">
+                                    {% if item.thumbnail_url %}<img class="inventory-thumbnail" src="{{ item.thumbnail_url }}" data-fallback-src="{{ item.thumbnail_fallback_url }}" width="40" height="40" loading="lazy" decoding="async" alt="" onerror="if(this.dataset.fallbackSrc){const fallback=this.dataset.fallbackSrc;this.dataset.fallbackSrc='';this.src=fallback;}else{this.hidden=true;this.nextElementSibling.hidden=false;}">{% endif %}
+                                    <span class="inventory-thumbnail inventory-thumbnail-placeholder" aria-hidden="true" {% if item.thumbnail_url %}hidden{% endif %}>{% include 'marketplace/partials/inventory_kpi_icon.html' with kind='product' %}</span>
+                                    <a class="inventory-product-link" href="{{ item.details_url }}">{{ item.product_name }}</a>
+                                </div></td>
+                                <td><strong>{% if item.derived %}Bundle{% else %}{{ item.name|default:'—' }}{% endif %}</strong></td>
+                                <td class="inventory-sku">{{ item.sku }}</td>
+                                <td>{{ item.seller_name }}</td>
+                                <td>{{ item.program_major }}</td>
+                                <td class="inventory-ledger-number">{% if item.derived %}—{% else %}{{ item.on_hand|default_if_none:'Unavailable' }}{% endif %}</td>
+                                <td class="inventory-ledger-number">{% if item.derived %}—{% else %}{{ item.reserved|default_if_none:'Unavailable' }}{% endif %}</td>
+                                <td class="inventory-ledger-number"><strong>{{ item.available }}{% if item.derived %} bundle{{ item.available|pluralize }}{% endif %}</strong>{% if item.derived %}<small>Derived from components</small>{% endif %}</td>
+                                <td class="inventory-ledger-number">{{ item.threshold|default_if_none:'—' }}</td>
+                                <td><span class="inventory-ledger-status inventory-ledger-status--{{ item.status }}">{{ item.status_label }}</span></td>
+                                <td class="inventory-updated">{% timezone 'Asia/Manila' %}<time datetime="{{ item.updated_at|date:'c' }}" title="Philippine Time">{{ item.updated_at|date:'M d, Y' }}<small>{{ item.updated_at|date:'g:i A' }}</small></time>{% endtimezone %}</td>
+                                <td class="inventory-monitor-actions"><div class="inventory-row-actions">
+                                    {% if item.inventory_url %}<a class="inventory-icon-action" href="{{ item.inventory_url }}#inventory-details" title="View Details" aria-label="View Details for {{ item.product_name }}{% if item.name %} — {{ item.name }}{% endif %}">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                    </a>
+                                    {% if item.movements_url %}<a class="inventory-icon-action" href="{{ item.movements_url }}" title="Stock Movements" aria-label="Stock Movements for {{ item.product_name }}{% if item.name %} — {{ item.name }}{% endif %}">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11a9 9 0 1 1 2.6 7.4M3 4v7h7M12 7v5l3 2"/></svg>
+                                    </a>{% endif %}{% endif %}
+                                    {% if perms.accounts.can_manage_products or perms.accounts.can_approve_products or perms.accounts.can_view_products %}<a class="inventory-icon-action" href="{{ item.details_url }}" title="View Product" aria-label="View Product for {{ item.product_name }}">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m12 2 9 5v10l-9 5-9-5V7l9-5Zm-9 5 9 5 9-5M12 12v10M7.5 4.5l9 5v5"/></svg>
+                                    </a>{% endif %}
+                                </div></td>
+                            </tr>
+                        {% empty %}<tr><td colspan="12" class="inventory-ledger-empty">No inventory records match the selected filters.<br><a class="inventory-product-link" href="{{ inventory_reset_url }}">Clear Filters →</a></td></tr>{% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="inventory-page-pagination">
+                    <span>{{ inventory_page.paginator.count }} inventory row{{ inventory_page.paginator.count|pluralize }}</span>
+                    <nav aria-label="Inventory pages">
+                        {% if inventory_page.has_previous %}<a href="?{{ page_query }}&amp;page={{ inventory_page.previous_page_number }}">Previous</a>{% endif %}
+                        <span>Page {{ inventory_page.number }} of {{ inventory_page.paginator.num_pages }}</span>
+                        {% if inventory_page.has_next %}<a href="?{{ page_query }}&amp;page={{ inventory_page.next_page_number }}">Next</a>{% endif %}
+                    </nav>
+                </div>
+                {% endif %}
+            </section>
+            </div>
+        </main>
+    </div>
+</div>
+{% include 'marketplace/partials/inventory_details_drawer.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'components/js/admin_notifications.js' %}?v=20260523-3"></script>
+<script src="{% static 'components/js/admin_inventory_filters.js' %}?v=20261008-program-major"></script>
+<script src="{% static 'components/js/admin_inventory_fifo.js' %}?v=20261025-inventory-drawer"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<section class="dash-card bundle-dss bundle-dashboard-card{% if compact %} bundle-summary-section{% endif %}" id="recommendationActivity" aria-labelledby="recommendationActivityTitle">
+    <header class="bundle-panel-heading">{% if compact %}<h3 id="recommendationActivityTitle">Recommendation Activity</h3>{% else %}<h2 id="recommendationActivityTitle">Recommendation Activity</h2>
+        <a class="bundle-view-all" href="{% url 'bundle_monitor_activity' %}">View Activity</a>{% endif %}</header>
+    {% if not compact %}<p class="bundle-dashboard-description">Monitor suggestions shared with sellers and track their responses.</p>{% endif %}
+    {% if activity.error %}<div class="bundle-dashboard-state" role="alert"><h3>Unable to load recommendation activity</h3><p>Please retry.</p><a href="{% url 'admin_dashboard_page' %}">Retry</a></div>
+    {% elif activity.has_activity %}{% include 'marketplace/partials/bundle_activity_metrics.html' %}
+    {% else %}<div class="bundle-dashboard-state">{% if global_dashboard %}{% include 'dashboard/partials/empty_state.html' with title='No Recommendation Activity Yet' description='Activity will appear here when suggestions are shared with sellers or sellers take action on their recommendations.' icon='average' %}{% else %}{% include 'marketplace/partials/bundle_state_icon.html' with kind='activity' %}<h3>No Recommendation Activity Yet</h3><p>Activity will appear here when suggestions are shared with sellers or sellers take action on their recommendations.</p>{% endif %}</div>{% endif %}
+</section>

@@ -1,32 +1,57 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../theme/marketplace_colors.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
+import 'products_screen.dart';
 import '../services/cart_service.dart';
 import 'facility_screen.dart';
+import 'services_screen.dart';
 import 'messages_screen.dart';
 import 'profile_page.dart';
+import 'seller_dashboard_page.dart';
+import '../services/auth_service.dart';
+import '../services/seller_application_service.dart';
+import '../widgets/navigation/seller_drawer.dart';
 import '../config/api_config.dart';
 import '../models/product_item.dart';
 import '../services/facility_service.dart';
+import '../services/chat_service.dart';
+import 'cart_screen.dart';
+import 'home_page.dart';
+import '../services/service_catalog.dart';
 import '../services/favorite_service.dart';
 import '../services/product_service.dart';
 import '../session/session_service.dart';
+import '../widgets/home/home_preview_cards.dart';
 import '../widgets/product_image.dart';
 import '../widgets/navigation/floating_bottom_navbar.dart';
+import '../widgets/navigation/retained_tab.dart';
+import '../widgets/navigation/campushub_brand.dart';
+import '../widgets/navigation/header_search_button.dart';
+import '../widgets/notification_permission_sheet.dart';
 import 'product_details_screen.dart';
-import 'products_screen.dart';
-import 'cart_screen.dart';
+import 'search_page.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({
+    super.key,
+    this.initialTab = 0,
+    this.serviceCatalog = const ServiceCatalog(),
+    this.loadHomeProducts = ProductService.fetchApproved,
+    this.loadHomeFacilities = FacilityService.fetchFacilities,
+    this.sellerService = const SellerApplicationService(),
+  }) : assert(initialTab >= 0 && initialTab < 5);
+  final int initialTab;
+  final ServiceCatalog serviceCatalog;
+  final Future<List<ProductItem>> Function() loadHomeProducts;
+  final Future<FacilityServiceResult> Function() loadHomeFacilities;
+  final SellerApplicationService sellerService;
 
   static const Color primaryNavy = Color(0xFF142B47);
   static const Color primaryBlue = Color(0xFF1A56DB);
   static const Color webBrandBlue = Color(0xFF0175C2);
-  static const Color campusGold = Color(0xFFFCB316);
+  static const Color campusGold = Color(0xFFFCB315);
   static const Color pageBackground = Colors.white;
   static const Color headerNavy = Color(0xFF1A1851);
   static const Color headerTint = Colors.white;
@@ -38,86 +63,158 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  final PageController _pageController = PageController();
-  final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
+  late final PageController _pageController;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _homeKey = GlobalKey<HomePageState>();
   int _currentIndex = 0;
-  bool _isSearchOpen = false;
   String _firstName = '';
+  AuthUser? _user;
+  bool _sellerApproved = false;
+  String? _accessError;
+  int _accessRequest = 0;
+  int _sellerRefreshRevision = 0;
+  bool _openingProduct = false;
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialTab;
+    _pageController = PageController(initialPage: _currentIndex);
+    WidgetsBinding.instance.addObserver(this);
     _loadUserName();
+    unawaited(_initializeChat());
+  }
+
+  Future<void> _initializeChat() async {
+    try {
+      await ChatService.instance.initialize();
+    } on ChatException catch (error) {
+      // Chat is optional on Home. Messages keeps its own visible error/retry.
+      debugPrint('CampusHub chat unavailable: ${error.message}');
+    }
   }
 
   Future<void> _loadUserName() async {
-    final user = await SessionService.loadUser();
-    if (!mounted) return;
+    final request = ++_accessRequest;
     setState(() {
-      _firstName = user?.firstName ?? '';
+      _accessError = null;
     });
+    try {
+      final user = await SessionService.loadUser();
+      if (!mounted || request != _accessRequest) return;
+      setState(() {
+        _user = user;
+        _firstName = user?.firstName ?? '';
+      });
+      final status = user != null && user.userType != 'admin'
+          ? await widget.sellerService.status()
+          : null;
+      if (status != null && status['is_approved_seller'] is! bool) {
+        throw const SellerApplicationException(
+          'Unable to verify seller access. Retry.',
+        );
+      }
+      if (!mounted || request != _accessRequest) return;
+      final approved = status?['is_approved_seller'] == true;
+      setState(() {
+        _user = user;
+        _firstName = user?.firstName ?? '';
+        _sellerApproved = approved;
+        if (approved) _sellerRefreshRevision++;
+      });
+    } catch (error) {
+      if (!mounted || request != _accessRequest) return;
+      setState(() {
+        _sellerApproved = false;
+        _accessError = error is SellerApplicationException
+            ? error.message
+            : 'Unable to verify seller access. Check your connection and retry.';
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_loadUserName());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
-    _searchController.dispose();
-    _searchFocusNode.dispose();
     super.dispose();
   }
 
   void _goToTab(int index) {
-    if (_isSearchOpen) {
-      _closeSearch();
-    }
     if (index == _currentIndex) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _currentIndex = index);
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  void _openSearch() {
-    setState(() => _isSearchOpen = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _searchFocusNode.requestFocus();
-      }
-    });
-  }
-
-  void _closeSearch() {
-    FocusManager.instance.primaryFocus?.unfocus();
-    _searchFocusNode.unfocus();
-    setState(() {
-      _isSearchOpen = false;
-      _searchController.clear();
-    });
-  }
-
-  void _handleSearchSubmit(String query) {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) return;
-    _closeSearch();
-    _goToTab(1);
+    _pageController.jumpToPage(index);
   }
 
   Future<void> _refreshHome() async {
     await _loadUserName();
-    setState(() {});
-    await Future<void>.delayed(const Duration(milliseconds: 450));
   }
 
-  Future<void> _openAddProductForm() async {
-    final created = await ProductsScreen.showAddProductSheet(context);
-    if (created == true && mounted) {
-      _refreshHome();
+  void _openSearch() {
+    final home = _homeKey.currentState;
+    if (home != null) {
+      home.openSearch();
+      return;
     }
+    // A direct launch into another tab may not have built Home yet.
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SearchPage(
+          catalog: widget.serviceCatalog,
+          loadProducts: widget.loadHomeProducts,
+          loadFacilities: widget.loadHomeFacilities,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAddProduct() async {
+    if (!_sellerApproved || _user == null || _openingProduct) return;
+    _openingProduct = true;
+    try {
+      final submitted = await ProductsScreen.showAddProductPage(context);
+      if (submitted == true && mounted) await _refreshHome();
+    } finally {
+      _openingProduct = false;
+    }
+  }
+
+  void _openSellerTool(SellerDestination destination) {
+    if (!_sellerApproved || _user == null) return;
+    if (destination == SellerDestination.overview) {
+      _goToTab(0);
+      return;
+    }
+    final navigator = Navigator.of(context);
+    final ownerRoute = ModalRoute.of(context);
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => SellerDashboardPage(
+          user: _user!,
+          service: widget.sellerService,
+          initialDestination: destination,
+          onBackToCampusHub: () {
+            navigator.popUntil((route) => route == ownerRoute || route.isFirst);
+            _goToTab(0);
+          },
+          onProfile: () {
+            navigator.popUntil((route) => route == ownerRoute || route.isFirst);
+            _goToTab(4);
+          },
+          onMessages: _openMessages,
+          onNotifications: _openNotifications,
+          onSearch: _openSearch,
+        ),
+      ),
+    );
   }
 
   void _openMessages() {
@@ -130,18 +227,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             foregroundColor: const Color(0xFF1A1851),
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(LucideIcons.arrowLeft),
+              icon: const Icon(Iconsax.arrow_left_copy),
               tooltip: 'Back',
               onPressed: () => Navigator.of(context).pop(),
             ),
-            title: const Text(
-              'Messages',
-              style: TextStyle(
-                color: Color(0xFF1A1851),
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+            title: const CampusHubBrand(onNavy: false),
+            actions: [
+              HeaderSearchButton(onPressed: _openSearch),
+              IconButton(
+                tooltip: 'Notifications',
+                icon: const Icon(Iconsax.notification_copy),
+                onPressed: _openNotifications,
               ),
-            ),
+            ],
           ),
           body: const MessagesPage(),
         ),
@@ -149,984 +247,251 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _openNotifications() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => const NotificationPermissionSheet(),
+    );
+  }
+
+  Widget _drawerDestination(String label, IconData icon, int index) => ListTile(
+    leading: Icon(icon, color: homeNavy),
+    title: Text(label),
+    selected: _currentIndex == index,
+    textColor: homeNavy,
+    selectedColor: homeNavy,
+    selectedTileColor: homeGold.withValues(alpha: 0.18),
+    onTap: () {
+      Navigator.pop(context);
+      _goToTab(index);
+    },
+  );
+
   @override
   Widget build(BuildContext context) {
-    const appBarForeground = DashboardScreen.headerNavy;
-    final header = Material(
+    final isSeller = _sellerApproved && _user != null;
+    final header = Container(
       key: const ValueKey('dashboard-brand-header'),
       color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            _isSearchOpen
-                ? IconButton(
-                    onPressed: _closeSearch,
-                    icon: Icon(LucideIcons.arrowLeft, color: appBarForeground),
-                    tooltip: 'Back',
-                  )
-                : Builder(
-                    builder: (context) => IconButton(
-                      onPressed: () => Scaffold.of(context).openDrawer(),
-                      icon: Icon(LucideIcons.menu, color: appBarForeground),
-                      tooltip: 'Menu',
-                    ),
-                  ),
-            Expanded(
-              child: _isSearchOpen
-                  ? Container(
-                      height: 42,
-                      margin: const EdgeInsets.only(right: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            LucideIcons.search,
-                            size: 20,
-                            color: Color(0xFF94A3B8),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              focusNode: _searchFocusNode,
-                              autofocus: true,
-                              textInputAction: TextInputAction.search,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF1A1851),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              decoration: const InputDecoration(
-                                hintText: 'Search products, facilities...',
-                                hintStyle: TextStyle(
-                                  color: Color(0xFF94A3B8),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                              ),
-                              onSubmitted: _handleSearchSubmit,
-                            ),
-                          ),
-                          ValueListenableBuilder<TextEditingValue>(
-                            valueListenable: _searchController,
-                            builder: (context, value, _) {
-                              if (value.text.isEmpty) {
-                                return const SizedBox.shrink();
-                              }
-                              return GestureDetector(
-                                onTap: () => _searchController.clear(),
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 4),
-                                  child: Icon(
-                                    LucideIcons.x,
-                                    size: 18,
-                                    color: Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    )
-                  : Row(
-                      children: [
-                        Image.asset(
-                          'assets/img/logo_light.png',
-                          key: const ValueKey('dashboard-brand-logo'),
-                          width: 32,
-                          height: 36,
-                          fit: BoxFit.contain,
-                          semanticLabel: 'CampusHub logo',
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text.rich(
-                              const TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: 'Campus',
-                                    style: TextStyle(
-                                      color: DashboardScreen.campusGold,
-                                    ),
-                                  ),
-                                  TextSpan(text: 'Hub'),
-                                ],
-                              ),
-                              key: ValueKey('dashboard-brand-name'),
-                              style: TextStyle(
-                                color: appBarForeground,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-            if (!_isSearchOpen) ...[
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+          child: Row(
+            children: [
               IconButton(
-                onPressed: _openSearch,
-                icon: Icon(LucideIcons.search, color: appBarForeground),
-                tooltip: 'Search',
-                visualDensity: VisualDensity.compact,
+                tooltip: 'Open menu',
+                color: HomeAppColors.navy,
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                icon: Icon(Iconsax.menu_1_copy, color: HomeAppColors.navy),
               ),
+              Expanded(
+                child: CampusHubBrand(
+                  onNavy: false,
+                  logoKey: const ValueKey('dashboard-brand-logo'),
+                  wordmarkKey: const ValueKey('dashboard-brand-name'),
+                ),
+              ),
+              HeaderSearchButton(onPressed: _openSearch),
               IconButton(
-                onPressed: () {},
-                icon: Icon(LucideIcons.bell, color: appBarForeground),
                 tooltip: 'Notifications',
-                visualDensity: VisualDensity.compact,
+                color: HomeAppColors.navy,
+                onPressed: _openNotifications,
+                icon: const Icon(
+                  Iconsax.notification_copy,
+                  color: HomeAppColors.navy,
+                ),
               ),
               const SizedBox(width: 4),
             ],
-          ],
+          ),
         ),
       ),
     );
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark.copyWith(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.white,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
         systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: Colors.white,
-        drawer: _DashboardDrawer(
-          currentIndex: _currentIndex,
-          onSelectTab: _goToTab,
-          onOpenMessages: _openMessages,
-        ),
-        body: PopScope(
-          canPop: !_isSearchOpen,
-          onPopInvokedWithResult: (didPop, result) {
-            if (didPop) return;
-            if (_isSearchOpen) {
-              _closeSearch();
-            }
-          },
-          child: SafeArea(
-            child: Column(
-              children: [
-                header,
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    onPageChanged: (index) {
-                      FocusManager.instance.primaryFocus?.unfocus();
-                      setState(() => _currentIndex = index);
-                    },
+        key: _scaffoldKey,
+        backgroundColor: HomeAppColors.appBackground,
+        drawer: _sellerApproved && _user != null
+            ? SellerDrawer(
+                user: _user!,
+                selected: SellerDestination.overview,
+                onSelected: (destination) {
+                  Navigator.pop(context);
+                  _openSellerTool(destination);
+                },
+                onBackToCampusHub: () {
+                  Navigator.pop(context);
+                  _goToTab(0);
+                },
+                onProfile: () {
+                  Navigator.pop(context);
+                  _goToTab(4);
+                },
+              )
+            : Drawer(
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                child: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
                     children: [
-                      _HomePage(
-                        firstName: _firstName,
-                        onProductsTap: () => _goToTab(1),
-                        onFacilitiesTap: () => _goToTab(2),
-                        onRefresh: _refreshHome,
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text.rich(
+                          TextSpan(
+                            children: const [
+                              TextSpan(
+                                text: 'Campus',
+                                style: TextStyle(color: HomeAppColors.navy),
+                              ),
+                              TextSpan(
+                                text: 'Hub',
+                                style: TextStyle(color: HomeAppColors.gold),
+                              ),
+                            ],
+                          ),
+                          style: const TextStyle(
+                            fontFamily: 'SugarPie',
+                            fontWeight: FontWeight.w400,
+                            fontSize: 24,
+                            letterSpacing: 0,
+                          ),
+                        ),
                       ),
-                      const _MarketplacePage(),
-                      const FacilitiesPage(),
-                      const ProfilePage(),
+                      _drawerDestination('Home', Iconsax.home_copy, 0),
+                      _drawerDestination('Marketplace', Iconsax.shop_copy, 1),
+                      _drawerDestination(
+                        'Facilities Booking',
+                        Iconsax.building_copy,
+                        3,
+                      ),
+                      _drawerDestination('Services', Iconsax.briefcase_copy, 2),
+                      ListTile(
+                        leading: const Icon(
+                          Iconsax.message_copy,
+                          color: homeNavy,
+                        ),
+                        title: const Text(
+                          'Messages',
+                          style: TextStyle(color: homeNavy),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _openMessages();
+                        },
+                      ),
+                      _drawerDestination(
+                        'Profile & Account',
+                        Iconsax.user_copy,
+                        4,
+                      ),
+                      const Divider(color: homeLine),
+                      ListTile(
+                        leading: const Icon(
+                          Iconsax.bag_2_copy,
+                          color: homeNavy,
+                        ),
+                        title: const Text(
+                          'My Cart',
+                          style: TextStyle(color: homeNavy),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const CartScreen(),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
-              ],
+              ),
+        body: Column(
+          children: [
+            header,
+            Expanded(
+              child: PageView(
+                physics: const NeverScrollableScrollPhysics(),
+                controller: _pageController,
+                onPageChanged: (index) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  setState(() => _currentIndex = index);
+                },
+                children:
+                    [
+                          HomePage(
+                            key: _homeKey,
+                            active: _currentIndex == 0,
+                            firstName: _firstName,
+                            sellerSections: _sellerApproved && _user != null
+                                ? SellerDashboardPage(
+                                    key: ValueKey('home-seller-${_user!.id}'),
+                                    user: _user!,
+                                    service: widget.sellerService,
+                                    homeSection: true,
+                                    refreshRevision: _sellerRefreshRevision,
+                                    onOpenDestination: _openSellerTool,
+                                  )
+                                : _accessError != null
+                                ? TextButton(
+                                    onPressed: _loadUserName,
+                                    child: Text(_accessError!),
+                                  )
+                                : null,
+                            onMarketplace: () => _goToTab(1),
+                            onFacilities: () => _goToTab(3),
+                            onServices: () => _goToTab(2),
+                            onRefresh: _refreshHome,
+                            catalog: widget.serviceCatalog,
+                            loadProducts: widget.loadHomeProducts,
+                            loadFacilities: widget.loadHomeFacilities,
+                            productBuilder: (product) =>
+                                MarketplacePreviewCard(product: product),
+                          ),
+                          const _MarketplacePage(),
+                          ServicesPage(catalog: widget.serviceCatalog),
+                          const FacilitiesPage(),
+                          ProfilePage(
+                            active: _currentIndex == 4,
+                            onHome: () => _goToTab(0),
+                            onMarketplace: () => _goToTab(1),
+                            onMessages: _openMessages,
+                            onNotifications: _openNotifications,
+                            onSellerAccessChanged: _loadUserName,
+                          ),
+                        ]
+                        .asMap()
+                        .entries
+                        .map(
+                          (entry) => RetainedTab(
+                            key: ValueKey('dashboard-tab-${entry.key}'),
+                            child: entry.value,
+                          ),
+                        )
+                        .toList(),
+              ),
             ),
-          ),
+          ],
         ),
         bottomNavigationBar: FloatingBottomNavbar(
           currentIndex: _currentIndex,
           onTap: _goToTab,
-          onCenterActionTap: _openAddProductForm,
-        ),
-      ),
-    );
-  }
-}
-
-class _HomePage extends StatefulWidget {
-  const _HomePage({
-    required this.firstName,
-    required this.onProductsTap,
-    required this.onFacilitiesTap,
-    required this.onRefresh,
-  });
-
-  final String firstName;
-  final VoidCallback onProductsTap;
-  final VoidCallback onFacilitiesTap;
-  final Future<void> Function() onRefresh;
-
-  @override
-  State<_HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<_HomePage> {
-  bool _isLoadingProducts = true;
-  bool _isLoadingFacilities = true;
-  List<ProductItem> _products = const [];
-  List<_DashboardFacilityItem> _facilities = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchProducts();
-    _fetchFacilities();
-  }
-
-  Future<void> _refresh() async {
-    await Future.wait([
-      widget.onRefresh(),
-      _fetchProducts(),
-      _fetchFacilities(),
-    ]);
-  }
-
-  Future<void> _fetchProducts() async {
-    if (mounted) setState(() => _isLoadingProducts = true);
-
-    for (final baseUrl in DashboardScreen.apiBaseUrls) {
-      try {
-        final response = await http
-            .get(
-              Uri.parse('$baseUrl/api/products/approved/'),
-              headers: const {'Accept': 'application/json'},
-            )
-            .timeout(const Duration(seconds: 5));
-
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          continue;
-        }
-
-        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-        final rows = decoded['products'] as List<dynamic>? ?? const [];
-        final products = rows
-            .whereType<Map>()
-            .map(
-              (row) => ProductItem.fromJson(
-                row.map((key, value) => MapEntry(key.toString(), value)),
-              ),
-            )
-            .take(4)
-            .toList(growable: false);
-
-        if (!mounted) return;
-        ApiConfig.recordWorkingBaseUrl(baseUrl);
-        setState(() {
-          _products = products;
-          _isLoadingProducts = false;
-        });
-        return;
-      } catch (_) {}
-    }
-
-    if (!mounted) return;
-    setState(() => _isLoadingProducts = false);
-  }
-
-  Future<void> _fetchFacilities() async {
-    if (mounted) setState(() => _isLoadingFacilities = true);
-
-    final result = await FacilityService.fetchFacilities();
-    if (!mounted) return;
-
-    setState(() {
-      _facilities = result.success
-          ? result.facilities
-                .map(_DashboardFacilityItem.fromJson)
-                .take(4)
-                .toList(growable: false)
-          : const [];
-      _isLoadingFacilities = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      child: ListView(
-        cacheExtent: 700,
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-        children: [
-          _HeroCarousel(
-            firstName: widget.firstName,
-            onExploreTap: widget.onProductsTap,
-            onBookTap: widget.onFacilitiesTap,
-            onBrowseTap: widget.onProductsTap,
-          ),
-          const SizedBox(height: 20),
-          _SectionHeader(title: 'Products', onViewAll: widget.onProductsTap),
-          const SizedBox(height: 12),
-          _DashboardProductsPreview(
-            products: _products,
-            isLoading: _isLoadingProducts,
-            onViewAll: widget.onProductsTap,
-          ),
-          const SizedBox(height: 22),
-          _SectionHeader(
-            title: 'Facilities',
-            onViewAll: widget.onFacilitiesTap,
-          ),
-          const SizedBox(height: 12),
-          _DashboardFacilitiesPreview(
-            facilities: _facilities,
-            isLoading: _isLoadingFacilities,
-            onViewAll: widget.onFacilitiesTap,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DashboardProductsPreview extends StatelessWidget {
-  const _DashboardProductsPreview({
-    required this.products,
-    required this.isLoading,
-    required this.onViewAll,
-  });
-
-  final List<ProductItem> products;
-  final bool isLoading;
-  final VoidCallback onViewAll;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return const SizedBox(
-        height: 194,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (products.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return SizedBox(
-      height: 220,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: products.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 14),
-        itemBuilder: (context, index) {
-          return SizedBox(
-            width: 165,
-            child: _LargeProductCard(product: products[index]),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _DashboardFacilitiesPreview extends StatelessWidget {
-  const _DashboardFacilitiesPreview({
-    required this.facilities,
-    required this.isLoading,
-    required this.onViewAll,
-  });
-
-  final List<_DashboardFacilityItem> facilities;
-  final bool isLoading;
-  final VoidCallback onViewAll;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return const SizedBox(
-        height: 178,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (facilities.isEmpty) {
-      return Container(
-        height: 118,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: DashboardScreen.borderBlue),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.assignment_outlined,
-              color: DashboardScreen.primaryBlue,
-              size: 32,
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Available facilities will appear here.',
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            TextButton(onPressed: onViewAll, child: const Text('See All')),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: facilities
-          .take(2)
-          .map((facility) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _DashboardFacilityCard(
-                facility: facility,
-                onTap: onViewAll,
-              ),
-            );
-          })
-          .toList(growable: false),
-    );
-  }
-}
-
-class _DashboardFacilityCard extends StatelessWidget {
-  const _DashboardFacilityCard({required this.facility, required this.onTap});
-
-  final _DashboardFacilityItem facility;
-  final VoidCallback onTap;
-
-  Color get _statusColor {
-    switch (facility.status) {
-      case 'Available':
-        return const Color(0xFF10B981);
-      case 'Reserved':
-        return const Color(0xFF2563EB);
-      case 'Maintenance':
-        return const Color(0xFFDC2626);
-      default:
-        return DashboardScreen.primaryNavy;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: DashboardScreen.borderBlue),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                width: 112,
-                height: 158,
-                child: _DashboardFacilityImage(facility: facility),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: SizedBox(
-                height: 158,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      facility.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: DashboardScreen.primaryNavy,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 5,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            facility.status,
-                            style: TextStyle(
-                              color: _statusColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                        const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.star,
-                              color: DashboardScreen.campusGold,
-                              size: 16,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              '0.0 (0)',
-                              style: TextStyle(
-                                color: Color(0xFF111827),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if ((int.tryParse(facility.capacity) ?? 0) > 0) ...[
-                      _DashboardFacilityInfo(
-                        icon: Icons.groups_2_outlined,
-                        text: 'Capacity: ${facility.capacity}',
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                    _DashboardFacilityInfo(
-                      icon: Icons.local_offer_outlined,
-                      text: facility.priceLabel,
-                    ),
-                    if (facility.slots.trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      _DashboardFacilityInfo(
-                        icon: Icons.view_timeline_outlined,
-                        text: facility.slots.trim(),
-                      ),
-                    ],
-                    const Spacer(),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: SizedBox(
-                        height: 32,
-                        child: ElevatedButton(
-                          onPressed: onTap,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: DashboardScreen.primaryNavy,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                          ),
-                          child: const Text(
-                            'Book Now',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DashboardFacilityImage extends StatelessWidget {
-  const _DashboardFacilityImage({required this.facility});
-
-  final _DashboardFacilityItem facility;
-
-  @override
-  Widget build(BuildContext context) {
-    final imageUrl = facility.imageUrl.trim();
-
-    // Handle base64 data URLs
-    if (imageUrl.startsWith('data:image/')) {
-      final commaIndex = imageUrl.indexOf(',');
-      if (commaIndex != -1) {
-        try {
-          final bytes = base64.decode(imageUrl.substring(commaIndex + 1));
-          return Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _fallback,
-          );
-        } catch (_) {
-          return _fallback;
-        }
-      }
-    }
-
-    // Handle network URLs
-    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-      return Image.network(
-        imageUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _fallback,
-      );
-    }
-
-    // Handle relative paths — prepend the API base URL
-    if (imageUrl.startsWith('/')) {
-      final fullUrl = '${ApiConfig.effectiveBaseUrl}$imageUrl';
-      return Image.network(
-        fullUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _fallback,
-      );
-    }
-
-    return _fallback;
-  }
-
-  Widget get _fallback => Container(
-    color: const Color(0xFFEAF1FF),
-    child: Icon(facility.icon, color: DashboardScreen.primaryNavy, size: 38),
-  );
-}
-
-class _DashboardFacilityInfo extends StatelessWidget {
-  const _DashboardFacilityInfo({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFF475569), size: 14),
-        const SizedBox(width: 5),
-        Expanded(
-          child: Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF334155),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DashboardFacilityItem {
-  const _DashboardFacilityItem({
-    required this.name,
-    required this.status,
-    required this.capacity,
-    required this.rate,
-    required this.priceType,
-    required this.slots,
-    required this.icon,
-    required this.imageUrl,
-  });
-
-  factory _DashboardFacilityItem.fromJson(Map<String, dynamic> json) {
-    final statusKey = (json['status'] as String? ?? 'available').toLowerCase();
-    final statusLabel = switch (statusKey) {
-      'available' => 'Available',
-      'reserved' || 'occupied' => 'Reserved',
-      'maintenance' => 'Maintenance',
-      _ => 'Available',
-    };
-    final name = (json['name'] as String? ?? 'Untitled Facility').trim();
-
-    return _DashboardFacilityItem(
-      name: name.isEmpty ? 'Untitled Facility' : name,
-      status: statusLabel,
-      capacity: (json['capacity'] ?? 0).toString(),
-      rate: json['rate']?.toString() ?? '0',
-      priceType: json['price_type'] as String? ?? 'hour',
-      slots: (json['slots'] as String? ?? '').trim(),
-      icon: _iconForDashboardFacility(name),
-      imageUrl: json['image_url'] as String? ?? '',
-    );
-  }
-
-  final String name;
-  final String status;
-  final String capacity;
-  final String rate;
-  final String priceType;
-  final String slots;
-  final IconData icon;
-  final String imageUrl;
-
-  String get priceLabel {
-    if (rate.isEmpty || rate == '0') return 'Contact Admin';
-    final parsed = double.tryParse(rate);
-    final amount = parsed == null ? rate : parsed.toStringAsFixed(0);
-    return '₱$amount / $priceType';
-  }
-}
-
-IconData _iconForDashboardFacility(String value) {
-  final lower = value.toLowerCase();
-  if (lower.contains('court')) return Icons.sports_basketball_outlined;
-  if (lower.contains('hall')) return Icons.account_balance_outlined;
-  if (lower.contains('hostel') || lower.contains('dorm')) {
-    return Icons.hotel_outlined;
-  }
-  if (lower.contains('lab')) return Icons.science_outlined;
-  return Icons.assignment_outlined;
-}
-
-class _HeroCarousel extends StatefulWidget {
-  const _HeroCarousel({
-    required this.firstName,
-    required this.onExploreTap,
-    required this.onBookTap,
-    required this.onBrowseTap,
-  });
-
-  final String firstName;
-  final VoidCallback onExploreTap;
-  final VoidCallback onBookTap;
-  final VoidCallback onBrowseTap;
-
-  @override
-  State<_HeroCarousel> createState() => _HeroCarouselState();
-}
-
-class _HeroCarouselState extends State<_HeroCarousel> {
-  final PageController _controller = PageController();
-  int _index = 0;
-  Timer? _autoTimer;
-
-  List<_HeroSlideData> get _slides => [
-    _HeroSlideData(
-      title: 'Explore Campus\nServices',
-      subtitle:
-          'Book facilities, explore products, and access campus services in one platform.',
-      buttonLabel: 'Explore Now',
-    ),
-    _HeroSlideData(
-      title: 'Book Campus Facilities\nEasily',
-      subtitle:
-          'Reserve smart rooms, laboratories, covered courts, and event spaces anytime.',
-      buttonLabel: 'Book Now',
-    ),
-    _HeroSlideData(
-      title: 'Discover Products and\nCampus Services',
-      subtitle:
-          'Shop products, order meals, and connect with student services in one app.',
-      buttonLabel: 'Browse Product',
-    ),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _startAutoSwitch();
-  }
-
-  void _startAutoSwitch() {
-    _autoTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted) return;
-      final next = (_index + 1) % _slides.length;
-      _controller.animateToPage(
-        next,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _autoTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  VoidCallback _buttonAction(int index) {
-    if (index == 1) return widget.onBookTap;
-    return index == 2 ? widget.onBrowseTap : widget.onExploreTap;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final displayName = widget.firstName.trim();
-    final welcomeTitle = displayName.isEmpty
-        ? 'Welcome Back'
-        : 'Welcome Back, $displayName';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 2, right: 2, bottom: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                welcomeTitle,
-                style: const TextStyle(
-                  color: DashboardScreen.primaryNavy,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 2),
-            ],
-          ),
-        ),
-        SizedBox(
-          height: 224,
-          child: PageView.builder(
-            key: const ValueKey('home-carousel'),
-            controller: _controller,
-            itemCount: _slides.length,
-            onPageChanged: (index) => setState(() => _index = index),
-            itemBuilder: (context, index) {
-              return _HeroSlideCard(
-                slide: _slides[index],
-                onPressed: _buttonAction(index),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_slides.length, (index) {
-            final active = index == _index;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOut,
-              width: active ? 22 : 7,
-              height: 7,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                color: active
-                    ? DashboardScreen.primaryNavy
-                    : DashboardScreen.primaryNavy.withValues(alpha: 0.16),
-              ),
-            );
-          }),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeroSlideCard extends StatelessWidget {
-  const _HeroSlideCard({required this.slide, required this.onPressed});
-
-  final _HeroSlideData slide;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [
-            BoxShadow(
-              color: DashboardScreen.primaryNavy.withValues(alpha: 0.05),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                slide.title,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: DashboardScreen.primaryNavy,
-                  fontSize: 23,
-                  height: 1.16,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                slide.subtitle,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF4A5568),
-                  fontSize: 13,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const Spacer(),
-              SizedBox(
-                height: 40,
-                child: ElevatedButton(
-                  onPressed: onPressed,
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    backgroundColor: DashboardScreen.primaryNavy,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  child: Text(
-                    slide.buttonLabel,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          onCenterActionTap: isSeller ? _openAddProduct : null,
         ),
       ),
     );
@@ -1185,9 +550,11 @@ class _MarketplacePageState extends State<_MarketplacePage> {
       return _products;
     }
     return _products
-        .where((p) =>
-            p.category.trim().toLowerCase() ==
-            _selectedCategory.toLowerCase())
+        .where(
+          (p) =>
+              p.category.trim().toLowerCase() ==
+              _selectedCategory.toLowerCase(),
+        )
         .toList(growable: false);
   }
 
@@ -1224,7 +591,7 @@ class _MarketplacePageState extends State<_MarketplacePage> {
       case 'books':
         return Icons.menu_book_rounded;
       case 'home & living':
-        return Icons.home_outlined;
+        return Iconsax.home_copy;
       case 'sports':
         return Icons.sports_basketball_rounded;
       case 'others':
@@ -1342,54 +709,32 @@ class _MarketplacePageState extends State<_MarketplacePage> {
   }
 
   Future<void> _fetchApprovedProducts() async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-    }
-
-    for (final baseUrl in DashboardScreen.apiBaseUrls) {
-      try {
-        final response = await http
-            .get(
-              Uri.parse('$baseUrl/api/products/approved/'),
-              headers: const {'Accept': 'application/json'},
-            )
-            .timeout(const Duration(seconds: 5));
-
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          continue;
-        }
-
-        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-        final rows = decoded['products'] as List<dynamic>? ?? const [];
-        final products = rows
-            .whereType<Map>()
-            .map(
-              (row) => ProductItem.fromJson(
-                row.map((key, value) => MapEntry(key.toString(), value)),
-              ),
-            )
-            .toList(growable: false);
-
-        if (!mounted) return;
-        ApiConfig.recordWorkingBaseUrl(baseUrl);
-        final user = await SessionService.loadUser();
-        setState(() {
-          _products = products;
-          _isLoading = false;
-        });
-        await _fetchRecommended(user?.id);
-        return;
-      } catch (_) {}
-    }
-
     if (!mounted) return;
     setState(() {
-      _error = 'Start Django with: python manage.py runserver 0.0.0.0:8000';
-      _isLoading = false;
+      _isLoading = true;
+      _error = null;
     });
+    try {
+      final products = await ProductService.fetchApproved();
+      if (!mounted) return;
+      setState(() => _products = products);
+      // Optional recommendations must not hold the product spinner or refresh.
+      unawaited(_loadCurrentUserRecommendations());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = ProductService.connectionMessage);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadCurrentUserRecommendations() async {
+    try {
+      final user = await SessionService.loadUser();
+      if (mounted) await _fetchRecommended(user?.id);
+    } catch (_) {
+      // Keep the real catalog visible when optional recommendations fail.
+    }
   }
 
   @override
@@ -1487,7 +832,7 @@ class _MarketplacePageState extends State<_MarketplacePage> {
     }
     if (products.isEmpty) {
       return _ProductsMessageCard(
-        icon: Icons.shopping_bag_outlined,
+        icon: Iconsax.bag_2_copy,
         title: 'No products yet',
         message: emptyMessage,
         actionLabel: 'Refresh',
@@ -1596,53 +941,6 @@ class _ProductGrid extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.onViewAll});
-
-  final String title;
-  final VoidCallback onViewAll;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Flexible(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        TextButton(
-          onPressed: onViewAll,
-          style: TextButton.styleFrom(
-            foregroundColor: DashboardScreen.primaryBlue,
-            padding: EdgeInsets.zero,
-            minimumSize: const Size(70, 32),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'See All',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-              SizedBox(width: 4),
-              Icon(Icons.chevron_right, size: 20),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _LargeProductCard extends StatefulWidget {
   const _LargeProductCard({required this.product});
 
@@ -1684,12 +982,14 @@ class _LargeProductCardState extends State<_LargeProductCard> {
           id: product.id,
           userId: user?.id,
           sellerId: product.sellerId,
+          sellerRef: product.sellerRef,
           name: product.name,
           priceLabel: product.price,
           imageUrl: product.imageUrl,
           images: product.images,
           category: product.category,
           seller: product.seller,
+          sellerPhotoUrl: product.sellerPhotoUrl,
           sellerContact: product.sellerContact,
           stock: product.stock,
           description: product.description,
@@ -1698,6 +998,9 @@ class _LargeProductCardState extends State<_LargeProductCard> {
           inventoryStatusLabel: product.inventoryStatusLabel,
           isPurchasable: product.isPurchasable,
           soldCount: product.soldCount,
+          rating: product.rating,
+          reviewsCount: product.reviewsCount,
+          submittedAt: product.submittedAt,
           customization: product.customization,
         ),
       ),
@@ -1727,7 +1030,7 @@ class _LargeProductCardState extends State<_LargeProductCard> {
     return RepaintBoundary(
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: MarketplaceColors.cardSurface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: const Color(0xFFCBD5E1), width: 1.2),
           boxShadow: [
@@ -1754,7 +1057,7 @@ class _LargeProductCardState extends State<_LargeProductCard> {
                     top: Radius.circular(17),
                   ),
                   child: Container(
-                    color: const Color(0xFFF4F5F7),
+                    color: MarketplaceColors.imageSurface,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
@@ -1776,7 +1079,7 @@ class _LargeProductCardState extends State<_LargeProductCard> {
                             ),
                             decoration: BoxDecoration(
                               color: isHot
-                                  ? const Color(0xFFFCB316)
+                                  ? const Color(0xFFFCB315)
                                   : const Color(0xFF1A1851),
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -1816,9 +1119,7 @@ class _LargeProductCardState extends State<_LargeProductCard> {
                                           ? Icons.favorite
                                           : Icons.favorite_border,
                                       size: 16,
-                                      color: isFav
-                                          ? const Color(0xFFDC2626)
-                                          : const Color(0xFF64748B),
+                                      color: const Color(0xFF1A1851),
                                     ),
                                   ),
                                 ),
@@ -1919,7 +1220,7 @@ class _LargeProductCardState extends State<_LargeProductCard> {
                                               ? Icons.star_half
                                               : Icons.star_border),
                                     size: 12,
-                                    color: const Color(0xFFFCB316),
+                                    color: const Color(0xFFFCB315),
                                   ),
                                 const SizedBox(width: 3),
                                 Text(
@@ -1946,7 +1247,7 @@ class _LargeProductCardState extends State<_LargeProductCard> {
                       child: const Padding(
                         padding: EdgeInsets.all(7),
                         child: Icon(
-                          LucideIcons.shoppingBag,
+                          Iconsax.bag_2_copy,
                           color: Colors.white,
                           size: 17,
                         ),
@@ -1958,298 +1259,6 @@ class _LargeProductCardState extends State<_LargeProductCard> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _HeroSlideData {
-  const _HeroSlideData({
-    required this.title,
-    required this.subtitle,
-    required this.buttonLabel,
-  });
-
-  final String title;
-  final String subtitle;
-  final String buttonLabel;
-}
-
-class _DashboardDrawer extends StatelessWidget {
-  const _DashboardDrawer({
-    required this.currentIndex,
-    required this.onSelectTab,
-    this.onOpenMessages,
-  });
-
-  final int currentIndex;
-  final ValueChanged<int> onSelectTab;
-  final VoidCallback? onOpenMessages;
-
-  @override
-  Widget build(BuildContext context) {
-    const navy = Color(0xFF1A1851);
-    const gold = Color(0xFFFCB316);
-
-    return Drawer(
-      backgroundColor: Colors.white,
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.fromLTRB(
-              20,
-              MediaQuery.of(context).padding.top + 24,
-              20,
-              20,
-            ),
-            color: navy,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Image.asset(
-                      'assets/img/logo.png',
-                      width: 42,
-                      height: 42,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        width: 42,
-                        height: 42,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white24,
-                        ),
-                        child: const Icon(
-                          Icons.school_outlined,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    RichText(
-                      text: const TextSpan(
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: 'Campus',
-                            style: TextStyle(color: gold),
-                          ),
-                          TextSpan(
-                            text: 'Hub',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                FutureBuilder(
-                  future: SessionService.loadUser(),
-                  builder: (context, snapshot) {
-                    final user = snapshot.data;
-                    final displayName = user?.fullName.isNotEmpty == true
-                        ? user!.fullName
-                        : (user?.firstName.isNotEmpty == true
-                              ? '${user!.firstName} ${user.lastName}'.trim()
-                              : 'USTP Oroquieta');
-                    final subTitle = user?.email.isNotEmpty == true
-                        ? user!.email
-                        : (user?.role.isNotEmpty == true
-                              ? user!.role.toUpperCase()
-                              : 'Campus Marketplace & Facilities');
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                _DrawerNavTile(
-                  icon: LucideIcons.home,
-                  title: 'Home',
-                  isSelected: currentIndex == 0,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    onSelectTab(0);
-                  },
-                ),
-                _DrawerNavTile(
-                  icon: LucideIcons.shoppingBag,
-                  title: 'Marketplace',
-                  isSelected: currentIndex == 1,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    onSelectTab(1);
-                  },
-                ),
-                _DrawerNavTile(
-                  icon: LucideIcons.building2,
-                  title: 'Facilities Booking',
-                  isSelected: currentIndex == 2,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    onSelectTab(2);
-                  },
-                ),
-                _DrawerNavTile(
-                  icon: LucideIcons.messageSquare,
-                  title: 'Messages',
-                  isSelected: false,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    if (onOpenMessages != null) {
-                      onOpenMessages!();
-                    } else {
-                      onSelectTab(3);
-                    }
-                  },
-                ),
-                _DrawerNavTile(
-                  icon: LucideIcons.user,
-                  title: 'Profile & Account',
-                  isSelected: currentIndex == 3,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    onSelectTab(3);
-                  },
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Divider(color: Color(0xFFE2E8F0), height: 1),
-                ),
-                _DrawerNavTile(
-                  icon: LucideIcons.shoppingBag,
-                  title: 'My Cart',
-                  isSelected: false,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CartScreen()),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  LucideIcons.graduationCap,
-                  size: 18,
-                  color: Color(0xFF94A3B8),
-                ),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'USTP Oroquieta Campus',
-                    style: TextStyle(
-                      color: Color(0xFF94A3B8),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DrawerNavTile extends StatelessWidget {
-  const _DrawerNavTile({
-    required this.icon,
-    required this.title,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    const navy = Color(0xFF1A1851);
-    const gold = Color(0xFFFCB316);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      decoration: BoxDecoration(
-        color: isSelected ? navy.withValues(alpha: 0.08) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        leading: Icon(
-          icon,
-          color: isSelected ? navy : const Color(0xFF64748B),
-          size: 22,
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: isSelected ? navy : const Color(0xFF334155),
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-        trailing: isSelected
-            ? Container(
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: gold,
-                ),
-              )
-            : null,
-        onTap: onTap,
-        dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
       ),
     );
   }

@@ -1,0 +1,108 @@
+/* Executive summaries only; detailed Analytics and domain dashboards retain their layout. */
+.dashboard-executive { color: #1A1851; }
+.dashboard-executive .executive-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 16px; }
+.dashboard-executive .executive-welcome { flex: 1 1 280px; min-width: 0; margin: 0; font-size: clamp(20px, 2vw, 26px); font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+[data-global-dashboard] .dashboard-executive .executive-toolbar .dashboard-overview-controls { flex: 1 1 540px; min-width: 0; margin: 0; }
+.dashboard-executive [hidden] { display: none !important; }
+.dashboard-executive .executive-section { margin-block: 24px; min-width: 0; }
+.dashboard-executive .dashboard-section-heading { gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.dashboard-executive .dash-card { min-width: 0; min-height: 0; border: 1px solid rgba(26,24,81,.14); background: #fff; box-shadow: none; padding: 16px; border-radius: 8px; }
+.dashboard-executive .dash-card h2 { font-size: 14px; font-weight: 600; }
+.dashboard-executive .dashboard-summary-layout { margin-bottom: 0; }
+[data-global-dashboard] .dashboard-executive .dashboard-summary-left .dashboard-attention { margin: 16px 0 0; }
+.dashboard-executive .dashboard-summary-layout + .executive-section { margin-top: 16px; }
+.dashboard-executive .dashboard-attention { margin-bottom: 20px; }
+.dashboard-executive .dashboard-attention .dashboard-section-heading { margin-bottom: 8px; }
+[data-global-dashboard] .dashboard-executive .dashboard-attention-body { padding: 4px 12px; }
+[data-global-dashboard] .dashboard-executive .dashboard-attention-list { display: grid; grid-template-columns: minmax(0,1fr); gap: 0; }
+[data-global-dashboard] .dashboard-executive .dashboard-attention-row { min-height: 40px; gap: 8px; padding-block: 2px; }
+[data-global-dashboard] .dashboard-executive .dashboard-attention-label { font-size: 12px; }
+.dashboard-executive .dashboard-summary-aside { gap: 12px; }
+.dashboard-executive .dashboard-summary-aside .bundle-dss { padding: 12px; }
+.dashboard-executive .dashboard-summary-aside .bundle-panel-heading { margin-bottom: 8px; }
+.dashboard-executive .executive-sales-grid { align-items: start; }
+#dashboardSystemStatus.dashboard-system-inline { container: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; min-height: 0; }
+#dashboardSystemStatus.dashboard-system-inline .dashboard-service-list { display: flex; flex-wrap: wrap; gap: 6px 20px; padding: 0; margin: 0; background: transparent; }
+#dashboardSystemStatus.dashboard-system-inline .dashboard-service-item { display: block; padding: 0; border: 0; min-height: 0; }
+#dashboardSystemStatus.dashboard-system-inline .dashboard-service-header { display: inline-flex; gap: 5px; }
+#dashboardSystemStatus.dashboard-system-inline h3 { font-size: 11px; font-weight: 400; }
+#dashboardSystemStatus.dashboard-system-inline h3::after { content: ':'; }
+#dashboardSystemStatus.dashboard-system-inline .dashboard-service-state { font-size: 11px; font-weight: 600; }
+#dashboardSystemStatus.dashboard-system-inline .dashboard-service-state::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; }
+#dashboardSystemStatus.dashboard-system-inline :is(.dashboard-service-icon-wrap, .dashboard-service-content, .dashboard-service-footer, .dashboard-system-checking) { display: none !important; }
+.dashboard-header[data-inline-system-status] { display: grid; grid-template-columns: minmax(0,1fr) auto; height: auto; min-height: 64px; padding-block: 10px; gap: 8px 16px; }
+.dashboard-header[data-inline-system-status] .header-left { min-width: 0; grid-column: 1; grid-row: 1; }
+.dashboard-header[data-inline-system-status] .header-right { grid-column: 2; grid-row: 1; }
+.dashboard-header[data-inline-system-status] .header-system-status { min-width: 0; grid-column: 1 / -1; grid-row: 2; }
+@media (min-width: 1100px) {
+ .dashboard-header[data-inline-system-status] { grid-template-columns: minmax(120px,1fr) auto auto; }
+ .dashboard-header[data-inline-system-status] .header-system-status { grid-column: 2; grid-row: 1; }
+ .dashboard-header[data-inline-system-status] .header-right { grid-column: 3; }
+}
+.executive-product-stack { display: grid; gap: 16px; min-width: 0; }
+.dashboard-executive .executive-product-stack .dashboard-marketplace-operations { margin: 0; }
+.dashboard-executive #dashboardSystemStatus { padding: 0; }
+.dashboard-executive #dashboardSystemStatus .dashboard-service-item { padding: 12px 16px; gap: 6px; }
+.executive-sales-grid { display: grid; grid-template-columns: minmax(0,2fr) minmax(280px,1fr); gap: 16px; align-items: stretch; }
+.dashboard-executive .executive-sales-grid .sales-overview { padding: 16px; }
+.dashboard-executive .sales-overview__header { margin-bottom: 12px; }
+.dashboard-executive .sales-overview__metric { min-height: 82px; padding: 12px; }
+.dashboard-executive .sales-overview__metrics { gap: 10px; }
+.dashboard-executive .sales-overview__metric-content strong { font-size: 22px; }
+.dashboard-executive .sales-overview__metric-content p { font-size: 11px; }
+.dashboard-executive .sales-overview__metric-content > p:not(.dashboard-comparison) { color: #626781; }
+.dashboard-executive .sales-overview__trend { margin-top: 16px; padding-top: 12px; }
+.dashboard-executive .sales-overview__canvas { flex: none; height: 155px; min-height: 155px; }
+.dashboard-executive .sales-overview__canvas canvas { height: 100% !important; max-height: 100%; }
+.dashboard-executive :is(.sales-overview__metric-symbol, .marketplace-card-symbol, .booking-overview__metric-icon) { background: rgba(26,24,81,.05); color: #1A1851; }
+.dashboard-executive .marketplace-card-empty { min-height: 90px; }
+.dashboard-executive .dashboard-top-selling { padding: 16px; }
+.dashboard-executive .marketplace-product-list { max-height: 210px; overflow-y: auto; }
+.dashboard-executive .marketplace-product-list li { min-height: 48px; padding-block: 6px; }
+.executive-pair-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; min-width: 0; }
+.executive-recommendations, .executive-orders, .executive-facility-lists { margin-top: 16px; }
+.dashboard-executive .bundle-dss { padding: 16px; }
+.dashboard-executive .bundle-empty { padding: 8px 0; }
+.dashboard-executive .bundle-panel-heading { margin-bottom: 10px; }
+.dashboard-executive .bundle-pair-list { gap: 10px; }
+.dashboard-executive .bundle-pair { padding-bottom: 10px; }
+.dashboard-executive .recent-orders-table td { padding-block: 8px; }
+.dashboard-executive .booking-overview__metrics { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.dashboard-executive .booking-overview__metric { padding: 12px; min-height: 82px; }
+.dashboard-executive .booking-overview__trend { margin-top: 12px; }
+.dashboard-executive .facility-booking-chart-wrap { height: 150px; }
+.dashboard-executive .booking-overview__legend [data-booking-swatch="completed"] { background: rgba(26,24,81,.5); }
+.dashboard-executive .booking-overview__legend [data-booking-swatch="rejected_cancelled"] { background: rgba(26,24,81,.2); border-color: rgba(26,24,81,.2); }
+.dashboard-executive [data-most-booked-facilities], .dashboard-executive [data-upcoming-reservations] { min-height: 0; }
+.dashboard-executive [data-facility-ranking-empty], .dashboard-executive [data-upcoming-empty] { min-height: 60px; padding-block: 12px; }
+.dashboard-executive .upcoming-reservations-list { max-height: 210px; }
+.executive-service-kpis { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.executive-service-kpis .dash-card { display: grid; gap: 8px; }
+.executive-service-kpis span { font-size: 12px; font-weight: 600; }
+.executive-service-kpis strong { font-size: 24px; line-height: 1.2; }
+.executive-period-note { margin: 8px 0 12px; font-size: 11px; }
+.executive-operational-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.executive-operational-grid > div { min-width: 0; margin: 0 !important; }
+.dashboard-executive .executive-operational-grid .dash-card-header { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.executive-list { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+.executive-list li { display: grid; gap: 4px; padding-block: 8px; overflow-wrap: anywhere; line-height: 1.5; }
+.executive-list li + li { border-top: 1px solid rgba(26,24,81,.1); }
+.executive-list a { color: #1A1851; font-weight: 600; }
+.executive-empty { padding-block: 16px !important; }
+.executive-section-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+.executive-activity-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.executive-activity-table th, .executive-activity-table td { padding: 10px 8px; text-align: left; overflow-wrap: anywhere; vertical-align: top; }
+.executive-activity-table th { font-weight: 600; border-bottom: 1px solid rgba(26,24,81,.16); }
+.executive-activity-table td { border-bottom: 1px solid rgba(26,24,81,.08); }
+.executive-activity-table th:nth-child(3) { width: 35%; }
+.dashboard-executive a:focus-visible, .dashboard-executive button:focus-visible { outline: 2px solid #1A1851; outline-offset: 3px; }
+@media (max-width: 1199px) {
+ .executive-sales-grid { grid-template-columns: minmax(0,1fr); }
+ .executive-operational-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 767px) {
+ .executive-pair-grid, .executive-operational-grid { grid-template-columns: minmax(0,1fr); }
+ .executive-service-kpis, .dashboard-executive .booking-overview__metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .dashboard-executive .dash-card { padding: 12px; }
+ .executive-activity-table th, .executive-activity-table td { padding: 8px 4px; font-size: 12px; }
+}

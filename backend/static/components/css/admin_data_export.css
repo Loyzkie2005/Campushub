@@ -1,6 +1,6 @@
 :root {
     --export-navy: #1a1851;
-    --export-gold: #fcb316;
+    --export-gold: #fcb315;
     --export-white: #ffffff;
     --export-page: #f8fafc;
     --export-border: #dbe2ea;
@@ -213,6 +213,7 @@
 }
 
 @media (max-width: 820px) {
+
     .export-fields,
     .export-counts {
         grid-template-columns: 1fr 1fr;

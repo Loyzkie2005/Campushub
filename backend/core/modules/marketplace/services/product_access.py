@@ -10,6 +10,9 @@ def user_can_administer_products(user) -> bool:
         user.is_superuser
         or user.has_perm("accounts.can_manage_products")
         or user.has_perm("accounts.can_approve_products")
+        or user.has_perm("accounts.can_view_products")
+        or user.has_perm("accounts.can_view_inventory")
+        or user.has_perm("accounts.can_view_stock_movements")
     )
 
 
@@ -17,13 +20,14 @@ def admin_product_queryset(user):
     """Return the shared marketplace dataset to authorized administrators."""
     if not user_can_administer_products(user):
         return Product.objects.none()
-    return Product.objects.all()
+    from accounts.academic import scope_products
+    return scope_products(Product.objects.all(), user)
 
 
 def image_visible_product_queryset(user):
     """Expose all images to product admins and approved listing images publicly."""
     if user_can_administer_products(user):
-        return Product.objects.all()
+        return admin_product_queryset(user)
     return Product.objects.filter(
         approval_status=Product.STATUS_APPROVED,
         is_archived=False,

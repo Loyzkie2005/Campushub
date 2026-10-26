@@ -44,7 +44,13 @@ function parseProductImages(rawImages, fallbackUrl) {
 
 function productGalleryImageSrc(productId, index) {
     if (productId) {
-        return `/api/products/${productId}/image/?index=${index}`;
+        const path = `/api/products/${encodeURIComponent(productId)}/image/?index=${encodeURIComponent(index)}`;
+        const session = window.CampusHubAdminSession;
+        if (session?.urlWithToken) return session.urlWithToken(path);
+        // An img cannot use the tab-auth fetch header; authorize only this
+        // same-origin image endpoint through the established tab query token.
+        const token = new URLSearchParams(window.location.search).get('__at');
+        return token ? `${path}&__at=${encodeURIComponent(token)}` : path;
     }
     return '';
 }
@@ -61,7 +67,7 @@ function resolveProductGalleryUrls(productId, rawImages, fallbackUrl) {
 async function fetchProductByIdFromServer(productId) {
     if (!productId) return null;
     try {
-        const response = await fetch('/api/marketplace/products/', {
+        const response = await fetch(`/api/marketplace/products/?product_id=${encodeURIComponent(productId)}`, {
             credentials: 'same-origin',
             headers: { Accept: 'application/json' },
         });
@@ -208,6 +214,18 @@ document.addEventListener('DOMContentLoaded', function () {
     let pendingProductDecision = '';
     const tableImageCycles = new WeakMap();
 
+    function setProductImageFallback(image, failed) {
+        image.hidden = failed;
+        const fallback = image.parentElement?.querySelector('.product-table-image-empty');
+        if (fallback) fallback.hidden = !failed;
+    }
+    productsTableBody?.addEventListener('error', (event) => {
+        if (event.target.matches?.('img.product-table-image')) setProductImageFallback(event.target, true);
+    }, true);
+    productsTableBody?.addEventListener('load', (event) => {
+        if (event.target.matches?.('img.product-table-image')) setProductImageFallback(event.target, false);
+    }, true);
+
     function stopProductTableImageCycle(row) {
         const state = tableImageCycles.get(row);
         if (!state) return;
@@ -226,6 +244,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!img || !cell) return;
 
         const urls = getRowVariantGalleryUrls(row);
+        img.referrerPolicy = 'no-referrer';
+        if (urls[0] && img.getAttribute('src') !== urls[0]) img.src = urls[0];
+        if (img.complete && !img.naturalWidth) setProductImageFallback(img, true);
         if (urls.length <= 1) return;
 
         const productName = cell.querySelector('strong')?.textContent?.trim() || img.alt || 'Product';
@@ -318,7 +339,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return formatIsoDate(date);
     }
 
-    function computeInventoryStatus(stockValue, expiryValue, category) {
+    function computeInventoryStatus(stockValue, expiryValue, category, threshold = LOW_STOCK_THRESHOLD) {
         const stock = Number.isFinite(stockValue) ? stockValue : parseInt(String(stockValue || '0'), 10) || 0;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -330,7 +351,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
         if (stock <= 0) return 'out_of_stock';
-        if (stock <= LOW_STOCK_THRESHOLD) return 'low_stock';
+        if (stock <= threshold) return 'low_stock';
         if (isPerishableCategory(category) && expiryValue) {
             const expiry = new Date(`${expiryValue}T00:00:00`);
             if (!Number.isNaN(expiry.getTime())) {
@@ -345,9 +366,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const items = [];
         (groups || []).forEach((group) => {
             (group.options || []).forEach((opt) => {
+                if (!opt || typeof opt !== 'object' || !('stock' in opt)) return;
                 items.push({
                     stock: parseInt(opt.stock, 10) || 0,
                     expiry_date: opt.expiry_date || '',
+                    low_stock_threshold: opt.low_stock_threshold ?? LOW_STOCK_THRESHOLD,
                 });
             });
         });
@@ -365,14 +388,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!items.length) return 'in_stock';
 
         const statuses = items.map((item) =>
-            computeInventoryStatus(item.stock, item.expiry_date, category)
+            computeInventoryStatus(item.stock, item.expiry_date, category, item.low_stock_threshold)
         );
         const stocks = items.map((item) => item.stock);
 
         if (stocks.every((stock) => stock <= 0)) return 'out_of_stock';
 
         if (stocks.some((stock) => stock <= 0) && stocks.some((stock) => stock > 0)) {
-            const worst = worstInventoryStatus(statuses);
+            const worst = worstInventoryStatus(statuses.filter((status, index) => stocks[index] > 0));
             if (['in_stock', 'low_stock', 'expiring_soon'].includes(worst)) {
                 return 'partially_available';
             }
@@ -417,7 +440,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 category
             );
         }
-        return computeInventoryStatus(product.stock, product.expiry_date, category);
+        return computeInventoryStatus(product.stock, product.expiry_date, category, product.low_stock_threshold ?? LOW_STOCK_THRESHOLD);
     }
 
     function deriveStockFromCustomization(customizationData, fallbackStock) {
@@ -441,23 +464,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function computeTotalStock(product = {}) {
         const options = product.customization_options || [];
-        if (product.customization_enabled && hasCustomizationOptions(product)) {
-            if (customizationHasStockTracking(options)) {
-                const items = flattenCustomizationInventory(options);
-                return items.reduce((sum, item) => sum + (parseInt(item.stock, 10) || 0), 0);
-            }
-            const productStock = parseInt(product.stock, 10) || 0;
-            if (productStock > 0) return productStock;
-            return options.reduce(
-                (count, group) => count + (group?.options || []).filter((opt) => opt && typeof opt === 'object').length,
-                0
-            );
+        if (customizationHasStockTracking(options)) {
+            const items = flattenCustomizationInventory(options);
+            return items.reduce((sum, item) => sum + Math.max(0, parseInt(item.stock, 10) || 0), 0);
         }
-        const items = flattenCustomizationInventory(options);
-        if (items.length) {
-            return items.reduce((sum, item) => sum + (parseInt(item.stock, 10) || 0), 0);
-        }
-        return parseInt(product.stock, 10) || 0;
+        // Options without tracked stock do not create available units.
+        return Math.max(0, parseInt(product.stock, 10) || 0);
     }
 
     function inventoryStatusLabel(status) {
@@ -470,6 +482,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function countProductVariants(product = {}) {
+        if (hasVariantInventory(product)) return flattenCustomizationInventory(product.customization_options).length;
         const serverCount = parseInt(product.variant_count, 10);
         if (Number.isFinite(serverCount) && serverCount >= 0) return serverCount;
         return flattenCustomizationInventory(product.customization_options || []).length;
@@ -517,19 +530,32 @@ document.addEventListener('DOMContentLoaded', function () {
         return `<span class="inventory-pill inventory-${escapeHtml(s)}">${escapeHtml(label)}</span>`;
     }
 
-    function renderInventorySummary(status, totalStock, variantCount) {
-        const safeStock = Math.max(0, parseInt(totalStock, 10) || 0);
-        let secondary = '';
-        if (status === 'out_of_stock' || safeStock === 0) {
-            secondary = '<span class="inventory-warning out-of-stock"><svg class="warning-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>Out of Stock</span>';
-        } else if (status === 'low_stock' || safeStock <= 5) {
-            secondary = '<span class="inventory-warning low-stock"><svg class="warning-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>Low Stock</span>';
-        } else if (variantCount > 0) {
-            secondary = `<span class="inventory-variant-sub">${variantCount} variant${variantCount === 1 ? '' : 's'}</span>`;
+    function computeProductQuantityStatus(product) {
+        const stock = computeTotalStock(product);
+        if (stock <= 0) return 'out_of_stock';
+        if (product.product_type === 'bundle') return 'in_stock';
+        if (hasVariantInventory(product)) {
+            return flattenCustomizationInventory(product.customization_options).some(item =>
+                item.stock > 0 && item.stock <= item.low_stock_threshold) ? 'low_stock' : 'in_stock';
         }
+        return computeInventoryStatus(stock, '', '', product.low_stock_threshold ?? LOW_STOCK_THRESHOLD);
+    }
+
+    function renderInventorySummary(totalStock, variantCount, product = {}) {
+        const safeStock = Math.max(0, parseInt(totalStock, 10) || 0);
+        if (product.product_type === 'bundle') return `<div class="inventory-summary-clean"><span class="inventory-number">${safeStock} bundle${safeStock === 1 ? '' : 's'} available</span><span class="inventory-threshold">Derived from components</span></div>`;
+        // Use the parent quantity, not approval or the worst individual variant.
+        const quantityState = computeProductQuantityStatus({ ...product, stock: safeStock });
+        const secondary = [];
+        const variants = Math.max(0, parseInt(variantCount, 10) || 0);
+        if (variants > 0) secondary.push(`<span class="inventory-variant-sub">${variants} variant${variants === 1 ? '' : 's'}</span>`);
+        const lowVariants = hasVariantInventory(product) ? flattenCustomizationInventory(product.customization_options).filter(item => item.stock > 0 && item.stock <= item.low_stock_threshold).length : 0;
+        if (quantityState === 'low_stock') secondary.push(`<span class="inventory-warning low-stock"><span class="inventory-warning-dot" aria-hidden="true"></span>${lowVariants ? `${lowVariants} variant${lowVariants === 1 ? '' : 's'} Low Stock` : 'Low Stock'}</span>`);
+        else if (quantityState === 'out_of_stock') secondary.push('<span class="inventory-warning out-of-stock"><span class="inventory-warning-dot" aria-hidden="true"></span>Out of Stock</span>');
         return `<div class="inventory-summary-clean">
-            <span class="inventory-number">${safeStock} pcs</span>
-            ${secondary}
+            <span class="inventory-number">${safeStock} ${safeStock === 1 ? 'pc' : 'pcs'}</span>
+            ${hasVariantInventory(product) ? '' : `<span class="inventory-threshold">Threshold: ${escapeHtml(String(product.low_stock_threshold ?? LOW_STOCK_THRESHOLD))}</span>`}
+            ${secondary.length ? `<span class="inventory-secondary${variants ? ' inventory-secondary--variants' : ''}">${secondary.join(variants ? '' : '<span aria-hidden="true">&middot;</span>')}</span>` : ''}
         </div>`;
     }
 
@@ -963,8 +989,9 @@ document.addEventListener('DOMContentLoaded', function () {
         input.dataset.bound = '1';
         input.addEventListener('change', () => {
             const file = input.files && input.files[0];
-            if (!file) return;
+            if (!file || !validProductImageFile(file)) { input.value = ''; return; }
             const reader = new FileReader();
+            reader.onerror = () => showProductSaveToast('Unable to read variant image. Please choose it again.', 'error');
             reader.onload = (e) => setOptionRowImage(row, e.target.result);
             reader.readAsDataURL(file);
         });
@@ -988,7 +1015,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!groupsRoot) return;
         const list = Array.isArray(images) ? images.filter(Boolean) : [];
         const rows = Array.from(groupsRoot.querySelectorAll('.customization-option-row'));
+        if (list.length !== rows.length) return; // A sparse gallery cannot identify a missing option image.
         rows.forEach((row, index) => {
+            if (row.dataset.imageManaged === '1' || row.dataset.optionImage) return;
             setOptionRowImage(row, list[index] || '');
         });
     }
@@ -1010,28 +1039,50 @@ document.addEventListener('DOMContentLoaded', function () {
         const optionTemplate = document.getElementById('variantOptionTemplate');
         const defaultOptions = [
             { name: '', stock: '0', extra_price: '0' },
-            { name: '', stock: '0', extra_price: '0' },
-            { name: '', stock: '0', extra_price: '0' },
         ];
         const options = Array.isArray(group.options) && group.options.length
             ? group.options
             : defaultOptions;
         options.forEach((option) => {
             const row = optionTemplate.content.firstElementChild.cloneNode(true);
+            row.dataset.existingOption = option.name ? '1' : '0';
+            row.dataset.imageManaged = Object.prototype.hasOwnProperty.call(option, 'image') ? '1' : '0';
             const nameField = row.querySelector('.customization-option-name');
             const stockField = row.querySelector('.customization-option-stock');
+            const thresholdField = row.querySelector('.customization-option-threshold');
             const expiryField = row.querySelector('.customization-option-expiry');
             const priceField = row.querySelector('.customization-option-price');
             if (nameField && option.name) nameField.value = option.name;
-            if (stockField) stockField.value = option.stock ?? '0';
+            if (stockField) stockField.value = option.name && option.stock == null ? '' : (option.stock ?? '0');
+            if (thresholdField) thresholdField.value = option.low_stock_threshold ?? LOW_STOCK_THRESHOLD;
             if (expiryField && option.expiry_date) expiryField.value = option.expiry_date;
-            if (priceField) priceField.value = option.extra_price ?? '0';
+            row.dataset.priceOffset = option.extra_price ?? '0';
+            if (priceField) priceField.value = (Number(document.getElementById('productPrice')?.value || 0) + Number(option.extra_price || 0)).toFixed(2);
             setOptionRowImage(row, option.image || '');
+            updateVariantState(row);
             bindOptionImageInput(row);
             optionsList.appendChild(row);
         });
 
         return wrap;
+    }
+
+    function updateVariantState(row) {
+        const stockField = row.querySelector('.customization-option-stock');
+        const thresholdField = row.querySelector('.customization-option-threshold');
+        const stock = stockField?.value;
+        const threshold = thresholdField?.value;
+        const stateEl = row.querySelector('.customization-option-state');
+        if (!stateEl) return;
+        const initial = !editingProductId || row.dataset.existingOption !== '1';
+        const ready = Boolean(row.querySelector('.customization-option-name')?.value.trim())
+            && stock !== '' && threshold !== '' && stockField?.validity.valid && thresholdField?.validity.valid
+            && Number.isInteger(Number(stock)) && Number(stock) >= 0 && Number(stock) <= 2147483647
+            && Number.isInteger(Number(threshold)) && Number(threshold) >= 0 && Number(threshold) <= 2147483647
+            && (!initial || Number(threshold) < Number(stock) || (Number(stock) === 0 && Number(threshold) === 0));
+        const state = ready ? computeInventoryStatus(stock, '', '', Number(threshold)) : '';
+        stateEl.textContent = state ? ({ in_stock: 'In Stock', low_stock: 'Low Stock', out_of_stock: 'Out of Stock' }[state] || '') : 'Enter valid option details';
+        stateEl.className = `customization-option-state pd-inventory-state pd-inventory-state--${state}`;
     }
 
     function renumberVariationGroups() {
@@ -1047,16 +1098,92 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleStockExpiryFields() {
         const groupsRoot = document.getElementById('productCustomizationGroups');
         const hasVariants = groupsRoot && groupsRoot.querySelectorAll('.customization-group').length > 0;
+        const priceLabel = document.getElementById('productPriceLabel');
+        if (priceLabel) priceLabel.innerHTML = `${hasVariants ? 'Base Price' : 'Price'} (₱) <span class="required-asterisk">*</span>`;
+        const isBundle = document.getElementById('productTypeBundle')?.checked;
+        const priceHelper = document.getElementById('variantPriceHelper');
+        if (priceHelper) priceHelper.hidden = !hasVariants || isBundle;
         const stockWrap = document.getElementById('productStockFieldWrap');
+        const thresholdWrap = document.getElementById('productThresholdFieldWrap');
         const expiryWrap = document.getElementById('productExpiryFieldWrap');
-        if (stockWrap) stockWrap.style.display = hasVariants ? 'none' : '';
-        if (expiryWrap) expiryWrap.style.display = hasVariants ? 'none' : '';
+        if (stockWrap) stockWrap.style.display = hasVariants || isBundle ? 'none' : '';
+        if (thresholdWrap) thresholdWrap.style.display = hasVariants || isBundle ? 'none' : '';
+        const stockInput = document.getElementById('productStock');
+        const thresholdInput = document.getElementById('productLowStockThreshold');
+        [stockInput, thresholdInput].forEach(input => {
+            if (input) {
+                input.required = !hasVariants && !isBundle;
+                input.disabled = Boolean(hasVariants || isBundle);
+            }
+        });
+        if (expiryWrap) expiryWrap.style.display = hasVariants || isBundle ? 'none' : '';
+        window.CampusHubBundles?.syncType();
         // Product Images (section 1) always stays visible
         const imagesSection = document.getElementById('productImagesSection');
         if (imagesSection) imagesSection.style.display = '';
         const topRow = document.querySelector('.create-product-row-top');
         if (topRow) topRow.classList.remove('has-variants-only');
     }
+
+    function validateThresholdForm(customizationData) {
+        const groups = document.getElementById('productCustomizationGroups');
+        const rows = [...(groups?.querySelectorAll('.customization-option-row') || [])];
+        const hasGroups = Boolean(groups?.querySelector('.customization-group'));
+        if (hasGroups && !customizationData.customization_enabled) {
+            showProductSaveToast('Enter a variation group name and at least one option, or remove the empty group.', 'error');
+            return false;
+        }
+        const inputs = hasGroups ? rows.filter(row => row.querySelector('.customization-option-name')?.value.trim()).map(row => ({
+            stock: row.querySelector('.customization-option-stock'),
+            threshold: row.querySelector('.customization-option-threshold'),
+            initial: !editingProductId || row.dataset.existingOption !== '1',
+        })) : [{ stock: document.getElementById('productStock'),
+                 threshold: document.getElementById('productLowStockThreshold'), initial: !editingProductId }];
+        for (const { stock, threshold, initial } of inputs) {
+            stock.required = true;
+            threshold.setCustomValidity('');
+            if (!stock.reportValidity() || !threshold.reportValidity()) return false;
+            const stockValue = Number(stock.value), thresholdValue = Number(threshold.value);
+            if (!Number.isInteger(thresholdValue) || thresholdValue < 0) {
+                threshold.setCustomValidity('Low Stock Threshold must be a whole number of 0 or greater.');
+            } else if (initial && thresholdValue >= stockValue && !(stockValue === 0 && thresholdValue === 0)) {
+                threshold.setCustomValidity('Low Stock Threshold must be lower than the initial stock quantity.');
+            }
+            if (!threshold.checkValidity()) {
+                document.getElementById('productThresholdError').textContent = threshold.validationMessage;
+                threshold.reportValidity();
+                return false;
+            }
+        }
+        for (const row of rows.filter(row => row.querySelector('.customization-option-name')?.value.trim())) {
+            const price = row.querySelector('.customization-option-price');
+            price.setCustomValidity(Number(price.value) < Number(document.getElementById('productPrice').value || 0) ? 'Variant Price must be at least the base price. Set the base price to the lowest variant price.' : '');
+            if (!price.reportValidity()) return false;
+        }
+        document.getElementById('productThresholdError').textContent = '';
+        return true;
+    }
+
+    document.addEventListener('input', event => {
+        if (event.target.matches('#productStock, #productLowStockThreshold, .customization-option-stock, .customization-option-threshold')) {
+            document.querySelectorAll('#productLowStockThreshold, .customization-option-threshold').forEach(input => input.setCustomValidity(''));
+            document.getElementById('productThresholdError').textContent = '';
+        }
+        const row = event.target.closest('.customization-option-row');
+        if (row) {
+            updateVariantState(row);
+            if (event.target.matches('.customization-option-price')) {
+                event.target.setCustomValidity('');
+                row.dataset.priceOffset = String(Number(event.target.value) - Number(document.getElementById('productPrice').value || 0));
+            }
+        }
+        if (event.target.id === 'productPrice') document.querySelectorAll('.customization-option-row').forEach(row => {
+            const price = row.querySelector('.customization-option-price');
+            price.value = (Number(event.target.value || 0) + Number(row.dataset.priceOffset || 0)).toFixed(2);
+            price.setCustomValidity('');
+        });
+    });
+    document.querySelectorAll('input[name="productType"]').forEach(input => input.addEventListener('change', toggleStockExpiryFields));
 
     function updateCustomizationPanelVisibility() {
         syncCategoryFields();
@@ -1077,10 +1204,11 @@ document.addEventListener('DOMContentLoaded', function () {
             groupEl.querySelectorAll('.customization-option-row').forEach((row) => {
                 const optionName = row.querySelector('.customization-option-name')?.value.trim() || '';
                 const optionStock = row.querySelector('.customization-option-stock')?.value || '0';
+                const optionThreshold = row.querySelector('.customization-option-threshold')?.value;
                 const optionExpiry = row.querySelector('.customization-option-expiry')?.value || '';
-                const extraPrice = row.querySelector('.customization-option-price')?.value || '0';
+                const extraPrice = (Number(row.querySelector('.customization-option-price')?.value || 0) - Number(document.getElementById('productPrice').value || 0)).toFixed(2);
                 if (optionName) {
-                    options.push({ name: optionName, stock: optionStock, expiry_date: optionExpiry, extra_price: extraPrice });
+                    options.push({ name: optionName, stock: optionStock, low_stock_threshold: optionThreshold, expiry_date: optionExpiry, extra_price: extraPrice, image: row.dataset.optionImage || '' });
                 }
             });
             if (name && options.length) {
@@ -1132,8 +1260,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 selection: 'single',
                 options: [
                     { name: '', stock: '0', extra_price: '0' },
-                    { name: '', stock: '0', extra_price: '0' },
-                    { name: '', stock: '0', extra_price: '0' },
                 ],
             });
             renumberVariationGroups();
@@ -1147,6 +1273,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (addOptionBtn) {
                 const optionTemplate = document.getElementById('variantOptionTemplate');
                 const row = optionTemplate.content.firstElementChild.cloneNode(true);
+                row.dataset.priceOffset = '0';
+                row.querySelector('.customization-option-price').value = Number(document.getElementById('productPrice')?.value || 0).toFixed(2);
+                updateVariantState(row);
                 bindOptionImageInput(row);
                 addOptionBtn.closest('.customization-group')
                     ?.querySelector('.customization-options-list')
@@ -1186,13 +1315,26 @@ document.addEventListener('DOMContentLoaded', function () {
             const removeBtn = slotEl.querySelector('.product-image-slot-remove');
             const processingEl = slotEl.querySelector('.product-image-slot-processing');
             const data = productImageSlots[index];
+            slotEl.setAttribute('aria-busy', String(Boolean(data?.isProcessing)));
+            slotEl.setAttribute('role', data ? 'group' : 'button');
+            slotEl.tabIndex = data ? -1 : 0;
+            let primary = slotEl.querySelector('.product-image-primary');
+            if (!primary) {
+                primary = document.createElement('button'); primary.type = 'button'; primary.className = 'product-image-primary'; slotEl.append(primary);
+            }
+            primary.hidden = !data?.src || Boolean(data?.isProcessing);
+            const isPrimary = index === productImageSlots.findIndex(item => item?.src);
+            primary.disabled = isPrimary || productImageSlots.some(item => item?.isProcessing);
+            primary.textContent = isPrimary ? 'Primary' : 'Make primary';
+            if (previewEl) previewEl.alt = `Product image ${index + 1}`;
+
             if (data?.isProcessing) {
                 slotEl.classList.add('is-processing');
                 slotEl.classList.remove('is-filled');
                 if (processingEl) processingEl.hidden = false;
                 if (emptyEl) emptyEl.hidden = true;
                 if (previewEl) previewEl.hidden = true;
-                if (removeBtn) removeBtn.hidden = true;
+                if (removeBtn) removeBtn.hidden = false;
             } else if (data?.src) {
                 slotEl.classList.remove('is-processing');
                 slotEl.classList.add('is-filled');
@@ -1395,8 +1537,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function requestServerAiBgRemoval(dataUrl) {
+        const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 20000);
         try {
             const response = await fetch('/api/products/remove-bg/', {
+                signal: controller.signal,
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1414,6 +1558,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (err) {
             console.warn('Server AI background removal error, falling back:', err);
         }
+        finally { clearTimeout(timer); }
         return null;
     }
 
@@ -1427,51 +1572,55 @@ document.addEventListener('DOMContentLoaded', function () {
             if (aiResult) {
                 callback(aiResult);
             } else {
-                removeImageBackground(rawSource, callback);
+                showProductSaveToast('Auto Remove BG is unavailable. The original image was kept.', 'error');
+                callback(rawSource);
             }
         });
     }
 
-    function addProductImageFileToSlot(file, slotIndex) {
-        if (!file || slotIndex < 0 || slotIndex >= PRODUCT_IMAGE_SLOT_MAX) return;
-        productImageSlots[slotIndex] = { src: '', file, isProcessing: true };
-        renderProductImageSlots();
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            processUploadedImageSource(e.target.result, (processedSrc) => {
-                productImageSlots[slotIndex] = { src: processedSrc, file, isProcessing: false };
-                renderProductImageSlots();
-            });
-        };
-        reader.readAsDataURL(file);
+    function validProductImageFile(file) {
+        if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) {
+            showProductSaveToast('Choose JPEG, PNG, WebP or GIF images, up to 5 MB each.', 'error');
+            return false;
+        }
+        return true;
     }
-
-    function addProductImageFiles(files) {
-        if (!files || !files.length) return;
-        const fileList = Array.from(files);
-        let added = 0;
-        let overflow = false;
-        fileList.forEach((file) => {
-            const emptyIndex = productImageSlots.findIndex((slot) => !slot || (!slot.src && !slot.isProcessing));
-            if (emptyIndex === -1) {
-                overflow = true;
-                return;
-            }
-            productImageSlots[emptyIndex] = { src: '', file, isProcessing: true };
+    function addProductImageFileToSlot(file, slotIndex) {
+        if (!file || slotIndex < 0 || slotIndex >= PRODUCT_IMAGE_SLOT_MAX || !validProductImageFile(file)) return;
+        const previous = productImageSlots[slotIndex];
+        const slot = { src: '', file, isProcessing: true };
+        productImageSlots[slotIndex] = slot;
+        renderProductImageSlots();
+        const failed = () => {
+            if (productImageSlots[slotIndex] !== slot) return;
+            productImageSlots[slotIndex] = previous;
             renderProductImageSlots();
-            const slotIndex = emptyIndex;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                processUploadedImageSource(e.target.result, (processedSrc) => {
-                    productImageSlots[slotIndex] = { src: processedSrc, file, isProcessing: false };
+            showProductSaveToast('Unable to read this image. Choose a supported image smaller than 20 megapixels.', 'error');
+        };
+        const reader = new FileReader();
+        reader.onerror = failed;
+        reader.onload = event => {
+            const image = new Image();
+            image.onerror = failed;
+            image.onload = () => {
+                if (image.naturalWidth * image.naturalHeight > 20000000) { failed(); return; }
+                if (productImageSlots[slotIndex] !== slot) return;
+                processUploadedImageSource(event.target.result, processedSrc => {
+                    if (productImageSlots[slotIndex] !== slot) return; // Removed or replaced uploads cannot reappear.
+                    slot.src = processedSrc; slot.isProcessing = false;
                     renderProductImageSlots();
                 });
             };
-            reader.readAsDataURL(file);
-            added += 1;
-        });
-        if (overflow || (fileList.length > added && added === 0)) {
-            alert('Maximum 6 images allowed.');
+            image.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+    function addProductImageFiles(files) {
+        if (!files || !files.length) return;
+        for (const file of files) {
+            const index = productImageSlots.findIndex(slot => !slot);
+            if (index === -1) { showProductSaveToast('Maximum 6 gallery images allowed.', 'error'); break; }
+            addProductImageFileToSlot(file, index);
         }
     }
 
@@ -1517,6 +1666,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (uploadInput && uploadDropzone) {
         uploadInput.addEventListener('change', updateFileName);
+        uploadDropzone.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                pendingProductImageSlotIndex = null;
+                uploadInput.click();
+            }
+        });
         uploadDropzone.addEventListener('click', (event) => {
             if (event.target instanceof Element && event.target.closest('.product-image-slots')) return;
             pendingProductImageSlotIndex = null;
@@ -1541,6 +1697,13 @@ document.addEventListener('DOMContentLoaded', function () {
         productImageSlotsGrid.addEventListener('click', (event) => {
             const target = event.target;
             if (!(target instanceof Element)) return;
+            const primary = target.closest('.product-image-primary');
+            if (primary) {
+                event.stopPropagation();
+                const index = Number(primary.closest('.product-image-slot').dataset.slotIndex);
+                if (productImageSlots[index]?.src) { const [image] = productImageSlots.splice(index, 1); productImageSlots.unshift(image); renderProductImageSlots(); }
+                return;
+            }
             const removeBtn = target.closest('.product-image-slot-remove');
             if (removeBtn) {
                 event.stopPropagation();
@@ -1550,7 +1713,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             const slotEl = target.closest('.product-image-slot');
-            if (!slotEl || slotEl.classList.contains('is-filled')) return;
+            if (!slotEl || slotEl.classList.contains('is-filled') || slotEl.classList.contains('is-processing')) return;
             const index = Number(slotEl.dataset.slotIndex);
             pendingProductImageSlotIndex = Number.isNaN(index) ? null : index;
             uploadInput.click();
@@ -1558,7 +1721,7 @@ document.addEventListener('DOMContentLoaded', function () {
         productImageSlotsGrid.addEventListener('keydown', (event) => {
             if (event.key !== 'Enter' && event.key !== ' ') return;
             const slotEl = event.target.closest('.product-image-slot');
-            if (!slotEl || slotEl.classList.contains('is-filled')) return;
+            if (!slotEl || slotEl.classList.contains('is-filled') || slotEl.classList.contains('is-processing')) return;
             event.preventDefault();
             const index = Number(slotEl.dataset.slotIndex);
             pendingProductImageSlotIndex = Number.isNaN(index) ? null : index;
@@ -1579,38 +1742,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderProductActionsCell(status, isArchived = false) {
-        const normalizedStatus = normalizeStatus(status);
-        const viewAction = `<button type="button" class="btn-user-action btn-view-product" title="View Product" aria-label="View product">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
-        </button>`;
-
-        if (normalizedStatus === 'pending') {
-            if (canApproveProducts) {
-                const approveAction = `<button type="button" class="btn-user-action btn-approve-product" title="Approve Product" aria-label="Approve product">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                </button>`;
-                const rejectAction = `<button type="button" class="btn-user-action btn-reject-product" title="Reject Product" aria-label="Reject product">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                </button>`;
-                return `<td class="col-action"><div class="action-row">${approveAction}${rejectAction}</div></td>`;
-            }
-            return `<td class="col-action"><div class="action-row">${viewAction}</div></td>`;
-        }
-
-        if (isArchived) {
-            const restoreAction = canManageProducts
-                ? `<button type="button" class="btn-user-action btn-restore-product" title="Restore Product" aria-label="Restore product"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg></button>`
-                : '';
-            return `<td class="col-action"><div class="action-row">${viewAction}${restoreAction}</div></td>`;
-        }
-
-        const editAction = canManageProducts
-            ? `<button type="button" class="btn-user-action btn-edit-product" title="Edit Product" aria-label="Edit product"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg></button>`
-            : '';
-        const archiveAction = canManageProducts
-            ? `<button type="button" class="btn-user-action btn-archive-product" title="Archive Product" aria-label="Archive product"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5 19.625 18.132a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m5.25 4.5h6M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg></button>`
-            : '';
-        return `<td class="col-action"><div class="action-row">${viewAction}${editAction}${archiveAction}</div></td>`;
+        const button = (kind, label, path) => `<button type="button" class="btn-user-action btn-${kind}-product" title="${kind === 'view' ? 'View Details' : `${label} Product`}" aria-label="${kind === 'view' ? 'View Details' : `${label} product`}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="${path}"/></svg></button>`;
+        const view = button('view', 'View', 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Zm7 0a3 3 0 1 0 6 0 3 3 0 0 0-6 0');
+        const listing = canManageProducts ? (isArchived ? button('restore', 'Restore', 'M4 10a8 8 0 1 1 1 8M4 3v7h7') : button('archive', 'Archive', 'M4 7h16v13H4V7Zm-1-4h18v4H3V3Zm6 8h6')) : '';
+        const review = normalizeStatus(status) === 'pending' && canApproveProducts && !isArchived
+            ? button('approve', 'Approve', 'm5 12 4 4L19 6') + button('reject', 'Reject', 'm6 6 12 12M18 6 6 18') : '';
+        return `<td class="col-action"><div class="action-row">${view}${review}${listing}</div></td>`;
     }
 
     function renderProductRow(row, product) {
@@ -1621,7 +1758,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const formattedPrice = typeof product.price === 'number'
             ? product.price.toFixed(2)
             : String(product.price || '0.00');
-        const displayId = pId ? `ID: 2026${String(pId).padStart(5, '0')}` : '';
+        const displayId = product.sku || '';
 
         // Product images
         const storedImages = Array.isArray(product.images) && product.images.length
@@ -1629,8 +1766,8 @@ document.addEventListener('DOMContentLoaded', function () {
             : (product.image_url ? [product.image_url] : []);
         const primaryImage = storedImages[0] || product.image_url || '';
         const imgHtml = primaryImage
-            ? `<img src="${escapeHtml(primaryImage)}" alt="${escapeHtml(product.name || '')}" class="product-table-image" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-               <span class="product-table-image product-table-image-empty" style="display:none;">${escapeHtml((product.name || 'P').charAt(0).toUpperCase())}</span>`
+            ? `<img src="${escapeHtml(pId ? productGalleryImageSrc(pId, 0) : primaryImage)}" alt="${escapeHtml(product.name || '')}" class="product-table-image" referrerpolicy="no-referrer">
+               <span class="product-table-image product-table-image-empty" hidden>${escapeHtml((product.name || 'P').charAt(0).toUpperCase())}</span>`
             : `<span class="product-table-image product-table-image-empty">${escapeHtml((product.name || 'P').charAt(0).toUpperCase())}</span>`;
 
         row.dataset.productId = String(pId);
@@ -1640,9 +1777,31 @@ document.addEventListener('DOMContentLoaded', function () {
         row.dataset.productImages = JSON.stringify(storedImages);
         row.dataset.productExpiry = product.expiry_date || '';
         row.dataset.inventoryStatus = invStatus;
+        row.dataset.productStock = String(Math.max(0, computeTotalStock(product)));
+        row.dataset.productType = product.product_type || 'single';
+        row.dataset.bundle = JSON.stringify(product.bundle || {});
+        row.dataset.productTags = JSON.stringify(product.tags || []);
+        row.dataset.departmentId = product.program_id || product.department_id || '';
+        row.dataset.majorId = product.major_id || '';
+        row.dataset.programLabel = product.program || '';
+        row.dataset.majorLabel = product.major || '';
+        row.dataset.programMajor = product.program_major || '';
+        row.dataset.sku = product.sku || '';
+        row.dataset.lowStockThreshold = product.product_type === 'bundle' || hasVariantInventory(product) ? '' : String(product.low_stock_threshold ?? LOW_STOCK_THRESHOLD);
+        row.dataset.variantCount = String(countProductVariants(product));
+        const lowStockItems = hasVariantInventory(product)
+            ? flattenCustomizationInventory(product.customization_options)
+            : [{ stock: computeTotalStock(product), expiry_date: product.expiry_date }];
+        row.dataset.hasLowStock = product.product_type !== 'bundle' && lowStockItems.some((item) =>
+            computeInventoryStatus(item.stock, item.expiry_date, product.category, item.low_stock_threshold ?? product.low_stock_threshold ?? LOW_STOCK_THRESHOLD) === 'low_stock') ? '1' : '0';
         row.dataset.productCategory = product.category || '';
         row.dataset.customizationEnabled = product.customization_enabled ? '1' : '0';
         row.dataset.customizationOptions = JSON.stringify(product.customization_options || []);
+        row.dataset.sellerId = product.seller_id || '';
+        row.dataset.sellerDepartment = product.department || '';
+        row.dataset.productBasePrice = product.price || '';
+        row.dataset.productSubmittedAt = product.submitted_at || '';
+        row.dataset.productUpdatedAt = product.updated_at || '';
 
         const submittedAt = product.submitted_at || 'Just now';
 
@@ -1657,11 +1816,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </div>
             </td>
-            <td class="col-seller">${escapeHtml(product.seller || currentUserDisplayName)}</td>
+            <td class="col-seller"><strong>${escapeHtml(product.seller || currentUserDisplayName)}</strong><span>${escapeHtml(product.program_major || 'Unassigned (legacy record)')}</span></td>
             <td>${escapeHtml(product.category || 'Uncategorized')}</td>
             <td class="col-price">&#8369; ${escapeHtml(formattedPrice)}</td>
             <td class="col-inventory">
-                ${renderInventoryPill(invStatus)}
+                ${renderInventorySummary(computeTotalStock(product), countProductVariants(product), product)}
             </td>
             <td class="col-status">
                 ${renderStatusPill(ns)}
@@ -1696,7 +1855,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ? productGalleryImageSrc(productId, 0)
             : url;
         const imgHtml = thumbSrc
-            ? `<img src="${escapeHtml(thumbSrc)}" alt="${escapeHtml(name)}" class="product-table-image" loading="lazy">`
+            ? `<img src="${escapeHtml(thumbSrc)}" alt="${escapeHtml(name)}" class="product-table-image" loading="lazy" referrerpolicy="no-referrer"><span class="product-table-image product-table-image-empty" hidden>${escapeHtml((name || 'P').charAt(0).toUpperCase())}</span>`
             : `<span class="product-table-image product-table-image-empty">${escapeHtml((name || 'P').charAt(0).toUpperCase())}</span>`;
         cell.innerHTML = `${imgHtml}<div class="product-name-meta"><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong></div>`;
         initProductTableImageCycle(row);
@@ -1797,6 +1956,16 @@ document.addEventListener('DOMContentLoaded', function () {
         countEl.textContent = `${desc.value.length} / ${max} characters`;
     }
 
+    document.getElementById('productOwner')?.addEventListener('change', event => {
+        const owner = event.target.selectedOptions[0];
+        if (!owner?.dataset.program) return;
+        const program = document.getElementById('productDepartment');
+        const major = document.getElementById('productMajor');
+        program.value = owner.dataset.program;
+        window.CampusHubAcademic?.sync(program, major);
+        major.value = owner.dataset.major || '';
+    });
+
     function setDepartmentValue(departmentName) {
         const deptField = document.getElementById('productDepartment');
         if (!deptField) return;
@@ -1836,13 +2005,22 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function resetProductForm() {
+        const feedback = document.getElementById('productFormError');
+        if (feedback) { feedback.hidden = true; feedback.textContent = ''; }
+        document.querySelectorAll('#productFormSection [aria-invalid]').forEach(field => field.removeAttribute('aria-invalid'));
         editingProductRow = null;
         editingProductId = null;
         syncProductFormMode(false);
+        document.getElementById('productTypeSingle').checked = true;
+        const owner = document.getElementById('productOwner');
+        if (owner) owner.value = '';
         document.getElementById('productName').value = '';
         document.getElementById('productPrice').value = '';
         setCategoryValue('');
         document.getElementById('productStock').value = '';
+        document.getElementById('productLowStockThreshold').value = LOW_STOCK_THRESHOLD;
+        document.getElementById('productLowStockThreshold').setCustomValidity('');
+        document.getElementById('productThresholdError').textContent = '';
         document.getElementById('productExpiryDate').value = '';
         document.getElementById('productStatus').value = 'approved';
         document.getElementById('productDescription').value = '';
@@ -1853,8 +2031,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const defaultOpt = Array.from(deptField.options).find((opt) => opt.defaultSelected);
             deptField.value = defaultOpt ? defaultOpt.value : '';
         }
+        document.getElementById('productMajor').value = '';
+        window.CampusHubAcademic?.sync(deptField, document.getElementById('productMajor'));
         updateDescriptionCount();
         resetCustomizationForm();
+        window.CampusHubBundles?.reset();
         clearProductImageSlots();
         if (uploadInput) uploadInput.value = '';
         if (uploadDropzone) uploadDropzone.classList.remove('is-loading', 'has-file');
@@ -1906,23 +2087,34 @@ document.addEventListener('DOMContentLoaded', function () {
         const customization_options = parseCustomizationOptions(row.dataset.customizationOptions || '');
         const product = {
             id: row.dataset.productId || '',
+            product_type: row.dataset.productType || 'single',
+            bundle: parseJsonDataset(row.dataset.bundle || '{}') || {},
+            tags: parseCustomizationOptions(row.dataset.productTags || '[]'),
+            department_id: row.dataset.departmentId || '',
+            program_id: row.dataset.departmentId || '', major_id: row.dataset.majorId || '',
+            program: row.dataset.programLabel || '', major: row.dataset.majorLabel || '',
+            program_major: row.dataset.programMajor || '', sku: row.dataset.sku || '',
+            seller_id: row.dataset.sellerId || '',
             image_url: row.dataset.productImageUrl || (image ? image.getAttribute('src') : ''),
             name: nameEl ? nameEl.textContent.trim() : '',
-            seller: cells[2] ? cells[2].textContent.trim() : '',
-            category: row.dataset.productCategory || (cells[4] ? cells[4].textContent.trim() : ''),
+            seller: cells[2]?.querySelector('strong')?.textContent.trim() || cells[2]?.textContent.trim() || '',
+            category: row.dataset.productCategory || (cells[3] ? cells[3].textContent.trim() : ''),
             department: row.dataset.sellerDepartment || '',
             price: row.dataset.productBasePrice || '',
             stock: row.dataset.productStock || '0',
+            low_stock_threshold: row.dataset.lowStockThreshold === '' ? null : Number(row.dataset.lowStockThreshold ?? LOW_STOCK_THRESHOLD),
             expiry_date: row.dataset.productExpiry || '',
             inventory_status: row.dataset.inventoryStatus || '',
             product_status: row.dataset.productStatus || '',
             approval_status: row.dataset.productStatus || '',
-            submitted_at: row.querySelector('.col-date')?.textContent.trim() || '',
+            submitted_at: row.dataset.productSubmittedAt || '',
+            updated_at: row.dataset.productUpdatedAt || '',
+            is_archived: row.dataset.isArchived === '1' || row.dataset.isArchived === 'true',
             description: row.dataset.productDescription || '',
             images: parseProductImagesJson(row.dataset.productImages || ''),
             customization_enabled: row.dataset.customizationEnabled === '1',
             customization_options,
-            variant_count: flattenCustomizationInventory(customization_options).length,
+            variant_count: row.dataset.variantCount || flattenCustomizationInventory(customization_options).length,
         };
         product.stock = String(computeTotalStock(product));
         return product;
@@ -1930,6 +2122,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function openEditProductForm(row) {
         const product = getProductFromRow(row);
+        document.getElementById(product.product_type === 'bundle' ? 'productTypeBundle' : 'productTypeSingle').checked = true;
+        const owner = document.getElementById('productOwner');
+        if (owner && product.seller_id) {
+            if (!Array.from(owner.options).some(option => option.value === String(product.seller_id))) {
+                owner.add(new Option(product.seller, String(product.seller_id)));
+            }
+            owner.value = String(product.seller_id);
+        }
         editingProductRow = row;
         editingProductId = product.id;
         syncProductFormMode(true);
@@ -1937,12 +2137,18 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('productPrice').value = product.price;
         setCategoryValue(product.category);
         document.getElementById('productStock').value = product.stock;
+        document.getElementById('productLowStockThreshold').value = product.low_stock_threshold ?? LOW_STOCK_THRESHOLD;
+        document.getElementById('productLowStockThreshold').setCustomValidity('');
+        document.getElementById('productThresholdError').textContent = '';
         document.getElementById('productExpiryDate').value = product.expiry_date || '';
         document.getElementById('productStatus').value = normalizeStatus(product.product_status || 'pending');
         document.getElementById('productDescription').value = product.description === 'No description' ? '' : product.description;
         const tagsField = document.getElementById('productTags');
-        if (tagsField) tagsField.value = product.tags || '';
+        if (tagsField) tagsField.value = Array.isArray(product.tags) ? product.tags.join(', ') : '';
         setDepartmentValue(product.department || '');
+        document.getElementById('productDepartment').value = product.program_id || product.department_id || '';
+        window.CampusHubAcademic?.sync(document.getElementById('productDepartment'), document.getElementById('productMajor'));
+        document.getElementById('productMajor').value = product.major_id || '';
         updateDescriptionCount();
         loadCustomizationToForm(product);
         const existingImages = Array.isArray(product.images) && product.images.length
@@ -1952,6 +2158,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (uploadInput) uploadInput.value = '';
         if (uploadDropzone) uploadDropzone.classList.remove('is-loading', 'has-file');
         updateProductFormAutomation();
+        window.CampusHubBundles?.load(product);
         showProductForm();
     }
 
@@ -1984,6 +2191,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (saveProductButton) {
         saveProductButton.addEventListener('click', () => {
+            if (saveProductButton.disabled) return;
+            const feedback = document.getElementById('productFormError');
+            if (feedback) { feedback.hidden = true; feedback.textContent = ''; }
+            document.querySelectorAll('#productFormSection [aria-invalid]').forEach(field => field.removeAttribute('aria-invalid'));
+            const invalid = [...document.querySelectorAll('#productFormSection input, #productFormSection select, #productFormSection textarea')].find(field => !field.disabled && !field.checkValidity());
+            if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
+            const bundleMode = document.getElementById('productTypeBundle').checked;
+            if (bundleMode && !window.CampusHubBundles.validate()) return;
+            const owner = document.getElementById('productOwner');
+            if (owner && !owner.reportValidity()) return;
             const name = document.getElementById('productName').value.trim();
             const price = document.getElementById('productPrice').value;
             const category = getSelectedCategory() || document.getElementById('productCategory')?.value?.trim() || '';
@@ -2003,19 +2220,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 statusField.value = 'approved';
             }
             const description = document.getElementById('productDescription').value.trim();
-            const customizationData = readCustomizationFromForm();
-            const derivedStock = deriveStockFromCustomization(customizationData, stock);
-            const derivedExpiry = deriveExpiryFromCustomization(customizationData, category, expiryDate);
+            const customizationData = bundleMode ? {customization_enabled:false, customization_options:[]} : readCustomizationFromForm();
+            if (!bundleMode && !validateThresholdForm(customizationData)) return;
+            const threshold = bundleMode || customizationData.customization_enabled ? null : Number(document.getElementById('productLowStockThreshold').value);
+            const derivedStock = bundleMode ? window.CampusHubBundles.availability() : deriveStockFromCustomization(customizationData, stock);
+            const derivedExpiry = bundleMode ? '' : deriveExpiryFromCustomization(customizationData, category, expiryDate);
             const inventoryStatus = computeProductAvailability({
                 category,
                 stock: derivedStock,
+                low_stock_threshold: threshold,
                 expiry_date: derivedExpiry,
                 customization_enabled: customizationData.customization_enabled,
                 customization_options: customizationData.customization_options,
             });
 
+            const programField = document.getElementById('productDepartment');
+            const majorField = document.getElementById('productMajor');
+            if (!programField.value || (!majorField.disabled && !majorField.value)) {
+                showProductSaveToast('Select a program and its major when applicable.', 'error');
+                (!programField.value ? programField : majorField).focus();
+                return;
+            }
             if (!name || !price || !category || category === 'Select food category') {
-                alert('Please enter product name, price, and category.');
+                showProductSaveToast('Please enter product name, price, and category.', 'error');
                 return;
             }
 
@@ -2049,7 +2276,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     name: productData.name,
                     price: productData.price,
                     category: productData.category,
-                    stock: productData.stock,
+                    stock: bundleMode ? 0 : productData.stock,
+                    low_stock_threshold: productData.low_stock_threshold,
+                    product_type: bundleMode ? 'bundle' : 'single',
+                    bundle_components: bundleMode ? window.CampusHubBundles.payload() : [],
+                    department_id: document.getElementById('productDepartment').value || null,
+                    major_id: document.getElementById('productMajor').value || null,
+                    tags: document.getElementById('productTags').value,
                     expiry_date: productData.expiry_date || null,
                     description: productData.description,
                     image_url: productData.images ? '' : normalizeProductImageUrl(productData.image_url || ''),
@@ -2075,7 +2308,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     throw new Error('Session expired. Please reload and log in again.');
                 }
 
-                const data = await response.json().catch(() => ({}));
+                const data = await window.CampusHubActions.json(response, 'Unable to confirm the update. Reload the record before retrying.');
                 if (!response.ok || !data.product) {
                     throw new Error(data.error || 'Could not save product.');
                 }
@@ -2091,6 +2324,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     name, price, category,
                     department: existingProduct.department || '',
                     stock: derivedStock,
+                    low_stock_threshold: threshold,
                     expiry_date: isPerishableCategory(category) ? derivedExpiry : '',
                     inventory_status: inventoryStatus,
                     description,
@@ -2107,21 +2341,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 try {
                     const savedProduct = await saveProductToServer(productData);
                     productData.id = savedProduct.id;
+                    productData.seller_id = savedProduct.seller_id;
                     productData.seller = savedProduct.seller || productData.seller;
                     productData.department = savedProduct.department || productData.department;
                     productData.approval_status = savedProduct.approval_status || 'approved';
                     productData.product_status = productData.approval_status;
                     productData.inventory_status = savedProduct.inventory_status || inventoryStatus;
                     productData.expiry_date = savedProduct.expiry_date || productData.expiry_date;
-                    productData.submitted_at = savedProduct.submitted_at
-                        ? new Date(savedProduct.submitted_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                        : productData.submitted_at;
+                    productData.submitted_at = savedProduct.submitted_at || productData.submitted_at;
+                    productData.updated_at = savedProduct.updated_at;
+                    productData.low_stock_threshold = savedProduct.low_stock_threshold;
+                    productData.stock = savedProduct.stock;
+                    productData.product_type = savedProduct.product_type;
+                    productData.bundle = savedProduct.bundle;
+                    productData.tags = savedProduct.tags;
+                    productData.department_id = savedProduct.department_id;
                     productData.image_url = savedProduct.image_url || productData.image_url;
                     productData.images = savedProduct.images
                         || productData.images
                         || (productData.image_url ? [productData.image_url] : []);
                     productData.customization_enabled = savedProduct.customization_enabled || false;
                     productData.customization_options = savedProduct.customization_options || [];
+                    // Keep the saved SKU/Program/Major, not just the old form fields.
+                    Object.assign(productData, savedProduct);
 
                     upsertLocalProduct(productData);
 
@@ -2147,15 +2389,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                     ? 'Product saved as Pending Approval.'
                                     : 'Product saved.'
                             );
-                            adjustProductStat('totalStatCard', 1);
-                            if (productData.approval_status === 'approved') {
-                                adjustProductStat('approvedStatCard', 1);
-                            } else if (productData.approval_status === 'pending') {
-                                adjustProductStat('pendingStatCard', 1);
-                            }
-                            if (productData.inventory_status === 'low_stock') {
-                                adjustProductStat('lowStockStatCard', 1);
-                            }
                         }
 
                         renumberRows();
@@ -2171,8 +2404,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     resetProductForm();
                     showProductsList();
+                    window.dispatchEvent(new Event('products-table-changed'));
                 } catch (error) {
                     console.error('Save product failed:', error);
+                    const feedback = document.getElementById('productFormError');
+                    if (feedback) { feedback.textContent = error.message || 'Could not save product.'; feedback.hidden = false; }
+                    const fieldId = {name:'productName',category:'productCategory',description:'productDescription',price:'productPrice',stock:'productStock',low_stock_threshold:'productLowStockThreshold',seller_id:'productOwner',images:'productImageUpload',customization_options:'productCustomizationGroups'}[error.field];
+                    const field = fieldId && document.getElementById(fieldId);
+                    if (field) { field.setAttribute('aria-invalid', 'true'); if (field.type !== 'file') field.focus(); }
+
                     showProductSaveToast(error.message || 'Could not save product.', 'error');
                 } finally {
                     saveProductButton.classList.remove('is-saving');
@@ -2198,29 +2438,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
             // Keep both product gallery images and per-variant option images.
-            const slotImages = getProductImageSlotSources();
-            const variantImages = collectVariantOptionImages();
-            const uploadedImages = [...new Set([...slotImages, ...variantImages].filter(Boolean))];
-            if (uploadedImages.length > 1) {
-                finalizeSaveWithDelay(uploadedImages);
-            } else if (uploadedImages.length === 1) {
-                finalizeSaveWithDelay(uploadedImages[0]);
-            } else {
-                let storedImages = [];
-                if (editingProductRow) {
-                    storedImages = parseProductImagesJson(editingProductRow.dataset.productImages || '');
-                }
-                if (!storedImages.length && existingProduct.images?.length) {
-                    storedImages = existingProduct.images;
-                }
-                if (storedImages.length > 1) {
-                    finalizeSaveWithDelay(storedImages);
-                } else if (storedImages.length === 1) {
-                    finalizeSaveWithDelay(storedImages[0]);
-                } else {
-                    finalizeSaveWithDelay('');
-                }
-            }
+            const uploadedImages = getProductImageSlotSources().filter(Boolean); // Variant photos stay on their exact options, outside the gallery.
+            finalizeSaveWithDelay(uploadedImages);
         });
     }
 
@@ -2238,11 +2457,22 @@ document.addEventListener('DOMContentLoaded', function () {
             ?.split('=')[1] || '';
     }
 
-    function adjustProductStat(cardId, change) {
-        const value = document.querySelector(`#${cardId} strong`);
-        if (!value) return;
-        value.textContent = String(Math.max(0, (parseInt(value.textContent, 10) || 0) + change));
+    function syncProductStatsFromRows() {
+        // These are the complete, server-authorized records, including archived
+        // rows. Visible filters/pagination must not redefine the summary totals.
+        const rows = [...productsTableBody.querySelectorAll('tr[data-product-id]')];
+        const counts = {
+            totalStatCard: rows.length,
+            pendingStatCard: rows.filter(row => row.dataset.productStatus === 'pending').length,
+            approvedStatCard: rows.filter(row => row.dataset.productStatus === 'approved').length,
+            lowStockStatCard: rows.filter(row => row.dataset.hasLowStock === '1' && !['1','true'].includes(row.dataset.isArchived)).length,
+        };
+        Object.entries(counts).forEach(([id, count]) => {
+            const value = document.querySelector(`#${id} strong`);
+            if (value) value.textContent = String(count);
+        });
     }
+    window.addEventListener('products-table-changed', syncProductStatsFromRows);
 
     function openProductDecision(row, action) {
         if (!row || !['approve', 'reject'].includes(action)) return;
@@ -2371,8 +2601,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 body,
             });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || `Could not ${action} product.`);
+            const data = await window.CampusHubActions.json(response, 'Unable to confirm the update. Reload the record before retrying.');
+            if (data.ok !== true) throw new Error('The product decision was not confirmed. Reload before retrying.');
 
             const nextStatus = action === 'approve' ? 'approved' : 'rejected';
             row.dataset.productStatus = nextStatus;
@@ -2380,8 +2610,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (statusCell) statusCell.innerHTML = renderStatusPill(nextStatus);
             const actionCell = row.querySelector('.col-action');
             if (actionCell) actionCell.outerHTML = renderProductActionsCell(nextStatus);
-            adjustProductStat('pendingStatCard', -1);
-            if (nextStatus === 'approved') adjustProductStat('approvedStatCard', 1);
 
             const modal = document.getElementById('productDecisionModal');
             if (modal && window.bootstrap?.Modal) window.bootstrap.Modal.getOrCreateInstance(modal).hide();
@@ -2465,7 +2693,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (productsSearchInput && productsTableBody) {
-        productsSearchInput.addEventListener('input', applyFilters);
+        // Search has one debounced handler below.
     }
 
     // â”€â”€ Inline status/category filter selects â”€â”€
@@ -2474,35 +2702,30 @@ document.addEventListener('DOMContentLoaded', function () {
     const categoryFilter = document.getElementById('productsCategoryFilter');
     const departmentFilter = document.getElementById('productsDepartmentFilter');
 
+    const majorFilter = document.getElementById('productsMajorFilter');
     function applyInlineFilters() {
-        const search = productsSearchInput ? productsSearchInput.value.trim().toLowerCase() : '';
-        const status = statusFilter ? statusFilter.value.toLowerCase() : '';
-        const archiveMode = archiveFilter ? archiveFilter.value : 'active';
-        const category = categoryFilter ? categoryFilter.value.toLowerCase() : '';
-        const department = departmentFilter ? departmentFilter.value.toLowerCase() : '';
-        if (!productsTableBody) return;
-        productsTableBody.querySelectorAll('tr:not(.empty-products-row):not(.filter-empty-row)').forEach((row) => {
-            const text = row.textContent.toLowerCase();
-            const rowStatus = (row.dataset.productStatus || '').toLowerCase();
-            const isArchived = row.dataset.isArchived === '1' || row.dataset.isArchived === 'true';
-            const rowCategory = (row.dataset.productCategory || row.children[3]?.textContent || '').trim().toLowerCase();
-            const rowDepartment = (row.dataset.sellerDepartment || '').trim().toLowerCase();
-            const rowInventory = row.dataset.inventoryStatus || '';
-            const matchSearch = !search || text.includes(search);
-            const matchStatus = !status || rowStatus === status || rowStatus.includes(status);
-            let matchArchive = true;
-            if (archiveMode === 'active') {
-                matchArchive = !isArchived;
-            } else if (archiveMode === 'archived') {
-                matchArchive = isArchived;
-            } else {
-                matchArchive = true;
-            }
-            const matchCategory = !category || rowCategory.includes(category);
-            const matchDepartment = !department || rowDepartment === department;
-            const matchInventory = !activeInventoryFilter || rowInventory === activeInventoryFilter;
-            row.style.display = matchSearch && matchStatus && matchArchive && matchCategory && matchDepartment && matchInventory ? '' : 'none';
+        const search = productsSearchInput?.value.trim().toLowerCase() || '';
+        const status = statusFilter?.value || '';
+        const listing = archiveFilter?.value ?? 'active';
+        const category = categoryFilter?.value || '';
+        const program = departmentFilter?.value || '';
+        const major = majorFilter?.disabled ? '' : (majorFilter?.value || '');
+        productsTableBody?.querySelectorAll('tr[data-product-id]').forEach(row => {
+            const archived = ['1','true'].includes(row.dataset.isArchived);
+            const searchable = [row.querySelector('.product-name-meta strong')?.textContent, row.querySelector('.col-seller strong')?.textContent, row.dataset.sku].join(' ').toLowerCase();
+            const matches = (!search || searchable.includes(search)) && (!status || row.dataset.productStatus === status)
+                && (!listing || (listing === 'archived' ? archived : !archived))
+                && (!category || row.dataset.productCategory === category)
+                && (!program || row.dataset.departmentId === program) && (!major || row.dataset.majorId === major)
+                && (!activeInventoryFilter || row.dataset.inventoryStatus === activeInventoryFilter || (activeInventoryFilter === 'low_stock' && row.dataset.hasLowStock === '1'));
+            row.style.display = matches ? '' : 'none';
         });
+        const url = new URL(window.location.href);
+        const values = {search, status, listing_status: listing, program, major, category, inventory_status: activeInventoryFilter};
+        Object.entries(values).forEach(([key,value]) => value ? url.searchParams.set(key,value) : url.searchParams.delete(key));
+        url.searchParams.delete('page');
+        window.history.replaceState(null, '', url);
+        window.__chSyncProductEmptyState?.();
     }
 
     document.querySelectorAll('#productStatsGrid [data-stat-filter]').forEach((card) => {
@@ -2554,7 +2777,35 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     if (categoryFilter) categoryFilter.addEventListener('change', applyInlineFilters);
     if (departmentFilter) departmentFilter.addEventListener('change', applyInlineFilters);
-    if (productsSearchInput) productsSearchInput.addEventListener('input', applyInlineFilters);
+    let searchTimer;
+    productsSearchInput?.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { applyInlineFilters(); window.dispatchEvent(new Event('products-table-changed')); }, 300); });
+    majorFilter?.addEventListener('change', applyInlineFilters);
+    document.getElementById('productsClearFilters')?.addEventListener('click', () => {
+        clearTimeout(searchTimer);
+        [productsSearchInput,statusFilter,archiveFilter,departmentFilter,majorFilter,categoryFilter].forEach(field => { if (field) field.value = ''; });
+        activeInventoryFilter = ''; activeStatFilter = '';
+        window.CampusHubAcademic?.sync(departmentFilter, majorFilter);
+        updateStatCardActiveState(); applyInlineFilters();
+        window.dispatchEvent(new Event('products-table-changed'));
+    });
+
+    // Operational dashboard shortcuts open the existing inline filters.
+    const shortcutParams = new URLSearchParams(window.location.search);
+    [[productsSearchInput,'search'],[statusFilter,'status'],[archiveFilter,'listing_status'],[departmentFilter,'program'],[categoryFilter,'category']].forEach(([field,key]) => { if (field && shortcutParams.has(key)) field.value = shortcutParams.get(key); });
+    window.CampusHubAcademic?.sync(departmentFilter, majorFilter);
+    if (majorFilter && !majorFilter.disabled) majorFilter.value = shortcutParams.get('major') || '';
+    applyInlineFilters();
+    const shortcutInventory = shortcutParams.get('inventory_status');
+    const shortcutStatus = shortcutParams.get('status');
+    if (['low_stock', 'out_of_stock'].includes(shortcutInventory)) {
+        setInventoryFilter(shortcutInventory);
+    } else if (statusFilter && ['pending', 'approved', 'rejected'].includes(shortcutStatus)) {
+        statusFilter.value = shortcutStatus;
+        statusFilter.classList.add('is-active');
+        activeStatFilter = ['pending', 'approved'].includes(shortcutStatus) ? shortcutStatus : '';
+        updateStatCardActiveState();
+        applyInlineFilters();
+    }
 
     // === Active state classes for search bar and filters (navy blue) ===
     if (productsSearchInput) {
@@ -2607,9 +2858,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     window.CampusHubAdminProducts = {
         getProductFromRow,
+        renderProductActionsCell,
+        applyInlineFilters,
         computeProductAvailability,
         computeTotalStock,
+        countProductVariants,
+        renderInventorySummary,
+        showProductSaveToast,
         computeInventoryStatus,
+        computeProductQuantityStatus,
         deriveExpiryFromCustomization,
         inventoryStatusLabel,
         INVENTORY_LABELS,
@@ -2626,7 +2883,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 // â”€â”€ Functional Pagination â”€â”€
-(function () {
+function initializeProductPagination() {
     const tbody = document.getElementById('productsTableBody');
     const showingText = document.getElementById('productsShowingText');
     const paginationContainer = document.getElementById('productsPagination');
@@ -2835,7 +3092,9 @@ document.addEventListener('DOMContentLoaded', function () {
             isRenderingPagination = false;
         }, 0);
     }
-})();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializeProductPagination, {once:true});
+else initializeProductPagination();
 
 
 // ── Product Details Section (eye icon) ──
@@ -2846,6 +3105,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const loadingSection = document.getElementById('productLoadingSection');
     const statsGrid = document.getElementById('productStatsGrid');
     if (!section) return;
+    // Details actions reuse the list's helpers after DOM initialization.
+    const renderProductActionsCell = (...args) => window.CampusHubAdminProducts.renderProductActionsCell(...args);
+    const applyInlineFilters = () => window.CampusHubAdminProducts.applyInlineFilters();
+    const showProductSaveToast = (...args) => window.CampusHubAdminProducts.showProductSaveToast(...args);
 
     const mainImage = document.getElementById('pdMainImage');
     const counter = document.getElementById('pdImageCounter');
@@ -2878,10 +3141,15 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!value) return '—';
         const raw = String(value).trim();
         if (!raw) return '—';
-        const iso = raw.includes('T') ? raw : `${raw}T12:00:00`;
-        const date = new Date(iso);
+        // A date without a time must not acquire an invented noon timestamp.
+        if (!raw.includes('T')) return formatPdDate(raw);
+        const date = new Date(raw);
         if (Number.isNaN(date.getTime())) return raw;
-        return date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        const locale = 'en-US';
+        const timeZone = 'Asia/Manila';
+        const day = date.toLocaleDateString(locale, { timeZone, month: 'short', day: 'numeric', year: 'numeric' });
+        const time = date.toLocaleTimeString(locale, { timeZone, hour: 'numeric', minute: '2-digit' });
+        return `${day} · ${time}`;
     }
 
     function formatMoney(value) {
@@ -2912,11 +3180,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 const extra = parseFloat(opt?.extra_price || 0) || 0;
                 const status = stock === null
                     ? inventoryStatus
-                    : (helpers.computeInventoryStatus?.(stock, expiry, category) || 'in_stock');
+                    : (helpers.computeInventoryStatus?.(stock, expiry, category, opt.low_stock_threshold ?? helpers.LOW_STOCK_THRESHOLD) || 'in_stock');
                 rows.push({
                     groupName,
                     optionName: (opt?.name || 'Option').trim(),
                     extraPrice: extra,
+                    imageUrl: opt?.image || '',
                     stock,
                     expiry,
                     status,
@@ -2929,7 +3198,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!rows.length) {
             const stock = parseInt(product.stock, 10) || 0;
             const expiry = product.expiry_date || '';
-            const status = helpers.computeInventoryStatus?.(stock, expiry, category) || inventoryStatus;
+            const status = helpers.computeInventoryStatus?.(stock, expiry, category, product.low_stock_threshold ?? helpers.LOW_STOCK_THRESHOLD) || inventoryStatus;
             rows.push({
                 groupName: '—',
                 optionName: product.name || 'Base product',
@@ -2979,6 +3248,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return {
                 optionName: row.optionName,
                 groupName: row.groupName,
+                imageUrl: row.imageUrl,
                 displayName,
                 price: basePrice + (row.extraPrice || 0),
                 inventoryStatus,
@@ -2991,13 +3261,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function getVariantItemForIndex(idx) {
         if (!variantGalleryItems.length) return null;
+        if (variantGalleryItems.some(item => item.imageUrl)) {
+            const rawImage = parseProductImages(activeProduct?.images, activeProduct?.image_url)[idx];
+            const match = variantGalleryItems.find(item => item.imageUrl === rawImage);
+            // A product photo without a variant association must keep the base label.
+            return match || { displayName: activeProduct?.name || '', optionName: '', price: parseFloat(activeProduct?.price) || 0 };
+        }
         return variantGalleryItems[idx] ?? variantGalleryItems[idx % variantGalleryItems.length];
     }
 
     function updateHeroVariantDisplay(idx) {
         if (!activeProduct) return;
-        const helpers = window.CampusHubAdminProducts || {};
-        const labels = helpers.INVENTORY_LABELS || {};
         const item = getVariantItemForIndex(idx);
         if (!item) return;
 
@@ -3007,8 +3281,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const metaEl = document.getElementById('pdMeta');
         const productId = activeProduct.id || '';
         if (metaEl) {
-            const variantHint = item.optionName ? ` · ${item.optionName}` : '';
-            metaEl.textContent = `PRD-${String(productId).padStart(4, '0')}${variantHint}`;
+            metaEl.textContent = activeProduct.product_code || `PRD-${String(productId).padStart(4, '0')}`;
         }
 
         const priceEl = document.getElementById('pdPrice');
@@ -3016,16 +3289,9 @@ document.addEventListener('DOMContentLoaded', function () {
             priceEl.textContent = `₱ ${item.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
 
-        const invEl = document.getElementById('pdInventoryStatus');
-        if (invEl) {
-            const status = item.inventoryStatus || 'in_stock';
-            invEl.textContent = labels[status] || status;
-            invEl.className = `inventory-pill inventory-${status} pd-detail-value`;
-        }
-
         const updatedEl = document.getElementById('pdUpdated');
         if (updatedEl) {
-            updatedEl.textContent = formatPdDateTime(item.updatedAt);
+            updatedEl.textContent = formatPdDateTime(activeProduct.updated_at);
         }
 
         updateOptionLabel();
@@ -3071,12 +3337,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }).join('');
     }
 
-    function computeReservedStock(orders, productId) {
-        return (orders || [])
-            .filter((o) => String(o.product_id) === String(productId) && (o.status || 'pending') === 'pending')
-            .reduce((sum, o) => sum + (parseInt(o.quantity, 10) || 1), 0);
-    }
-
     function getStockUnit(category) {
         const cat = String(category || '').toLowerCase();
         if (cat.includes('beverage') || cat.includes('drink') || cat.includes('milk')) return 'cups';
@@ -3084,126 +3344,101 @@ document.addEventListener('DOMContentLoaded', function () {
         return 'units';
     }
 
-    function setInventoryKpiDisplay(id, amount, unit) {
+    function setInventoryKpiDisplay(id, amount) {
         const el = document.getElementById(id);
         if (!el) return;
         const val = Number(amount) || 0;
-        el.innerHTML = `${val} <span class="pd-inventory-unit">${escapeHtml(unit)}</span>`;
+        el.innerHTML = `${val} <span class="pd-inventory-unit">${val === 1 ? 'pc' : 'pcs'}</span>`;
     }
 
-    function populateInventoryHistory(product, orders = []) {
+    function populateInventoryHistory(product, failed = false) {
         const tbody = document.getElementById('pdInventoryHistoryBody');
         if (!tbody) return;
-
-        const productOrders = (orders || [])
-            .filter((o) => String(o.product_id) === String(product.id))
-            .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-        const totalStock = parseInt(product.stock, 10) || 0;
-        const seller = product.seller || 'Admin';
-        const created = product.submitted_at || product.created_at;
-        const entries = [];
-        const totalDeducted = productOrders.reduce((sum, o) => sum + (parseInt(o.quantity, 10) || 1), 0);
-        const initialAdd = totalStock + totalDeducted;
-
-        if (created && initialAdd > 0) {
-            entries.push({
-                date: created,
-                action: 'Stock Added',
-                qty: initialAdd,
-                before: 0,
-                after: initialAdd,
-                user: seller,
-            });
+        const historyWrap = tbody.closest(".pd-inventory-history-wrap");
+        const showHistory = product.can_view_stock_movements !== false;
+        if (historyWrap) {
+            historyWrap.hidden = !showHistory;
+            if (historyWrap.previousElementSibling) historyWrap.previousElementSibling.hidden = !showHistory;
         }
-
-        let running = initialAdd;
-        productOrders.forEach((order) => {
-            const qty = parseInt(order.quantity, 10) || 1;
-            const before = running;
-            const after = Math.max(0, running - qty);
-            entries.push({
-                date: order.created_at,
-                action: 'Stock Deducted',
-                qty: -qty,
-                before,
-                after,
-                user: 'System',
-            });
-            running = after;
-        });
-
-        if (!entries.length && totalStock > 0) {
-            entries.push({
-                date: product.updated_at || created || new Date().toISOString(),
-                action: 'Stock Added',
-                qty: totalStock,
-                before: 0,
-                after: totalStock,
-                user: seller,
-            });
-        }
-
-        if (!entries.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="pd-empty-cell"></td></tr>';
+        if (!showHistory) return;
+        if (!Array.isArray(product.stock_movements)) {
+            tbody.innerHTML = failed
+                ? '<tr><td colspan="7">Unable to load recorded stock movements. Reopen this product to retry.</td></tr>'
+                : '<tr><td colspan="7">Loading recorded stock movements…</td></tr>';
             return;
         }
-
-        tbody.innerHTML = [...entries].reverse().map((row) => {
-            const qtyClass = row.qty >= 0 ? 'pd-inv-qty--add' : 'pd-inv-qty--deduct';
-            const qtyLabel = row.qty >= 0 ? `+${row.qty}` : String(row.qty);
-            return `<tr>
-                <td class="text-nowrap">${escapeHtml(formatPdDate(row.date))}</td>
-                <td class="text-nowrap">${escapeHtml(row.action)}</td>
-                <td class="col-qty ${qtyClass}">${escapeHtml(qtyLabel)}</td>
-                <td class="col-num">${row.before}</td>
-                <td class="col-num">${row.after}</td>
-                <td class="col-user" title="${escapeHtml(row.user)}">${escapeHtml(row.user)}</td>
-            </tr>`;
-        }).join('');
+        tbody.innerHTML = product.stock_movements.length ? product.stock_movements.map(event => `<tr>
+            <td>${escapeHtml(formatPdDateTime(event.date))}<small>${escapeHtml(event.sku)}</small></td>
+            <td>${escapeHtml(event.kind)}<small>${escapeHtml(event.balance)}</small></td>
+            <td>${event.quantity > 0 ? '+' : ''}${Number(event.quantity)}</td>
+            <td>${event.before ?? '—'}</td><td>${event.after ?? '—'}</td>
+            <td>${escapeHtml(event.reference)}</td><td>${escapeHtml(event.actor)}</td></tr>`).join('')
+            : '<tr><td colspan="7">No recorded stock movements.</td></tr>';
     }
 
-    function populateInventoryKpis(product, helpers, reservedStock) {
-        const totalStock = (helpers.computeTotalStock?.(product) ?? parseInt(product.stock, 10)) || 0;
-        const variantRows = buildVariantRows(product, helpers);
-        const reserved = typeof reservedStock === 'number' ? reservedStock : 0;
-        const available = Math.max(0, totalStock - reserved);
-        const unit = getStockUnit(product.category);
-        const lowStockNames = [];
-        const threshold = parseInt(document.querySelector('meta[name="low-stock-threshold"]')?.content || '5', 10);
-
-        variantRows.forEach((row) => {
-            if (row.stock !== null && row.stock > 0 && row.stock <= threshold) {
-                lowStockNames.push(row.optionName);
+    function populateInventoryKpis(product, failed = false) {
+        const inventory = product.inventory;
+        const skuEl = document.getElementById('pdInventorySku');
+        if (skuEl) skuEl.textContent = inventory?.variant_thresholds?.length ? 'Per variant' : (inventory?.sku || product.sku || 'Unavailable');
+        const feedback = document.getElementById('pdInventoryFeedback');
+        const summaryEl = document.getElementById('pdInventorySummary');
+        const headingEl = document.getElementById('pdInventoryHeading');
+        const bundleMode = product.product_type === 'bundle';
+        document.getElementById('pdMenuUpdateStock')?.classList.toggle('d-none', bundleMode);
+        if (bundleMode && inventory) {
+            summaryEl?.classList.add('d-none');
+            if (headingEl) headingEl.textContent = 'Bundle Inventory';
+            const componentEl = document.getElementById('pdVariantThresholds');
+            componentEl?.classList.remove('d-none');
+            if (componentEl) componentEl.innerHTML = `<p><strong>Derived Availability: ${inventory.available} bundle${inventory.available === 1 ? '' : 's'}</strong></p><table class="table table-sm"><thead><tr><th>Component / Variant</th><th>Required Quantity</th><th>Available Stock</th></tr></thead><tbody>${inventory.components.map(row => `<tr><th>${escapeHtml(row.product_name)}<small class="d-block">${escapeHtml(row.variant)}</small></th><td>${row.required_quantity}</td><td>${row.available}</td></tr>`).join('')}</tbody></table>`;
+            const statusEl = document.getElementById('pdInventoryStatus');
+            if (statusEl) { statusEl.textContent = inventory.status_label; statusEl.className = `pd-inventory-state pd-inventory-state--${inventory.status}`; }
+            if (feedback) feedback.hidden = true;
+            return;
+        }
+        if (!inventory) {
+            const tracksVariants = (product.customization_options || []).some(group => (group.options || []).some(option => Object.prototype.hasOwnProperty.call(option, 'stock')));
+            if (summaryEl) summaryEl.classList.toggle('d-none', tracksVariants || bundleMode);
+            if (headingEl) headingEl.textContent = bundleMode ? 'Bundle Inventory' : tracksVariants ? 'Variant Inventory' : 'Inventory Information';
+            const variantEl = document.getElementById('pdVariantThresholds');
+            if (variantEl) { variantEl.classList.add('d-none'); variantEl.textContent = ''; }
+            ['pdKpiTotal', 'pdKpiReserved', 'pdKpiAvailable', 'pdKpiThreshold',
+                'pdKpiStatus', 'pdInventoryStatus'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.textContent = failed ? 'Unavailable' : 'Loading…';
+                if (id === 'pdKpiStatus' || id === 'pdInventoryStatus') el.className = 'pd-inventory-state';
+            });
+            if (feedback) {
+                feedback.hidden = false;
+                feedback.textContent = failed ? 'Unable to load inventory. Reopen this product to retry.' : 'Loading inventory…';
             }
-            if (row.stock === 0) {
-                lowStockNames.push(row.optionName);
-            }
+            return;
+        }
+        // Django supplies the snapshot; saved stock has already had holds deducted.
+        setInventoryKpiDisplay('pdKpiTotal', inventory.on_hand);
+        setInventoryKpiDisplay('pdKpiReserved', inventory.reserved);
+        setInventoryKpiDisplay('pdKpiAvailable', inventory.available);
+        const variantThresholds = inventory.variant_thresholds || [];
+        if (summaryEl) summaryEl.classList.toggle('d-none', variantThresholds.length > 0);
+        if (headingEl) headingEl.textContent = variantThresholds.length ? 'Variant Inventory' : 'Inventory Information';
+        if (variantThresholds.length) document.getElementById('pdKpiThreshold').textContent = 'Per variant';
+        else setInventoryKpiDisplay('pdKpiThreshold', inventory.low_stock_threshold);
+        const variantEl = document.getElementById('pdVariantThresholds');
+        if (variantEl) {
+            variantEl.classList.toggle('d-none', !variantThresholds.length);
+            variantEl.innerHTML = variantThresholds.length ? `<table class="table table-sm mb-3"><thead><tr><th scope="col">Variant</th><th scope="col">SKU</th><th scope="col">On Hand</th><th scope="col">Reserved</th><th scope="col">Available</th><th scope="col">Threshold</th><th scope="col">Status</th></tr></thead><tbody>${variantThresholds.map(item =>
+                `<tr><th scope="row">${escapeHtml([item.group, item.name].filter(Boolean).join(' · '))}</th><td>${escapeHtml(item.sku || 'Unavailable')}</td><td>${item.on_hand}</td><td>${item.reserved}</td><td>${item.available} ${item.available === 1 ? 'pc' : 'pcs'}</td><td>${item.threshold} ${item.threshold === 1 ? 'pc' : 'pcs'}</td><td><span class="pd-inventory-state pd-inventory-state--${escapeHtml(item.status)}">${escapeHtml(item.status_label)}</span></td></tr>`).join('')}</tbody></table>` : '';
+        }
+        ['pdInventoryStatus', 'pdKpiStatus'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = inventory.status_label;
+            el.className = `pd-inventory-state pd-inventory-state--${inventory.status}`;
         });
-
-        setInventoryKpiDisplay('pdKpiTotal', totalStock, unit);
-        setInventoryKpiDisplay('pdKpiAvailable', available, unit);
-        setInventoryKpiDisplay('pdKpiReserved', reserved, unit);
-
-        const detailStock = document.getElementById('pdDetailStock');
-        if (detailStock) detailStock.textContent = String(totalStock);
-
-        const variantsEl = document.getElementById('pdKpiVariants');
-        if (variantsEl) variantsEl.textContent = String(variantRows.length);
-
-        const alertEl = document.getElementById('pdLowStockAlert');
-        if (alertEl) {
-            const uniqueLow = [...new Set(lowStockNames)].filter(Boolean);
-            if (uniqueLow.length && product.inventory_status !== 'out_of_stock') {
-                alertEl.textContent = `Low stock alert: ${uniqueLow.slice(0, 3).join(', ')}${uniqueLow.length > 3 ? '…' : ''}`;
-                alertEl.classList.remove('d-none');
-            } else if (product.inventory_status === 'low_stock' || product.inventory_status === 'out_of_stock') {
-                alertEl.textContent = `Inventory status: ${helpers.inventoryStatusLabel?.(product.inventory_status) || product.inventory_status}`;
-                alertEl.classList.remove('d-none');
-            } else {
-                alertEl.classList.add('d-none');
-                alertEl.textContent = '';
-            }
+        if (feedback) {
+            feedback.hidden = true;
+            feedback.textContent = '';
         }
     }
 
@@ -3224,7 +3459,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const totalStock = parseInt(product.stock, 10) || 0;
         const totalDeducted = productOrders.reduce((sum, o) => sum + (parseInt(o.quantity, 10) || 1), 0);
-        const initialAdd = totalStock + totalDeducted;
+        // Current stock cannot establish historic initial/restock quantities.
 
         if (created) {
             entries.push({
@@ -3232,15 +3467,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 action: 'Product Created',
                 by: seller,
                 details: 'New product added',
-            });
-        }
-
-        if (created && initialAdd > 0) {
-            entries.push({
-                date: created,
-                action: 'Stock Added',
-                by: seller,
-                details: `Added ${initialAdd} ${unit}`,
             });
         }
 
@@ -3257,9 +3483,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const qty = parseInt(order.quantity, 10) || 1;
             entries.push({
                 date: order.created_at,
-                action: 'Stock Deducted',
+                action: product.product_type === 'bundle' ? 'Bundle Ordered' : 'Stock Deducted',
                 by: 'System',
-                details: `Deducted ${qty} ${unit} (Order ${formatOrderRef(order.id)})`,
+                details: product.product_type === 'bundle' ? `Reserved components for ${qty} bundle${qty === 1 ? '' : 's'} (Order ${formatOrderRef(order.id)})` : `Deducted ${qty} ${unit} (Order ${formatOrderRef(order.id)})`,
             });
         });
 
@@ -3348,7 +3574,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function populateSalesFromOrders(orders, productId, variantRows) {
-        const productOrders = (orders || []).filter((o) => String(o.product_id) === String(productId));
+        const productOrders = (orders || []).filter(o => String(o.product_id) === String(productId) && o.status === 'completed' && o.payment_status === 'paid');
         let totalSold = 0;
         let totalRevenue = 0;
         const variantCounts = {};
@@ -3397,9 +3623,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const helpers = window.CampusHubAdminProducts || {};
         const inventoryStatus = helpers.computeProductAvailability?.(product) || product.inventory_status || 'in_stock';
         const status = product.approval_status || product.product_status || 'pending';
-        const department = product.department || 'Not assigned';
+        const department = product.department || 'Not Assigned';
         const dateStr = product.submitted_at || '';
-        const updatedStr = product.updated_at || product.submitted_at || '';
+        const updatedStr = product.updated_at || '';
         const isPending = normalizeStatus(status) === 'pending';
         const isArchived = Boolean(
             product.is_archived === true ||
@@ -3409,8 +3635,9 @@ document.addEventListener('DOMContentLoaded', function () {
         );
         const description = (product.description || '').trim() || '—';
 
-        document.getElementById('pdEditBtn')?.classList.toggle('d-none', isPending || isArchived);
-        document.getElementById('pdMenuArchiveProduct')?.classList.toggle('d-none', isPending || isArchived);
+        const canEdit = document.querySelector('meta[name="can-manage-products"]')?.content === 'true';
+        document.getElementById('pdEditBtn')?.classList.toggle('d-none', !canEdit);
+        document.getElementById('pdMenuArchiveProduct')?.classList.toggle('d-none', isArchived || !canEdit);
         document.getElementById('pdRestoreBtn')?.classList.toggle('d-none', !isArchived);
         document.getElementById('pdMenuRestoreProduct')?.classList.toggle('d-none', !isArchived);
 
@@ -3419,10 +3646,11 @@ document.addEventListener('DOMContentLoaded', function () {
         optionNames = variantGalleryItems.map((item) => item.optionName).filter(Boolean);
 
         const fields = {
-            pdMeta: `PRD-${String(product.id || '').padStart(4, '0')}`,
+            pdMeta: product.product_code || `PRD-${String(product.id || '').padStart(4, '0')}`,
             pdCategory: product.category || '—',
             pdSeller: product.seller || '—',
-            pdDeptHero: department,
+            pdDeptHero: product.program || 'Unassigned (legacy record)',
+            pdMajorHero: product.major || '—',
             pdCreatedAt: formatPdDateTime(dateStr),
             pdDescription: description,
             pdDept: department,
@@ -3441,18 +3669,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const statusEl = document.getElementById('pdStatusText');
         if (statusEl) {
-            if (isArchived) {
-                statusEl.textContent = 'Archived';
-                statusEl.className = 'pd-active-badge status-archived';
-            } else {
-                const statusLabel = status === 'approved' ? 'Active' : capitalizeStatus(status);
-                statusEl.textContent = statusLabel;
-                statusEl.className = `pd-active-badge status-${status}`;
-            }
+            statusEl.textContent = capitalizeStatus(status);
+            statusEl.className = `pd-active-badge status-${status}`;
         }
+        const listingEl = document.getElementById('pdListingStatus');
+        if (listingEl) listingEl.textContent = isArchived ? 'Archived' : 'Active';
 
         populateProductTags(product);
-        populateInventoryKpis(product, helpers);
+        populateInventoryKpis(product);
         populateVariationsTable(product, helpers);
         populateInventoryHistory(product);
         populateActivityLog(product);
@@ -3464,8 +3688,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (section.classList.contains('d-none') || activeProductId !== String(product.id)) return;
         const helpers = window.CampusHubAdminProducts || {};
         const variantRows = buildVariantRows(product, helpers);
-        const reserved = computeReservedStock(orders, product.id);
-        populateInventoryKpis(product, helpers, reserved);
         populateInventoryHistory(product, orders);
         populateOrdersTable(orders, product.id);
         populateSalesFromOrders(orders, product.id, variantRows);
@@ -3475,7 +3697,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateOptionLabel() {
         if (!optionLabel) return;
         const item = getVariantItemForIndex(currentIdx);
-        const name = item?.optionName || optionNames[currentIdx] || '';
+        const name = item ? (item.optionName || '') : (optionNames[currentIdx] || '');
         if (name) {
             optionLabel.textContent = name;
             optionLabel.hidden = false;
@@ -3487,6 +3709,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderDetailsGallery() {
         if (mainImage) {
+            mainImage.referrerPolicy = 'no-referrer';
             mainImage.src = images[currentIdx] || images[0] || '';
             mainImage.style.display = images.length ? '' : 'none';
         }
@@ -3498,6 +3721,7 @@ document.addEventListener('DOMContentLoaded', function () {
             thumbnails.innerHTML = '';
             images.forEach((url, i) => {
                 const thumb = document.createElement('img');
+                thumb.referrerPolicy = 'no-referrer';
                 thumb.src = url;
                 thumb.alt = '';
                 thumb.className = i === currentIdx ? 'is-active' : '';
@@ -3576,13 +3800,29 @@ document.addEventListener('DOMContentLoaded', function () {
         const inputEl = document.getElementById('updateStockInput');
         const hintEl = document.getElementById('updateStockHint');
         const currentStock = parseInt(product.stock, 10) || 0;
+        const variantSelect = document.getElementById('updateStockVariant');
+        const variantWrap = document.getElementById('updateStockVariantWrap');
+        const variants = [];
+        (product.customization_options || []).forEach((group, groupIndex) => (group.options || []).forEach((option, optionIndex) => {
+            if (Object.prototype.hasOwnProperty.call(option, 'stock')) variants.push({ key: `${groupIndex}:${optionIndex}`, name: `${group.name} · ${option.name}`, stock: option.stock });
+        }));
+        if (variantWrap) variantWrap.hidden = !variants.length;
+        if (variantSelect) {
+            variantSelect.innerHTML = variants.map(item => `<option value="${item.key}" data-stock="${item.stock}">${escapeHtml(item.name)}</option>`).join('');
+            variantSelect.onchange = () => {
+                const stock = variantSelect.selectedOptions[0]?.dataset.stock || '0';
+                if (currentEl) currentEl.textContent = stock;
+                if (inputEl) inputEl.value = stock;
+            };
+        }
 
         if (nameEl) nameEl.textContent = product.name || 'Selected product';
         if (currentEl) currentEl.textContent = String(currentStock);
         if (inputEl) inputEl.value = String(currentStock);
+        if (variants.length) variantSelect?.onchange();
         if (hintEl) {
-            hintEl.textContent = product.customization_enabled
-                ? 'Tip: products with multiple variants should use Edit Product for per-option stock.'
+            hintEl.textContent = variants.length
+                ? 'Updates only the selected variant’s available quantity. Existing reservations and threshold are retained.'
                 : 'This updates stock only — it does not open the full edit form.';
         }
 
@@ -3634,29 +3874,43 @@ document.addEventListener('DOMContentLoaded', function () {
                     Accept: 'application/json',
                     'X-CSRFToken': getCsrfToken(),
                 },
-                body: JSON.stringify({ stock }),
+                body: JSON.stringify({ stock, variant_key: document.getElementById('updateStockVariantWrap')?.hidden ? null : document.getElementById('updateStockVariant')?.value }),
             });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || 'Failed to update stock');
+            const data = await window.CampusHubActions.json(response, 'Unable to confirm the update. Reload the record before retrying.');
+            if (!data.product) throw new Error('The update was not confirmed. Reload the record before retrying.');
 
             activeDetailsRow.dataset.productStock = String(stock);
+            // The stock endpoint returns canonical remaining/variant quantities.
+            const saved = data.product;
+            const helpers = window.CampusHubAdminProducts;
+            const inventoryCell = activeDetailsRow.querySelector('.col-inventory');
+            if (saved && helpers && inventoryCell) {
+                const available = helpers.computeTotalStock(saved);
+                const variants = helpers.countProductVariants(saved);
+                inventoryCell.innerHTML = helpers.renderInventorySummary(available, variants, saved);
+                activeDetailsRow.dataset.lowStockThreshold = saved.low_stock_threshold == null ? '' : String(saved.low_stock_threshold);
+                activeDetailsRow.dataset.productStock = String(available);
+                activeDetailsRow.dataset.variantCount = String(variants);
+                activeDetailsRow.dataset.customizationOptions = JSON.stringify(saved.customization_options || []);
+                activeDetailsRow.dataset.inventoryStatus = saved.inventory_status;
+            }
             const stockCell = activeDetailsRow.querySelector('.col-stock strong, [data-stock-display]');
             if (stockCell) stockCell.textContent = String(stock);
-            const detailStock = document.getElementById('pdDetailStock');
-            if (detailStock) detailStock.textContent = String(stock);
-            const kpiTotal = document.getElementById('pdKpiTotal');
-            if (kpiTotal) {
-                const unit = kpiTotal.querySelector('.pd-inventory-unit')?.textContent || 'units';
-                kpiTotal.innerHTML = `${stock} <span class="pd-inventory-unit">${unit}</span>`;
+            if (saved && activeProduct) {
+                activeProduct = { ...activeProduct, ...saved };
+                populateInventoryKpis(activeProduct, true);
+                activeDetailsRow.dataset.productUpdatedAt = saved.updated_at || '';
+                const updatedEl = document.getElementById('pdUpdated');
+                if (updatedEl) updatedEl.textContent = formatPdDateTime(saved.updated_at);
             }
 
             const modalEl = document.getElementById('updateStockModal');
             if (modalEl && window.bootstrap?.Modal) {
                 window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
             }
-            showProductSaveToast('Stock updated.');
+            helpers?.showProductSaveToast('Stock updated.');
         } catch (error) {
-            alert(error.message || 'Failed to update stock');
+            showProductSaveToast(error.message || 'Failed to update stock', 'error');
         } finally {
             if (btn) {
                 btn.disabled = false;
@@ -3687,8 +3941,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     'X-CSRFToken': getCsrfToken(),
                 },
             });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || 'Failed to archive product');
+            const data = await window.CampusHubActions.json(response, 'Unable to confirm the update. Reload the record before retrying.');
+            if (String(data.id) !== String(productId)) throw new Error('The update was not confirmed. Reload the record before retrying.');
 
             const modalEl = document.getElementById('archiveProductModal');
             if (modalEl && window.bootstrap?.Modal) {
@@ -3703,14 +3957,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             window.__chPendingArchiveProductRow = null;
 
-            const adjustStat = (cardId, change) => {
-                const value = document.querySelector(`#${cardId} strong`);
-                if (!value) return;
-                value.textContent = String(Math.max(0, (parseInt(value.textContent, 10) || 0) + change));
-            };
-            adjustStat('totalStatCard', -1);
-            if (previousStatus === 'approved') adjustStat('approvedStatCard', -1);
-            if (previousStatus === 'pending') adjustStat('pendingStatCard', -1);
+            // Archive changes listing visibility, not record/approval counts.
 
             applyInlineFilters();
             window.dispatchEvent(new Event('products-table-changed'));
@@ -3722,7 +3969,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             showProductSaveToast('Product archived.');
         } catch (error) {
-            alert(error.message || 'Failed to archive product');
+            showProductSaveToast(error.message || 'Failed to archive product', 'error');
         } finally {
             if (btn) {
                 btn.disabled = false;
@@ -3757,8 +4004,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     'X-CSRFToken': getCsrfToken(),
                 },
             });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(data.error || 'Failed to restore product');
+            const data = await window.CampusHubActions.json(response, 'Unable to confirm the update. Reload the record before retrying.');
+            if (String(data.id) !== String(productId)) throw new Error('The update was not confirmed. Reload the record before retrying.');
 
             const modalEl = document.getElementById('restoreProductModal');
             if (modalEl && window.bootstrap?.Modal) {
@@ -3773,14 +4020,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             window.__chPendingRestoreProductRow = null;
 
-            const adjustStat = (cardId, change) => {
-                const value = document.querySelector(`#${cardId} strong`);
-                if (!value) return;
-                value.textContent = String(Math.max(0, (parseInt(value.textContent, 10) || 0) + change));
-            };
-            adjustStat('totalStatCard', 1);
-            if (previousStatus === 'approved') adjustStat('approvedStatCard', 1);
-            if (previousStatus === 'pending') adjustStat('pendingStatCard', 1);
+            // Restore keeps the same record/approval counts.
 
             applyInlineFilters();
             window.dispatchEvent(new Event('products-table-changed'));
@@ -3792,7 +4032,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             showProductSaveToast('Product restored successfully.');
         } catch (error) {
-            alert(error.message || 'Failed to restore product');
+            showProductSaveToast(error.message || 'Failed to restore product', 'error');
         } finally {
             if (btn) {
                 btn.disabled = false;
@@ -3815,7 +4055,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function syncDetailsFromServer(productId, row, fallbackUrl) {
         const product = await fetchProductByIdFromServer(productId);
-        if (!product || section.classList.contains('d-none') || activeProductId !== String(productId)) return;
+        if (section.classList.contains('d-none') || activeProductId !== String(productId)) return;
+        if (!product || !product.inventory) {
+            populateInventoryKpis({}, true);
+            populateInventoryHistory({}, true);
+            return;
+        }
 
         const helpers = window.CampusHubAdminProducts || {};
         const merged = {
@@ -3872,4 +4117,13 @@ document.addEventListener('DOMContentLoaded', function () {
         loadOrdersAndSales(product);
         syncDetailsFromServer(productId, row, imageUrl);
     };
+
+    // Dashboard leaders link to the existing details view, including archived
+    // products with historical sales. Keep the list and edit workflows intact.
+    document.addEventListener('DOMContentLoaded', () => {
+        const id = new URL(window.location.href).searchParams.get('product_id');
+        if (!id || !/^\d+$/.test(id)) return;
+        const row = document.querySelector(`tr[data-product-id="${id}"]`);
+        if (row) window.openProductDetailsView(row);
+    });
 })();
