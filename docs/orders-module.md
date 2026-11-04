@@ -1,5 +1,18 @@
 # Orders module: Pickup, Seller Delivery and payment monitoring
 
+## Cart parser diagnostics - November 4, 2026
+
+1. **Cause / reason.** Confirmed: `_checkoutItem(CartItem item) async` was missing its opening `{`. Dart then misread the navigation call and following methods as class declarations, causing the constructor, missing `build`, undefined-name and missing-method diagnostics.
+2. **Exact files changed.** `campushub/lib/module_app/screens/cart_screen.dart:34`, anchor `Future<void> _checkoutItem(CartItem item) async {`, restores one opening brace. `docs/orders-module.md:3` records this report. The separate Python comparison fix is documented in [Products validation](products-list-inventory.md#optional-text-length-comparison---november-4-2026).
+3. **Changes made.** Restored the method's block opener; its existing closing brace at line 50 now matches. This restores the mobile file to its existing Git version. No other cart code was changed.
+4. **How it works / functions and data flow.** `_checkoutItem` takes one `CartItem` and returns a `Future<void>`. The item card calls it when Checkout Item is tapped. It passes the item's product, selection, image and seller data to the existing `CheckoutScreen`, then awaits the navigation route returning. The existing `onOrderPlaced` callback removes that cart entry through `CartService.removeItem(item.id)`. Braces define the method body so `_checkoutAll` and `build` remain separate state methods.
+5. **Backend / API behavior.** No backend change from this fix. Existing authenticated quotes/submission, payment/fulfillment and retry behavior remain.
+6. **Database / migration impact.** None. No migration, live order, app launch, build or installation.
+7. **Tests performed.** From `campushub/`, `flutter analyze --no-pub lib/module_app/screens/cart_screen.dart` reported no issues. `flutter test --no-pub test/checkout_workflow_test.dart test/checkout_layout_test.dart test/order_summary_test.dart` passed all 18 existing tests, covering checkout submission, failure/retry, layout, quantity and fulfillment controls. These tests do not directly exercise cart route navigation.
+8. **Remaining limitations / troubleshooting / safe exercise.** No physical-device check, live cart transaction or full application suite was run. When many syntax errors appear together, inspect the first error and surrounding braces before adding missing members. Safe exercise: identify the method's two braces at lines 34 and 50, then rerun the analysis command and verify `No issues found!`. To observe the parser cascade, temporarily remove the opener in an unsaved editor buffer, then undo without saving or running the app.
+
+Annotated example: `Future<void> _checkoutItem(CartItem item) async {` starts the asynchronous method body; its closing `}` belongs after the awaited navigation call. Adding this delimiter fixes the parser's interpretation without changing the method's inputs or output.
+
 ## Payment icons and circle touch targets - October 30, 2026
 
 ### 1. Cause / reason

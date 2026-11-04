@@ -1,5 +1,403 @@
 # CampusHub Bookings: reusable project context
 
+## Time dialog: AM/PM format and plain titles - November 5, 2026
+
+### 1. Cause / reason
+
+The user requested a 12-hour picker and removal of the visible format suffix. The preceding swipe dialog still used 00-23 and appended (24-hour) to its title. This entry supersedes only that display/conversion behavior; the centered dialog and booking rules remain.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/booking_time_dialog.dart` | 23 hour initialization; 28 `_period`; 145 `SegmentedButton<DayPeriod>`; OK callback near the end of `build` | Display hours 01-12, seed AM/PM from the actual time, add an accessible AM/PM selector and convert the selection back into an exact TimeOfDay. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 375 title in `_pickTime` | Use only Start Time / End Time, without either format suffix. |
+| `campushub/test/select_schedule_test.dart` | 205 AM/PM boundary cases; 458 responsive dialog cases; `chooseHour` helper | Add four midnight/noon/morning/afternoon seed, round-trip and period-switch cases; update wheel indices in existing validation/payload scenarios. |
+| `docs/booking-module-chatgpt-context.md` | 3 this report | Record functions/data flow, verification and safe exercise. |
+| `CAMPUSHUB_CONTEXT.md` | 3 AM/PM summary | Preserve latest requested format and titles. |
+
+### 3. Changes made
+
+The Hour wheel shows 01-12, Minute remains 00-59, and the AM/PM selector sits below the wheels so narrow/large-text phones retain room for the digits. Titles are simply Start Time or End Time. Cancel/OK, centered layout, existing colors/font and absence of a bottom sheet remain.
+
+### 4. How it works / functions and data flow
+
+The initial hour's wheel index is `(hour + 11) % 12`, while `initialTime.period` selects AM/PM. These values are pending dialog state. OK converts the display hour through `(index + 1) % 12`, adding 12 for PM, and preserves the minute. Cancel returns no value. `_pickTime` still guards stale results and `_applyTime` still validates the actual interval. The server keeps receiving its existing HH:mm values; only the user-facing selection format changes.
+
+Examples: 12:07 AM converts to 00:07, 12:07 PM to 12:07, and 2:07 PM to 14:07. This conversion avoids confusing noon with midnight while preserving exact-minute bookings.
+
+### 5. Backend / API behavior
+
+No backend or API source changes. Existing availability, minimum duration, ordering, conflict, pricing and final submission validation remain. A visible PM selection does not bypass the server's permitted hours.
+
+### 6. Database / migration impact
+
+No database writes, model/schema/migration changes, plugins or dependencies. No working bookings/configuration were created or modified.
+
+### 7. Tests performed
+
+- `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart`: **38/38 passed in 24 seconds**. Four new cases verify initial 00:07, 12:07, 01:07 and 13:07, unchanged confirmation, period switching and titles without format wording. Existing exact 14:07 payload, cancellation, minimum rejection and responsive dialog scenarios pass.
+- Whole-app `flutter analyze --no-pub`: **No issues found in 13.9 seconds**. Dart formatting and scoped whitespace checks passed.
+- Inspected actual 320px Court, 280px/200% text and 320x568 captures under external `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/schedule-ampm-dialog/`. Digits, AM/PM selector, plain title and actions fit. No optional design-kit or full accessibility-certification claim.
+
+### 8. Remaining limitations / safe exercise
+
+No physical-phone run or APK build/install. Hot restart Flutter to apply the update. Safe exercise: run the four AM/PM boundary tests, change only a fixture's minute and confirm it survives both period conversions. On an unsent selection, toggle AM/PM then Cancel to check that the booking value remains unchanged. Do not create working demonstration records.
+
+## Time selection: centered hour/minute swipe dialog - November 5, 2026
+
+### 1. Cause / reason
+
+The user explicitly replaced the preceding bottom-sheet preference with a centered dialog like the attached reference, using swipe selection and no container sliding up from the bottom. This supersedes the sheet and anchored-menu presentation below. Existing booking requirements remain unchanged.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/booking_time_dialog.dart` | 7 `BookingTimeDialog`; 22/25 wheel controllers; 37 `build`; 60 `CupertinoPicker`; 98 `AlertDialog`; 139 `actions` | New reusable centered 24-hour wheel dialog with Hour/Minute labels, Cancel/OK and locally owned/disposed controllers. Uses built-in Flutter widgets and existing schedule font/colors. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 365 `_pickTime`; 389 `_applyTime`; 422 `_timeChoices` | Remove bottom-sheet/list/exact-entry paths and call the wheel dialog directly. Preserve date/window guards, refresh suspension and shared interval checks. |
+| `campushub/test/select_schedule_test.dart` | 402 responsive dialog scenarios; 419 `chooseHour`; 1175 swipe cancellation | Replace sheet/menu assertions with dialog bounds, wheel selection, exact-minute payload, actual swipe/cancellation, minimum errors and valid progression. |
+| `docs/booking-module-chatgpt-context.md` | 3 this report | Record updated interaction, functions/data flow, tests and practice. |
+| `CAMPUSHUB_CONTEXT.md` | 3 swipe-dialog entry | Preserve the latest explicit preference for future changes. |
+
+### 3. Changes made
+
+Tapping Start or End opens a centered white dialog titled Start time (24-hour) or End time (24-hour). Hours 00-23 and minutes 00-59 scroll independently on wheels. Cancel closes without changing the booking; OK returns the centered values. There is no bottom sheet, long option list, quarter-hour restriction or extra exact-entry action. The page's separate booking-time confirmation checkbox remains absent. Dialog content supports scrolling when vertical space is limited, and wheel sizes follow text scale.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_pickTime(start)` passes the current field's exact `TimeOfDay` and title to `BookingTimeDialog` through `showDialog<TimeOfDay>`. Each `FixedExtentScrollController` starts on that hour/minute and owns only the pending dialog value. Swiping does not change `_customStart`, `_customEnd`, `_slot` or the quote. Cancel/Back/scrim returns null; OK reads the centered wheel indices and returns a `TimeOfDay`. Controllers are disposed with the dialog.
+
+The screen rejects stale date/window results and passes confirmed values to the unchanged `_applyTime()`. That function updates displayed times/duration, clears the old quote and accepts `_slot` only inside the server period with correct ordering and minimum duration. Unlike the former suggestion list, wheels allow every exact minute; invalid choices receive the existing clear validation message and keep Next disabled. The next step and final submission still ask Django to validate the exact interval.
+
+Example: in an isolated 13:00-17:00 period with no extra minimum, selecting Start 14:07 and End 15:00 sends precisely `14:07` and `15:00`, not rounded quarter hours. With a four-hour minimum, 13:00-15:00 is rejected; 13:00-17:00 enables Next. Swiping a minute wheel and then Cancel leaves the previous value intact.
+
+### 5. Backend / API behavior
+
+No backend or API changes. Availability, weekend restrictions, overlap checks, pricing, eligibility and final locked booking submission remain authoritative in Django. The orange selected-date marker stays removed.
+
+### 6. Database / migration impact
+
+No database writes, migrations, model/schema changes, native plugins or dependencies. `CupertinoPicker` is part of the installed Flutter SDK; Django remains the source of booking rules. No production booking was created.
+
+### 7. Tests performed
+
+- `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart`: **34/34 passed in 30 seconds**. Includes a real minute-wheel drag followed by Cancel, precise `14:07` API input, invalid interval/minimum rejection, valid Next, and dialog bounds at 390x844, 280x844/200% text and 320x568.
+- Whole-app `flutter analyze --no-pub`: **No issues found in 17.9 seconds**. Formatting and scoped whitespace checks passed.
+- Inspected actual captures of the 320px Court dialog, short 320x568 dialog and 280px/200% text dialog. Colon and action text use explicit existing font styling. External evidence: `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/schedule-wheel-dialog/`, including `court-time-wheel-320.png`, `time-wheel-320.0-1.0.png` and `time-wheel-280.0-2.0.png`.
+- The first run's three bounds assertions measured AlertDialog's full route wrapper instead of its visible Material surface; tests now measure the actual dialog surface. This was a test-target correction, not removal of responsive checks. Only the final run is counted as passing. No optional design-kit gate or full accessibility-certification claim.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-phone run, APK build/install or deployed change. Hot restart Flutter to apply the Dart changes. Wheel choices are pending until OK; invalid hours/minutes relative to the selected free period still produce the existing schedule error. Safe exercise: run the responsive dialog scenarios, select 14:07/15:00 in isolated fixtures and verify the exact quote body; swipe and Cancel to verify no change. Use fixture tests or unsent selections, without creating demonstration bookings in the working database.
+
+## Time selection: bounded mobile bottom sheet - November 5, 2026
+
+### 1. Cause / reason
+
+The user's phone screenshot shows the anchored time menu covering most of the form. The preceding implementation constrained `showMenu` to 45% height, but that route still chose its position around the field and selected item; it did not provide a stable titled selection area. For this long, dependent list on small screens, this update uses a bounded modal bottom sheet. This is a contextual UI choice, not a claim that dropdowns are universally wrong. Flutter documents modal sheets as an alternative to menus/dialogs with scrolling, safe-area and dismissal support: [official API](https://api.flutter.dev/flutter/material/showModalBottomSheet.html).
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 364 `_pickTime`; 420 `booking-time-sheet`; 452 `booking-time-close`; 549 `_enterExactTime`; 632 `_applyTime`; 665 `_timeChoices` | Replace anchored menu with a full-width bounded sheet, fixed title/window/Close header, independently scrolling choices and fixed exact-time footer. Remove unused field-position/Builder plumbing; retain existing choice generation and validation. |
+| `campushub/test/select_schedule_test.dart` | 114 optional `height`; 395 responsive time scenarios; 423 sheet bounds; 1204 Close action | Add 320x568 coverage alongside 390x844 and 280x844 at 200% text; verify sheet bounds/visible Close, scroll offscreen choices, and preserve cancellation/validation/payload checks. |
+| `docs/booking-module-chatgpt-context.md` | 3 this report | Record cause, functions/data flow, verification and practice. |
+| `CAMPUSHUB_CONTEXT.md` | 3 bounded-sheet entry | Record current mobile behavior; supersedes anchored-menu layout below. |
+
+### 3. Changes made
+
+Start/End fields retain their current appearance. Tapping either opens a white sheet no taller than 55% of the screen, with a maximum width of 620px on wider screens. The header names the field and shows its available period. Close and Enter exact time remain visible while only the options scroll. The current value is marked with a check. A selection closes the sheet immediately; no new confirmation step. Safe areas protect system controls, and Close, Back, drag or tapping the scrim dismisses the modal without changing values.
+
+### 4. How it works / functions and data flow
+
+`_pickTime(start)` still derives the same time suggestions from the current Django period, selected Start and configured minimum. `showModalBottomSheet<String>` now returns an `HH:mm` choice, `exact`, or null. A bounded Column keeps the header/footer fixed and gives the central ListView the remaining space. `_enterExactTime()` handles arbitrary minutes; `_applyTime()` remains the shared boundary/order/minimum validator. Date/window guards and the existing refresh flag protect open selections. `_next()` continues sending the exact valid interval to Django. No pricing or availability calculation moved into the UI.
+
+Example: a four-hour minimum within 13:00-17:00 offers 17:00 for End. Selecting it closes the sheet and enables Next. Closing the sheet instead retains the previous selection. The exact-time path still rejects 15:00 under the same four-hour minimum.
+
+### 5. Backend / API behavior
+
+No backend/API changes or new routes. Django remains authoritative for availability, conflicts, eligibility, pricing and final submission. The previous selected-date orange-dot removal and absence of a booking-time confirmation checkbox remain.
+
+### 6. Database / migration impact
+
+No database writes, schema/model/migration changes, dependencies or production test records.
+
+### 7. Tests performed
+
+- Final `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart`: **34/34 passed in 19 seconds**. Includes short-screen bounds, 200% text, scrolling to later times, Close without selection, invalid exact input/minimum duration, exact API values and existing quote/submission behavior.
+- Whole-app `flutter analyze --no-pub`: **No issues found in 10.6 seconds**. Formatting and scoped whitespace checks passed.
+- Actual rendered sheets inspected at 390x844, 280x844/200% text and 320x568. Header, Close, time list and exact-entry footer fit; the short-screen list scrolls in its assigned area. Evidence: external `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/schedule-time-sheet/`, including `time-dropdown-390.0-1.0.png`, `time-dropdown-280.0-2.0.png`, and `time-dropdown-320.0-1.0.png` (historical capture names now depict sheets).
+- Initial migration run had two widget failures because tests tried to find offscreen lazy list items before scrolling. Tests now scroll the actual options list; this was not fixed by disabling validation or eagerly rendering every option. Only the final passing run is counted. Optional design-kit gates remain unavailable; no full accessibility certification or physical-phone claim.
+
+### 8. Remaining limitations / safe practice
+
+No APK build/install or physical-phone run. Hot restart Flutter to load the change. The sheet intentionally makes the underlying form inactive until a choice or dismissal, avoiding accidental form taps. For practice, run the responsive time scenarios with the isolated fixtures: open End, scroll to a later value, choose it, and verify the same `start`/`end` reaches the fixture quote; reopen and Close to confirm no change. Do not create fake working bookings for UI practice.
+
+## Select Schedule: plain selected date and working time dropdowns - November 5, 2026
+
+### 1. Cause / reason
+
+Confirmed: the calendar added a separate gold/orange `_StatusDot(scheduleGold)` inside the selected date's navy circle. Also, the Start/End buttons displayed dropdown chevrons but opened only a manual time-entry dialog. The user requested removal of that selected-date dot and functional dropdowns.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/booking_schedule_calendar.dart` | 247 `child: number` in `_date` | Remove the selected-date Stack/gold dot; keep the navy circle, white date and real status indicators elsewhere. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 364 `_pickTime`; 481 `_enterExactTime`; 564 `_applyTime`; 597 `_timeChoices` | Anchor scrollable popup menus to the time fields, derive suggestions from the selected server period/minimum, retain exact-minute entry, and share the original interval validator. |
+| `campushub/test/select_schedule_test.dart` | 412 `chooseHour`; 905 gold-dot assertion; 923 selected-date capture; 1099 Covered Court scenario; 1198 dropdown capture | Exercise Start and End menu choices, exact-entry rejection, minimum filtering, dismissal, exact submitted times, no gold selected-date marker, and responsive renders. |
+| `docs/booking-module-chatgpt-context.md` | 3 this report | Explain implementation, verification and safe practice. |
+| `CAMPUSHUB_CONTEXT.md` | 3 dropdown summary | Record the latest behavior for subsequent work. |
+
+### 3. Changes made
+
+Selected dates now show only the existing navy circle with white text. Unselected dates retain database-backed status dots/prohibition marks. The time controls open actual Flutter popup menus aligned to the pressed field. Menus use the existing font, navy text, white surface and light outline, with no heavy shadow. Lists scroll and retain large text sizing. The earlier removal of the booking-time confirmation checkbox remains.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_pickTime(start, fieldContext)` reads the selected available window and its minimum duration. Start suggestions stop early enough to leave room for that minimum. End suggestions begin at selected Start plus the minimum, or strictly after Start when no positive minimum exists. Quarter-hour suggestions include exact server boundaries and positive minimum-derived boundaries, rather than rounding away authorized times. It does not invent availability or alter operating hours.
+
+The built-in `showMenu<String>` returns an `HH:mm` value, `exact`, or null on dismissal. `exact` opens `_enterExactTime()`, preserving arbitrary valid minute values. Both routes call `_applyTime()`, which contains the original boundary/order/minimum checks, updates displayed values/duration, clears the old quote and assigns `_slot` only when valid. Dismissal makes no selection. Date/window identity guards discard stale results; the existing `_pickingTime` flag prevents background refresh from replacing the window during selection. `_next()` still sends the exact chosen interval to Django before Details.
+
+Example using an isolated available period 13:00-17:00 with a 240-minute minimum: Start offers 13:00 and End offers 17:00, followed by Enter exact time. Selecting 17:00 enables Next directly. Entering 15:00 through exact entry still shows the four-hour minimum error. Quarter-hour suggestions are a convenience, not a new booking-increment policy.
+
+### 5. Backend / API behavior
+
+No Django/API changes. Server availability, weekend policy, eligibility, charges, conflicts and final locked submission checks remain authoritative. The menus use the existing response rather than a new endpoint or local schedule copy.
+
+### 6. Database / migration impact
+
+No saved-data writes, model/migration/schema changes or dependencies. No production booking or configuration was created or changed. Earlier approved deposit corrections were not replayed.
+
+### 7. Tests performed
+
+- Final targeted run: `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart` — **33/33 passed**. Covers both dropdowns at 390px and 280px/200% text, out-of-period exact entry, minimum duration, cancellation, direct progression at 320px, quote/submission behavior and live availability. Selected-date assertions cover 280/320/390/768px.
+- Final whole-app `flutter analyze --no-pub` reported **No issues found**. Dart formatting and scoped whitespace checks passed.
+- Actual rendered captures were inspected: plain selected date at 390px, End dropdown at 320px, and dropdown at 280px/200% text. Initial visual inspection prompted explicit variable-font weights and a light menu border with zero elevation; refreshed captures verify those changes. Evidence: `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/schedule-dropdowns/`, including `selected-date-390.0-1.0.png`, `court-end-dropdown-320.png` and `time-dropdown-280.0-2.0.png`.
+- Tests use disposable UI responses, not a live server/database. The optional design-kit scripts remain unavailable; no kit-wide gate or accessibility-certification claim.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-phone verification, APK rebuild/install or production booking was performed. Hot restart the existing Flutter session to load the Dart changes. Only permitted times for the selected free period appear; choose a different available period if needed. Enter exact time supports non-quarter-hour requests, with the same local/server validation. A shorter window than the required minimum offers exact entry but cannot produce a valid booking.
+
+Safe practice: run the existing Covered Court scenario in `test/select_schedule_test.dart`. Open Start, dismiss it and verify Next stays disabled; choose End 17:00 for the isolated 13:00-17:00/four-hour fixture and verify Next enables without confirmation. Run the shorter-duration scenario to see exact 15:00 rejected. Use fixtures or unsent selections rather than saving fake bookings to the working database.
+
+## Mobile Select Schedule: compact time fields without confirmation - November 5, 2026
+
+### 1. Cause / reason
+
+The user supplied an Available Hours reference and requested the mobile Select Schedule design without its "Confirm my selected booking time" checkbox. Inspection confirmed that the current Flutter source already had no such checkbox: a valid time-picker result enabled Next directly. The existing fields placed labels inside tall buttons and stacked at 320px. This update makes the fields follow the supplied compact layout while retaining the existing selection and validation behavior.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 476 `_timeChoices`; 514 `stackFields`; 540 `Semantics` | Put labels above compact bordered time controls, add chevrons, fit two columns on regular phones, stack for narrow/large-text layouts, and name each time button for assistive technology. Remove the long instruction sentence; retain configured minimum duration, selected duration and validation colors. |
+| `campushub/test/select_schedule_test.dart` | 1057 Covered Court test; 1112 `startRect`; 1152 capture | Extend the existing scenario to check no checkbox, two columns and minimum 48px targets at 320px, enabled Next after a valid selection, and the exact interval passed to server validation without creating a booking. Enable an optional actual-screen capture. |
+| `docs/booking-module-chatgpt-context.md` | 3 this report | Record cause, behavior, data flow, tests and safe practice. |
+| `CAMPUSHUB_CONTEXT.md` | 3 compact time-field entry | Preserve the latest requested UI behavior for future work. |
+
+### 3. Changes made
+
+Start Time and End Time now appear above their respective bordered buttons. Each control shows its value and a downward chevron, with at least a 48px target. They sit beside each other when the content width is at least 260px and the scaled 14px text is no larger than 21px; otherwise they stack. Existing navy, font, borders, picker, available periods, summary and Next button remain. There is no separate confirmation control or confirmation flag.
+
+### 4. How it works / functions and data flow
+
+`_timeChoices()` reads `_window`, `_customStart`, `_customEnd`, `_hasExplicitTimeSelection` and `_error`, then returns the responsive fields and computed duration. Each button calls the existing `_pickTime(start)` with true for Start or false for End. That function validates the chosen interval against the selected server window and configured minimum, updates the displayed values, and assigns `_slot` only when valid. Next uses that valid `_slot`; `_next()` sends its exact date/start/end through the existing Django schedule validation before opening Details. A displayed opening time is only a starting value until the user chooses a time; no full-day reservation is silently selected.
+
+Example: for an isolated available period 13:00-17:00 with a 240-minute minimum, choosing 17:00 as End displays four hours and enables Next immediately. Choosing 15:00 instead shows the existing minimum-duration error and leaves Next disabled. No checkbox is involved.
+
+### 5. Backend / API behavior
+
+No backend or API source changed for this update. Django still supplies actual availability and revalidates the exact interval. Weekend restrictions, booking conflicts, prices, eligibility, deposits and final submission remain in the existing server workflows.
+
+### 6. Database / migration impact
+
+No working-data write, model, migration, dependency or schema change. UI tests use disposable in-memory responses; no production bookings were created. The previously approved removal of the mistaken Court deposit was not replayed.
+
+### 7. Tests performed
+
+- `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart`: **33/33 passed in 19 seconds**. Includes 320px side-by-side controls/no confirmation/direct Next, invalid intervals and minimum duration, existing live availability behavior, 280px at 200% text scale, and complete Review/submission scenarios.
+- `flutter analyze --no-pub`: **No issues found**, 11.8 seconds. Scoped `git diff --check` passed (only a line-ending conversion notice).
+- Actual Flutter captures were generated with `SELECT_SCHEDULE_REVIEW_DIR=C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/schedule-no-confirm`. Inspected `court-times-no-confirm-320.png` and `custom-time-280.0-2.0.png`: compact fields fit regular phones, large-text fields stack, and no confirmation checkbox appears. The 320px capture shows Next enabled after valid selection. These are isolated widget renders, not a connected-phone session.
+- The optional design-skill token/gate scripts are not installed in this project, so no design-kit gate or full accessibility certification is claimed. The actual project checks above were run.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No APK was rebuilt or installed for this small Dart layout update, and no physical-phone run was performed. Hot restart the existing Flutter session to load it. If Next stays disabled, choose a valid time inside the selected available period and satisfy the displayed minimum; no confirmation checkbox is needed. Django may reject a period if availability changes before validation.
+
+Safe exercise: run the existing Covered Court test in `test/select_schedule_test.dart`; observe that a valid 13:00-17:00 choice enables Next and sends those exact values. Use the existing shorter-duration test to verify 13:00-15:00 stays disabled with a four-hour minimum. Practice only with these isolated fixtures or an unsent mobile selection, without creating demonstration bookings in the working database.
+
+## Select Schedule UI/UX, Wrapping Legend, Explicit Custom Time Selection & Summary - November 4, 2026
+
+### 1. Cause / reason
+
+Confirmed UI/UX and time-selection issues on the Flutter **Select Schedule** screen (`FacilityBookingScreen` step `0`):
+1. **Stepper & Scroll Layout**: `BookingScaffold` disabled top `SafeArea` (`top: false`), `BookingSteps` had `top: 6` without `FittedBox(fit: BoxFit.scaleDown)` around step labels (`Schedule`, `Details`, `Review`, `Submit`), and the `ListView` used `EdgeInsets.fromLTRB(16, 0, 16, 32)` bottom padding, which allowed the fixed bottom `Next: Booking Details` bar to overlap bottom time controls on short viewports.
+2. **Horizontal Legend Clipping**: `BookingScheduleCalendar` used `SingleChildScrollView(scrollDirection: Axis.horizontal)` with 6 short internal labels (`Available`, `Not Bookable`, `Campus Use / Hold`, `Reserved`, `Maintenance`, `Class Schedule`), clipping legend items horizontally on phone viewports instead of wrapping with clear institutional explanations.
+3. **Flexible Operating Hours vs. Selected Booking Interval**: When the backend returned a flexible custom window (`time_selection == 'custom'`, e.g., Covered Court `8:00 AM - 5:00 PM` with `minimum_duration_minutes: 240`), the section heading still read `Available Time Slots`, tapping the available window silently assumed the user wanted the entire 9-hour operating period (`08:00`–`17:00`) and enabled `Next: Booking Details` immediately, and picking an invalid duration in `_pickTime()` returned early without updating the displayed `Start Time` / `End Time` or `Selected Duration`.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / code anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/booking_widgets.dart` | 318 `BookingScaffold.build` (`SafeArea`); 510 `BookingSteps.build` (`FittedBox`) | Enable full `SafeArea` in `BookingScaffold`; increase `BookingSteps` top padding to `10` and wrap step labels (`Schedule`, `Details`, `Review`, `Submit`) in `FittedBox(fit: BoxFit.scaleDown)` with `maxLines: 1` so steps never clip on `280dp`–`320dp` or `200%` text scale. |
+| `campushub/lib/module_app/widgets/facilities/booking_schedule_calendar.dart` | 142 `FittedBox` + `Row(key: ValueKey('schedule-legend'))`; 267 `_legend` | Render the 4 status labels (`Available`, `Closed`, `Unavailable`, `Reserved`) in a single straight row without long descriptions, scaled inside `FittedBox(fit: BoxFit.scaleDown)` so it never clips horizontally while preserving all calendar day dot colors and `ScheduleProhibitionPainter`. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 54 `_customStart`, `_customEnd`, `_hasExplicitTimeSelection`; 330 `_hasCustomHours`; 343 `_syncCustomWindow`; 364 `_pickTime`; 476 `_timeChoices`; 628 `_selectionSummary`; 761 `_next` catch scroll; 985 `ListView` padding; 1150 `Available Hours` heading; 1175 partial-day indicator; 1211 slot/window selector | Separate the available operating window (`_window`) from the confirmed booking interval (`_slot`), auto-attach single custom windows, require explicit valid start/end selection, display `Available Hours`, `Select Booking Time`, `Start Time`, `End Time`, `Selected Duration`, `Minimum booking duration`, and the compact `_selectionSummary()`, and increase bottom scroll padding to `96dp`. |
+| `campushub/test/select_schedule_test.dart` | 759 wrapping legend assertions; 1057 `Covered Court flexible window requires explicit selection, validates 4h minimum and shows summary without overlap` | Update legend assertions for `Wrap` and add end-to-end widget coverage for non-clipping stepper, partial-day availability text, explicit custom time selection, 4-hour minimum duration validation, compact selection summary, and non-overlapping bottom `Next` button. |
+| `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | Top section | Document root cause, exact file/line anchors, functions, data flow, verification results, and safe practice exercise. |
+
+### 3. Changes made
+
+- **Responsive Stepper & Scroll Clearance**: `BookingSteps` keeps `Schedule` → `Details` → `Review` → `Submit` visible below the AppBar and status bar with `SafeArea`, scaling labels cleanly on narrow `280dp`–`320dp` screens and `200%` text scaling. `ListView` padding is `EdgeInsets.fromLTRB(16, 8, 16, 96)` so the bottom `Next: Booking Details` button never overlaps `Start Time`, `End Time`, or the compact summary.
+- **Single-Row Centered Calendar Availability Legend**: `BookingScheduleCalendar` renders the 4 availability status labels (`Available`, `Closed`, `Unavailable`, `Reserved`) centered in one straight horizontal row (`Row` inside `FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.center)`) without description text or horizontal clipping.
+- **Available Hours, Select Booking Time & Explicit Selection**:
+  - Displays **Available Hours** when the backend provides flexible windows (`time_selection == 'custom'`) and preserves **Available Time Slots** for fixed preset slots.
+  - For partially occupied dates (`_slots` containing both available and blocked/occupied periods), displays `Remaining available hours for this date.` and lists only the open periods.
+  - Shows each flexible window with a clock icon and `Available booking window` subtitle, separate from the user's chosen interval.
+  - Under **Select Booking Time**, displays `Minimum booking duration: X hours.` (from Django's `minimum_duration_minutes`), `Start Time`, `End Time`, and `Selected Duration`.
+  - Does not silently assume the entire operating window (`8:00 AM - 5:00 PM`) is the user's intended booking duration: `_slot` stays `null` and `Next: Booking Details` stays disabled until the user explicitly selects a valid time interval.
+  - When an invalid interval is chosen (e.g., `8:00 AM`–`11:00 AM` = `3 hours` when minimum is `4 hours`, or `3:00 PM`–`6:00 PM` outside `8:00 AM - 5:00 PM`), `Start Time`, `End Time`, and `Selected Duration` update to reflect the user's input in red while `_slot` is cleared, `_error` shows a concise message, and `Next: Booking Details` remains disabled.
+  - Once a valid interval is selected, `_selectionSummary()` renders a compact summary showing `Selected Date`, `Start Time`, `End Time`, and `Total Duration`.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+1. `_loadMonth()` and `_loadSlots()` receive the slot list from Django (`GET /api/mobile/facilities/<id>/availability/`) and call `_syncCustomWindow(slots)`. If a date has a single open custom window (`time_selection == 'custom'`), `_window` is initialized to that window with `_customStart = window['start']`, `_customEnd = window['end']`, `_hasExplicitTimeSelection = false`, and `_slot = null`.
+2. `_pickTime(bool start)` opens Flutter's 24-hour `showTimePicker` (with narrow-screen textScaler clamping so dialog buttons never clip), formats the picked `TimeOfDay` as `HH:MM` (`first` / `last`), sets `_hasExplicitTimeSelection = true`, and computes `minutes = _minutesBetween(first, last)`.
+3. If `first < window['start']`, `last > window['end']`, or `first >= last`, `_slot` is set to `null` and `_error` is set to `'Choose a start before the end, within ${window['label']}.'`. If `minutes < window['minimum_duration_minutes']`, `_slot` is set to `null` and `_error` is set to `'Minimum booking duration is ${_durationLabel(minimum.toInt())}.'`. Otherwise `_slot` is populated with the validated 24-hour `start` and `end` while the UI displays readable 12-hour AM/PM labels via `bookingTime()`.
+4. Tapping `Next: Booking Details` calls `_next()`, which sets `_busy = true` (showing a loading spinner and preventing duplicate taps) and posts `{date, start, end, availability_only: true}` to `POST /api/mobile/facilities/<id>/quote/`. Only after Django confirms the interval is still available does the screen advance to Step 1 (`Booking Details`).
+
+Annotated example (Covered Court weekend flexible window):
+
+```text
+Django availability slot: start="08:00", end="17:00", time_selection="custom", minimum_duration_minutes=240
+1. Initial state on Saturday:
+   - Available Hours: 8:00 AM - 5:00 PM (Available booking window)
+   - Start Time: 8:00 AM | End Time: Select time | Selected Duration: Select start and end time
+   - Next: Booking Details -> disabled (_slot == null)
+2. User selects End Time = 11:00 AM (08:00 to 11:00):
+   - Selected Duration: 3 hours (highlighted in red)
+   - Error: "Minimum booking duration is 4 hours."
+   - Next: Booking Details -> disabled (_slot == null)
+3. User selects End Time = 12:00 PM (08:00 to 12:00):
+   - Selected Duration: 4 hours
+   - Compact Summary: Selected Date, Start Time (8:00 AM), End Time (12:00 PM), Total Duration (4 hours)
+   - Next: Booking Details -> enabled -> validates with Django quote/ before advancing
+```
+
+### 5. Backend / API behavior
+
+No Django routes or payload contracts were changed. Flutter continues to read `GET /api/mobile/facilities/<id>/availability/?month=YYYY-MM` and `?date=YYYY-MM-DD`, revalidate schedule intervals via `POST /api/mobile/facilities/<id>/quote/` (`availability_only: true` on Step 0, full quote on Step 1), and submit via `POST /api/mobile/bookings/` in `Asia/Manila` time.
+
+### 6. Database / migration impact
+
+None. No models, migrations, or working PostgreSQL records were modified.
+
+### 7. Tests performed
+
+- **Flutter static analysis**: `flutter analyze --no-pub` — **No issues found** (`13.2s`).
+- **Flutter widget & integration tests**: **63/63 tests passed** across `test/select_schedule_test.dart` (`23/23`), `test/covered_court_booking_test.dart`, `test/facility_booking_flow_test.dart`, `test/facility_details_test.dart`, and `test/job_order_screen_test.dart`.
+- **Django backend facility tests**: **74/74 tests passed in 12.179s** (`System check identified no issues`) across `api.test_mobile_facility_booking`, `modules.facilities.test_admin_reservations`, and `modules.facilities.test_calendar` using the guarded disposable local PostgreSQL test runner.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+- Verification was performed in the automated Flutter widget test harness (`280dp` at `200%` text scale, `320dp`, `390dp`, and `768dp`) and the guarded local PostgreSQL test runner; physical Android handset interaction was not claimed for this step.
+- **Safe practice exercise**: In `campushub/test/select_schedule_test.dart`, locate the test `'Covered Court flexible window requires explicit selection, validates 4h minimum and shows summary without overlap'`. Temporarily change the entered end hour from `'17'` (`5:00 PM`, 4 hours from `1:00 PM`) to `'16'` (`4:00 PM`, 3 hours from `1:00 PM`), run `flutter test --no-pub test/select_schedule_test.dart`, and observe that `Next: Booking Details` stays disabled (`onPressed == null`) and `Minimum booking duration is 4 hours.` is shown. Restore `'17'` and re-run the test to confirm all 23 tests pass.
+
+## Covered Court: complete Django quotes and Flutter submission - November 4, 2026
+
+### 1. Cause / reason
+
+Confirmed blocker: the old mobile quote called `slot_base_amount()` with its simple-quote safeguards. A facility with active additional fees, discounts or a damage deposit was intentionally rejected for staff quotation. Covered Court actually has all three settings. Meanwhile the existing staff `reservation_quote()` already supports these charges. Flutter sent only date/start/end when requesting its full quote, had no quantity input, and displayed only a base amount and total. Booking History also had a real refresh defect: its expression-bodied `setState` callback returned a Future, which Flutter rejects in debug mode.
+
+Read-only inspection of actual Covered Court `CAMFACIL20261013F13A` confirmed weekend-only policy, Monday-Friday closed, Saturday/Sunday08:00-17:00, minimum4hours, package3000/first4hours plus500/additional hour, optional700/hour, Chairs10/item, internal50% and immediate-family20% discount rules, and a separate fixed10 damage deposit marked applicable. The source reference documents10/chair, not an established Court damage deposit. The saved deposit is a data correction requiring the user's explicit confirmation, not permission to silently reinterpret it as a different charge. The proposed correction is recorded in the [configuration guide](facility-configuration.md#covered-court-weekend-controls-and-deposit-correction---november-4-2026).
+
+The existing weekend controls were tested in an isolated browser: allowed Saturday/Sunday times and Custom remain editable, including after View -> Edit; Weekdays/Daily and Monday-Friday remain disabled/closed. No calendar/editor redesign or operating-policy rewrite was needed. Existing hours and conflict records were not replaced.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / code anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/facilities/services/rental_configuration.py` | 341 `slot_price_components`; 371 `slot_base_amount` | Share package/hour arithmetic and expose initial/extra-hour components while retaining the legacy simple-quote guard. |
+| `backend/core/modules/facilities/services/admin_reservations.py` | 164 `configured_discount_amount`; 181 `reservation_quote` | Share discount arithmetic; return detailed rental components and fee units; clearly reject incomplete/invalid deposit configuration. |
+| `backend/core/modules/facilities/services/mobile_booking.py` | 200 `rental_quote`; 220 `mobile_pricing_options`; 228 `complete_mobile_quote` | Delegate complete mobile quotes to the staff engine, validate optional quantities, bind discount eligibility to the authenticated account, and sign the reviewed configuration/quote. |
+| `backend/core/modules/facilities/mobile_views.py` | 83 `availability`; 139 `quote`; 160 `_details`; 185 `bookings` | Preserve real availability; expose saved quantity options; require complete quotes for configured adjustments; revalidate under the facility lock and protect immutable idempotent retries. Explicitly type the existing mixed JSON details dictionary. |
+| `backend/core/modules/facilities/services/booking_workflow.py` | 527 `public_client_details` | Return client-facing initial/extra-hour and discount labels/notes in saved history/status without exposing staff evidence or submission fingerprints. |
+| `backend/core/api/test_mobile_facility_booking.py` | 61 `covered_court_pricing`; 87 complete quote parity; 114 weekend intervals; 125 deposits; 135 quantities; 144 forged eligibility; 156 changed quote/conflict; 645 concurrency class | Add isolated PostgreSQL pricing, persistence, validation, history, idempotency and true two-connection overlap coverage; update the additive schedule-only response assertion. |
+| `backend/core/modules/facilities/test_booking_workflow.py` | 1484 private/no-store assertions; 1546 invalid tab-auth redirect | Align two old assertions with the already-existing stronger no-cache header and HTML login redirect. No authentication implementation changed. |
+| `campushub/lib/module_app/services/facility_booking_service.dart` | 9 `BookingException`; 34 `request` | Retain status and distinguish uncertain submission failures from definite validation errors. POST booking failures are never automatically replayed. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 43 quantity controllers; 628 `_selectionSummary`; 687 `_go`; 696 `_next`; 764 `_bookingInputs`; 773 `_loadPricingOptions`; 800 `_feeQuantity`; 1037 recovery action; 1589 cost breakdown | Send actual attendees/requirements/quantities, display only Django-computed components, submit the reviewed token and freeze uncertain retries. Preserve concurrent Schedule refinements; repair their undefined surface reference using the existing `bookingSurfaceLight`. Keep existing steps/navigation; let the success status wrap at narrow widths. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_history_screen.dart` | 35 lifecycle handler; 42 `_refresh` | Refresh actual approval/history on resume and fix the Future-returning `setState` callback. |
+| `campushub/test/covered_court_booking_test.dart` | 18 fixture service; 189/235/255/273 new UI scenarios | Verify matching breakdown/payload at320/390px, one-booking lost-response retry, definite rejection recovery and resumed approval. Fixture prices/deposits are isolated, not new working settings. |
+| `docs/booking-module-chatgpt-context.md` | 83 this report | Full implementation/data-flow/testing guide. |
+| `docs/facility-configuration.md` | 3 companion report | Actual saved settings, editable controls and explicit deposit-correction proposal. |
+| `CAMPUSHUB_CONTEXT.md` | 10 complete-quote summary | Preserve the new complete-quote behavior and limitations for subsequent work. |
+
+### 3. Changes made
+
+Backend remains the sole price authority. The existing package/hourly calculation now supplies separate initial and additional-hour amounts to both quote callers. The staff calculation still handles fees, discounts and deposits; mobile delegates to it instead of duplicating financial arithmetic. Fee output includes saved unit amount/index/basis for clear display. Discount calculation is capped to the applicable basis and gross rental so it cannot create negative rental charges.
+
+Mobile eligibility comes from the bearer owner's saved Django `user_type`, never caller-supplied `client_id`, affiliation or staff-verification text. Saved student accounts may use configured Student/Internal rules; faculty/employee accounts may use Internal rules. If several eligible configured rules apply, the largest single reduction is selected without stacking. Guest/unclassified accounts receive none. Immediate-family/Other and custom-scope discounts still require Facilities Admin verification; mobile cannot claim them by posting an index or a reason. This uses existing account classification, not a newly implemented institutional-ID verification system.
+
+Optional per-item fees come from the actual configuration returned during Schedule validation. Selecting Chairs requires a positive chair quantity when an active saved chair fee exists. Quantity0 omits an optional item from the amount; negative, fractional, boolean, oversized or unknown-index quantities are rejected. No rate is seeded from a name and no missing chair price is fabricated. Other unpriced requests remain explicitly subject to availability/staff quotation.
+
+Flutter keeps the existing Schedule -> Details -> Review -> Submitted flow and components. Details gains only the quantity fields needed for configured item fees. Review shows initial rental, extra-hour charges, eligible discount, selected item charges, configured refundable deposit and final server total. A positive quantity selects the existing Chairs requirement; clearing that checkbox resets its quantity. A definite rejection returns to retained Details for re-quotation. An uncertain network/server response retains the exact submitted payload/key, offers an explicit Check My Bookings action, and retries that same payload; background availability refresh does not discard a pending submission.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+1. `availability()` returns actual database-backed periods for the displayed month/date, including policy and schedule conflicts. The already-existing Schedule request with `availability_only: true` calls `reservation_schedule(..., check_capacity=False)` and returns only availability plus current saved per-item options; it supplies no payable quote.
+2. The Details request sends date/start/end, attendee count, selected requirements and `fee_quantities` keyed by the configuration's existing fee index. `complete_mobile_quote()` validates quantities, constructs trusted client fields from the bearer owner, and calls `reservation_quote()`. That engine validates the exact interval/capacity and calculates rental, one eligible discount, configured fees and deposit. `slot_price_components()` and `configured_discount_amount()` contain the shared arithmetic.
+3. The returned `quote_token` is an HMAC signature from Django's existing signer over the user/facility, normalized pricing inputs, saved workflow and resulting quote. It is not a login token. A different amount, quantity, facility configuration or authenticated account cannot reuse the reviewed signature. No new signing dependency or database quote table is needed.
+4. On POST `/api/mobile/bookings/`, the existing `transaction.atomic()` and `select_for_update()` facility lock serialize competing bookings. Before creating records, Django reruns eligibility, exact schedule/capacity/conflict checks and the complete quote. It checks the supplied reviewed token for adjusted configurations and any token-bearing request, and checks `quoted_amount` when supplied. A schedule-only flag does not bypass this path.
+5. Successful submission creates the existing `Booking` and `FacilityBookingRequest` rows with pending status, correct total and a charge snapshot. A submission fingerprint prevents an already-used key from silently accepting changed details. A true repeat for the same owner/facility returns the original booking; no second reservation is created. Failed validation creates neither booking nor sidecar.
+6. Existing owner-scoped detail/history serializers expose current status and the saved client-facing quote. Internal evidence and fingerprints stay private. Booking History refreshes on resume/pull/return; the existing Status screen refreshes on resume/pull. Approvals remain staff-controlled and are not fabricated locally.
+
+Annotated isolated example, with **no deposit configured**:
+
+```text
+08:00-13:00 = 5 hours, saved four-hour package:
+3000 initial rental + 500 extra hour = 3500 gross rental
+50% eligible Internal reduction = 1750; net rental = 1750
+20 chairs x saved10 = 200; refundable deposit = 0
+Estimated total = 1950
+```
+
+The authorized-deposit fixture separately verifies fixed500 and40% of net rental; Flutter's captured fixture uses fixed500 and displays2450. These are test cases, not a policy decision or automatic deposit configuration for the real Covered Court.
+
+### 5. Backend / API behavior
+
+Existing routes are reused. Full quote POST now receives attendees and optional quantities and returns the full authoritative breakdown plus `quote_token`. Schedule-only responses add `pricing_options.item_fees`; they remain amount-free. Adjusted bookings require a reviewed matching token. Basic legacy callers retain the existing server-calculated simple booking path. Status/history add client-facing component fields while retaining existing keys, owner checks and statuses. The old direct `rental_quote()` call without authenticated full-quote inputs retains its simple-quote safety guard. Other booking modes and legacy equipment/custom quotes still use their existing staff processes. FastAPI remains chat-only.
+
+### 6. Database / migration impact
+
+No model, migration, new dependency or new database table. New bookings store additional snapshot/idempotency metadata in the existing JSON sidecar. Existing booking, payment, schedule and quote records are not rewritten. All test mutations ran only in a uniquely named disposable **local** PostgreSQL database, guarded to localhost:5432 and the generated test name, which was destroyed afterwards. After the user explicitly answered **Yes—remove only the mistaken ₱10 deposit**, the exact two-key correction was applied to the one working Covered Court row and verified in a fresh read-only transaction. The deposit flag is now false and the mistaken deposit object is absent; every other reviewed field matches the original snapshot.
+
+The approved correction changed only `workflow_config.damage_deposit_applicable` to false and removed `workflow_config.damage_deposit`. It preserved Chairs10/item, schedules, pricing, discount rules and all existing reservations. The external helper checked the complete pre-reviewed workflow SHA256 under a row lock, validated the proposed configuration, kept a local before/after backup and would abort if saved settings changed after review. It creates no new booking and is not installed in startup or migrations. `deposit-correction-result.json` records `applied: true`; `facility-after.json` independently verifies the exact resulting row.
+
+### 7. Tests performed
+
+- **226/226 Django tests passed in50.556s**, with no system-check issues, across `api.test_mobile_facility_booking`, `modules.facilities.test_admin_reservations`, `modules.facilities.test_calendar`, `modules.facilities.test_booking_workflow`, `api.test_facility_form_controls` and `api.test_facility_rental_configuration`. Includes genuine PostgreSQL persistence, weekday/weekend hours, exact interval/capacity validation, fee quantity errors, discount forgery rejection, configured-only deposits, matching admin/mobile totals, price/configuration changes, late overlaps, idempotency, public history and a two-connection race where exactly one request succeeds.
+- The initial broader run's two failures were stale expectations in the existing full-page tests: exact shorter Cache-Control and HTML401 instead of the already-documented redirect. Their assertions were corrected without changing authentication source. The concurrency test initially exposed the existing unmanaged-FK test cleanup requirement; it now uses the project's established cascading **test-database-only** cleanup pattern. Neither failed run is reported as a pass.
+- The original affected Flutter run passed62/62; after additional Schedule edits in the shared workspace, the latest five-file run passed **63/63 in29s** across `covered_court_booking_test.dart`, `facility_booking_flow_test.dart`, `select_schedule_test.dart`, `facility_details_test.dart`, and `job_order_screen_test.dart`. The additional source/tests were preserved, not reverted. New pricing tests exercise actual Review labels and posted values at320/390px, retained inputs on rejection, immutable uncertain retries and approval refresh. Initial new-test compile/fixture issues and the temporarily undefined shared surface token were resolved before this successful run. Final whole-app `flutter analyze --no-pub` reported **No issues found in9.8s**. The two Review capture tests then passed again in3s, and the refreshed captures were visually inspected.
+- Isolated Chrome checks using the actual controls/configuration and the saved read-only Court snapshot: **16/16 checks passed**, no page errors. Verified closed/disabled weekdays, disabled Weekdays/Daily, editable weekend times, Custom preservation, View -> Edit re-enablement and no orange preview. Unsaved fixture hours were changed to09:15/16:45 to prove editing; working hours remain08:00-17:00. An additional fixture check confirmed Add Fee is enabled after Edit.
+- Actual Flutter Review captures at320/390px with bundled Inter/Material Icons and the actual existing screen were generated and inspected. Both preserve the layout and show each charge/total; no overflow in those scenarios. An initial320px success-status overflow was fixed by letting the existing status row wrap. Browser evidence is an isolated control harness, not a live admin session.
+- Scoped Pyright for `mobile_views.py` and `services/mobile_booking.py`: **0 errors, 0 warnings**. A broader five-file Pyright check still reports **12 diagnostics on10 unchanged source lines** in older room/admin workflow/Decimal typing sections. All10 lines were compared with HEAD and match. No global backend typing pass or diagnostic suppression is claimed.
+- Final `flutter build apk --debug --no-pub` succeeded in37.9s: `campushub/build/app/outputs/flutter-apk/app-debug.apk` (189870952bytes). This rebuild includes the final shared Schedule edits and pricing integration. The APK was not installed/launched; the user's current phone/debugging session is preserved. No real booking was created merely for demonstration.
+- Live read-only HTTP checks returned200: November7 has the actual08:00-17:00 available window/minimum240minutes; November9 is not bookable because the weekend-only policy applies. No live booking was submitted for these checks. All344 application Python files compiled in memory successfully.
+- Evidence: external `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261104/covered-court-integration/`, including guarded `run_backend_tests.py`, `facility-before.json`, `check-schedule.cjs`, `schedule-controls.json`, `weekend-controls.png`, `quote-320.png`, `quote-390.png`, `latest-flutter.log`, `live-availability.json`, `deposit-correction-proposal.json`, `correct_deposit.py`, dry-run, backup, applied-result and `facility-after.json`. The one approved write is complete; do not treat the old proposal as authorization to modify other settings or rerun changes arbitrarily.
+
+Reproduce backend tests through that reviewed local guarded runner; do not run integration fixtures against the working server/database. From `campushub/`, run the five Flutter files listed above and `flutter analyze --no-pub`. No external design-kit gate is claimed; the app's root kit tokens/scripts remain unavailable.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The physical phone has not submitted a real booking against the working server; PostgreSQL creation/approval/history and races were verified in the isolated integration database. Apply the Dart changes through the user's normal hot restart/stop-start; no new native plugin is required. Deployed hosting/static collection is not performed here. The approved saved-data correction is complete, so future Court quotes have no damage deposit unless an authorized administrator later configures an approved requirement. Historical booking/payment/deposit snapshots were preserved.
+
+Immediate-family/Other/custom discount eligibility still needs staff evidence; the mobile app does not grant those discounts from a checkbox. Unknown or legacy equipment/custom fee bases still require a staff quote. Optional quantities are not a newly implemented chair-stock/inventory system; staff approval and availability remain separate. The optional700/hour choice remains supported by Django's existing rate flag; this task does not add a new mobile rate-selection redesign.
+
+Safe exercise: run `test_complete_mobile_quote_matches_staff_and_persists_charge_breakdown` in the isolated test database. Change only its fixture chair quantity20 to21 and update expected chair fee200 to210/total1950 to1960, then rerun and restore the fixture. Compare staff/mobile response fields and confirm only one pending booking exists after a retry. For manual UI practice, use an **unsaved** admin Edit draft to change Saturday hours and cancel it; do not save policy changes or submit fake working bookings for a screenshot.
+
 ## Admin-to-mobile availability synchronization - November 4, 2026
 
 This is the current status/refresh contract. It supersedes earlier entries that put a prohibition symbol on every unavailable date or read the displayed month through separate daily HTTP calls. The existing calendar layout, request form, pricing safeguards and saved facility policies remain.

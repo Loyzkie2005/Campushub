@@ -5,7 +5,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.db import connection
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase, Client
 from django.utils import timezone
 
 from accounts.models import User
@@ -56,6 +56,116 @@ class MobileFacilityBookingTests(TestCase):
         self.assertEqual(booking.total_amount, Decimal("2000.00"))
         self.assertIn("Sound System", booking.purpose)
         self.assertEqual(self.post().status_code, 200)
+        self.assertEqual(Booking.objects.filter(facility=self.facility).count(), 1)
+
+    def covered_court_pricing(self, *, deposit=None):
+        from modules.facilities.services.operating_schedule import WEEKDAYS
+        self.user.user_type = "student"
+        self.user.save(update_fields=["user_type"])
+        self.day += timedelta(days=(5 - self.day.weekday()) % 7)
+        self.facility.slots = None
+        self.facility.capacity = 500
+        self.facility.rate = Decimal("3000")
+        self.facility.price_type = "base_hour"
+        self.facility.workflow_config = {
+            "weekend_only": True, "minimum_booking_duration": "4", "booking_form_type": "rental",
+            "operating_hours": {day: {"open": "08:00", "close": "17:00"} if day in WEEKDAYS[5:] else None for day in WEEKDAYS},
+            "pricing": {"base_duration": "4", "additional_hour_rate": "500", "hourly_rate": "700"},
+            "damage_deposit_applicable": deposit is not None,
+            "additional_fees": [{"name": "Chairs", "unit": "item", "amount": "10", "active": True}],
+            "discount_rules": [
+                {"eligible_client_type": "internal", "discount_type": "percentage", "discount_value": "50", "applies_to": "entire_rental_rate", "active": True},
+                {"eligible_client_type": "immediate_family", "discount_type": "percentage", "discount_value": "20", "applies_to": "entire_rental_rate", "active": True}],
+        }
+        if deposit is not None:
+            self.facility.workflow_config["damage_deposit"] = deposit
+        self.facility.save()
+        self.data.update(date=str(self.day), start="08:00", end="13:00", attendees=300,
+                         additional_requirements=["Chairs"], fee_quantities={"0": "20"})
+        return f"/api/mobile/facilities/{self.facility.pk}/quote/"
+
+    def test_complete_mobile_quote_matches_staff_and_persists_charge_breakdown(self):
+        from modules.facilities.services.admin_reservations import reservation_quote
+        url = self.covered_court_pricing()
+        response = self.post(url)
+        self.assertEqual(response.status_code, 200, response.content)
+        quote = response.json()
+        self.assertEqual([quote[key] for key in ("base_rental_amount", "additional_hour_amount", "discount_amount", "fee_amount", "deposit_amount", "total_amount")],
+                         ["3000.00", "500.00", "1750.00", "200.00", "0.00", "1950.00"])
+        _, staff_quote = reservation_quote(self.facility, {**self.data, "client_id": self.user.pk, "discount_index": 0, "discount_reason": "Office checked account"})
+        for key in ("base_amount", "additional_hour_amount", "rental_amount", "discount_amount", "fee_amount", "deposit_amount", "total_amount"):
+            self.assertEqual(quote[key], staff_quote[key], key)
+        data = {**self.data, "quoted_amount": quote["total_amount"], "quote_token": quote["quote_token"]}
+        created = self.post(data=data)
+        self.assertEqual(created.status_code, 201, created.content)
+        booking = Booking.objects.get(pk=created.json()["booking"]["id"])
+        self.assertEqual((booking.status, booking.total_amount), ("pending", Decimal("1950.00")))
+        self.assertEqual(booking.mobile_request.details["fee_quantities"], {"0": "20"})
+        self.assertEqual(created.json()["booking"]["details"]["quote"]["fees"][0]["amount"], "200.00")
+        self.assertEqual(self.post(data=data).status_code, 200)
+        changed = self.post(data={**data, "purpose": "Changed after an uncertain submission"})
+        self.assertEqual(changed.status_code, 409)
+        self.assertEqual(Booking.objects.filter(facility=self.facility).count(), 1)
+        Booking.objects.filter(pk=booking.pk).update(status="approved")
+        history = self.client.get("/api/mobile/bookings/", **self.auth).json()["bookings"]
+        self.assertEqual(history[0]["status"], "approved")
+        self.assertEqual(history[0]["details"]["quote"]["total_amount"], "1950.00")
+
+    def test_complete_quotes_preserve_weekend_hours_and_reject_invalid_intervals(self):
+        url = self.covered_court_pricing()
+        for changes in ({"date": str(self.day + timedelta(days=2))}, {"start": "07:00"}, {"end": "18:00"}, {"end": "11:00"}):
+            with self.subTest(changes=changes):
+                data = {**self.data, **changes}
+                self.assertEqual(self.post(url, data).status_code, 400)
+                self.assertEqual(self.post(data=data).status_code, 400)
+        sunday = {**self.data, "date": str(self.day + timedelta(days=1))}
+        self.assertEqual(self.post(url, sunday).status_code, 200)
+        self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+
+    def test_authorized_deposit_configurations_are_separate_from_chair_fees(self):
+        for deposit, expected in ((None, "0.00"), ({"type": "fixed", "value": "500"}, "500.00"), ({"type": "percentage", "value": "40"}, "700.00")):
+            url = self.covered_court_pricing(deposit=deposit)
+            before = Facility.objects.get(pk=self.facility.pk).workflow_config
+            quote = self.post(url).json()
+            self.assertEqual(quote["deposit_amount"], expected)
+            self.assertEqual(quote["fee_amount"], "200.00")
+            self.assertEqual(Decimal(quote["total_amount"]), Decimal("1950") + Decimal(expected))
+            self.assertEqual(Facility.objects.get(pk=self.facility.pk).workflow_config, before)
+
+    def test_chair_quantity_validation_never_creates_a_booking(self):
+        url = self.covered_court_pricing()
+        for quantities in ({}, {"0": 0}, {"0": -1}, {"0": True}, {"0": "1.5"}, {"0": 100001}, {"5": 2}, []):
+            with self.subTest(quantities=quantities):
+                data = {**self.data, "fee_quantities": quantities}
+                self.assertEqual(self.post(url, data).status_code, 400)
+                self.assertEqual(self.post(data=data).status_code, 400)
+        self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+
+    def test_mobile_discounts_cannot_use_forged_client_or_staff_verification(self):
+        url = self.covered_court_pricing()
+        self.user.user_type = "guest"
+        self.user.save(update_fields=["user_type"])
+        quote = self.post(url).json()
+        self.assertEqual((quote["discount_amount"], quote["total_amount"]), ("0.00", "3700.00"))
+        for index in (0, 1):
+            response = self.post(url, {**self.data, "discount_index": index, "client_id": self.other.pk,
+                "client_affiliation": "internal", "discount_reason": "I say I qualify", "verification_method": "Student ID"})
+            self.assertEqual(response.status_code, 400)
+        self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+
+    def test_submit_requires_review_and_revalidates_config_and_new_conflicts(self):
+        url = self.covered_court_pricing()
+        self.assertEqual(self.post().status_code, 400)  # A schedule-only check is not a reviewed price.
+        quote = self.post(url).json()
+        data = {**self.data, "quote_token": quote["quote_token"], "quoted_amount": quote["total_amount"]}
+        self.facility.workflow_config["operating_hours"]["saturday"]["close"] = "16:00"
+        self.facility.save(update_fields=["workflow_config"])
+        self.assertEqual(self.post(data=data).status_code, 400)  # Total can match while configuration changed.
+        quote = self.post(url).json()
+        data.update(quote_token=quote["quote_token"])
+        Booking.objects.create(id="COURT-LATE-CONFLICT", facility=self.facility, booking_date=self.day,
+            start_time=time(10), end_time=time(14), status="approved", purpose="[reservation] existing")
+        self.assertEqual(self.post(data=data).status_code, 400)
         self.assertEqual(Booking.objects.filter(facility=self.facility).count(), 1)
 
     def test_pending_conflict_and_cancel_releases_slot(self):
@@ -375,7 +485,8 @@ class MobileFacilityBookingTests(TestCase):
         url = f"/api/mobile/facilities/{self.facility.pk}/quote/"
         available = self.post(url, {**data, "availability_only": True})
         self.assertEqual(available.status_code, 200, available.content)
-        self.assertEqual(available.json(), {"available": True, "date": self.day.isoformat(), "start": "10:00", "end": "14:00"})
+        self.assertEqual(available.json(), {"available": True, "date": self.day.isoformat(), "start": "10:00", "end": "14:00",
+                                            "pricing_options": {"item_fees": []}})
         self.assertNotIn("total_amount", available.json())
         self.assertEqual(self.post(url, data).status_code, 400)
         self.assertEqual(self.post(data={**data, "availability_only": True}).status_code, 400)
@@ -529,3 +640,77 @@ class MobileFacilityBookingTests(TestCase):
         self.facility.refresh_from_db()
         self.assertIs(self.facility.workflow_config['weekend_only'], True)
         self.assertEqual(self.facility.workflow_config['operating_hours'], hours)
+
+    def test_all_weekly_categories_follow_saved_hours_and_protect_reservations(self):
+        from modules.facilities.services.operating_schedule import WEEKDAYS
+        from modules.facilities.services.admin_reservations import reservation_schedule
+        from django.core.exceptions import ValidationError
+
+        day = WEEKDAYS[self.day.weekday()]
+        for category in ('covered_court', 'function_hall', 'hostel', 'other'):
+            with self.subTest(category=category):
+                self.facility.facility_type = category
+                self.facility.slots = ''
+                self.facility.workflow_config = {'operating_hours': self.daily_hours(),
+                    'custom_facility_type': 'Isolated test space', 'booking_form_type': 'general'}
+                self.facility.save(update_fields=['facility_type', 'slots', 'workflow_config'])
+                revised = {day: None for day in WEEKDAYS}
+                revised[day] = {'open': '09:15', 'close': '16:45'}
+                result = self.schedule_update(revised)
+                self.assertEqual(result.status_code, 200, result.content)
+                self.facility.refresh_from_db()
+                self.assertEqual(self.facility.workflow_config['operating_hours'], revised)
+                path = f'/api/mobile/facilities/{self.facility.pk}/availability/?date={self.day}'
+                slots = self.client.get(path, **self.auth).json()['slots']
+                self.assertEqual([(row['start'], row['end']) for row in slots], [('09:15', '16:45')])
+                with self.assertRaises(ValidationError):
+                    reservation_schedule(self.facility, {'date': str(self.day), 'start': '08:00', 'end': '12:00'}, check_capacity=False)
+                for status in (Booking.STATUS_PENDING, Booking.STATUS_APPROVED):
+                    booking = Booking.objects.create(id='ALL-' + uuid.uuid4().hex[:12], facility=self.facility,
+                        booking_date=self.day, start_time='13:00', end_time='16:00', status=status)
+                    blocked = self.schedule_update({**revised, day: {'open': '09:15', 'close': '15:00'}})
+                    self.assertEqual(blocked.status_code, 400, blocked.content)
+                    self.facility.refresh_from_db()
+                    self.assertEqual(self.facility.workflow_config['operating_hours'], revised)
+                    booking.refresh_from_db()
+                    self.assertEqual(booking.status, status)
+                    booking.delete()
+
+
+class MobileBookingConcurrencyTests(TransactionTestCase):
+    """Separate real PostgreSQL transactions must not reserve the same interval."""
+    # Existing unmanaged FKs need cascading cleanup in the disposable test DB.
+    available_apps = ["accounts", "api", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions"]
+
+    @classmethod
+    def setUpClass(cls):
+        tables = set(connection.introspection.table_names())
+        with connection.schema_editor() as editor:
+            for model in (CampusHubUser, Facility, Booking, FacilityPayment):
+                if model._meta.db_table not in tables:
+                    editor.create_model(model)
+        super().setUpClass()
+
+    def test_simultaneous_mobile_submissions_create_only_one_reservation(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        from django.db import connections
+        MobileFacilityBookingTests.setUp(self)
+        barrier = Barrier(2)
+        data = self.data.copy()
+        auth = self.auth.copy()
+
+        def submit():
+            connections.close_all()
+            try:
+                barrier.wait(timeout=15)
+                response = Client().post("/api/mobile/bookings/", json.dumps({**data, "request_key": str(uuid.uuid4())}),
+                    content_type="application/json", **auth)
+                return response.status_code
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: submit(), range(2)))
+        self.assertEqual(sorted(results), [201, 400])
+        self.assertEqual(Booking.objects.filter(facility=self.facility).count(), 1)

@@ -1,5 +1,121 @@
 # Regular-user mobile Profile
 
+## Mobile Login Inline Alert Message: Remove Error Icon - November 4, 2026
+
+1. **Cause / reason:** In `LoginScreen`, the inline error alert message shown on failed login attempts (such as invalid username/email or password) previously rendered a leading `Icons.error_outline` icon beside the error text. The user requested removing the icon from this login alert message so that only the clean text message is displayed.
+2. **Exact files changed:**
+   - `campushub/lib/module_app/screens/login_screen.dart:104-112` (`_buildInlineError` method — removed `Row`, `Icon(Icons.error_outline, ...)`, and `SizedBox(width: 6)` wrapper, returning the `Padding` with `Text` directly).
+   - `campushub/test/login_layout_test.dart:206-231` (added widget test `login inline error message renders text without error_outline icon`).
+   - `docs/mobile-profile.md:3` (this documentation update).
+3. **Changes made:**
+   - Simplified `_LoginScreenState._buildInlineError(String message)` so it directly returns `Padding(padding: const EdgeInsets.only(top: 5), child: Text(message, style: const TextStyle(color: Color(0xFFEF4444), fontSize: 11)))` without the leading `Icons.error_outline` icon or horizontal `Row`.
+   - Added a regression widget test in `campushub/test/login_layout_test.dart` confirming that submitting invalid credentials displays the red error text and renders zero `Icons.error_outline` widgets.
+4. **How it works — functions, inputs, outputs, and data flow:**
+   - **Data Flow:** When the user taps **Log In**, `_LoginScreenState._login(BuildContext formContext)` calls `AuthService.login(studentIdOrEmail: ..., password: ...)`. If `result.success` is `false` or `result.user == null`, `setState` assigns `_loginError = result.message ?? 'Unable to log in.'`.
+   - **Widget Rendering:** Inside `build`, `if (_loginError != null) _buildInlineError(_loginError!)` (at line 294) passes the error string `message` into `_buildInlineError(String message)`.
+   - **Why this approach was chosen:** Because the parent `Column` uses `crossAxisAlignment: CrossAxisAlignment.stretch`, returning a `Padding` containing `Text` directly allows the message to span the full form width and wrap naturally across multiple lines without needing an `Expanded` inside a `Row`.
+   - **Annotated example:**
+     ```dart
+     Widget _buildInlineError(String message) {
+       return Padding(
+         padding: const EdgeInsets.only(top: 5),
+         child: Text(
+           message, // e.g. 'Invalid username/email or password.'
+           style: const TextStyle(color: Color(0xFFEF4444), fontSize: 11),
+         ),
+       );
+     }
+     ```
+5. **Backend / API behavior:** Unchanged. Django's `/api/mobile/login/` endpoint and `AuthService.login` continue to return the exact same error messages and status codes.
+6. **Database / migration impact:** None. Purely a Flutter UI presentation change.
+7. **Tests performed:**
+   - `flutter analyze lib/module_app/screens/login_screen.dart test/login_layout_test.dart` — 0 issues found.
+   - `flutter test test/login_layout_test.dart` — **9/9 tests passed** (including the new `login inline error message renders text without error_outline icon` test).
+8. **Remaining limitations / troubleshooting / safe practice exercise:**
+   - *Troubleshooting:* If the old icon still appears on a running device or emulator, perform a Hot Reload (`r`) or Hot Restart (`R`) in the active Flutter session so the updated `_buildInlineError` widget tree is rebuilt.
+   - *Safe practice exercise:* In `campushub/lib/module_app/screens/login_screen.dart`, inspect `_buildInlineError` (line 104) and the `onChanged` callbacks on the Username and Password fields (lines 260 and 282) that clear `_loginError` as soon as the user types. Run `flutter test test/login_layout_test.dart` to verify all 9 tests pass without modifying any backend or session data.
+
+## Login restoration and account isolation - November 4, 2026
+
+### 1. Cause / reason
+
+The user reported that restarting through Flutter restored another person's name/email rather than the account they had logged into with seller access. Two confirmed weaknesses existed in the source: `isLoggedIn()` trusted the saved profile plus Remember me without requiring or validating its bearer token, and `updateUser()` could overwrite the saved profile without a central account/token check. Session fields were also written through separate asynchronous operations without serialization. These paths permitted stale or inconsistent identity data to persist; they are not proof of which path caused the reported phone event.
+
+Read-only ADB checks found one installed CampusHub package, `com.ustp.campushub`, and no saved user/token/Remember me keys in its Flutter preferences. The user then confirmed they had logged out during investigation, which explains that observation. No original wrong-account snapshot was available. No credential or private preference value was printed, and the device preferences were not edited.
+
+### 2. Exact files changed / current lines and code anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/session/session_service.dart` | 21 `_write`; 63 `saveUser`; 90 `updateUser`; 133 `clearUser`; 151 `restoreUser` | Serialize session operations, require the current identity/token for profile updates, and validate remembered sessions before restoring them. |
+| `campushub/lib/module_app/services/auth_service.dart` | 123 `restoreSession(String token)` | Read the account authenticated by Django using the existing profile GET; return the account, rejection flag and responding server origin. |
+| `campushub/lib/module_app/screens/startup_gate.dart` | 30 `SessionService.restoreUser()` | Route from one verified restored user, rather than a separate boolean and cached profile read. |
+| `campushub/lib/module_app/screens/profile_page.dart` | 94 `_refreshProfile`; 221 `_savePhoto` | Pass the request's original token and stop if the session update was rejected. |
+| `campushub/lib/module_app/screens/profile_setup_screen.dart` | 190 `final saved = await SessionService.updateUser` | Guard completed profile responses with the initiating token; a changed session shows login guidance rather than navigating from a stale result. |
+| `campushub/lib/module_app/services/food_preferences_service.dart` | 66 `SessionService.updateUser(user, expectedToken: token)` | Keep the existing owner/token checks and also handle the central guard's false result. |
+| `campushub/lib/module_app/screens/components/account_recovery_dialog.dart` | 119 `SessionService.updateUser` | Email-verification profile updates must still belong to the initiating session. |
+| `campushub/test/session_service_test.dart` | 15 `identity`; 346 `cold startup routes only a verified matching account` | Add 25 isolated session/service/widget regressions using fake identities and mocked HTTP only. |
+| `campushub/test/profile_academic_test.dart` | 35 `SharedPreferences.setMockInitialValues` | Seed an existing signed-in account before testing a profile update; an update can no longer create a login. |
+| `docs/mobile-profile.md` | 3 this report | Explain the cause, data flow, verification and safe practice. |
+| `CAMPUSHUB_CONTEXT.md` | 3 login-restoration entry | Preserve the current startup behavior and limitations for later work. |
+
+### 3. Changes made
+
+Saved profile, token and Remember me operations now run in order. A new login first disables restoration and removes the old bearer, then saves its profile/token and finally the selected Remember me setting. An interrupted save cannot leave the prior account eligible for automatic restoration. Reads wait for pending writes. The write queue returns to an idle state after each operation and releases later operations even if a write throws.
+
+`updateUser` now returns `Future<bool>`: true when the current account was updated, false after an account switch/logout or an initiating-token mismatch. It does not create a login. Profile, photo, preferences and email-verification callers handle this outcome. New login creation stays in `saveUser`.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`LoginScreen._login()` still sends the entered identifier/password to Django and awaits `SessionService.saveUser(...)`. Successful login replaces the saved identity and bearer as one ordered operation. No password is saved in preferences.
+
+On a later cold start, `StartupGate` calls `restoreUser()`. That function requires Remember me, a parsable positive-ID profile and a nonempty token. `AuthService.restoreSession(token)` makes an authenticated **GET** to `/api/mobile/profile/photo/`, which already returns the complete account profile. Despite the endpoint name, a GET does not upload or change a photo. Django's existing `_mobile_user_from_bearer` verifies signature, expiry, mobile subject and active/non-suspended account; the client does not treat decoding a JWT as authentication.
+
+HTTP 401/403 or the specific account-not-found 404 rejects the stored session. A generic missing-route 404, invalid response, server error or network failure cannot authenticate the cached profile; it preserves the saved fields for retry and returns Login. Server candidates use at most three seconds per request within a ten-second request budget. A successful response must have a positive user ID matching the cached account. A mismatch clears only the login keys and push session and returns Login; it never silently switches to the response's different identity.
+
+Before accepting a response, `restoreUser` rechecks its operation generation, saved account ID, token and Remember me setting. If logout or another login won the race, the old response cannot rewrite the profile, clear the newer login or replace the new server origin. Only a current successful restore records its responding origin, saves the refreshed profile and synchronizes the existing push session. `AppRoutes.forUser` then chooses required profile setup, food preferences, welcome or Dashboard as before.
+
+Example of guarding an asynchronous profile response:
+
+```dart
+final token = await SessionService.loadChatToken(); // Token used for this request.
+// ...load the authenticated user's profile using that token...
+final saved = await SessionService.updateUser(user, expectedToken: token);
+if (!saved) return; // Logout/account switch/newer login wins; do not show stale data.
+```
+
+The existing dashboard separately reads actual seller approval from `/api/seller/access-status/` with the saved bearer. Seller access remains a permission status; it is not copied into the student's account type or granted by cached profile fields. A seller-status failure cannot grant seller tools.
+
+### 5. Backend / API behavior
+
+No Django source, authentication rule, route, payload, permission or seller approval was changed in this task. Startup now consumes the existing read-only bearer-authenticated profile endpoint. Backend anchors inspected: `backend/core/api/views.py:164` `_mobile_user_from_bearer`, `:555` `mobile_login`, and `:702` `mobile_profile_photo`. FastAPI remains chat-only.
+
+### 6. Database / migration impact
+
+None. Existing preference keys remain compatible; no schema or dependency change. No live login, product, seller approval, order or database record was created/edited for verification. No app-data clearing, uninstall, APK installation, app restart or interaction with the user's active Flutter debugging session was performed. Read-only phone inspection showed no login after the user's logout.
+
+### 7. Tests performed
+
+- The new session suite passed all **25 tests**, including latest-login restoration, server profile refresh, denial/expiry handling, missing/corrupt session data, account/token mismatch, offline/error responses, overlapping logins, logout races, stale profile updates, unchanged-new-server protection and actual StartupGate routing.
+- Final combined verification passed **165/165 tests in 27 seconds** across `session_service_test.dart`, `profile_academic_test.dart`, `profile_photo_test.dart`, `food_preferences_test.dart`, `profile_page_test.dart`, `seller_home_entry_test.dart`, `seller_application_test.dart`, `seller_drawer_test.dart`, `login_layout_test.dart`, `notification_product_page_test.dart`, `push_notification_service_test.dart`, `push_device_api_test.dart`, `recovery_code_input_test.dart`, and `onboarding_preview_test.dart`. Final whole-app `flutter analyze --no-pub` reported **No issues found in 17.5 seconds**. This includes all final source changes and both final snapshot/missing-route cases.
+- The first broad run exposed a write-queue completion problem across Flutter's isolated test clocks. The queue was corrected to clear its idle tail before signaling completion. The three affected profile-photo/preferences/seller-home files then passed all **46 tests**, followed by the successful combined run above. The failing initial run is not a pass.
+- Dart formatting and mobile diff whitespace checks were run. One scoped analysis command was initially invoked from the parent repository with mobile-relative paths and failed before analysis; successful analysis must run from `campushub/`.
+
+Reproduce the focused tests from `campushub/`:
+
+```powershell
+flutter test --no-pub test/session_service_test.dart
+flutter analyze --no-pub
+```
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The exact original wrong-account event was not reproduced on a signed-in physical phone; the saved session had already been logged out. No password, token, login identity or permission was manufactured to simulate it. There is no claim of physical seller-account restart acceptance or of a full project test-suite run.
+
+Apply these startup changes using your normal VS Code stop/start or Flutter hot restart; hot reload alone does not rerun startup or clear retained widget/service state. Sign in to the intended account with Remember me selected, verify Profile's identity, close/reopen CampusHub, and verify the same identity. Seller Tools should follow that account's actual approved application. Expired/denied sessions require a normal login; no automatic token refresh was added. A backend connection is now needed for remembered-login verification; if temporarily offline, reopening later retries the preserved session. Missing seller tools with a correct identity is a separate access-status/connection check, not proof that another person is logged in. Never disable backend approval checks as a workaround.
+
+Safe learning exercise: run `flutter test --no-pub test/session_service_test.dart --plain-name "late old-account profile update cannot replace the new account"`. Read its account-1/account-2 sequence and verify that `updateUser(user(1))` returns false while account 2 and its token remain saved. Then run the full 25-case session suite. All identities and HTTP responses in those tests are isolated fixtures; no phone or working database is used.
+
 ## Floating navbar: remove rectangular backing strip - November 4, 2026
 
 ### 1. Cause / reason

@@ -43,6 +43,9 @@
             this.minimum = root.querySelector('#facilityMinimumBookingDuration');
             this.customMinimum = root.querySelector('#facilityCustomDuration');
             this.type = 'covered_court';
+            this.readOnly = false;
+            this.weekendOnly = false;
+            this.policyWeekendOnly = false;
             this.buildSchedule();
             this.other.addEventListener('change', () => this.syncOther());
             this.otherInput.addEventListener('input', () => this.otherInput.setCustomValidity(''));
@@ -173,7 +176,7 @@
         }
 
         setReadOnly(value) {
-            this.readOnly = value;
+            this.readOnly = Boolean(value);
             this.rows.forEach(row => this.syncDay(row));
             this.syncPresets();
         }
@@ -234,12 +237,17 @@
             };
         }
 
-        setWorkflow(workflow) {
-            this.customFeature = this.physical && typeof workflow.other_feature === 'string' ? workflow.other_feature : '';
+        setWorkflow(workflow = {}) {
+            const safeWorkflow = workflow && typeof workflow === 'object' ? workflow : {};
+            this.customFeature = this.physical && typeof safeWorkflow.other_feature === 'string' ? safeWorkflow.other_feature : '';
             this.other.checked = Boolean(this.customFeature); this.otherInput.value = this.customFeature; this.syncOther();
-            this.weekendOnly = workflow.weekend_only === true;
+            this.policyWeekendOnly = safeWorkflow.weekend_only === true;
+            // Scope a loaded policy to its category; switching a draft category
+            // must not carry the previous facility's restrictions into it.
+            this.policyType = this.type;
+            this.weekendOnly = this.policyWeekendOnly;
             this.policyNotice.hidden = !this.weekendOnly;
-            const hours = workflow.operating_hours;
+            const hours = safeWorkflow.operating_hours;
             this.originalHours = hours;
             this.scheduleDirty = false;
             this.notice.hidden = !hours || typeof hours === 'object';
@@ -255,7 +263,7 @@
                 this.syncDay(row);
             }
             this.syncPresets();
-            const duration = String(workflow.minimum_booking_duration || '');
+            const duration = String(safeWorkflow.minimum_booking_duration || '');
             this.minimum.querySelectorAll('[data-existing-duration]').forEach((option) => option.remove());
             const normalized = duration ? String(Number(duration)) : '';
             const predefined = [...this.minimum.options].some(option => option.value === normalized);
@@ -288,6 +296,8 @@
                 const otherChecked = this.other.checked, otherText = this.otherInput.value;
                 this.customFeature = this.physical && otherChecked ? otherText : '';
                 this.type = type;
+                this.weekendOnly = type === this.policyType && Boolean(this.policyWeekendOnly);
+                this.policyNotice.hidden = !this.weekendOnly;
                 this.setAmenities(selected);
                 this.other.checked = otherChecked; this.otherInput.value = otherText;
             }

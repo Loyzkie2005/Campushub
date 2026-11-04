@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
     <link rel="stylesheet" href="{% static 'components/css/admin_facility.css' %}?v=20260915-multi-image-slots" />
-    <link rel="stylesheet" href="{% static 'facilities/css/facility_form_controls.css' %}?v=20261029-schedule-presets" />
+    <link rel="stylesheet" href="{% static 'facilities/css/facility_form_controls.css' %}?v=20261104-no-deposit-preview" />
     {% if service_catalog %}<link rel="stylesheet" href="{% static 'facilities/css/admin_services.css' %}?v=20261017-service-workflows" />{% endif %}
 {% include 'partials/web_typography.html' %}
 </head>
@@ -611,9 +611,9 @@
     {{ service_configuration|json_script:"serviceConfigurationData" }}
     {{ calendar_events|json_script:"facilityCalendarEventsData" }}
     {{ facility_form_configuration|json_script:"facilityFormConfigurationData" }}
-    <script src="{% static 'facilities/js/facility_form_controls.js' %}?v=20261029-schedule-presets"></script>
+    <script src="{% static 'facilities/js/facility_form_controls.js' %}?v=20261105-all-schedule-controls"></script>
     {% if service_catalog %}<script src="{% static 'facilities/js/service_form.js' %}?v=20261017-service-workflows"></script>{% endif %}
-    <script src="{% static 'facilities/js/rental_form_controls.js' %}?v=20261014-auto-booking-slip"></script>
+    <script src="{% static 'facilities/js/rental_form_controls.js' %}?v=20261104-no-deposit-preview"></script>
     <script>
         const CAN_MANAGE_FACILITIES = {{ can_manage_facilities|yesno:"true,false" }};
         const CAN_BOOK_FACILITIES = {{ can_book_facilities|yesno:"true,false" }};
@@ -1393,7 +1393,7 @@
                 const label = saveFacilityButton.querySelector('.save-btn-label');
                 if (label) label.textContent = '{% if service_catalog %}Save Service{% else %}Save Facility{% endif %}';
             }
-            facilityFormSection?.querySelectorAll('input, select, textarea').forEach((field) => {
+            facilityFormSection?.querySelectorAll('input, select, textarea, #facilityAddFee, #facilityAddDiscount, .facility-fee-row button, .facility-discount-row button, .facility-schedule-preset-btn').forEach((field) => {
                 field.disabled = false;
             });
             Object.values(facilityFields).forEach((field) => {
@@ -1405,8 +1405,8 @@
             selectedFacilityImageUrl = '';
             pendingFacilityImageRead = null;
             setSelectedFacilityAmenities([]);
-            structuredFacilityControls?.setWorkflow({});
             structuredFacilityControls?.setReadOnly(false);
+            structuredFacilityControls?.setWorkflow({});
             rentalControls?.setWorkflow({});
             serviceControls?.reset();
             syncFacilityFormType({ preservePrice: false });
@@ -1613,8 +1613,9 @@
 
         const openEditFacilityForm = (row) => {
             editingFacilityRow = row;
+            structuredFacilityControls?.setReadOnly(false);
             fillFacilityFormFromRow(row);
-            facilityFormSection?.querySelectorAll('input, select, textarea').forEach((field) => {
+            facilityFormSection?.querySelectorAll('input, select, textarea, #facilityAddFee, #facilityAddDiscount, .facility-fee-row button, .facility-discount-row button, .facility-schedule-preset-btn').forEach((field) => {
                 field.disabled = false;
             });
             structuredFacilityControls?.setReadOnly(false);
@@ -1626,6 +1627,7 @@
                 saveFacilityButton.hidden = false;
                 saveFacilityButton.disabled = false;
             }
+            if (serviceControls) facilityFormSection?.querySelectorAll('.service-form-body button').forEach(button => button.disabled = false);
             showFacilityForm();
         };
 

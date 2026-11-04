@@ -21,7 +21,7 @@ def validate_admin_product_input(data):
             raise ProductInputError(f"{field.title()} must be text.", field)
         value = value.strip()
         limit = 1000 if field == "description" else Product._meta.get_field(field).max_length
-        if len(value) > limit or (field != "description" and not value):
+        if (limit is not None and len(value) > limit) or (field != "description" and not value):
             raise ProductInputError(f"Enter {field} with {'0' if field == 'description' else '1'}–{limit} characters.", field)
         data[field] = value
     for field in ("id", "seller_id"):

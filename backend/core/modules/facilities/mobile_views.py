@@ -1,9 +1,11 @@
 """Authenticated mobile facility booking endpoints."""
 
 import json
+import hashlib
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
@@ -17,7 +19,7 @@ from django.views.decorators.http import require_GET, require_POST
 from accounts.models import User
 from api.models import Booking, Facility, FacilityBookingRequest
 from api.views import _mobile_user_from_bearer, serialize_facility
-from .services.mobile_booking import parse_time, rental_quote, day_availability
+from .services.mobile_booking import parse_time, rental_quote, day_availability, mobile_pricing_options
 
 
 def _payload(request):
@@ -85,8 +87,9 @@ def availability(request, facility_id):
         if month:
             first = date.fromisoformat(month + "-01")
             last = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+            days = [first + timedelta(days=offset) for offset in range((last - first).days)]
         else:
-            day = date.fromisoformat(request.GET.get("date", ""))
+            days = [date.fromisoformat(request.GET.get("date", ""))]
     except (ValueError, OverflowError) as error:
         return _error(error)
     eligibility_reason = None
@@ -109,10 +112,10 @@ def availability(request, facility_id):
         exclude=booking.pk
     if month:
         result = {"month": month, "timezone": "Asia/Manila", "days": [
-            day_availability(facility, first + timedelta(days=offset), exclude_booking=exclude, eligibility_reason=eligibility_reason)
-            for offset in range((last - first).days)]}
+            day_availability(facility, day, exclude_booking=exclude, eligibility_reason=eligibility_reason)
+            for day in days]}
     else:
-        result = day_availability(facility, day, exclude_booking=exclude, eligibility_reason=eligibility_reason)
+        result = day_availability(facility, days[0], exclude_booking=exclude, eligibility_reason=eligibility_reason)
     response = JsonResponse(result)
     response["Cache-Control"] = "private, no-store"
     return response
@@ -147,14 +150,15 @@ def quote(request, facility_id):
             from .services.admin_reservations import reservation_schedule
             reservation_schedule(facility, data, check_capacity=False)
             return JsonResponse({"available": True, "date": day.isoformat(),
-                                 "start": start.strftime("%H:%M"), "end": end.strftime("%H:%M")})
-        return JsonResponse(rental_quote(facility, day, start, end))
-    except (ValueError, ValidationError, ArithmeticError) as error:
+                                 "start": start.strftime("%H:%M"), "end": end.strftime("%H:%M"),
+                                 "pricing_options": mobile_pricing_options(facility)})
+        return JsonResponse(rental_quote(facility, day, start, end, data=data, user=user))
+    except (ValueError, TypeError, ValidationError, ArithmeticError) as error:
         return _error(error)
 
 
 def _details(data, user):
-    fields = {key: str(data.get(key, "")).strip() for key in (
+    fields: dict[str, Any] = {key: str(data.get(key, "")).strip() for key in (
         "full_name", "organization", "contact_number", "email", "event_name", "purpose", "notes", "other_requirements",
     )}
     for key in ("full_name", "contact_number", "email", "event_name", "purpose"):
@@ -165,9 +169,8 @@ def _details(data, user):
     validate_email(fields["email"])
     if not 7 <= len(fields["contact_number"]) <= 30:
         raise ValidationError("Enter a valid contact number.")
-    fields["attendees"] = int(data.get("attendees", 0))
-    if fields["attendees"] < 1:
-        raise ValidationError("Enter at least one attendee.")
+    from .services.admin_reservations import whole_number
+    fields["attendees"] = whole_number(data.get("attendees"), "attendees", 1)
     requirements = data.get("additional_requirements", [])
     allowed = {"Chairs", "Tables", "Sound System", "Projector", "Others"}
     if not isinstance(requirements, list) or any(not isinstance(item, str) or item not in allowed for item in requirements):
@@ -194,6 +197,11 @@ def bookings(request):
         request_key = uuid.UUID(str(data.get("request_key", "")))
         day, start, end = _schedule(data)
         details = _details(data, user)
+        submission_fingerprint = hashlib.sha256(json.dumps({
+            "details": details, "date": day.isoformat(), "start": str(start), "end": str(end),
+            "fee_quantities": data.get("fee_quantities", {}),
+            "discount_index": data.get("discount_index"), "use_hourly_rate": data.get("use_hourly_rate", False),
+        }, sort_keys=True, default=str).encode()).hexdigest()
         with transaction.atomic():
             # Serialize creation per facility, including retries after a lost response.
             facility = get_object_or_404(Facility.objects.select_for_update(), pk=data.get("facility_id"), is_archived=False)
@@ -201,8 +209,19 @@ def bookings(request):
             if previous:
                 if previous.booking.user_id != user.pk or previous.booking.facility_id != facility.pk:
                     return JsonResponse({"error": "Request key already used."}, status=409)
+                if previous.details.get("submission_fingerprint") not in (None, submission_fingerprint):
+                    return JsonResponse({"error": "This request was already saved with different details. Open My Bookings to review it."}, status=409)
                 return JsonResponse({"booking": _serialize(previous.booking)})
-            estimate = rental_quote(facility, day, start, end)
+            _check_mobile_eligibility(facility, user)
+            estimate = rental_quote(facility, day, start, end, data=data, user=user)
+            workflow = facility.workflow_config or {}
+            complete_quote_required = workflow.get("damage_deposit_applicable") or any(
+                row.get("active") for key in ("additional_fees", "discount_rules") for row in workflow.get(key, []))
+            from django.utils.crypto import constant_time_compare
+            if (complete_quote_required or "quote_token" in data) and (
+                not isinstance(data.get("quote_token"), str) or
+                not constant_time_compare(data["quote_token"], estimate["quote_token"])):
+                raise ValidationError("The booking charges changed or were not reviewed. Return to Booking Details and request an updated quote.")
             if "quoted_amount" in data and Decimal(str(data["quoted_amount"])) != Decimal(estimate["total_amount"]):
                 raise ValidationError("The rental rate has changed. Go back and review the updated estimate.")
             if facility.capacity and details["attendees"] > facility.capacity:
@@ -212,6 +231,8 @@ def bookings(request):
             if capacity_min not in (None, "") and int(capacity_min) > 0 and details["attendees"] < int(capacity_min):
                 raise ValidationError(f"This facility requires at least {int(capacity_min)} attendees.")
             details["quote"] = estimate
+            details["fee_quantities"] = data.get("fee_quantities", {})
+            details["submission_fingerprint"] = submission_fingerprint
             from .services.rental_configuration import FORM_TYPES, booking_form_for_category
             form=booking_form_for_category(facility.facility_type,facility.workflow_config)
             details['quote']['form_label']=FORM_TYPES[form]

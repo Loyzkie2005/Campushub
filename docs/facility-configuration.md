@@ -1,5 +1,240 @@
 # Reusable Add/Edit Facility configuration
 
+## Operating Schedule editing in Edit Facility mode and policy isolation - November 5, 2026
+
+### 1. Cause / reason
+
+Confirmed in `backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` and `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html`:
+- In `admin_facility.html`, `openEditFacilityForm(row)` (line 1614) invoked `fillFacilityFormFromRow(row)` **before** clearing `structuredFacilityControls?.setReadOnly(false)` and only re-enabled `input, select, textarea` (omitting `<button>` controls disabled by `openViewFacilityForm(row)` such as `#facilityAddFee`, `#facilityAddDiscount`, `.facility-fee-row button`, `.facility-discount-row button`, and `.facility-schedule-preset-btn`). Similarly, `resetFacilityForm()` (line 1385) invoked `structuredFacilityControls?.setWorkflow({})` before `setReadOnly(false)`.
+- In `facility_form_controls.js`, `syncType(type, config, slots)` retained `this.weekendOnly` when changing a restricted Court draft to another category. A full-page browser regression using the original HEAD controller **fails** at `Changing category does not carry Court-only locks into Hall draft`; Monday/Daily remain disabled. This is the reproduced failure. Plain Add and normal View -> Edit already worked in a fresh baseline page; the source ordering/button restoration above are state-management hardening, not proof that every category was originally uneditable. An outdated browser cache is possible, not a confirmed cause of the user's browser state.
+- The combined implementation explicitly initializes controller state and clears read-only mode before loading. The final policy fix records `policyType` with `policyWeekendOnly` when loading the workflow, then activates that policy only for the matching draft category. Returning to the source category restores its own policy. This also preserves an explicitly saved weekend-only policy on a Hall/Hostel rather than hardcoding all non-Court facilities as unrestricted. Existing backend protection still rejects silently clearing a saved restriction during a category edit.
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` | 46 initial state; 178 `setReadOnly`; 240 `setWorkflow`; 247 `policyType`; 293 `syncType` | Initialize/normalize state, safely load workflow and scope loaded policy to its source category. Preserve saved exact-minute values and existing day/preset validation. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 614 `?v=20261105-all-schedule-controls`; 1385 `resetFacilityForm`; 1614 `openEditFacilityForm`; 1634 `openViewFacilityForm` | Clear read-only before loading/resetting and re-enable controls disabled in View; retain final visibility/policy synchronization. Bump the script cache key. Existing deposit-preview removal remains. |
+| `backend/core/api/facility_schedule_browser_checks.cjs` | 1 invocation notes; 53 category/mode matrix; 91 loaded-policy checks | Retained repeatable isolated full-page browser regression with actual page functions/controllers, all presets, per-day editing and View transitions; no HTTP writes reach a server. |
+| `backend/core/api/test_facility_rental_configuration.py` | 627 `test_weekly_hours_persist_for_all_physical_categories_and_modes` | Create/update/reload exact weekly hours across four categories x four modes in disposable PostgreSQL; verify catalog serialization. |
+| `backend/core/api/test_mobile_facility_booking.py` | 644 `test_all_weekly_categories_follow_saved_hours_and_protect_reservations` | Verify each category's updated mobile period, invalid-time rejection and protection of Pending/Approved reservations. |
+| `docs/facility-configuration.md` | 3 `Operating Schedule editing in Edit Facility mode and policy isolation - November 5, 2026` | Added full debugging/implementation report, function/data flow explanation, annotated example, verification results, and safe practice exercise. |
+| `CAMPUSHUB_CONTEXT.md` | 3 latest context note | Recorded the Operating Schedule Edit Facility fix and verification results. |
+
+### 3. Changes made
+
+- Initialized `this.readOnly = false`, `this.weekendOnly = false`, and `this.policyWeekendOnly = false` in `FacilityFormControls.constructor` (`facility_form_controls.js:46-48`) and coerced `this.readOnly = Boolean(value)` in `setReadOnly(value)` (`facility_form_controls.js:179`).
+- Updated `FacilityFormControls.setWorkflow(workflow = {})` (`facility_form_controls.js:240-247`) to guard against null/undefined `workflow` arguments and track `this.policyWeekendOnly = safeWorkflow.weekend_only === true`.
+- Updated `FacilityFormControls.syncType(type, config, slots)` (`facility_form_controls.js:293`) to activate the loaded `policyWeekendOnly` only when `type === policyType`. No category receives another category's restriction, and returning to any restricted source category restores it.
+- Updated `resetFacilityForm()` (`admin_facility.html:1396-1411`) and `openEditFacilityForm(row)` (`admin_facility.html:1614-1632`) to call `structuredFacilityControls?.setReadOnly(false)` before loading workflow data and to re-enable all interactive form buttons disabled during `View Facility`.
+
+### 4. Functions, inputs / outputs and data flow
+
+```text
+Admin clicks "Edit Facility" on a facility row in /admin-facility/
+  -> openEditFacilityForm(row)
+       - sets structuredFacilityControls.setReadOnly(false)
+       - calls fillFacilityFormFromRow(row)
+           * reads row dataset + .facility-workflow-data JSON via getFacilityFromRow(row)
+           * sets facilityFields.type.value and calls syncFacilityFormType({ preservePrice: false })
+           * calls structuredFacilityControls.setWorkflow(facility.workflowConfig || {})
+               - sets policyWeekendOnly & weekendOnly = (workflow.weekend_only === true)
+               - populates each weekday row (active checkbox, open/close 15-min selects)
+               - calls syncDay(row) and syncPresets()
+       - re-enables all form inputs, selects, textareas, and action/preset buttons
+       - calls structuredFacilityControls.setReadOnly(false) and syncFacilityFormType()
+  -> Admin edits allowed operating days, Opening/Closing Times, or clicks Weekdays / Weekends / Daily / Custom
+  -> On "Update Facility", structuredFacilityControls.getOperatingHours() + getFeatureWorkflow()
+     serialize the 7-day schedule map and weekend_only flag into workflow_config for POST /api/facilities/<id>/update/
+```
+
+Annotated example (`facility_form_controls.js:184-195` & `290-298`):
+
+```javascript
+syncDay(row) {
+    const visible = !this.schedule.closest('[data-facility-field]').hidden;
+    const lockedWeekday = this.weekendOnly && !['saturday', 'sunday'].includes(row.day);
+    if (lockedWeekday) row.active.checked = false;
+    row.active.disabled = this.readOnly || !visible || lockedWeekday;
+    row.times.hidden = !row.active.checked;
+    row.closed.hidden = row.active.checked;
+    for (const field of [row.open, row.close]) {
+        field.disabled = this.readOnly || !visible || !row.active.checked;
+        field.required = visible && row.active.checked;
+    }
+}
+```
+
+**Why this approach was chosen**: The form already has shared schedule controls, so fixing their loaded policy/mode state avoids four duplicate editors or changes to server pricing/booking rules. `setWorkflow(workflow)` takes saved JSON and fills seven day rows; `syncDay` derives checkbox/time enabled state from visibility, read-only mode and that workflow's policy; `getOperatingHours()` returns a seven-day map. Presets only set days and retain configured times. Example: an unrestricted Hall draft may use Monday `08:07-16:53`, Tuesday `10:03-17:11` and Wednesday null (Closed); serializing then reopening preserves those exact values. Switching between rows reloads the destination row's own workflow. Category draft controls do not authorize changing a saved policy on the server.
+
+### 5. Backend / API behavior
+
+- Django backend endpoints (`/api/facilities/create/`, `/api/facilities/<id>/update/`, and mobile availability `/api/mobile/facilities/<id>/availability/`) and `validate_schedule_change` in `operating_schedule.py` remain unchanged and authoritative.
+- Covered Court (`CAMFACIL20261013F13A`) preserves `workflow_config.weekend_only = true` (`Saturday` and `Sunday` `08:00`–`17:00`, `Monday`–`Friday` `Closed`), while unrestricted facilities (`Mock Hotel` `CAMFACIL202610148777`, Function Hall, etc.) allow all 7 days and all 4 presets (`Weekdays`, `Weekends`, `Daily`, `Custom`).
+
+### 6. Database / migration impact
+
+- None. No models, migrations, or PostgreSQL records were modified.
+
+### 7. Verification
+
+Current all-category verification extends the earlier narrower checks below:
+
+- The original HEAD controller fails the new isolated full-page regression at the Court-to-Hall draft transition. The fixed controller passes **197 browser checks**, covering Court/Sports, Hall/Function Space, Hostel/Accommodation and Other across Slot, Room/Stay, Daily and Custom modes. For each: Add presets, individual open/close, differing per-day hours, View locks, View -> Edit unlocks and exact saved-minute reloads. Also covers View -> Add, restricted Court weekends, policy isolation/restoration, a separately restricted Hall, and inapplicable Food Analysis/Training Kitchen/Lease weekly controls remaining hidden. No page errors; **zero HTTP mutations**. The actual full Django page and JS are used; requests are intercepted.
+- New PostgreSQL tests passed independently: **2/2 in 1.810s**, internally checking 16 category/mode create/update/catalog combinations and four category mobile/conflict scenarios. Final combined regression run: **228/228 passed in 90.668s**, no system-check issues, across `api.test_mobile_facility_booking`, `modules.facilities.test_admin_reservations`, `modules.facilities.test_calendar`, `modules.facilities.test_booking_workflow`, `api.test_facility_form_controls` and `api.test_facility_rental_configuration`. Tests run through the guarded external local runner, create a unique test database, bootstrap the existing unmanaged schema there and destroy it. Working rows are untouched.
+- Final JavaScript syntax and scoped whitespace checks passed. The captured full Edit form was inspected; the existing layout remains and only permitted Court weekend controls are enabled. The browser test initially needed the page's existing Bootstrap CSS mirrored locally to avoid a harness-only header overlay; this asset was provided externally without application styling changes. No such harness setup failure is counted as a passed application check.
+- Reproduce full-page checks by exporting `FacilityRentalAPITests.test_export_unsaved_browser_fixtures` into `RENTAL_FORM_REVIEW_DIR`, placing the page's Bootstrap CSS at `bootstrap.min.css` in that same external folder, then running `node backend/core/api/facility_schedule_browser_checks.cjs` with `SCHEDULE_REVIEW_DIR` pointing there and `CAMPUSHUB_PLAYWRIGHT_MODULE` pointing to an existing Playwright install. No dependency was added. `SCHEDULE_CONTROLS_SOURCE` optionally selects the archived baseline script for the failing regression. Evidence: `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/all-facility-schedules/`, including `browser-results.json`, `court-policy.png`, exported pages, original controller and bootstrap asset.
+
+- **JavaScript syntax check**: `node --check backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` passed with `0` errors.
+- **JSDOM schedule controller suite**: `15/15` checks passed (all 14 original preset/custom/quarter-hour/policy/read-only/validation checks plus category-switch policy isolation check).
+- **Isolated & live headless Chrome Playwright checks**:
+  - `check-schedule.cjs`: `16/16` checks passed (`addFeeEnabled: true`, `errors: []`).
+  - Live `/admin-facility/` Playwright suite: verified `View Facility` -> `Edit Facility` on Covered Court (`CAMFACIL20261013F13A`, weekend-only policy preserved, Saturday/Sunday times and `Weekends`/`Custom` presets editable) and on Mock Hotel (`CAMFACIL202610148777`, all 7 days and `Weekdays`/`Weekends`/`Daily`/`Custom` presets editable) with `0` page errors.
+- **Django backend test suites**:
+  - `backend\core\venv\Scripts\python.exe -B backend\core\manage.py test api.test_facility_form_controls api.test_facility_rental_configuration.RentalConfigurationValidationTests --noinput` → **45 tests passed in 0.026s**.
+  - `backend\core\venv\Scripts\python.exe -B C:\Users\leste\Desktop\CAMPUSHUB-artifacts-20261104\covered-court-integration\run_backend_tests.py api.test_facility_form_controls api.test_facility_rental_configuration api.test_mobile_facility_booking modules.facilities.test_admin_reservations` → **130 tests passed in 8.637s** in the disposable local PostgreSQL test database.
+
+### 8. Troubleshooting / safe learning exercise / limitations
+
+- **Troubleshooting**: Hard refresh (`Ctrl+F5`) on `/admin-facility/` to load `?v=20261105-all-schedule-controls`. Opening/Closing selects are enabled only for checked (open) days. View intentionally locks the editor; use Edit with manage-facilities permission. Weekly controls apply to existing physical rental categories in all four modes; Food Analysis, Training Kitchen/Assessment and Lease retain their specialized service workflows. Do not add weekly fields to those forms merely to make this matrix larger. A conflicting schedule save returns an error without changing the facility or booking. Room/stay workflows keep their existing date/room rules; mobile slot validation is verified when a physical category is configured as Slot-Based, not by forcing room bookings into slot logic.
+- **Safe practice exercise**:
+  1. Open `/admin-facility/` as an authorized admin, click **View Details** on `Covered Court` and confirm all schedule controls are disabled.
+  2. Click **Back to Facilities**, open **Edit Facility** on `Covered Court`, and verify `Saturday` and `Sunday` opening/closing times and `Weekends`/`Custom` presets are enabled while `Monday`–`Friday` and `Weekdays`/`Daily` remain disabled.
+  3. Click **Cancel**, open **Edit Facility** on `Mock Hotel`, click `Weekdays`, `Weekends`, `Daily`, and `Custom` to verify all 4 presets and all 7 day rows are editable, then click **Cancel** without saving so database records remain unchanged.
+- **Remaining limitations**: No live working-database schedule change was saved during verification so existing PostgreSQL facility schedules remain untouched.
+- Current verification proves the backend responses consumed by Flutter, including refreshed hours and rejected invalid times. No physical-phone save-and-refresh session or new Flutter build was performed for this JavaScript-only fix. The retained Flutter refresh logic is unchanged. No optional design-kit gate or full accessibility certification is claimed.
+
+## Covered Court weekend controls and deposit correction - November 4, 2026
+
+### 1. Cause / reason
+
+The actual Covered Court row (`CAMFACIL20261013F13A`) stores a fixed10 damage deposit as well as the separate Chairs10/item charge. The source schedule documents10 **per chair**; it does not establish10 as a Covered Court refundable damage deposit. The user explicitly requires confirmation before changing existing saved facility data. Source fixes and tests do not grant permission for that separate data update.
+
+The current weekend controls themselves passed browser checks: Monday-Friday remain Closed/disabled; Weekdays and Daily remain disabled; Saturday/Sunday opening and closing selections and Custom are enabled in Edit. View deliberately disables all controls. View -> Edit re-enables the permitted controls. No operating-hours or calendar-editor rewrite was necessary.
+
+### 2. Exact files and anchors
+
+The complete application/test file table is in [the booking implementation report](booking-module-chatgpt-context.md#covered-court-complete-django-quotes-and-flutter-submission---november-4-2026). This companion updates `docs/facility-configuration.md:3` and the complete-quote entry in `CAMPUSHUB_CONTEXT.md:10`.
+
+Inspected but preserved: `static/facilities/js/facility_form_controls.js`, anchors `setReadOnly`, `syncDay`, `applyPreset`, `syncPresets`, `setWorkflow` and `getOperatingHours`; `templates/facilities/pages/admin_facility.html`, anchors `openViewFacilityForm` / `openEditFacilityForm`; and `services/operating_schedule.py`, anchor `validate_schedule_change`. All paths in this paragraph are under `backend/core/modules/facilities/`. The prior orange preview removal remains in place.
+
+### 3. Exact approved and applied saved-data correction
+
+| Covered Court setting | Before correction | Approved result |
+| --- | --- | --- |
+| `workflow_config.damage_deposit_applicable` | true | false |
+| `workflow_config.damage_deposit` | `{"type":"fixed","value":"10"}` | Remove this object |
+| Chairs additional fee | active,10/item | Preserve exactly |
+| Weekend-only policy | true | Preserve exactly |
+| Monday-Friday | Closed | Preserve exactly |
+| Saturday/Sunday |08:00-17:00| Preserve exactly |
+| Rental pricing |3000/first4h +500/additional hour; optional700/hour| Preserve exactly |
+| Discount rules | internal50%; immediate-family20%, active | Preserve configuration; apply only eligible/verified rules |
+
+**Status: explicitly approved by the user and applied.** The user answered Yes—remove only the mistaken ₱10 deposit. The guarded update and fresh read-only comparison verified exactly the two intended JSON changes; every other reviewed field matches the original snapshot. No replacement deposit value was chosen. Other facilities' configured deposits are unaffected. Existing bookings keep their original quote/payment/deposit snapshots; this changes future quotes through this facility's configuration only.
+
+### 4. Functions, inputs / outputs and data flow
+
+The unchanged admin controls load the actual `workflow_config` using `setWorkflow`. `syncDay` checks saved policy, visible state, checkbox state and read-only mode to enable only permitted time controls. `getOperatingHours` returns the seven-day map with null for closed days. Existing Save/Update sends that map to the permission-checked, row-locked Django update path; `validate_schedule_change` rejects edits that would exclude active reservations. Mobile availability reads those same saved records, not a new schedule copy.
+
+The external maintenance helper `correct_deposit.py` consumes the reviewed proposal and current row. Its default invocation performs only a read-only transaction, validates the proposed partial configuration and emits `applied: false`. With an **explicitly approved** `--apply`, it locks the exact Court row and checks the complete reviewed workflow SHA256, aborting if another administrator changed settings. It removes only the deposit object and sets its applicable flag false, saves a local before/after backup, updates that existing JSON field, rereads it and verifies that chair fees, hours, pricing and discounts stayed identical. It creates no booking or policy record and is not an automatic startup/data migration.
+
+Annotated intended patch, only after approval:
+
+```python
+after = copy.deepcopy(before)             # Start from the actual saved configuration.
+after['damage_deposit_applicable'] = False
+after.pop('damage_deposit', None)          # Remove the mistaken deposit, not Chairs.
+# Existing additional_fees / operating_hours / pricing / discount_rules stay intact.
+```
+
+The helper/proposal/read-only snapshot are in `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261104/covered-court-integration/`. Their existence is not permission to apply the proposal. No helper is installed into application startup.
+
+### 5. Backend / API behavior
+
+Complete mobile pricing now reuses the existing staff quotation engine; see the booking report for inputs, components, signed review token, eligibility and final locked revalidation. The approved Court correction removes that mistaken deposit from future estimates. There is no hidden code exception that treats all10 deposits as chairs or disables legitimate deposits elsewhere. Family/custom discounts still need staff verification, and deposits remain separate from rental and additional fees.
+
+### 6. Database / migration impact
+
+No models, migrations, new dependencies, schema changes or default-value seeds. The only working-data write was the explicitly approved, narrowly guarded update to the two JSON keys above in one existing row. No booking, payment, schedule or historical quote was rewritten. All integration test writes use a disposable local PostgreSQL test database.
+
+### 7. Verification
+
+- Actual saved settings were read in a database **READ ONLY** transaction and saved to `facility-before.json`; no credentials or user identities were printed.
+- The correction helper's dry run passed with `applied: false`, exactly two proposed changed keys, and preserved chair fee/weekend schedule/pricing/discount checks. Proposal and dry-run JSON are review artifacts, not applied changes.
+- After explicit confirmation, `--apply` succeeded with `applied: true`. The row was reread in a new READ ONLY transaction and compared with the original full reviewed snapshot plus only the two approved differences. `deposit-correction-backup.json`, `deposit-correction-result.json`, and `facility-after.json` retain the evidence. The old expected-state hash intentionally prevents blindly replaying the one-off update.
+- Isolated Chrome:16/16 weekend-control checks passed, including editable time selections/Custom and View -> Edit, with no script errors. Unsaved test edits did not alter the working row. The actual orange preview remains absent.
+- Final backend226/226 and latest Flutter63/63 tests passed; whole-app Flutter analysis and debug APK checks are recorded in the booking report with exact durations, initial failures/corrections, remaining older Pyright diagnostics and physical-device limits.
+
+### 8. Troubleshooting / safe learning exercise / limitations
+
+Open **Edit Facility** with an authorized manage-facilities account to change permitted weekend hours. View is intentionally read-only. Keep Monday-Friday Closed and do not try to activate Weekdays/Daily for the restricted Court. If a save would exclude an active reservation, reschedule through the real workflow before shortening that day; do not disable conflict checks. New valid hours are reflected by the existing mobile refresh/revalidation path.
+
+Safe practice: in an **unsaved** Edit draft, choose Custom, change Saturday opening to09:15 and Sunday closing to16:45, verify weekday controls remain locked, then cancel. Inspect `getOperatingHours()` in the isolated harness or run the documented test suites instead of saving fake bookings or editing the working schedule for demonstration. The approved data correction is complete; no physical working-server booking was submitted during QA.
+
+## Damage Deposit Summary preview removed - November 4, 2026
+
+### 1. Cause / reason
+
+The user requested removal of the orange Damage Deposit Summary banner, including both fixed-amount and percentage examples, while retaining the actual deposit feature. Confirmed: a separate `facilityDepositPreview` span was filled by `syncDepositPreview()`. That method only generated explanatory text; the real deposit configuration and validation use separate controls and workflow data. This entry supersedes historical live-preview descriptions below without changing the other features documented there.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/facilities/templates/facilities/partials/rental_pricing.html` | 31 `data-rental-field="deposit_value"`; 34 `facilityDepositHelp` | Removed only the preview span that previously followed the helper. Deposit Type, Deposit Value and their wrappers remain. |
+| `backend/core/modules/facilities/static/facilities/js/rental_form_controls.js` | 18-20 deposit selectors; 30-31 change listeners; 95 `sync`; 144 `setWorkflow`; 248 `getWorkflow`; 274 `validate` | Removed the preview selector, its renderer, its call from `sync`, and the two preview-only Deposit Value / rental Rate input listeners. Actual deposit disclosure, type-dependent bounds, helper text, loading, collection and validation remain. |
+| `backend/core/modules/facilities/static/facilities/css/facility_form_controls.css` | 132 `#facilityFormSection [hidden]` | Removed the now-unused preview-only CSS immediately before this preserved visibility rule. No other style changed. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 14 stylesheet; 616 rental-controller script | Updated only these two asset query versions to `20261104-no-deposit-preview` so browsers fetch the changed files. |
+| `docs/facility-configuration.md` | 3 this report | Record the scoped change, preserved data flow, verification and learning exercise. |
+| `CAMPUSHUB_CONTEXT.md` | 3 preview-removal entry | Record the current requirement and verification for later work. |
+
+### 3. Changes made
+
+Removed the entire preview element and all code/styles used exclusively to generate its fixed/percentage summary. The Damage Deposit Applicable checkbox is unchanged in `partials/rental_rules.html:21`. Its change listener and Deposit Type's change listener still call `sync()`. The root input/change listeners that clear custom validation messages remain. No new widgets, layout adjustments or unrelated styling were introduced.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The checkbox and type selection call `sync()`, which shows/enables/requires the deposit fields only for an applicable physical facility. `depositValue.max` remains `100` for Percentage and `99999999.99` for Fixed Amount. The existing helper describes the selected unit. Deposit Value remains a required numeric input with its existing minimum and decimal step; the unchanged Django validator remains authoritative for accepted configuration.
+
+When Edit loads an existing facility, `setWorkflow(workflow)` receives its saved `workflow_config`, restores `damage_deposit_applicable` through the existing rule map, and fills `damage_deposit.type` / `.value`. It then calls the same `sync()` for visibility. `validate()` checks the visible enabled fields before the existing Save/Update handler continues. `getWorkflow()` returns the checkbox state and configured deposit object for that handler; it never depends on a displayed preview.
+
+```javascript
+// Existing output with the checkbox selected, Fixed Amount and value 10:
+{
+  damage_deposit_applicable: true,
+  damage_deposit: {type: 'fixed', value: '10'}
+}
+// With the checkbox cleared, damage_deposit is {} as before.
+```
+
+The existing Save/Update handler merges that workflow with its other form values and sends the same permission-checked Django request. Rental pricing, discount rules, actual booking quotes and deposit calculations continue through their existing backend services. Removing explanatory preview text rather than those shared paths keeps the actual feature intact.
+
+### 5. Backend / API behavior
+
+No Python application source, route, request/response shape, authorization, validation, deposit calculation, rental price, discount or booking workflow changed. The browser controller still collects fixed/percentage values exactly as before. No endpoint was called from the browser verification harness.
+
+### 6. Database / migration impact
+
+None. No PostgreSQL data, models, migrations or stored configuration was modified. Backend checks used existing `SimpleTestCase` classes and in-memory Facility objects; no test database was created and no working-record save was performed. No app/server restart or deployment was needed for the source edits.
+
+### 7. Tests performed
+
+- From `backend/core/`, `venv/Scripts/python.exe -B manage.py test api.test_facility_form_controls api.test_facility_rental_configuration.RentalConfigurationValidationTests --noinput`: **45/45 tests passed in 0.099 seconds**, with Django system checks finding no issues. These cover configuration round trips, deposit/fee rules, invalid/missing deposits, hidden settings, rental pricing, discounts and schedule compatibility without database writes.
+- `node --check modules/facilities/static/facilities/js/rental_form_controls.js`: passed.
+- Isolated headless Chrome harness using the actual rental rules/pricing/discount partials, the revised controller and Django's real `facility_form_configuration()`: **23/23 checks passed**, **zero network requests** and **zero page script errors**. Checked checkbox visibility/enabled/required states, fixed value collection, blank-value rejection, percentage maximum/rejection/acceptance, clearing and restoring the saved workflow, base-hour pricing collection, discount validation/collection, and absence of the preview node and summary text.
+- Captured and visually inspected a 1000px fixed-deposit state and a 320px percentage state. The isolated harness had no horizontal overflow at 320px. It uses minimal surrounding fixture markup/styles, so it is not a full authenticated Admin-page visual acceptance test.
+- Source search found **no remaining preview element, property, renderer, summary text or CSS selector references** under `backend/` HTML/JS/CSS/Python. References in older documentation are historical and superseded by this entry. Scoped `git diff --check` passed.
+- Evidence/helper are outside the workspace at `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261104/deposit-preview-removal/`: `check.cjs`, `result.json`, `fixed-desktop.png`, and `percentage-mobile.png`. The helper uses existing locally installed Playwright/Chrome, actual form configuration and unsaved fixtures; it does not save facilities.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No live authenticated facility save, PostgreSQL integration suite, full booking suite or full-page accessibility audit was run. The optional design skill's project-root `tokens/` and `scripts/accuracy_report.mjs` are absent; its kit-wide gate is unavailable for this app. Its vendored sample kit is not a substitute for verifying CampusHub. The project's actual tests and isolated browser interactions above were used; no kit-wide pass is claimed.
+
+Refresh Facilities Admin to fetch the new asset versions. If stale text persists, hard-refresh and inspect the loaded controller URL for `v=20261104-no-deposit-preview`. Do not remove the checkbox or disable validation to hide a cached message.
+
+Safe exercise: run the 45-test command above, then open an unsaved Add Facility draft. Toggle Damage Deposit Applicable, choose Fixed Amount and then Percentage, and inspect the fields/helper with no orange summary. Enter 101 for Percentage and confirm validation rejects it. Cancel the draft without saving so working data remains unchanged. For a fully isolated browser exercise, rerun the external `check.cjs` helper and verify `checks: 23`, `requests: 0` and an empty error list.
+
 ## Operating Schedule presets simplified - October 29, 2026
 
 This changes only the existing physical-facility Operating Schedule controls and the server validation required to keep their saved policy/reservations safe. It supersedes the older visible weekend-policy checkbox and preset behavior described below. Existing pricing, payment, approval, other form sections and specialized service/stay workflows retain their own behavior.

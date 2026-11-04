@@ -44,7 +44,7 @@ class ProductApprovalPushTests(TestCase):
 
     def register(self, **extra):
         return self.client.post(self.url, json.dumps({"installation_id": self.fid, **extra}),
-                                content_type="application/json", **self.auth)
+                                content_type="application/json", HTTP_AUTHORIZATION=self.auth["HTTP_AUTHORIZATION"])
 
     def approve(self):
         self.register()
@@ -71,7 +71,8 @@ class ProductApprovalPushTests(TestCase):
 
     def test_bad_json_fid_and_expired_sessions_are_rejected(self):
         for body in ("[1]", "invalid", '{"installation_id":"bad"}'):
-            self.assertEqual(self.client.post(self.url, body, content_type="application/json", **self.auth).status_code, 400)
+            self.assertEqual(self.client.post(self.url, body, content_type="application/json",
+                                             HTTP_AUTHORIZATION=self.auth["HTTP_AUTHORIZATION"]).status_code, 400)
         claims = jwt.decode(self.token, settings.CHAT_JWT_SECRET, algorithms=["HS256"], audience="campushub-chat")
         claims["exp"] = int((timezone.now() - timedelta(seconds=1)).timestamp())
         self.auth = {"HTTP_AUTHORIZATION": "Bearer " + jwt.encode(claims, settings.CHAT_JWT_SECRET, algorithm="HS256")}
@@ -88,7 +89,7 @@ class ProductApprovalPushTests(TestCase):
         self.assertEqual(device.user, self.other)
         self.assertTrue(device.is_active)
         self.client.delete(self.url, json.dumps({"installation_id": self.fid}),
-                           content_type="application/json", **self.auth)
+                           content_type="application/json", HTTP_AUTHORIZATION=self.auth["HTTP_AUTHORIZATION"])
         device.refresh_from_db()
         self.assertFalse(device.is_active)
 
@@ -268,7 +269,7 @@ class ProductApprovalPushTests(TestCase):
     def test_owned_product_api_includes_rejected_listing_but_not_another_sellers(self):
         self.product.reject(self.admin, "Please update the photo.")
         other = Product.objects.create(mobile_seller=self.other, name="Other private listing", price=10)
-        response = self.client.get('/api/seller/products/submit/', **self.auth)
+        response = self.client.get('/api/seller/products/submit/', HTTP_AUTHORIZATION=self.auth["HTTP_AUTHORIZATION"])
         self.assertEqual(response.status_code, 200)
         rows = response.json()['products']
         self.assertEqual([p['id'] for p in rows], [self.product.pk])

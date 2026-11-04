@@ -18,7 +18,6 @@
             this.deposit = root.querySelector('#facilityDepositApplicable');
             this.depositType = root.querySelector('#facilityDepositType');
             this.depositValue = root.querySelector('#facilityDepositValue');
-            this.depositPreview = root.querySelector('#facilityDepositPreview');
             this.fees = root.querySelector('#facilityAdditionalFees');
             this.discounts = root.querySelector('#facilityDiscountRules');
             this.rules = {requires_approval: root.querySelector('#facilityRequiresApproval'),
@@ -30,8 +29,6 @@
             }
             this.deposit.addEventListener('change', () => this.sync());
             this.depositType.addEventListener('change', () => this.sync());
-            this.depositValue.addEventListener('input', () => this.syncDepositPreview());
-            fields.rate?.addEventListener('input', () => this.syncDepositPreview());
             fields.priceType.addEventListener('change', () => this.sync());
             this.partner.addEventListener('input', () => this.sync());
             const autoSyncRoomCapacity = () => {
@@ -116,7 +113,6 @@
             this.disclose('deposit_value', this.physical && this.deposit.checked, true);
             this.depositValue.max = this.depositType.value === 'percentage' ? '100' : '99999999.99';
             this.root.querySelector('#facilityDepositHelp').textContent = this.depositType.value === 'percentage' ? 'Percentage of the applicable rental/base fee.' : 'Fixed amount in Philippine Peso.';
-            this.syncDepositPreview();
             this.root.querySelector('#facilityRoomsNotice').hidden = !this.physical || this.fields.mode.value !== 'room';
             if (this.physical) {
                 const wrap = this.fields.rate.closest('[data-facility-field]');
@@ -126,31 +122,6 @@
             }
             for (const row of this.fees.children) this.syncFee(row);
             for (const row of this.discounts.children) this.syncDiscount(row);
-        }
-
-        syncDepositPreview() {
-            if (!this.depositPreview) return;
-            const visible = this.physical && this.deposit.checked;
-            this.depositPreview.hidden = !visible;
-            if (!visible) {
-                this.depositPreview.textContent = '';
-                return;
-            }
-            const type = this.depositType.value;
-            const val = Number(this.depositValue.value || 0);
-            const rate = Number(this.fields.rate?.value || 0);
-            if (!type || val <= 0) {
-                this.depositPreview.textContent = 'Select a deposit type and enter a positive value to preview the calculation.';
-                return;
-            }
-            if (type === 'fixed') {
-                this.depositPreview.textContent = `Damage Deposit Summary: Fixed refundable deposit of ₱${val.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})} per booking.`;
-            } else if (type === 'percentage') {
-                const sample = rate > 0 ? (rate * val) / 100 : null;
-                this.depositPreview.textContent = sample !== null
-                    ? `Damage Deposit Summary: ${val}% of applicable rental fee (e.g. ₱${sample.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})} on ₱${rate.toLocaleString('en-PH')} base rate).`
-                    : `Damage Deposit Summary: ${val}% of the applicable rental/base fee.`;
-            }
         }
 
         syncBookingForm() {

@@ -338,8 +338,9 @@ def pricing_label(facility):
     return f"{money} / {suffix}" if suffix else "Pricing needs review"
 
 
-def slot_base_amount(facility, hours, *, include_configured_adjustments=False, use_hourly_rate=False):
-    """One rate calculation used by the existing mobile rental quote."""
+def slot_price_components(facility, hours, *, use_hourly_rate=False):
+    """Shared package/hourly arithmetic, with separate initial and extra charges."""
+    additional = Decimal("0")
     if facility.price_type == "base_hour":
         pricing = (facility.workflow_config or {}).get("pricing", {})
         try:
@@ -355,14 +356,23 @@ def slot_base_amount(facility, hours, *, include_configured_adjustments=False, u
         if use_hourly_rate and hourly_opt is not None:
             amount = hourly_opt * hours
         else:
-            amount = facility.rate + max(hours - base, Decimal("0")) * extra
+            additional = max(hours - base, Decimal("0")) * extra
+            amount = facility.rate + additional
     elif facility.price_type in ("hour", "session"):
         amount = facility.rate * (hours if facility.price_type == "hour" else 1)
     else:
         # No silent hourly/fixed fallback for person/night/custom pricing.
         raise ValidationError("This pricing method requires a quote from Facilities Admin.")
+    return {"base_rental_amount": str((amount - additional).quantize(Decimal("0.01"))),
+            "additional_hour_amount": str(additional.quantize(Decimal("0.01"))),
+            "base_amount": str(amount.quantize(Decimal("0.01")))}
+
+
+def slot_base_amount(facility, hours, *, include_configured_adjustments=False, use_hourly_rate=False):
+    """Keep the existing simple-quote safeguards and reuse shared arithmetic."""
+    amount = Decimal(slot_price_components(facility, hours, use_hourly_rate=use_hourly_rate)["base_amount"])
     if include_configured_adjustments:
-        return amount.quantize(Decimal("0.01"))
+        return amount
     workflow = facility.workflow_config or {}
     if any(item.get("is_active") and item.get("has_additional_fee") for item in workflow.get("equipment", []) if isinstance(item, dict)):
         raise ValidationError("Equipment charges require a complete quote from Facilities Admin.")

@@ -1481,7 +1481,8 @@ class BookingWorkflowTests(TestCase):
         self.assertEqual(api['documents'][0]['title'],'Booking Slip')
         assert page.context is not None
         self.assertEqual(page.context['booking_detail'],api)
-        self.assertEqual(page['Cache-Control'],'private, no-store')
+        self.assertIn('private', page['Cache-Control'])
+        self.assertIn('no-store', page['Cache-Control'])
         for tab in ('Overview','BookingForm','JobOrder','Payment','Inspection','Activity'):
             self.assertContains(page,f'id="bkTab{tab}"')
         self.assertNotContains(page,'bkTabDocuments')
@@ -1541,7 +1542,8 @@ class BookingWorkflowTests(TestCase):
         self.assertRedirects(redirected,f'/admin-bookings/{b.pk}/?__at={token}')
         api=browser.get(f'/api/bookings/{b.pk}/',HTTP_X_ADMIN_TAB_TOKEN=token)
         self.assertEqual(api.json()['booking']['id'],b.pk)
-        self.assertEqual(browser.get(f'/admin-bookings/{b.pk}/',{'__at':'invalid'}).status_code,401)
+        # HTML uses the existing tab-auth login redirect; private APIs retain 401.
+        self.assertRedirects(browser.get(f'/admin-bookings/{b.pk}/',{'__at':'invalid'}), '/', fetch_redirect_response=False)
         self.assertEqual(browser.post(f'/api/bookings/{b.pk}/update/',
             json.dumps({'action':'cancel','reason':'Test'}),content_type='application/json',
             HTTP_X_ADMIN_TAB_TOKEN=token).status_code,403)

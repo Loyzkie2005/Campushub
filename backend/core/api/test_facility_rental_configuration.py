@@ -624,6 +624,40 @@ class FacilityRentalAPITests(TestCase):
         self.assertNotContains(page, 'id="facilityTurnaroundInformation"')
         self.assertNotContains(page, "Supported Activities")
 
+    def test_weekly_hours_persist_for_all_physical_categories_and_modes(self):
+        """Only isolated rows: exercise the same create/update JSON as the form."""
+        for category in ("covered_court", "function_hall", "hostel", "other"):
+            for mode in ("slot", "room", "daily", "custom"):
+                with self.subTest(category=category, mode=mode):
+                    hours = {day: None for day in WEEKDAYS}
+                    hours["monday"] = {"open": "08:07", "close": "16:53"}
+                    hours["saturday"] = {"open": "09:15", "close": "15:45"}
+                    payload = {**self.payload, "facility_type": category, "mode": mode,
+                        "price_type": "hour", "rate": "500",
+                        "workflow_config": {"operating_hours": hours, "booking_form_type": "general"}}
+                    if mode == "room":
+                        payload.update(rooms_units=2, room_type="Test room")
+                        payload["workflow_config"].update(capacity_per_room=2, check_in_time="14:00", check_out_time="12:00")
+                    created = self.post(reverse("facilities_create"), payload)
+                    self.assertEqual(created.status_code, 201, created.content)
+                    pk = created.json()["facility"]["id"]
+                    saved = Facility.objects.get(pk=pk)
+                    self.assertEqual(saved.workflow_config["operating_hours"], hours)
+                    self.assertFalse(saved.workflow_config.get("weekend_only", False))
+                    # Close one day, open another and preserve independent exact times.
+                    revised = {**hours, "monday": None,
+                        "tuesday": {"open": "10:03", "close": "17:11"}}
+                    updated = self.post(reverse("facilities_update", args=[pk]),
+                        {"workflow_config": {"operating_hours": revised}})
+                    self.assertEqual(updated.status_code, 200, updated.content)
+                    saved.refresh_from_db()
+                    self.assertEqual(saved.workflow_config["operating_hours"], revised)
+                    self.assertEqual(updated.json()["facility"]["workflow_config"]["operating_hours"], revised)
+                    catalog = self.client.get(reverse("facilities_list")).json()["facilities"]
+                    self.assertEqual(next(row for row in catalog if row["id"] == pk)["workflow_config"]["operating_hours"], revised)
+                    self.assertEqual(saved.facility_type, category)
+                    self.assertEqual(saved.booking_mode, mode)
+
     def test_simple_features_fees_api_preserves_history_and_omitted_requirements(self):
         self.payload["amenities"] = ["Chairs", "Lighting"]
         self.payload["workflow_config"].update(other_feature="  Access Ramp  ", additional_fees=[

@@ -11,7 +11,7 @@ from api.models import CampusHubUser, Facility, Room
 from .catalog import SERVICE_MODES, SERVICE_TYPES
 from .mobile_booking import configured_slots, conflicting_bookings, slot_status, conflict_description
 from .operating_schedule import WEEKDAYS, closed_operating_day_messages, parse_time
-from .rental_configuration import slot_base_amount, FORM_TYPES, booking_form_for_category
+from .rental_configuration import slot_base_amount, slot_price_components, FORM_TYPES, booking_form_for_category
 
 
 class ReservationUnavailable(ValidationError):
@@ -161,6 +161,23 @@ def reservation_schedule(facility, data, *, check_capacity=True, exclude_booking
     return fields, {"guests": guests, "adults": adults, "children": children, "nights": nights, "hours": hours, "room": room, "form": form}
 
 
+def configured_discount_amount(facility, rule, base, hours, *, shared=False):
+    """One discount calculation for staff quotes and authenticated mobile quotes."""
+    pricing = (facility.workflow_config or {}).get("pricing", {})
+    scope = rule["applies_to"]
+    basis = base
+    if scope == "base_rate":
+        basis = money(facility.rate)
+    elif scope == "additional_hour_rate":
+        basis = max(hours - money(pricing["base_duration"]), Decimal("0")) * money(pricing["additional_hour_rate"])
+    elif scope == "individual_rate" and shared or scope == "partner_rate" and not shared:
+        raise ValidationError("This discount does not apply to the selected individual/shared rate.")
+    elif scope == "custom":
+        raise ValidationError("Custom discount scopes need an approved quote.")
+    value = money(rule["discount_value"])
+    return min(base, basis, basis * value / 100 if rule["discount_type"] == "percentage" else value)
+
+
 def reservation_quote(facility, data, *, exclude_booking=None):
     """Reuse validated schedule plus existing configured pricing; perform no writes."""
     fields, context = reservation_schedule(facility, data, exclude_booking=exclude_booking)
@@ -208,18 +225,7 @@ def reservation_quote(facility, data, *, exclude_booking=None):
                 raise ValidationError("Internal client discounts cannot be applied to external or guest accounts.")
             if str(data.get("client_affiliation") or "").strip().lower() == "external":
                 raise ValidationError("Internal client discounts cannot be applied to external clients.")
-        scope = rule["applies_to"]
-        basis = base
-        if scope == "base_rate":
-            basis = money(facility.rate)
-        elif scope == "additional_hour_rate":
-            basis = max(hours - money(pricing["base_duration"]), Decimal("0")) * money(pricing["additional_hour_rate"])
-        elif scope == "individual_rate" and shared or scope == "partner_rate" and not shared:
-            raise ValidationError("This discount does not apply to the selected individual/shared rate.")
-        elif scope == "custom":
-            raise ValidationError("Custom discount scopes need an approved quote.")
-        value = money(rule["discount_value"])
-        discount = min(basis, basis * value / 100 if rule["discount_type"] == "percentage" else value)
+        discount = configured_discount_amount(facility, rule, base, hours, shared=shared)
     rental = (base - discount).quantize(Decimal("0.01"))
     charges = []
     quantities = data.get("fee_quantities", {})
@@ -232,12 +238,17 @@ def reservation_quote(facility, data, *, exclude_booking=None):
         factor = whole_number(quantities.get(str(index), 0), fee["name"]) if fee["unit"] in ("item", "unit") else factors.get(fee["unit"])
         if factor is None or factor == 0 and fee["unit"] in ("hour", "day", "night"):
             raise ValidationError("The saved additional fee basis needs an approved quote.")
-        charges.append({"name": fee["name"], "quantity": str(factor), "amount": str((money(fee["amount"]) * factor).quantize(Decimal("0.01")))})
+        charges.append({"name": fee["name"], "quantity": str(factor), "amount": str((money(fee["amount"]) * factor).quantize(Decimal("0.01"))),
+                        "index": index, "unit": fee["unit"], "unit_amount": str(money(fee["amount"]).quantize(Decimal("0.01")))})
     fees = sum((Decimal(row["amount"]) for row in charges), Decimal("0"))
     deposit = Decimal("0")
     if workflow.get("damage_deposit_applicable"):
-        config = workflow["damage_deposit"]
+        config = workflow.get("damage_deposit")
+        if not isinstance(config, dict) or config.get("type") not in ("fixed", "percentage") or "value" not in config:
+            raise ValidationError("The damage deposit configuration needs review by Facilities Admin.")
         value = money(config["value"])
+        if config["type"] == "percentage" and value > 100:
+            raise ValidationError("The damage deposit percentage needs review by Facilities Admin.")
         deposit = value if config["type"] == "fixed" else rental * value / 100
     deposit = deposit.quantize(Decimal("0.01"))
     total = (rental + fees + deposit).quantize(Decimal("0.01"))
@@ -247,4 +258,7 @@ def reservation_quote(facility, data, *, exclude_booking=None):
              "rental_amount": str(rental), "fees": charges, "fee_amount": str(fees), "deposit_amount": str(deposit),
              "rental_total": str((rental + fees).quantize(Decimal("0.01"))), "total_amount": str(total), "hours": str(hours), "nights": nights, "form_label": FORM_TYPES[form]}
     quote.update(guests=guests, adults=context["adults"], children=context["children"])
+    quote.update(slot_price_components(facility, hours, use_hourly_rate=data.get("use_hourly_rate") is True)
+                 if facility.price_type in ("hour", "base_hour", "session")
+                 else {"base_rental_amount": str(base.quantize(Decimal("0.01"))), "additional_hour_amount": "0.00"})
     return fields, quote

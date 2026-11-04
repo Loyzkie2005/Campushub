@@ -197,12 +197,14 @@ def conflict_description(booking):
     return message + "."
 
 
-def rental_quote(facility, day, start, end):
+def rental_quote(facility, day, start, end, *, data=None, user=None):
     from .catalog import SERVICE_MODES, SERVICE_TYPES
     if facility.booking_mode != 'slot' or facility.facility_type in SERVICE_TYPES or facility.booking_mode in SERVICE_MODES:
         raise ValidationError("This facility uses a different request process. Contact Facilities Admin.")
     if facility.facility_type in ("food_analysis", "lease_space"):
         raise ValidationError("This facility uses a different request process. Contact Facilities Admin.")
+    if data is not None and user is not None:
+        return complete_mobile_quote(facility, day, start, end, data, user)
     # Import locally: the web validator itself reuses this module's core rules.
     from .admin_reservations import reservation_schedule
     _, context = reservation_schedule(facility, {
@@ -213,3 +215,74 @@ def rental_quote(facility, day, start, end):
     return {"base_amount": str(total), "total_amount": str(total), "hours": str(hours),
             "rate": str(facility.rate), "price_type": facility.price_type,
             "additional_requirements_note": "Additional requirements are subject to availability and a separate quote."}
+
+
+def mobile_pricing_options(facility):
+    """Expose saved optional quantities, never seed a rate or deposit."""
+    return {"item_fees": [
+        {"index": index, "name": fee["name"], "unit_amount": str(fee["amount"])}
+        for index, fee in enumerate((facility.workflow_config or {}).get("additional_fees", []))
+        if fee.get("active") and fee.get("unit") in ("item", "unit")]}
+
+
+def complete_mobile_quote(facility, day, start, end, data, user):
+    """Use the staff quote engine, binding discount eligibility to the bearer owner."""
+    import json
+    from django.core import signing
+    from .admin_reservations import reservation_quote, configured_discount_amount, whole_number
+
+    workflow = facility.workflow_config or {}
+    quantities = data.get("fee_quantities", {})
+    options = {str(fee["index"]): fee for fee in mobile_pricing_options(facility)["item_fees"]}
+    if not isinstance(quantities, dict) or any(key not in options for key in quantities):
+        raise ValidationError("The optional charges changed. Return to Booking Details and review the quantities.")
+    quantities = {key: whole_number(value, options[key]["name"]) for key, value in quantities.items()}
+    requirements = data.get("additional_requirements", [])
+    if not isinstance(requirements, list) or any(not isinstance(item, str) for item in requirements):
+        raise ValidationError("Select valid additional requirements.")
+    for index, fee in options.items():
+        if fee["name"].strip().lower() in ("chair", "chairs", "chair rental") and "Chairs" in requirements and not quantities.get(index):
+            raise ValidationError("Enter the number of chairs required.")
+    hourly = data.get("use_hourly_rate", False)
+    if not isinstance(hourly, bool):
+        raise ValidationError("Select a valid rental rate option.")
+    details = {"date": day.isoformat(), "start": start.strftime("%H:%M"), "end": end.strftime("%H:%M"),
+               "attendees": data.get("attendees"), "client_id": user.pk,
+               "fee_quantities": quantities, "use_hourly_rate": hourly}
+    # The caller cannot assert a different client, affiliation, or staff evidence.
+    _, estimate = reservation_quote(facility, details)
+    account_type = str(user.user_type or "").lower()
+    eligible = {"student", "internal"} if account_type == "student" else {"internal"} if account_type in ("faculty", "employee") else set()
+    candidates = []
+    rules = workflow.get("discount_rules", [])
+    for index, rule in enumerate(rules):
+        if rule.get("active") and rule.get("eligible_client_type") in eligible and rule.get("applies_to") != "custom":
+            reduction = configured_discount_amount(facility, rule, Decimal(estimate["base_amount"]), Decimal(estimate["hours"]))
+            candidates.append((reduction, index))
+    selected = data.get("discount_index")
+    if selected not in (None, ""):
+        selected = whole_number(selected, "discount")
+        if selected not in {index for _, index in candidates}:
+            raise ValidationError("This discount requires eligibility verification by Facilities Admin.")
+    elif candidates:
+        selected = max(candidates, key=lambda row: (row[0], -row[1]))[1]
+    else:
+        selected = None
+    if selected is not None:
+        details.update(discount_index=selected, discount_reason=f"Authenticated CampusHub {account_type} account")
+        _, estimate = reservation_quote(facility, details)
+        estimate["discount_label"] = "Student discount" if rules[selected]["eligible_client_type"] == "student" else "Internal client discount"
+    estimate.update(rate=str(facility.rate), price_type=facility.price_type,
+                    pricing_options=mobile_pricing_options(facility))
+    if any(rule.get("active") and rule.get("eligible_client_type") in ("immediate_family", "other") for rule in rules):
+        estimate["discount_note"] = "Family and other special discounts require verification by Facilities Admin."
+    priced_names = {row["name"].strip().lower() for row in estimate["fees"]}
+    unquoted = [name for name in requirements if name.lower() not in priced_names
+                and not (name == "Chairs" and priced_names.intersection({"chair", "chairs", "chair rental"}))]
+    estimate["additional_requirements_note"] = (
+        "Other selected requirements are subject to availability and a separate admin quote." if unquoted else "")
+    signature_data = {"facility": str(facility.pk), "user": user.pk, "request": details,
+                      "workflow": workflow, "quote": estimate}
+    estimate["quote_token"] = signing.Signer(salt="campushub.facility-quote").signature(
+        json.dumps(signature_data, sort_keys=True, separators=(",", ":"), default=str))
+    return estimate

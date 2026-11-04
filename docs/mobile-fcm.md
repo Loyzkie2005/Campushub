@@ -1,5 +1,33 @@
 # Mobile Firebase configuration
 
+## Product push test authorization typing - November 4, 2026
+
+1. **Cause / reason.** In `ProductApprovalPushTests`, `self.auth` is inferred as `dict[str, str]`. Unpacking it with `**self.auth` does not tell the type checker which keyword names are present. It therefore considers string values for Django client parameters such as `follow`, `secure`, `headers`, `query_params`, and GET `data`, producing the reported argument errors. This is a static typing issue; the dictionary actually contains only `HTTP_AUTHORIZATION`.
+2. **Exact files changed / current lines and anchors.** `backend/core/modules/notifications/test_product_push.py:47` (`register`), `:75` (`test_bad_json_fid_and_expired_sessions_are_rejected`), `:92` (`test_account_reassignment_and_old_logout_cannot_disable_new_owner`), and `:272` (`test_owned_product_api_includes_rejected_listing_but_not_another_sellers`) now pass the authorization value by its explicit keyword. `docs/mobile-fcm.md:3` records this fix and its verification.
+3. **Changes made.** Replaced all four `**self.auth` request arguments with `HTTP_AUTHORIZATION=self.auth["HTTP_AUTHORIZATION"]`. The dictionary and its reassignment in expired-session, different-owner, and new-session tests remain. No type-checker suppression, dependency, or production source change was needed.
+4. **How it works / functions, inputs, outputs and data flow.** `setUp()` puts a fixture owner's bearer token in `self.auth`. `register(**extra)` combines the fixture installation ID and optional JSON fields, then POSTs that JSON with the dictionary's current authorization string; it returns Django's response for assertions. Direct POST, DELETE, and GET tests read the same string at request time, so changing `self.auth` still changes the next request's identity/session. Django receives the same HTTP authorization header as before, with no string arguments assigned to its boolean or mapping options.
+
+   ```python
+   # Read the current fixture bearer string and pass only this named header.
+   response = self.client.get(
+       '/api/seller/products/submit/',
+       HTTP_AUTHORIZATION=self.auth["HTTP_AUTHORIZATION"],
+   )
+   # The existing response assertions still verify ownership and review details.
+   ```
+
+   Explicit keywords were chosen because this dictionary supplies exactly one header; they keep the existing session tests readable without introducing a helper or weakening typing.
+5. **Backend / API behavior.** Production endpoints, bearer validation, seller permissions, push delivery, and response bodies are unchanged. Tests still check rejected/expired sessions, installation ownership, approval/rejection delivery, and private seller-product access. All Firebase sends in this test module are mocked.
+6. **Database / migration impact.** No model or migration changes and no working-record edits. Verification used the existing local PostgreSQL configuration with a distinct `TEST.NAME` of `test_campushub_push_typing_20261104`; Django created and destroyed that database. The runner asserted PostgreSQL and a loopback host before starting.
+7. **Tests performed.** All **22 tests** in `modules.notifications.test_product_push` passed in **0.818 seconds**; Django system checks found no issues. The mocked `RuntimeError` and `UnregisteredError` log lines are expected failure-path coverage. Scoped Pyright against `pyrightconfig.json` reported **0 errors, 0 warnings**. The cached CLI needed `--typeshedpath C:/Users/leste/.vscode/extensions/ms-python.vscode-pylance-2026.4.1/dist/typeshed-fallback` to load standard-library types; the first attempt without that option failed with undefined-builtins diagnostics and is not counted as a successful check. The restricted Python invocation initially failed; verification succeeded with approved access. A subsequent Windows command-quoting failure occurred before Django setup and was corrected before the passing run.
+8. **Troubleshooting / remaining limitations / safe practice exercise.** No full-project suite, real Firebase send, device check, or deployment was performed. If the IDE still shows these exact diagnostics, save the file and restart its Python language server; do not disable argument checking. For safe practice, trace `register()` to its POST call, then compare it with the GET example above: both read the current header value, while only POST supplies JSON. Run the scoped Pyright command below and expect zero diagnostics. To repeat database tests, use a disposable local test database and run only `modules.notifications.test_product_push`; keep real sends mocked and never point `TEST.NAME` at a working database.
+
+   ```powershell
+   node C:/Users/leste/AppData/Local/npm-cache/_npx/110e52990071af13/node_modules/pyright/dist/pyright.js --project pyrightconfig.json --typeshedpath C:/Users/leste/.vscode/extensions/ms-python.vscode-pylance-2026.4.1/dist/typeshed-fallback backend/core/modules/notifications/test_product_push.py
+   ```
+
+   These cached CLI/editor paths describe the installation used for this check; another machine may need its own installed Pyright/typeshed paths. A clean CLI result does not prove that an already-open editor has refreshed its diagnostics.
+
 ## CampusHub notification mark and white Android app icon - November 4, 2026
 
 1. **Cause / reason and confirmed evidence.** The old `drawable/ic_stat_campushub.xml` explicitly drew a graduation cap, so the status bar could not show the CampusHub mark. The previous launcher PNGs had transparent backgrounds, leaving their background treatment to the phone. Separately, actual phone records confirmed some received messages were marked `SILENT` with `tran.harassment=true` by the Infinix notification filtering. These are different issues: changing an icon does not disable phone notification filtering.

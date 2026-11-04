@@ -2,6 +2,27 @@
 
 Created: 2026-10-06. This is a guide and a reusable issue template, not a claim that every example below is a current bug.
 
+## Django startup SyntaxError and PowerShell command separation - November 4, 2026
+
+1. **Cause / reason.** Confirmed: `backend/core/modules/marketplace/services/recommendation.py:1` began with `ad"""` instead of a plain triple-quoted module docstring. `ad` is not a valid Python string prefix, so Python rejected the entire module before Django could finish loading its URLs. The earlier PowerShell command also joined `cd backend/core` directly to `(Set-ExecutionPolicy ...)`, causing `Set-Location` to receive the parenthesized command's null output as an extra argument. These are separate errors; successful virtual-environment activation does not repair Python source syntax.
+2. **Exact files changed.** `backend/core/modules/marketplace/services/recommendation.py:1`, anchor the opening `"""`, removes only the two stray letters. This restores that file to its existing Git version. `docs/DEBUGGING_GUIDE.md:5`, this section, records the cause, commands and verification. No terminal/editor setting or execution policy was modified.
+3. **Changes made.** Restored the original module docstring opener. Recommendation functions, scoring, database queries, authentication and all other application logic remain as before.
+4. **How it works / functions, inputs, outputs and data flow.** Django loads `core/urls.py`, which imports facility signature views; those import the bearer helper from `api/views.py`, which imports `get_recommended_products` from this module. Python must parse the whole recommendation file before supplying that function. Removing the invalid prefix permits this existing import chain to complete. `get_recommended_products` accepts optional user ID, result limit, seed product ID and personalized-only flag, reads approved/non-archived products and recorded interactions, and returns ranked Product objects. `_product_text` converts existing product text to a search document, and `_content_similarity_matrix` builds TF-IDF/cosine scores when scikit-learn and sufficient products are available. None of those functions or their inputs/outputs were changed. The smallest fix was chosen because the crash occurs during parsing, before recommendation logic executes.
+5. **Backend / API behavior.** The URL module can import successfully again. No endpoint, permission, response, recommendation rule or FastAPI change. `manage.py check` verifies Django configuration/imports without starting another development server.
+6. **Database / migration impact.** None. No models, migrations, working records or environment dependencies changed. No server was launched/restarted or production deployment performed by this fix.
+7. **Tests performed.** From `backend/core/`, `.\venv\Scripts\python.exe -B manage.py check` completed successfully: `System check identified no issues (0 silenced).` In-memory Python `compile` succeeded for all **344** `.py` files beneath `api/`, `accounts/`, `modules/` and `core/`; the check wrote no bytecode files. Git confirms `recommendation.py` now matches HEAD. No database integration suite, actual server bind or phone-login request was run; those are not required to validate this two-character syntax restoration.
+8. **Remaining limitations / troubleshooting / safe practice.** This resolves the reported syntax/import failure, not every possible network/database issue after startup. At your current `backend/core` prompt, run the direct interpreter command below. If the old server command is still occupying that terminal, press Ctrl+C first. No activation or execution-policy change is needed when Python is called by its explicit virtual-environment path. Safe exercise: run `manage.py check` and verify the exact success message before starting the server; inspect the first line of `recommendation.py` and identify its matching closing triple quotes. Do not alter working records to test startup.
+
+From the **repository root**, run these as separate lines:
+
+```powershell
+Set-Location -LiteralPath 'C:\Users\leste\Desktop\CAMPUSHUB\backend\core'
+.\venv\Scripts\python.exe manage.py check
+.\venv\Scripts\python.exe manage.py runserver 0.0.0.0:8000
+```
+
+The first line selects the directory containing `manage.py`; the second checks configuration/imports; the third starts Django using the project's installed packages. If already inside `backend/core`, omit the first line. The check exits; `runserver` remains running until Ctrl+C. Do not paste `(Set-ExecutionPolicy ...)` directly after a path argument.
+
 ## Temporary-artifact cleanup - November 4, 2026
 
 Historical `scratch/` evidence links in feature guides now refer to the external local archive `C:\Users\leste\Desktop\CAMPUSHUB-artifacts-20261104`, under `scratch/` or `scratch-remainder/`. Keep original reports as history; their old paths are not current application dependencies. New optional captures can recreate an ignored output folder.

@@ -533,5 +533,6 @@ def public_client_details(details):
     quote = details.get('quote') or {}
     result['quote'] = {key: quote[key] for key in ('base_amount','total_amount','rental_total','rental_amount',
         'discount_amount','fee_amount','deposit_amount','hours','nights','form_label','rate','price_type',
-        'additional_requirements_note','fees','guests','adults','children') if key in quote}
+        'additional_requirements_note','fees','guests','adults','children',
+        'base_rental_amount','additional_hour_amount','discount_label','discount_note') if key in quote}
     return result

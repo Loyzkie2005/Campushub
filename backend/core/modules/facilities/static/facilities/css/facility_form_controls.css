@@ -129,16 +129,6 @@
     .facility-schedule-preset-btn { transition: none; }
 }
 
-.facility-deposit-preview {
-    padding: 10px 14px;
-    border: 1px solid rgba(252, 179, 22, 0.45);
-    border-left: 4px solid #FCB316;
-    border-radius: 8px;
-    background: rgba(252, 179, 22, 0.08);
-    color: #1A1851;
-    font: 600 13px/1.45 'Inter', sans-serif;
-}
-
 #facilityFormSection [hidden] {
     display: none !important;
 }

@@ -1,5 +1,32 @@
 # Products List — quantity-first Inventory column
 
+## Optional text-length comparison - November 4, 2026
+
+1. **Cause / reason.** Confirmed with Pyright before editing: `validate_admin_product_input` compared `len(value)` with `limit`, inferred as `int | Unknown | None`. Django field metadata allows `max_length=None`, making the unguarded comparison unsafe. The exact diagnostic was reproduced at line 24; `inventory_monitor.py` had no diagnostics in the same scoped check.
+2. **Exact files changed.** `backend/core/modules/marketplace/services/admin_product_validation.py:24`, anchor `if (limit is not None and len(value) > limit)`, adds the guard. `docs/products-list-inventory.md:3` records this report. The cart syntax fix is documented in [Orders](orders-module.md#cart-parser-diagnostics---november-4-2026).
+3. **Changes made.** Compare the length only when a numeric bound exists. Keep the existing required name/category checks, whitespace trimming, error messages and all price/stock/image validation. No diagnostic suppression or hardcoded replacement for model field limits.
+4. **How it works / functions and data flow.** `validate_admin_product_input(data)` receives the existing product dictionary, checks its text values, trims whitespace, reads the model's name/category maximum or the existing 1000-character description limit, and raises `ProductInputError(message, field)` on invalid input. It returns the validated dictionary for the existing save path. `and` short-circuits: a `None` limit skips only the upper-length comparison. The independent required-field condition still rejects blank name/category. Current model limits remain name 150 and category 80.
+5. **Backend / API behavior.** Current product fields keep their existing accepted/rejected lengths. A future unbounded model text field no longer reaches an integer-versus-None comparison. No endpoint, permission, response shape, inventory calculation or save-flow change. `inventory_monitor.py` was inspected and checked, not modified.
+6. **Database / migration impact.** None. No schema, stored product, inventory or order changes. The direct validator checks used in-memory dictionaries and model metadata; no database queries or writes were requested.
+7. **Tests performed.** Scoped Pyright with the existing `pyrightconfig.json` and installed Pylance typeshed reported **0 errors, 0 warnings** for `admin_product_validation.py` and `inventory_monitor.py` after the change (before: one operator error). Ten direct checks passed: exact and oversized limits for all three fields (six), both required blanks (two), whitespace trimming (one), and an in-memory patched `max_length=None` (one). The first validator invocation failed before Django setup because it ran from the repository root; rerunning from `backend/core/` succeeded. No backend integration suite was run.
+8. **Remaining limitations / troubleshooting / safe exercise.** The live IDE Problems panel and deployed API were not inspected. The unknown portion of Django metadata's inferred type remains; the nullable comparison is now explicitly guarded. Safe exercise: from `backend/core/`, use `venv/Scripts/python.exe manage.py shell` to call the validator with a temporary dictionary containing name `x * 150`, category `School Supplies`, description empty and price `12.50`. Verify it returns the dictionary, then change name to `x * 151` and verify a `ProductInputError` for `name`. Do not call a model's `save()` or an API endpoint for this exercise.
+
+Annotated comparison:
+
+```python
+# A missing bound skips the comparison; a real bound still rejects oversized text.
+limit is not None and len(value) > limit
+# The existing independent blank-field rule still rejects required empty fields.
+```
+
+Reproduce the static check from the repository root:
+
+```powershell
+node C:/Users/leste/AppData/Local/npm-cache/_npx/110e52990071af13/node_modules/pyright/dist/pyright.js --project pyrightconfig.json --typeshedpath C:/Users/leste/.vscode/extensions/ms-python.vscode-pylance-2026.4.1/dist/typeshed-fallback backend/core/modules/marketplace/services/admin_product_validation.py backend/core/modules/marketplace/services/inventory_monitor.py
+```
+
+The CLI/typeshed paths are the installed versions used for this check; resolve their new locations if the editor or npm cache changes.
+
 ## Professional minimalist Products catalog — October 31, 2026
 
 ### 1. Cause / reason
