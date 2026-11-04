@@ -209,6 +209,115 @@ class MobileSellerApplicationTests(TestCase):
         return {"name": "Test gallery product", "price": "25.00", "stock": 6,
                 "category": "School Supplies", **extra}
 
+    def test_initial_batches_persist_dates_cost_notes_and_pending_owner(self):
+        from django.utils import timezone
+        from api.models import InventoryFIFOControl, InventoryBatch
+        from modules.marketplace.services import fifo
+        SellerRequest.objects.create(mobile_user=self.mobile, status="approved")
+        with self.settings(CAMPUSHUB_FIFO_ENABLED=True):
+            InventoryFIFOControl.objects.update_or_create(pk=1, defaults={"active": True})
+            response = self.post_gallery(inventory_method="fifo", initial_batches=[
+                {"quantity": 2, "received_date": "2026-01-03", "unit_cost": "8.50"},
+                {"quantity": 4, "received_date": "2026-01-01"}],
+                seller_id=self.admin.pk, approval_status="approved")
+            self.assertEqual(response.status_code, 201, response.content)
+            self.assertEqual(response.json()["initial_batches_saved"], 2)
+            product = Product.objects.get(pk=response.json()["product"]["id"])
+            self.assertEqual((product.mobile_seller_id, product.approval_status, product.stock), (self.mobile.pk, "pending", 6))
+            self.assertIsNone(product.seller_id)
+            rows = list(fifo.ordered_batches(InventoryBatch.objects.filter(sku__product=product)))
+            self.assertEqual([(row.initial_quantity, timezone.localdate(row.received_at).isoformat(), row.origin) for row in rows],
+                             [(4, "2026-01-01", "receipt"), (2, "2026-01-03", "receipt")])
+            self.assertEqual(rows[1].receipt_movement.notes, "Unit cost: PHP 8.50")
+            self.assertEqual(product.inventory_skus.get(variant_name="").movements.filter(kind="receipt").count(), 2)
+            # Reserve through the existing backend engine; older row wins even
+            # when the seller entered that row second. Flutter never allocates.
+            product.stock -= 5
+            product._inventory_kind = "reservation"
+            product.save(update_fields=["stock"])
+            self.assertEqual(list(product.inventory_skus.get(variant_name="").batches.order_by("received_at").values_list("remaining_quantity", flat=True)), [0, 1])
+
+    def test_initial_batch_expiry_is_optional_and_persisted_in_receipt_notes(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from api.models import InventoryFIFOControl, InventoryBatch
+        SellerRequest.objects.create(mobile_user=self.mobile, status="approved")
+        self.seed.category = "Snacks"
+        self.seed.save(update_fields=["category"])
+        today = timezone.localdate()
+        with self.settings(CAMPUSHUB_FIFO_ENABLED=True):
+            InventoryFIFOControl.objects.update_or_create(pk=1, defaults={"active": True})
+            support = self.client.get(reverse("seller_submit_product"), **self.auth)
+            self.assertTrue(support.json()["capabilities"]["initial_batch_expiry"])
+            response = self.post_gallery(category="Snacks", inventory_method="fifo", initial_batches=[
+                {"quantity": 2, "received_date": today.isoformat(), "unit_cost": "8.50", "expiry_date": today.isoformat()},
+                {"quantity": 2, "received_date": today.isoformat(), "expiry_date": (today + timedelta(days=2)).isoformat()},
+                {"quantity": 2, "received_date": today.isoformat(), "expiry_date": None}])
+            self.assertEqual(response.status_code, 201, response.content)
+            product = Product.objects.get(pk=response.json()["product"]["id"])
+            self.assertIsNone(product.expiry_date)
+            rows = list(InventoryBatch.objects.filter(sku__product=product).order_by("pk"))
+            self.assertEqual(rows[0].receipt_movement.notes, f"Unit cost: PHP 8.50\nExpiry date: {today.isoformat()}")
+            self.assertEqual(rows[1].receipt_movement.notes, f"Expiry date: {(today + timedelta(days=2)).isoformat()}")
+            self.assertFalse(rows[2].receipt_movement.notes)
+            # Blank is unknown, not a 'never expires' flag; FIFO still uses received dates.
+            self.assertEqual([row.initial_quantity for row in rows], [2, 2, 2])
+
+    def test_initial_batches_reject_invalid_drafts_without_partial_records(self):
+        from api.models import InventoryFIFOControl, InventoryBatch, InventoryStockMovement
+        SellerRequest.objects.create(mobile_user=self.mobile, status="approved")
+        valid = {"quantity": 6, "received_date": "2026-01-01"}
+        invalid = [None, [], {}, [None], [{**valid, "quantity": 0}], [{**valid, "quantity": -1}],
+                   [{**valid, "quantity": 1.5}], [{**valid, "quantity": True}],
+                   [{**valid, "quantity": 2147483648}], [{**valid, "quantity": 5}],
+                   [{**valid, "received_date": "2026-02-30"}], [{**valid, "received_date": "2099-01-01"}],
+                   [{**valid, "received_date": None}], [{**valid, "unit_cost": "NaN"}],
+                   [{**valid, "unit_cost": "-1"}], [{**valid, "unit_cost": "1.234"}],
+                   [{**valid, "expiry_date": "2000-01-01"}], [{**valid, "expiry_date": "2026-02-30"}],
+                   [{**valid, "expiry_date": True}], [{**valid, "expiry_date": "not-a-date"}]]
+        with self.settings(CAMPUSHUB_FIFO_ENABLED=True):
+            InventoryFIFOControl.objects.update_or_create(pk=1, defaults={"active": True})
+            before = (Product.objects.count(), InventoryBatch.objects.count(), InventoryStockMovement.objects.count())
+            for batches in invalid:
+                with self.subTest(batches=batches):
+                    response = self.post_gallery(inventory_method="fifo", initial_batches=batches)
+                    self.assertEqual(response.status_code, 400, response.content)
+                    self.assertEqual((Product.objects.count(), InventoryBatch.objects.count(), InventoryStockMovement.objects.count()), before)
+            self.assertEqual(self.post_gallery(initial_batches=[valid]).status_code, 400)
+
+    def test_initial_batches_failure_rolls_back_entire_listing(self):
+        from unittest.mock import patch
+        from api.models import InventoryFIFOControl, InventoryBatch, InventoryStockMovement
+        from modules.marketplace.services.product_initial_inventory import save_initial_batches
+        SellerRequest.objects.create(mobile_user=self.mobile, status="approved")
+        def fail_after_receipts(*args):
+            save_initial_batches(*args)
+            raise ValueError("Isolated receipt failure")
+        with self.settings(CAMPUSHUB_FIFO_ENABLED=True), patch(
+                "modules.marketplace.services.product_initial_inventory.save_initial_batches", side_effect=fail_after_receipts):
+            InventoryFIFOControl.objects.update_or_create(pk=1, defaults={"active": True})
+            before = (Product.objects.count(), InventoryBatch.objects.count(), InventoryStockMovement.objects.count())
+            response = self.post_gallery(inventory_method="fifo", initial_batches=[{"quantity": 6, "received_date": "2026-01-01"}])
+            self.assertEqual(response.status_code, 400, response.content)
+            self.assertEqual((Product.objects.count(), InventoryBatch.objects.count(), InventoryStockMovement.objects.count()), before)
+
+    def test_initial_batches_disabled_engine_rejects_and_legacy_simple_contract_survives(self):
+        SellerRequest.objects.create(mobile_user=self.mobile, status="approved")
+        with self.settings(CAMPUSHUB_FIFO_ENABLED=False):
+            response = self.post_gallery(inventory_method="fifo", initial_batches=[{"quantity": 6, "received_date": "2026-01-01"}])
+            self.assertEqual(response.status_code, 400, response.content)
+            self.assertFalse(Product.objects.filter(mobile_seller=self.mobile).exists())
+            self.assertEqual(self.post_gallery().status_code, 201)
+        self.assertTrue(self.client.get(reverse("seller_submit_product"), **self.auth).json()["capabilities"]["initial_batches"])
+
+    def test_listing_requires_positive_price_and_bounded_integer_stock_threshold(self):
+        SellerRequest.objects.create(mobile_user=self.mobile, status="approved")
+        for changes in ({"price": "0"}, {"price": "NaN"}, {"stock": 2147483648},
+                        {"low_stock_threshold": -1}, {"low_stock_threshold": "1.5"}, {"low_stock_threshold": 2147483648}):
+            with self.subTest(changes=changes):
+                self.assertEqual(self.post_gallery(**changes).status_code, 400)
+        self.assertFalse(Product.objects.filter(mobile_seller=self.mobile).exists())
+
     def post_gallery(self, **extra):
         return self.client.post(reverse("seller_submit_product"), json.dumps(self.gallery_listing(**extra)),
                                 content_type="application/json", **self.auth)

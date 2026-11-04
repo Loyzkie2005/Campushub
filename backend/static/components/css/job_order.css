@@ -1,4 +1,23 @@
 /* Only the viewer and edit controls are styled here. The DOCX owns the form. */
+.beu-signatures { margin-block: 12px; color: #1A1851; font-family: var(--ch-font-ui, 'Inter', sans-serif); }
+.beu-signature-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.beu-signature-summary { margin: 0; font-size: 13px; }
+.beu-signature-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.beu-signature-designation { font-size: 13px; }
+.beu-signature-message:empty { display: none; }
+.beu-signature-controls button, .beu-signature-actions button { min-height: 40px; padding: 8px 12px; border: 1px solid #1A1851; border-radius: 6px; background: #FFFFFF; color: #1A1851; font: inherit; cursor: pointer; }
+.beu-signature-dialog { box-sizing: border-box; width: min(540px, calc(100% - 24px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 20px; border: 1px solid #E8EAF0; border-radius: 8px; color: #1A1851; font: 14px/1.5 var(--ch-font-ui, 'Inter', sans-serif); }
+.beu-signature-dialog::backdrop { background: rgb(23 23 42 / 45%); }
+.beu-signature-dialog h2 { font-size: 20px; margin: 0; }
+.beu-signature-dialog canvas { display: block; box-sizing: border-box; width: 100%; height: 180px; border: 1px solid #E8EAF0; border-radius: 6px; touch-action: none; }
+.beu-signature-dialog img { width: 150px; height: 60px; object-fit: contain; }
+.beu-signature-dialog img[hidden] { display: none; }
+.beu-signature-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.beu-signature-actions .beu-signature-confirm { color: #FFFFFF; background: #1A1851; }
+.beu-signature-actions button:disabled { opacity: .6; cursor: wait; }
+.beu-signature-controls button:not(:disabled):hover, .beu-signature-actions button:not(:disabled):hover { background: #F7F8FC; color: #1A1851; }
+.beu-signature-controls button:disabled { opacity: .6; cursor: not-allowed; }
+.beu-signature-dialog :focus-visible, .beu-signature-controls button:focus-visible { outline: 2px solid #FCB316; outline-offset: 3px; }
 .beu-job-print-page { margin: 0; padding: 24px; background: #f8fafc; color: #1A1851; font: 14px/1.5 Arial, sans-serif; }
 .beu-job-print-page main { max-width: 1100px; margin: auto; }
 .beu-job-print-page h1 { margin: 0; font-size: 22px; }

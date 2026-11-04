@@ -1,0 +1,475 @@
+{% if card == 'facility_kpis' %}
+<section class="analytics-kpi-grid" aria-label="Facilities booking summary">
+                        <article class="analytics-kpi">
+                            <span>Total Bookings</span>
+                            <strong>{{ facility_tab.kpis.total_bookings }}</strong>
+                            <small>All reservations in {{ analytics_period.label }}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Approved Bookings</span>
+                            <strong>{{ facility_tab.kpis.approved_bookings }}</strong>
+                            <small>Approved &amp; completed slots</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Pending Bookings</span>
+                            <strong>{{ facility_tab.kpis.pending_bookings }}</strong>
+                            <small>Awaiting administrative approval</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Cancelled / Rejected</span>
+                            <strong>{{ facility_tab.kpis.cancelled_rejected_bookings }}</strong>
+                            <small>Disapproved or withdrawn slots</small>
+                        </article>
+                    </section>
+{% elif card == 'facility_bookings' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Bookings by Facility{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                    <p>Approved reservations across campus facilities</p>
+                                </div>
+                                <a href="{% url 'admin_bookings_page' %}" class="analytics-panel-link">Manage bookings &rarr;</a>
+                            </header>
+                            {% if super_analytics %}{% include 'reports/partials/analytics_chart.html' with chart_id='facilityBookingsChart' label='Approved and completed reservations by booking or overlapping stay date' table=facility_tab.main_table has_data=facility_tab.has_bookings size='analytics-chart-large' empty_title='No approved reservations in selected dates' empty_text='Recorded activity will appear when available for these dates.' %}{% else %}<div class="analytics-chart analytics-chart-large">
+                                <canvas id="facilityBookingsChart"></canvas>
+                            </div>{% endif %}
+                        </article>
+{% elif card == 'facility_status' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Booking Status Breakdown{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                    <p>Distribution for {{ analytics_period.label }}</p>
+                                </div>
+                            </header>
+                            <div class="analytics-status-breakdown-card">
+                                {% for row in facility_tab.status_breakdown.rows %}
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-{{ row.status }}">{{ row.label }}</span>
+                                        <strong>{{ row.count }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {{ row.percentage }}%;"></div>
+                                    </div>
+                                    <small>{{ row.percentage }}% of total bookings</small>
+                                </div>
+                                {% empty %}
+                                <div class="analytics-table-empty">No booking records in selected period.</div>
+                                {% endfor %}
+                            </div>
+                        </article>
+{% elif card == 'facility_trend' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Monthly Booking Trend{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                    <p>{% if super_analytics %}Currently approved/completed reservations submitted within selected dates; separate from booking/stay-date KPIs.{% else %}Approved bookings over time{% endif %}</p>
+                                </div>
+                            </header>
+                            {% if super_analytics %}{% include 'reports/partials/analytics_chart.html' with chart_id='facilityMonthlyTrendChart' label='Approved and completed bookings by month of submission' table=facility_tab.trend_table has_data=facility_tab.has_trend size='analytics-chart-medium' empty_title='No activity in the selected period' empty_text='Recorded activity will appear when available for these dates.' %}{% else %}<div class="analytics-chart analytics-chart-medium">
+                                <canvas id="facilityMonthlyTrendChart"></canvas>
+                            </div>{% endif %}
+                        </article>
+{% elif card == 'facility_most' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Most Frequently Booked Facility{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                    <p>Highest demand facility in selected period</p>
+                                </div>
+                                <a href="{% url 'admin_facility_page' %}">View facilities &rarr;</a>
+                            </header>
+                            {% if facility_tab.most_frequent %}
+                            <div class="analytics-highlight-card">
+                                <div class="analytics-highlight-body">
+                                    <span class="analytics-highlight-tag">{{ facility_tab.most_frequent.type }}</span>
+                                    <h3 class="analytics-highlight-title">{{ facility_tab.most_frequent.name }}</h3>
+                                    <div class="analytics-highlight-stats">
+                                        <div>
+                                            <span>Approved Bookings</span>
+                                            <strong>{{ facility_tab.most_frequent.bookings }}</strong>
+                                        </div>
+                                        <div>
+                                            <span>Share of Bookings</span>
+                                            <strong>{{ facility_tab.most_frequent.percentage }}%</strong>
+                                        </div>
+                                        <div>
+                                            {% if super_analytics %}<span>Verified Usage</span>{% else %}<span>Booked Duration</span>{% endif %}
+                                            {% if super_analytics %}<strong>{% if facility_tab.most_frequent.capacity_state == 'ready' %}{{ facility_tab.most_frequent.usage }} {{ facility_tab.most_frequent.unit }}{% else %}Unavailable{% endif %}</strong>{% else %}<strong>{{ facility_tab.most_frequent.booked_hours }} hrs</strong>{% endif %}
+                                        </div>
+                                        <div>
+                                            <span>Operational Status</span>
+                                            <strong class="text-capitalize">{{ facility_tab.most_frequent.status }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="analytics-empty-state">
+                                <strong>No bookings recorded.</strong>
+                                <span>Facility demand rankings will appear once reservations are recorded.</span>
+                            </div>
+                            {% endif %}
+                        </article>
+{% elif card == 'facility_utilization' %}
+<section class="analytics-panel">
+                        <header class="analytics-panel-header">
+                            <div>
+                                {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Facility Utilization &amp; Schedule Capacity{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                <p>{% if super_analytics %}Verified configured hours, slots, room-nights or units; clipped to selected dates. No assumed daily capacity. Current configuration cannot reconstruct past configuration changes.{% else %}Calculated duration of approved reservations against daily operating hours (8 hrs/day){% endif %}</p>
+                            </div>
+                        </header>
+                        {% if super_analytics %}<div class="table-responsive"><table class="analytics-table"><caption>Selected-period utilization from configured capacity; unknown capacity remains unavailable.</caption><thead><tr><th scope="col">Facility</th><th scope="col">Type / current status</th><th scope="col">Approved/completed bookings</th><th scope="col">Verified usage / capacity</th><th scope="col">Utilization</th></tr></thead><tbody>{% for row in facility_tab.facility_table %}<tr><th scope="row">{{ row.name }}</th><td>{{ row.type }} · {{ row.status }}</td><td>{{ row.bookings }}</td><td>{{ row.capacity_context }}</td><td>{% if row.capacity_state == 'ready' %}{{ row.utilization }}%{% else %}Unavailable{% endif %}</td></tr>{% empty %}<tr><td colspan="5">No facilities configured.</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="table-responsive">
+                            <table class="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Facility</th>
+                                        <th>Facility Type</th>
+                                        <th>Status</th>
+                                        <th class="number-cell">Approved Bookings</th>
+                                        <th class="number-cell">Booked Hours</th>
+                                        <th class="number-cell">Utilization Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in facility_tab.facility_table %}
+                                    <tr>
+                                        <td><strong>{{ row.name }}</strong></td>
+                                        <td>{{ row.type }}</td>
+                                        <td><span class="badge-status-neutral">{{ row.status }}</span></td>
+                                        <td class="number-cell">{{ row.bookings }}</td>
+                                        <td class="number-cell">{{ row.booked_hours }} hrs</td>
+                                        <td class="number-cell">
+                                            <div class="analytics-inline-pct">
+                                                <div class="analytics-mini-track">
+                                                    <div class="analytics-mini-fill" style="width: {{ row.utilization }}%;"></div>
+                                                </div>
+                                                <span>{{ row.utilization }}%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6"><div class="analytics-table-empty">No facilities configured in the database.</div></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>{% endif %}
+                    </section>
+{% elif card == 'services_kpis' %}
+<section class="analytics-kpi-grid" aria-label="Services overview summary">
+                        <article class="analytics-kpi">
+                            <span>Registered Services</span>
+                            <strong>{{ services_tab.kpis.registered_services }}</strong>
+                            <small>{% if super_analytics %}Current registered, non-archived service catalog snapshot{% else %}Active university service centers{% endif %}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Total Requests</span>
+                            <strong>{{ services_tab.kpis.total_requests }}</strong>
+                            <small>Formal requests in {{ analytics_period.label }}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Pending Requests</span>
+                            <strong>{{ services_tab.kpis.pending_requests }}</strong>
+                            <small>Awaiting laboratory / center review</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Completed Requests</span>
+                            <strong>{{ services_tab.kpis.completed_requests }}</strong>
+                            <small>{% if super_analytics %}Submitted in selected dates; currently marked Completed. Payment/results release is not inferred.{% else %}Accomplished &amp; results released{% endif %}</small>
+                        </article>
+                    </section>
+{% elif card == 'services_catalog' %}
+<section class="analytics-panel">
+                        <header class="analytics-panel-header">
+                            <div>
+                                {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Registered Campus Services &amp; Facilities{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                <p>University enterprise services operating via formal departmental procedures</p>
+                            </div>
+                            <a href="{% url 'admin_services_page' %}" class="analytics-panel-link">View services catalog &rarr;</a>
+                        </header>
+                        <div class="table-responsive">
+                            <table class="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Service Center</th>
+                                        <th>Service Category</th>
+                                        <th>Rate / Fee Structure</th>
+                                        <th>Location</th>
+                                        <th>Status</th>
+                                        <th>Engagement Workflow</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for svc in services_tab.services %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ svc.name }}</strong>
+                                            <small class="d-block text-muted">{{ svc.description|truncatewords:12 }}</small>
+                                        </td>
+                                        <td>{{ svc.category }}</td>
+                                        <td><strong>{{ svc.rate }}</strong></td>
+                                        <td>{{ svc.location }}</td>
+                                        <td><span class="badge-status-neutral">{{ svc.status_display }}</span></td>
+                                        <td>
+                                            {% if svc.is_food_analysis %}
+                                            <span class="analytics-workflow-tag">ISO DPM-USTP-Oro-BEU-004</span>
+                                            {% else %}
+                                            <span class="analytics-workflow-tag">{{ svc.request_type }}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6"><div class="analytics-table-empty">No campus services registered in the database.</div></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+{% elif card == 'services_activity' %}
+<section class="analytics-panel">
+                        <header class="analytics-panel-header">
+                            <div>
+                                {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Service Request Activity Breakdown{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                <p>Requests logged for the selected period</p>
+                            </div>
+                            <a href="{% url 'admin_service_requests_page' %}" class="analytics-panel-link">Manage service requests &rarr;</a>
+                        </header>
+                        {% if services_tab.has_activity %}
+                        <div class="table-responsive">
+                            <table class="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Service</th>
+                                        <th class="number-cell">Total</th>
+                                        <th class="number-cell">Pending</th>
+                                        <th class="number-cell">Approved</th>
+                                        <th class="number-cell">Completed</th>
+                                        <th class="number-cell">Closed / Rejected</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in services_tab.breakdown %}
+                                    <tr>
+                                        <td><strong>{{ row.facility__facility_name }}</strong></td>
+                                        <td class="number-cell">{{ row.total }}</td>
+                                        <td class="number-cell">{{ row.pending }}</td>
+                                        <td class="number-cell">{{ row.approved }}</td>
+                                        <td class="number-cell">{{ row.completed }}</td>
+                                        <td class="number-cell">{{ row.closed }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="analytics-empty-state">
+                            <strong>No digital service requests submitted in this period.</strong>
+                            <span>CampusHub Services (including the Food Analysis Hub and BPP NC II Assessment Center) currently operate via verified university receiving checklists and cashier job orders. No decorative or artificial graphs are displayed.</span>
+                        </div>
+                        {% endif %}
+                    </section>
+{% elif card == 'services_iso' %}
+<section class="analytics-panel">
+                        <header class="analytics-panel-header">
+                            <div>
+                                {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Laboratory Food Analysis Standard Procedure{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                <p>Standard Operating Procedure &middot; Focal Person: {{ services_tab.iso_info.focal_person }} ({{ services_tab.iso_info.office }})</p>
+                            </div>
+                            <span class="analytics-iso-badge">{{ services_tab.iso_info.document_code }}</span>
+                        </header>
+                        <div class="analytics-iso-steps-grid">
+                            <div class="analytics-iso-step">
+                                <span class="step-num">01</span>
+                                <strong>Client Inquiry</strong>
+                                <small>Proximate chemical analysis (protein, carbs, fat, fiber, moisture, pH).</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">02</span>
+                                <strong>Sample Receiving</strong>
+                                <small>Inspection for sealing, quantity, temperature compliance, no leakage.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">03</span>
+                                <strong>Job Order Issuance</strong>
+                                <small>Job Order Request Form issued ({{ services_tab.iso_info.job_order_form }}).</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">04</span>
+                                <strong>Resource &amp; Calibration</strong>
+                                <small>Reagents verification and equipment calibration with Lab Technician.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">05</span>
+                                <strong>Acceptance / Notice</strong>
+                                <small>Service logbook entry with deadline or formal ISO disapproval notice.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">06</span>
+                                <strong>Laboratory Analysis</strong>
+                                <small>Standard chemical &amp; nutritional testing execution.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">07</span>
+                                <strong>Billing &amp; Cashier</strong>
+                                <small>Statement of Account ({{ services_tab.iso_info.soa_form }}) settled at Cashier for Official Receipt.</small>
+                            </div>
+                            <div class="analytics-iso-step">
+                                <span class="step-num">08</span>
+                                <strong>Certificate of Analysis</strong>
+                                <small>Official release of certified laboratory test results upon OR presentation.</small>
+                            </div>
+                        </div>
+                    </section>
+{% elif card == 'users_kpis' %}
+<section class="analytics-kpi-grid" aria-label="User accounts summary">
+                        <article class="analytics-kpi">
+                            <span>Total Users</span>
+                            <strong>{{ users_tab.kpis.total_users }}</strong>
+                            <small>{% if super_analytics %}Current snapshot · recorded web and mobile accounts{% else %}Registered campus accounts{% endif %}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>New Registrations</span>
+                            <strong>{{ users_tab.kpis.new_registrations }}</strong>
+                            <small>Joined in {{ analytics_period.label }}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Active Users</span>
+                            <strong>{{ users_tab.kpis.active_users }}</strong>
+                            <small>{% if super_analytics %}Current enabled accounts, not recent usage. Inactive/disabled: {{ users_tab.inactive_users }}.{% else %}Active accounts with valid credentials{% endif %}</small>
+                        </article>
+                        <article class="analytics-kpi">
+                            <span>Approved Sellers</span>
+                            <strong>{{ users_tab.kpis.approved_sellers }}</strong>
+                            <small>{% if super_analytics %}Current approved, non-suspended seller application records{% else %}Accounts granted seller privileges{% endif %}</small>
+                        </article>
+                    </section>
+{% elif card == 'users_registrations' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}User Registrations by Month{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                    <p>Account creation volume across mobile and web platforms</p>
+                                </div>
+                                <a href="{% url 'admin_users_page' %}" class="analytics-panel-link">Manage user accounts &rarr;</a>
+                            </header>
+                            {% if super_analytics %}{% include 'reports/partials/analytics_chart.html' with chart_id='userMonthlyChart' label='Recorded account registrations within selected dates' table=users_tab.chart_table has_data=users_tab.has_registrations size='analytics-chart-large' empty_title='No registrations in the selected period' empty_text='Recorded activity will appear when available for these dates.' %}{% else %}<div class="analytics-chart analytics-chart-large">
+                                <canvas id="userMonthlyChart"></canvas>
+                            </div>{% endif %}
+                        </article>
+{% elif card == 'users_distribution' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}User Distribution{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                    <p>{% if super_analytics %}Current mobile account types and web account records; web access roles do not imply a mobile account type. Unknown mobile values remain Unclassified. Seller is a separate privilege.{% else %}Breakdown by primary institutional account category{% endif %}</p>
+                                </div>
+                            </header>
+                            {% if analytics_flat and users_tab.kpis.total_users %}<div class="analytics-chart marketplace-chart-donut"><canvas id="userAccountTypeChart" role="img" aria-label="Recorded current account type distribution; exact counts and shares follow below"></canvas></div>{% endif %}
+                            <div class="analytics-status-breakdown-card">
+                                {% for row in users_tab.distribution %}
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-{{ row.type_code }}">{{ row.role }}</span>
+                                        <strong>{{ row.count }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {{ row.percentage }}%;"></div>
+                                    </div>
+                                    <small>{{ row.percentage }}% of total users</small>
+                                </div>
+                                {% empty %}
+                                <div class="analytics-table-empty">No registered user accounts found.</div>
+                                {% endfor %}
+                            </div>
+                        </article>
+{% elif card == 'users_sellers' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Seller Access &amp; Application Status{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                    <p>{% if super_analytics %}Current application statuses, not period approval events. Approval rate uses approved plus rejected decisions; no unrecorded history is inferred. Submitted in selected dates: {{ users_tab.seller_stats.submitted_in_period }}. Current approved/rejected decisions with a recorded review date in this period: {{ users_tab.seller_stats.recorded_decisions_in_period }}.{% else %}Independent permission review statistics{% endif %}</p>
+                                </div>
+                                <a href="{% url 'admin_sellers_page' %}" class="analytics-panel-link">Review applications &rarr;</a>
+                            </header>
+                            <div class="analytics-status-breakdown-card">
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-approved">Approved Sellers</span>
+                                        <strong>{{ users_tab.seller_stats.approved }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {{ users_tab.seller_stats.approval_rate }}%;"></div>
+                                    </div>
+                                    <small>{{ users_tab.seller_stats.approval_rate }}% approval rate</small>
+                                </div>
+
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-pending">Pending Review</span>
+                                        <strong>{{ users_tab.seller_stats.pending }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {% if super_analytics %}{{ users_tab.seller_stats.pending_share }}{% else %}0{% endif %}%;"></div>
+                                    </div>
+                                    <small>Awaiting administrative review</small>
+                                </div>
+
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-processing">Needs Revision</span>
+                                        <strong>{{ users_tab.seller_stats.revision }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {% if super_analytics %}{{ users_tab.seller_stats.revision_share }}{% else %}0{% endif %}%;"></div>
+                                    </div>
+                                    <small>Returned to applicant for revisions</small>
+                                </div>
+
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-cancelled">Rejected Applications</span>
+                                        <strong>{{ users_tab.seller_stats.rejected }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {% if super_analytics %}{{ users_tab.seller_stats.rejected_share }}{% else %}0{% endif %}%;"></div>
+                                    </div>
+                                    <small>Did not meet marketplace requirements</small>
+                                </div>
+                            </div>
+                        </article>
+{% elif card == 'users_governance' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if analytics_flat %}<h3>{% else %}<h2>{% endif %}Account Governance &amp; Security{% if analytics_flat %}</h3>{% else %}</h2>{% endif %}
+                                    <p>Institutional identity governance standards</p>
+                                </div>
+                                <a href="{% url 'admin_user_monitoring_page' %}" class="analytics-panel-link">User monitoring &rarr;</a>
+                            </header>
+                            <div class="analytics-governance-card">
+                                <div class="analytics-governance-item">
+                                    <div class="meta">
+                                        <strong>Single Source of Truth</strong>
+                                        <p>All accounts, role-based access control (RBAC), and authentication records originate from PostgreSQL.</p>
+                                    </div>
+                                </div>
+                                <div class="analytics-governance-item">
+                                    <div class="meta">
+                                        <strong>Independent Seller Privilege</strong>
+                                        <p>Seller access is an approved status, not an account category. Students and employees retain their university role.</p>
+                                    </div>
+                                </div>
+                                <div class="analytics-governance-item">
+                                    <div class="meta">
+                                        <strong>Protected Super Administrator</strong>
+                                        <p>Protected Super Admin accounts cannot be demoted, deactivated, or deleted through self-management.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+{% endif %}

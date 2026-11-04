@@ -1,5 +1,5 @@
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -54,6 +54,31 @@ class MobileSellerWorkspaceTests(TestCase):
         response = self.client.get(self.url, params, **self.auth)
         self.assertEqual(response.status_code, 200, response.content[:500])
         return response.json()
+
+    def test_approved_seller_receives_own_simple_stock_and_retry_is_idempotent(self):
+        from uuid import uuid4
+        from api.models import InventoryBatch
+        sku=self.own.inventory_skus.get(variant_name="")
+        data={"sku":sku.pk,"quantity":3,"reference":"Seller receipt","key":str(uuid4()),"notes":"Own stock"}
+        url=reverse("mobile_seller_receive_stock")
+        first=self.client.post(url,json.dumps(data),content_type="application/json",**self.auth)
+        self.assertEqual(first.status_code,200,first.content)
+        self.assertEqual(self.client.post(url,json.dumps(data),content_type="application/json",**self.auth).json(),first.json())
+        self.own.refresh_from_db();self.assertEqual(self.own.stock,13)
+        self.assertFalse(InventoryBatch.objects.filter(sku=sku).exists())
+        self.assertEqual(sku.movements.get(kind="receipt").actor,self.owner.get_full_name())
+
+    def test_receiving_denies_foreign_stock_and_suspended_or_unapproved_sellers(self):
+        from uuid import uuid4
+        data={"sku":self.foreign.inventory_skus.get(variant_name="").pk,"quantity":1,"key":str(uuid4())}
+        url=reverse("mobile_seller_receive_stock")
+        self.assertEqual(self.client.post(url,json.dumps(data),content_type="application/json",**self.auth).status_code,409)
+        data["sku"]=self.own.inventory_skus.get(variant_name="").pk
+        self.application.is_suspended=True;self.application.save()
+        self.assertEqual(self.client.post(url,json.dumps(data),content_type="application/json",**self.auth).status_code,403)
+        self.assertIn(self.client.post(url,json.dumps(data),content_type="application/json").status_code,(401,403))
+        self.foreign.refresh_from_db();self.own.refresh_from_db()
+        self.assertEqual((self.foreign.stock,self.own.stock),(10,10))
 
     def test_all_workspace_data_is_owner_scoped_and_sales_are_paid_completed_only(self):
         self.order(self.own)
@@ -177,6 +202,123 @@ class MobileSellerWorkspaceTests(TestCase):
         self.assertEqual(len(data["orders"]), 30)
         self.assertEqual(data["orders_pages"], 2)
         self.assertEqual(len(self.get(orders_page=2)["orders"]), 2)
+
+    def test_home_action_orders_are_owner_scoped_open_and_independent_of_recent_pages(self):
+        open_orders = []
+        for status in ("pending", "processing", "ready_for_pickup", "ready_for_pickup", "pending", "pending"):
+            open_orders.append(self.order(self.own, status=status, payment_status="unpaid", completed_at=None))
+        MarketplaceOrder.objects.filter(pk=open_orders[0].pk).update(created_at=timezone.now() - timedelta(days=90))
+        MarketplaceOrder.objects.filter(pk=open_orders[3].pk).update(
+            fulfillment_method="seller_delivery", delivery_started_at=timezone.now(), delivered_at=timezone.now())
+        self.order(self.own, status="cancelled", payment_status="unpaid", completed_at=None)
+        for _ in range(31):
+            self.order(self.own)
+        foreign = self.order(self.foreign, status="pending", payment_status="unpaid", completed_at=None)
+        before = MarketplaceOrder.objects.count()
+        data = self.get(period="day", seller_id=self.other.pk)
+        action_ids = [row["id"] for row in data["orders_requiring_action"]]
+        self.assertEqual(action_ids, [order.pk for order in open_orders[:5]])
+        self.assertTrue(all(row["status_key"] == "completed" for row in data["orders"]))
+        self.assertNotIn(foreign.pk, action_ids)
+        self.assertEqual(data["orders_requiring_action"][3]["fulfillment_progress"], "Delivered")
+        self.assertEqual(data["orders_requiring_action"][3]["payment_status"], "Unpaid")
+        self.assertEqual([row["id"] for row in self.get(orders_page=2)["orders_requiring_action"]], action_ids)
+        self.assertEqual(MarketplaceOrder.objects.count(), before)
+
+    def test_recent_orders_are_newest_owner_records_of_every_status_on_every_page(self):
+        older = timezone.now() - timedelta(days=90)
+        for _ in range(31):
+            order = self.order(self.own, completed_at=older)
+            MarketplaceOrder.objects.filter(pk=order.pk).update(created_at=older)
+        recorded_at = timezone.now() - timedelta(days=3)
+        statuses = ("pending", "processing", "ready_for_pickup", "cancelled", "completed")
+        latest = []
+        for status in statuses:
+            order = self.order(self.own, status=status, buyer_name="Recorded Buyer " + status,
+                payment_status="paid" if status == "completed" else "unpaid",
+                completed_at=recorded_at if status == "completed" else None)
+            MarketplaceOrder.objects.filter(pk=order.pk).update(created_at=recorded_at)
+            latest.append(order)
+        foreign = self.order(self.foreign, buyer_name="Foreign Buyer")
+        before = MarketplaceOrder.objects.count()
+        data = self.get(period="day", seller_id=self.other.pk)
+        recent = data["recent_orders"]
+        self.assertEqual([row["id"] for row in recent], [row.pk for row in reversed(latest)])
+        self.assertEqual({row["status_key"] for row in recent}, set(statuses))
+        self.assertEqual(recent, data["orders"][:5])
+        self.assertEqual(data["order_count"], 36)
+        self.assertEqual(data["analytics"]["revenue"], "0.00")
+        self.assertNotIn(foreign.pk, [row["id"] for row in recent])
+        for row in recent:
+            self.assertTrue({"id", "code", "buyer_name", "status", "total", "created_at", "payment_status"} <= row.keys())
+            self.assertEqual(row["buyer_name"], "Recorded Buyer " + row["status_key"])
+            self.assertEqual(row["payment_status"], "Paid" if row["status_key"] == "completed" else "Unpaid")
+            self.assertEqual(Decimal(row["total"]), Decimal("40"))
+        second_page = self.get(period="month", orders_page=2)
+        self.assertEqual(second_page["recent_orders"], recent)
+        self.assertNotEqual(second_page["orders"][:5], recent)
+        self.assertEqual(MarketplaceOrder.objects.count(), before)
+
+    def test_recent_preview_uses_buyer_full_name_and_purchased_product_snapshot(self):
+        buyer = self.account("short-buyer-handle")
+        buyer.first_name, buyer.last_name = "Alexandria Maria", "Dela Cruz"
+        buyer.save(update_fields=["first_name", "last_name"])
+        order = self.order(self.own, buyer_user_id=buyer.pk, buyer_email=buyer.email.upper(),
+            buyer_name=buyer.username, product_name="Purchased Full Product Name", quantity=3,
+            total_price=60, image_url="/media/orders/purchased-thumbnail.png")
+        self.own.name, self.own.price, self.own.image_url = "Renamed Current Product", 999, "/media/products/new.png"
+        self.own.save()
+        before = (MarketplaceOrder.objects.count(), self.own.stock)
+        row = self.get()["recent_orders"][0]
+        self.assertEqual(row["buyer_full_name"], "Alexandria Maria Dela Cruz")
+        self.assertEqual(row["buyer_name"], buyer.username)
+        self.assertEqual(row["product_preview"], {"product_name": "Purchased Full Product Name",
+            "quantity": 3, "thumbnail_url": "/media/orders/purchased-thumbnail.png", "additional_items": 0})
+        self.assertEqual(Decimal(row["total"]), Decimal("60"))
+        order.refresh_from_db(); self.own.refresh_from_db()
+        self.assertEqual((MarketplaceOrder.objects.count(), self.own.stock), before)
+        self.assertEqual(order.buyer_name, buyer.username)
+
+    def test_preview_names_do_not_confuse_web_and_mobile_accounts_with_equal_ids(self):
+        from accounts.models import User
+        buyer = self.account("mobile-buyer-identity")
+        web = User.objects.create_user(pk=buyer.pk, username="separate-web-buyer",
+            first_name="Actual Web", last_name="Buyer", email="web-buyer@example.test")
+        matched = self.order(self.own, buyer_user_id=buyer.pk, buyer_email=web.email, buyer_name="Short")
+        ambiguous = self.order(self.own, buyer_user_id=buyer.pk, buyer_name="Recorded Buyer Snapshot")
+        rows = {row["id"]: row for row in self.get()["recent_orders"]}
+        self.assertEqual(rows[matched.pk]["buyer_full_name"], "Actual Web Buyer")
+        self.assertEqual(rows[ambiguous.pk]["buyer_full_name"], "Recorded Buyer Snapshot")
+
+    def test_product_preview_keeps_item_names_quantities_and_bundle_identity(self):
+        from modules.marketplace.services.mobile_order_previews import product_preview
+        from modules.marketplace.services.orders import order_items
+        historical = self.order(self.own, customization={"items": [
+            {"product_name": "First Purchased Product", "quantity": 2, "image_url": "/media/item-one.png"},
+            {"product_name": "Second Purchased Product", "quantity": 4}]})
+        self.assertEqual(product_preview(historical, order_items(historical)), {
+            "product_name": "First Purchased Product", "quantity": 2,
+            "thumbnail_url": "/media/item-one.png", "additional_items": 1})
+        bundle = self.order(self.own, product_name="Purchased Bundle", quantity=3,
+            customization={"bundle_components": [{"product_id": self.own.pk}], "items": [
+                {"product_name": "Ingredient", "quantity": 9}, {"product_name": "Other ingredient", "quantity": 6}]})
+        preview = product_preview(bundle, order_items(bundle))
+        self.assertEqual((preview["product_name"], preview["quantity"], preview["additional_items"]), ("Purchased Bundle", 3, 0))
+        # The existing owner scope excludes ambiguous legacy multi-item records.
+        ids = {row["id"] for row in self.get()["recent_orders"]}
+        self.assertNotIn(historical.pk, ids)
+        self.assertNotIn(bundle.pk, ids)
+
+    def test_linked_buyer_lookup_has_constant_query_growth(self):
+        buyer = self.account("batched-order-buyer")
+        self.order(self.own, buyer_user_id=buyer.pk, buyer_email=buyer.email)
+        with CaptureQueriesContext(connection) as first:
+            self.get()
+        for _ in range(31):
+            self.order(self.own, buyer_user_id=buyer.pk, buyer_email=buyer.email)
+        with CaptureQueriesContext(connection) as many:
+            self.get()
+        self.assertLessEqual(len(many), len(first) + 2)
 
     def bundle_payload(self):
         return {"name": "Test submitted bundle", "price": "30.00", "category": "Snacks", "product_type": "bundle",

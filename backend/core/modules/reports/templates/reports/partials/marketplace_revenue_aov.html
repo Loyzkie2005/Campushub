@@ -1,0 +1,12 @@
+<article class="analytics-panel marketplace-aov-card">
+    <header class="analytics-panel-header"><div><h3>Average Order Value</h3><p>Recognized revenue per completed and paid order</p></div></header>
+    <div class="marketplace-growth">
+        <strong aria-label="Current-period average order value">{% if analytics.revenue_aov.current != None %}&#8369;{{ analytics.revenue_aov.current }}{% else %}N/A{% endif %}</strong>
+        <dl>
+            <div><dt>Previous AOV:</dt><dd>{% if analytics.revenue_aov.previous != None %}&#8369;{{ analytics.revenue_aov.previous }}{% else %}N/A{% endif %}</dd></div>
+            <div><dt>Change:</dt><dd>{% if analytics.revenue_aov.percentage_change != None %}{{ analytics.revenue_aov.percentage_change|floatformat:1 }}%{% else %}N/A{% endif %}</dd></div>
+        </dl>
+        <p class="analytics-method-note">Previous period: {{ analytics.comparison.start|date:'M j, Y' }} &ndash; {{ analytics.comparison.end|date:'M j, Y' }}.</p>
+        {% if analytics.revenue_aov.current == None %}<p class="analytics-method-note">No qualifying orders in the selected period.</p>{% elif analytics.revenue_aov.previous == None %}<p class="analytics-method-note">No qualifying orders in the previous period, so AOV change cannot be calculated.</p>{% elif analytics.revenue_aov.percentage_change == None %}<p class="analytics-method-note">Previous AOV is zero, so AOV change cannot be calculated.</p>{% endif %}
+    </div>
+</article>

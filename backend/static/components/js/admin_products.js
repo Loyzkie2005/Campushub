@@ -155,6 +155,7 @@ function escapeHtml(value) {
 
 document.addEventListener('DOMContentLoaded', function () {
     const STORAGE_KEY = 'campushub_test_products';
+    const productFallbackIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m3 7 9-5 9 5v10l-9 5-9-5V7Zm0 0 9 5 9-5M12 12v10"/></svg>';
 
     const PERISHABLE_CATEGORIES = new Set([
         'Rice Meals', 'Snacks', 'Desserts', 'Beverages', 'Combo Meals', 'Breakfast',
@@ -515,11 +516,37 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderStatusPill(status) {
         const s = normalizeStatus(status);
-        const icons = {
-            pending: '<svg class="status-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>',
-            rejected: '<svg class="status-icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>'
-        };
-        return `<span class="status-pill status-${escapeHtml(s)}">${icons[s] || ''}<span>${escapeHtml(formatStatus(s))}</span></span>`;
+        const label = formatStatus(s);
+        return `<span class="status-pill status-${escapeHtml(s)}" title="Approval status: ${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+    }
+
+    function renderListingStatusPill(isArchived = false) {
+        const archived = Boolean(isArchived);
+        const label = archived ? 'Archived' : 'Active';
+        const state = archived ? 'archived' : 'active';
+        return `<span class="listing-status-pill listing-status-${state}" title="Listing status: ${label}">${label}</span>`;
+    }
+
+    function renderStatusCellContent(status, isArchived = false) {
+        return `<div class="status-cell-stack">${renderStatusPill(status)}${renderListingStatusPill(isArchived)}</div>`;
+    }
+
+    function renderSubmittedDateCell(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '<strong>Just now</strong>';
+        if (raw.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+            const iso = raw.includes('T') ? raw : `${raw}T12:00:00`;
+            const parsed = new Date(iso);
+            if (!Number.isNaN(parsed.getTime())) {
+                const day = parsed.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: '2-digit', year: 'numeric' });
+                if (!raw.includes('T')) return `<strong>${escapeHtml(day)}</strong>`;
+                const time = parsed.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
+                return `<strong>${escapeHtml(day)}</strong><span>${escapeHtml(time)}</span>`;
+            }
+        }
+        return `<strong>${escapeHtml(raw)}</strong>`;
+    }
+    if (false) {
     }
 
     function renderInventoryPill(status) {
@@ -567,7 +594,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return `<strong>${escapeHtml(label)}</strong>`;
     }
 
-    let activeInventoryFilter = '';
+    let activeInventoryFilter = new URLSearchParams(window.location.search).get('inventory_status') || '';
     let activeStatFilter = '';
 
     function updateStatCardActiveState() {
@@ -601,6 +628,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function applyStatCardFilter(filterKey = '') {
         const statusFilterEl = document.getElementById('productsStatusFilter');
         const key = filterKey || 'all';
+        if (productsTableBody?.dataset.serverPaginated === 'true') {
+            [productsSearchInput, categoryFilter, departmentFilter, majorFilter].forEach(field => { if (field) field.value = ''; });
+            if (archiveFilter) archiveFilter.value = '';
+            window.CampusHubAcademic?.sync(departmentFilter, majorFilter);
+        }
 
         // Total clears filters and does not stay active.
         // Pending / Approved / Low Stock toggle on/off.
@@ -1742,12 +1774,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderProductActionsCell(status, isArchived = false) {
-        const button = (kind, label, path) => `<button type="button" class="btn-user-action btn-${kind}-product" title="${kind === 'view' ? 'View Details' : `${label} Product`}" aria-label="${kind === 'view' ? 'View Details' : `${label} product`}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="${path}"/></svg></button>`;
+        const button = (kind, label, path) => `<button type="button" class="btn-user-action btn-${kind}-product" title="${label} Product" aria-label="${kind === 'view' ? 'View Details' : `${label} product`}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="${path}"/></svg></button>`;
+        const edit = canManageProducts ? button('edit', 'Edit', 'm16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125') : '';
         const view = button('view', 'View', 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Zm7 0a3 3 0 1 0 6 0 3 3 0 0 0-6 0');
         const listing = canManageProducts ? (isArchived ? button('restore', 'Restore', 'M4 10a8 8 0 1 1 1 8M4 3v7h7') : button('archive', 'Archive', 'M4 7h16v13H4V7Zm-1-4h18v4H3V3Zm6 8h6')) : '';
         const review = normalizeStatus(status) === 'pending' && canApproveProducts && !isArchived
             ? button('approve', 'Approve', 'm5 12 4 4L19 6') + button('reject', 'Reject', 'm6 6 12 12M18 6 6 18') : '';
-        return `<td class="col-action"><div class="action-row">${view}${review}${listing}</div></td>`;
+        return `<td class="col-action"><div class="action-row">${view}${review}${edit}${listing}</div></td>`;
     }
 
     function renderProductRow(row, product) {
@@ -1767,11 +1800,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const primaryImage = storedImages[0] || product.image_url || '';
         const imgHtml = primaryImage
             ? `<img src="${escapeHtml(pId ? productGalleryImageSrc(pId, 0) : primaryImage)}" alt="${escapeHtml(product.name || '')}" class="product-table-image" referrerpolicy="no-referrer">
-               <span class="product-table-image product-table-image-empty" hidden>${escapeHtml((product.name || 'P').charAt(0).toUpperCase())}</span>`
-            : `<span class="product-table-image product-table-image-empty">${escapeHtml((product.name || 'P').charAt(0).toUpperCase())}</span>`;
+               <span class="product-table-image product-table-image-empty" hidden>${productFallbackIcon}</span>`
+            : `<span class="product-table-image product-table-image-empty">${productFallbackIcon}</span>`;
 
         row.dataset.productId = String(pId);
         row.dataset.productStatus = ns;
+        row.dataset.isArchived = product.is_archived ? '1' : '0';
         row.dataset.productDescription = product.description || '';
         row.dataset.productImageUrl = primaryImage;
         row.dataset.productImages = JSON.stringify(storedImages);
@@ -1779,6 +1813,7 @@ document.addEventListener('DOMContentLoaded', function () {
         row.dataset.inventoryStatus = invStatus;
         row.dataset.productStock = String(Math.max(0, computeTotalStock(product)));
         row.dataset.productType = product.product_type || 'single';
+        row.dataset.inventoryMethod = product.inventory_method || 'simple';
         row.dataset.bundle = JSON.stringify(product.bundle || {});
         row.dataset.productTags = JSON.stringify(product.tags || []);
         row.dataset.departmentId = product.program_id || product.department_id || '';
@@ -1816,17 +1851,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </div>
             </td>
-            <td class="col-seller"><strong>${escapeHtml(product.seller || currentUserDisplayName)}</strong><span>${escapeHtml(product.program_major || 'Unassigned (legacy record)')}</span></td>
-            <td>${escapeHtml(product.category || 'Uncategorized')}</td>
+            <td class="col-seller"><strong title="${escapeHtml(product.seller || currentUserDisplayName)}">${escapeHtml(product.seller || currentUserDisplayName)}</strong><span title="${escapeHtml(product.program_major || 'Unassigned (legacy record)')}">${escapeHtml(product.program_major || 'Unassigned (legacy record)')}</span></td>
+            <td class="col-category" title="${escapeHtml(product.category || 'Uncategorized')}">${escapeHtml(product.category || 'Uncategorized')}</td>
             <td class="col-price">&#8369; ${escapeHtml(formattedPrice)}</td>
             <td class="col-inventory">
                 ${renderInventorySummary(computeTotalStock(product), countProductVariants(product), product)}
             </td>
             <td class="col-status">
-                ${renderStatusPill(ns)}
+                ${renderStatusCellContent(ns, Boolean(product.is_archived))}
             </td>
             <td class="col-date">
-                <strong>${escapeHtml(submittedAt)}</strong>
+                ${renderSubmittedDateCell(submittedAt)}
             </td>
             ${renderProductActionsCell(ns, Boolean(product.is_archived))}
         `;
@@ -1855,9 +1890,10 @@ document.addEventListener('DOMContentLoaded', function () {
             ? productGalleryImageSrc(productId, 0)
             : url;
         const imgHtml = thumbSrc
-            ? `<img src="${escapeHtml(thumbSrc)}" alt="${escapeHtml(name)}" class="product-table-image" loading="lazy" referrerpolicy="no-referrer"><span class="product-table-image product-table-image-empty" hidden>${escapeHtml((name || 'P').charAt(0).toUpperCase())}</span>`
-            : `<span class="product-table-image product-table-image-empty">${escapeHtml((name || 'P').charAt(0).toUpperCase())}</span>`;
-        cell.innerHTML = `${imgHtml}<div class="product-name-meta"><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong></div>`;
+            ? `<img src="${escapeHtml(thumbSrc)}" alt="${escapeHtml(name)}" class="product-table-image" loading="lazy" referrerpolicy="no-referrer"><span class="product-table-image product-table-image-empty" hidden>${productFallbackIcon}</span>`
+            : `<span class="product-table-image product-table-image-empty">${productFallbackIcon}</span>`;
+        const displayId = row.dataset.sku || cell.querySelector('.product-id-label')?.textContent?.trim() || '';
+        cell.innerHTML = `${imgHtml}<div class="product-name-meta"><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>${displayId ? `<span class="product-id-label">${escapeHtml(displayId)}</span>` : ''}</div>`;
         initProductTableImageCycle(row);
     }
 
@@ -1919,7 +1955,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // loadTestProductsIntoTable();
     initAllProductTableImageCycles();
-    hydrateProductImagesFromServer();
+    if (productsTableBody?.dataset.serverPaginated !== 'true') hydrateProductImagesFromServer();
 
     // â”€â”€ Toast â”€â”€
     function showProductSaveToast(message = 'Product saved.', type = 'success') {
@@ -2019,6 +2055,7 @@ document.addEventListener('DOMContentLoaded', function () {
         setCategoryValue('');
         document.getElementById('productStock').value = '';
         document.getElementById('productLowStockThreshold').value = LOW_STOCK_THRESHOLD;
+        document.getElementById('productInventoryMethod').value = 'simple';
         document.getElementById('productLowStockThreshold').setCustomValidity('');
         document.getElementById('productThresholdError').textContent = '';
         document.getElementById('productExpiryDate').value = '';
@@ -2088,6 +2125,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const product = {
             id: row.dataset.productId || '',
             product_type: row.dataset.productType || 'single',
+            inventory_method: row.dataset.inventoryMethod || 'simple',
             bundle: parseJsonDataset(row.dataset.bundle || '{}') || {},
             tags: parseCustomizationOptions(row.dataset.productTags || '[]'),
             department_id: row.dataset.departmentId || '',
@@ -2123,6 +2161,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function openEditProductForm(row) {
         const product = getProductFromRow(row);
         document.getElementById(product.product_type === 'bundle' ? 'productTypeBundle' : 'productTypeSingle').checked = true;
+        document.getElementById('productInventoryMethod').value = product.inventory_method || 'simple';
         const owner = document.getElementById('productOwner');
         if (owner && product.seller_id) {
             if (!Array.from(owner.options).some(option => option.value === String(product.seller_id))) {
@@ -2279,6 +2318,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     stock: bundleMode ? 0 : productData.stock,
                     low_stock_threshold: productData.low_stock_threshold,
                     product_type: bundleMode ? 'bundle' : 'single',
+                    inventory_method: bundleMode ? 'simple' : document.getElementById('productInventoryMethod').value,
                     bundle_components: bundleMode ? window.CampusHubBundles.payload() : [],
                     department_id: document.getElementById('productDepartment').value || null,
                     major_id: document.getElementById('productMajor').value || null,
@@ -2404,6 +2444,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     resetProductForm();
                     showProductsList();
+                    applyInlineFilters();
                     window.dispatchEvent(new Event('products-table-changed'));
                 } catch (error) {
                     console.error('Save product failed:', error);
@@ -2458,6 +2499,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function syncProductStatsFromRows() {
+        if (productsTableBody?.dataset.serverPaginated === 'true') return;
         // These are the complete, server-authorized records, including archived
         // rows. Visible filters/pagination must not redefine the summary totals.
         const rows = [...productsTableBody.querySelectorAll('tr[data-product-id]')];
@@ -2607,9 +2649,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const nextStatus = action === 'approve' ? 'approved' : 'rejected';
             row.dataset.productStatus = nextStatus;
             const statusCell = row.querySelector('.col-status');
-            if (statusCell) statusCell.innerHTML = renderStatusPill(nextStatus);
+            const isArchivedDecision = ['1', 'true'].includes(row.dataset.isArchived);
+            if (statusCell) statusCell.innerHTML = renderStatusCellContent(nextStatus, isArchivedDecision);
             const actionCell = row.querySelector('.col-action');
-            if (actionCell) actionCell.outerHTML = renderProductActionsCell(nextStatus);
+            if (actionCell) actionCell.outerHTML = renderProductActionsCell(nextStatus, isArchivedDecision);
 
             const modal = document.getElementById('productDecisionModal');
             if (modal && window.bootstrap?.Modal) window.bootstrap.Modal.getOrCreateInstance(modal).hide();
@@ -2703,7 +2746,45 @@ document.addEventListener('DOMContentLoaded', function () {
     const departmentFilter = document.getElementById('productsDepartmentFilter');
 
     const majorFilter = document.getElementById('productsMajorFilter');
-    function applyInlineFilters() {
+    // Keep the original fields and labels; the clear action sits outside the label.
+    [[productsSearchInput, 'Search'], [statusFilter, 'Approval Status'],
+        [archiveFilter, 'Listing Status'], [departmentFilter, 'Program'],
+        [majorFilter, 'Major'], [categoryFilter, 'Category']].forEach(([field, caption]) => {
+        const label = field?.closest('.product-catalog-filters > label');
+        if (!label) return;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'product-filter-field';
+        label.before(wrapper);
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'product-filter-clear';
+        clear.dataset.clearProductFilter = field.id;
+        clear.setAttribute('aria-label', `Clear ${caption} filter`);
+        clear.title = `Clear ${caption}`;
+        clear.hidden = true;
+        clear.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+        clear.addEventListener('click', () => {
+            if (field.disabled) return;
+            field.value = '';
+            field.dispatchEvent(new Event(field === productsSearchInput ? 'input' : 'change', {bubbles: true}));
+            syncFilterClearButtons();
+            field.focus();
+        });
+        wrapper.append(label, clear);
+        field.addEventListener('input', syncFilterClearButtons);
+        field.addEventListener('change', syncFilterClearButtons);
+    });
+
+    function syncFilterClearButtons() {
+        document.querySelectorAll('.product-catalog-filters [data-clear-product-filter]').forEach(button => {
+            const field = document.getElementById(button.dataset.clearProductFilter);
+            const selected = Boolean(field && !field.disabled && field.value.trim());
+            button.hidden = !selected;
+            button.parentElement.classList.toggle('has-filter-value', selected);
+        });
+    }
+
+    function applyLegacyInlineFilters() {
         const search = productsSearchInput?.value.trim().toLowerCase() || '';
         const status = statusFilter?.value || '';
         const listing = archiveFilter?.value ?? 'active';
@@ -2725,8 +2806,83 @@ document.addEventListener('DOMContentLoaded', function () {
         Object.entries(values).forEach(([key,value]) => value ? url.searchParams.set(key,value) : url.searchParams.delete(key));
         url.searchParams.delete('page');
         window.history.replaceState(null, '', url);
+        syncFilterClearButtons();
         window.__chSyncProductEmptyState?.();
     }
+
+    let catalogController, catalogRequest = 0;
+    let catalogReady = false, catalogRetryPage = 1;
+    const catalogState = document.getElementById('productsCatalogState');
+    const catalogMessage = document.getElementById('productsCatalogMessage');
+    const catalogRetry = document.getElementById('productsCatalogRetry');
+    async function applyInlineFilters(page = 1) {
+        if (productsTableBody?.dataset.serverPaginated !== 'true') return applyLegacyInlineFilters();
+        syncFilterClearButtons();
+        if (!catalogReady) return;
+        const url = new URL(window.location.href);
+        const values = {search: productsSearchInput?.value.trim() || '', status: statusFilter?.value || '',
+            listing_status: archiveFilter?.value || 'all', program: departmentFilter?.value || '',
+            major: majorFilter?.disabled ? '' : majorFilter?.value || '', category: categoryFilter?.value || '', inventory_status: activeInventoryFilter};
+        Object.entries(values).forEach(([key,value]) => value ? url.searchParams.set(key,value) : url.searchParams.delete(key));
+        url.searchParams.delete('format');
+        url.searchParams.set('page', String(typeof page === 'number' ? Math.max(1, page) : 1));
+        catalogRetryPage = Number(url.searchParams.get('page'));
+        history.replaceState(null, '', url);
+        url.searchParams.set('format', 'json');
+        catalogController?.abort();
+        const controller = catalogController = new AbortController();
+        const request = ++catalogRequest;
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        if (catalogState) catalogState.hidden = false;
+        if (catalogMessage) catalogMessage.textContent = 'Loading products…';
+        if (catalogRetry) catalogRetry.hidden = true;
+        document.getElementById('productsListSection')?.setAttribute('aria-busy', 'true');
+        document.getElementById('productsTableWrap')?.setAttribute('inert', '');
+        try {
+            const response = await fetch(url, {credentials:'same-origin', headers:{Accept:'application/json'}, signal:controller.signal});
+            if (!response.ok) throw new Error(`Products request failed (${response.status}).`);
+            const data = await response.json();
+            if (request !== catalogRequest) return;
+            if (typeof data.rows_html !== 'string' || !data.stats || typeof data.pagination_html !== 'string') throw new Error('Incomplete Products response.');
+            productsTableBody.querySelectorAll('tr[data-product-id]').forEach(stopProductTableImageCycle);
+            productsTableBody.innerHTML = data.rows_html;
+            initAllProductTableImageCycles();
+            const pages = document.getElementById('productsPagination');
+            if (pages) pages.innerHTML = data.pagination_html;
+            const showing = document.getElementById('productsShowingText');
+            if (showing) showing.textContent = `Showing ${data.start} to ${data.end} of ${data.total} matching products`;
+            for (const [key,id] of Object.entries({total:'totalStatCard',pending:'pendingStatCard',approved:'approvedStatCard',low_stock:'lowStockStatCard'})) {
+                const number = document.querySelector(`#${id} strong`);
+                if (number) number.textContent = String(data.stats[key]);
+            }
+            const hasRows = data.total > 0;
+            for (const id of ['productsTableWrap','productsTableFooter']) { const el = document.getElementById(id); if (el) el.style.display = hasRows ? '' : 'none'; }
+            const empty = document.getElementById('productsEmptyState');
+            empty?.classList.toggle('d-none', hasRows);
+            empty?.classList.toggle('is-visible', !hasRows);
+            const title = document.getElementById('productsEmptyStateTitle');
+            if (title) { title.textContent = data.stats.total === 0 ? 'No products yet' : 'No matching products'; title.classList.remove('d-none'); }
+            const hint = document.getElementById('productsEmptyStateHint');
+            if (hint) { hint.textContent = data.stats.total === 0 ? 'Product listings will appear here once sellers submit them.' : 'Adjust the search or selected filters to see other listings.'; hint.classList.remove('d-none'); }
+            if (catalogState) catalogState.hidden = true;
+        } catch (error) {
+            if (request !== catalogRequest) return;
+            if (catalogMessage) catalogMessage.textContent = 'Unable to load products. The previous results remain visible. Retry to refresh.';
+            if (catalogRetry) catalogRetry.hidden = false;
+        } finally {
+            clearTimeout(timeout);
+            if (request === catalogRequest) {
+                document.getElementById('productsListSection')?.setAttribute('aria-busy', 'false');
+                document.getElementById('productsTableWrap')?.removeAttribute('inert');
+            }
+        }
+    }
+    catalogRetry?.addEventListener('click', () => applyInlineFilters(catalogRetryPage));
+    document.getElementById('productsPagination')?.addEventListener('click', event => {
+        if (productsTableBody?.dataset.serverPaginated !== 'true') return;
+        const button = event.target.closest('[data-page]');
+        if (button && !button.disabled) applyInlineFilters(Number(button.dataset.page));
+    });
 
     document.querySelectorAll('#productStatsGrid [data-stat-filter]').forEach((card) => {
         const activate = () => applyStatCardFilter(card.dataset.statFilter || 'all');
@@ -2780,18 +2936,10 @@ document.addEventListener('DOMContentLoaded', function () {
     let searchTimer;
     productsSearchInput?.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { applyInlineFilters(); window.dispatchEvent(new Event('products-table-changed')); }, 300); });
     majorFilter?.addEventListener('change', applyInlineFilters);
-    document.getElementById('productsClearFilters')?.addEventListener('click', () => {
-        clearTimeout(searchTimer);
-        [productsSearchInput,statusFilter,archiveFilter,departmentFilter,majorFilter,categoryFilter].forEach(field => { if (field) field.value = ''; });
-        activeInventoryFilter = ''; activeStatFilter = '';
-        window.CampusHubAcademic?.sync(departmentFilter, majorFilter);
-        updateStatCardActiveState(); applyInlineFilters();
-        window.dispatchEvent(new Event('products-table-changed'));
-    });
 
     // Operational dashboard shortcuts open the existing inline filters.
     const shortcutParams = new URLSearchParams(window.location.search);
-    [[productsSearchInput,'search'],[statusFilter,'status'],[archiveFilter,'listing_status'],[departmentFilter,'program'],[categoryFilter,'category']].forEach(([field,key]) => { if (field && shortcutParams.has(key)) field.value = shortcutParams.get(key); });
+    [[productsSearchInput,'search'],[statusFilter,'status'],[archiveFilter,'listing_status'],[departmentFilter,'program'],[categoryFilter,'category']].forEach(([field,key]) => { if (field && shortcutParams.has(key)) field.value = shortcutParams.get(key) === 'all' ? '' : shortcutParams.get(key); });
     window.CampusHubAcademic?.sync(departmentFilter, majorFilter);
     if (majorFilter && !majorFilter.disabled) majorFilter.value = shortcutParams.get('major') || '';
     applyInlineFilters();
@@ -2806,6 +2954,8 @@ document.addEventListener('DOMContentLoaded', function () {
         updateStatCardActiveState();
         applyInlineFilters();
     }
+
+    catalogReady = true;
 
     // === Active state classes for search bar and filters (navy blue) ===
     if (productsSearchInput) {
@@ -2857,8 +3007,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     window.CampusHubAdminProducts = {
+        renderProductRow,
         getProductFromRow,
         renderProductActionsCell,
+        renderStatusCellContent,
+        renderListingStatusPill,
         applyInlineFilters,
         computeProductAvailability,
         computeTotalStock,
@@ -2887,7 +3040,7 @@ function initializeProductPagination() {
     const tbody = document.getElementById('productsTableBody');
     const showingText = document.getElementById('productsShowingText');
     const paginationContainer = document.getElementById('productsPagination');
-    if (!tbody || !paginationContainer) return;
+    if (!tbody || !paginationContainer || tbody.dataset.serverPaginated === 'true') return;
 
     let currentPage = 1;
     const rowsPerPage = 10;
@@ -3107,6 +3260,7 @@ else initializeProductPagination();
     if (!section) return;
     // Details actions reuse the list's helpers after DOM initialization.
     const renderProductActionsCell = (...args) => window.CampusHubAdminProducts.renderProductActionsCell(...args);
+    const renderStatusCellContent = (...args) => window.CampusHubAdminProducts.renderStatusCellContent(...args);
     const applyInlineFilters = () => window.CampusHubAdminProducts.applyInlineFilters();
     const showProductSaveToast = (...args) => window.CampusHubAdminProducts.showProductSaveToast(...args);
 
@@ -3793,8 +3947,11 @@ else initializeProductPagination();
 
     function openUpdateStockFromDetails() {
         if (!activeDetailsRow) return;
+        const reasonField = document.getElementById('updateStockReason');
+        if (reasonField) reasonField.value = '';
         const helpers = window.CampusHubAdminProducts || {};
         const product = helpers.getProductFromRow?.(activeDetailsRow) || {};
+        document.getElementById('updateStockMethod').value = product.inventory_method || 'simple';
         const nameEl = document.getElementById('updateStockProductName');
         const currentEl = document.getElementById('updateStockCurrent');
         const inputEl = document.getElementById('updateStockInput');
@@ -3874,7 +4031,8 @@ else initializeProductPagination();
                     Accept: 'application/json',
                     'X-CSRFToken': getCsrfToken(),
                 },
-                body: JSON.stringify({ stock, variant_key: document.getElementById('updateStockVariantWrap')?.hidden ? null : document.getElementById('updateStockVariant')?.value }),
+                body: JSON.stringify({ stock, inventory_method: document.getElementById('updateStockMethod').value, reason: document.getElementById('updateStockReason')?.value.trim() || '',
+                    variant_key: document.getElementById('updateStockVariantWrap')?.hidden ? null : document.getElementById('updateStockVariant')?.value }),
             });
             const data = await window.CampusHubActions.json(response, 'Unable to confirm the update. Reload the record before retrying.');
             if (!data.product) throw new Error('The update was not confirmed. Reload the record before retrying.');
@@ -3890,6 +4048,7 @@ else initializeProductPagination();
                 inventoryCell.innerHTML = helpers.renderInventorySummary(available, variants, saved);
                 activeDetailsRow.dataset.lowStockThreshold = saved.low_stock_threshold == null ? '' : String(saved.low_stock_threshold);
                 activeDetailsRow.dataset.productStock = String(available);
+                activeDetailsRow.dataset.inventoryMethod = saved.inventory_method || 'simple';
                 activeDetailsRow.dataset.variantCount = String(variants);
                 activeDetailsRow.dataset.customizationOptions = JSON.stringify(saved.customization_options || []);
                 activeDetailsRow.dataset.inventoryStatus = saved.inventory_status;
@@ -3950,6 +4109,8 @@ else initializeProductPagination();
             }
 
             targetRow.dataset.isArchived = '1';
+            const statusCell = targetRow.querySelector('td.col-status');
+            if (statusCell && typeof renderStatusCellContent === 'function') statusCell.innerHTML = renderStatusCellContent(previousStatus, true);
             const actionCell = targetRow.querySelector('td.col-action');
             if (actionCell) {
                 actionCell.outerHTML = renderProductActionsCell(previousStatus, true);
@@ -4013,6 +4174,8 @@ else initializeProductPagination();
             }
 
             targetRow.dataset.isArchived = '0';
+            const statusCell = targetRow.querySelector('td.col-status');
+            if (statusCell && typeof renderStatusCellContent === 'function') statusCell.innerHTML = renderStatusCellContent(previousStatus, false);
             const actionCell = targetRow.querySelector('td.col-action');
             if (actionCell) {
                 actionCell.outerHTML = renderProductActionsCell(previousStatus, false);
@@ -4125,5 +4288,11 @@ else initializeProductPagination();
         if (!id || !/^\d+$/.test(id)) return;
         const row = document.querySelector(`tr[data-product-id="${id}"]`);
         if (row) window.openProductDetailsView(row);
+        else fetchProductByIdFromServer(id).then(product => {
+            if (!product || !window.CampusHubAdminProducts?.renderProductRow) return;
+            const detailRow = document.createElement('tr');
+            window.CampusHubAdminProducts.renderProductRow(detailRow, product);
+            window.openProductDetailsView(detailRow);
+        });
     });
 })();

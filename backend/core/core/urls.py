@@ -1,9 +1,11 @@
 from modules.facilities import admin_booking_views
 from modules.facilities import booking_workflow_views
+from modules.facilities import job_order_signature_views
 from modules.marketplace.bundle_suggestion_views import bundle_suggestions_api
 from modules.marketplace import bundle_monitoring_views as bundle_monitoring
 from modules.marketplace.inventory_views import receive_stock
 from django.contrib import admin
+from api.food_preferences import mobile_food_preferences
 from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
@@ -33,6 +35,7 @@ from api.views import (
     marketplace_reject_seller_request,
     marketplace_seller_requests,
     marketplace_orders,
+    marketplace_checkout_quote,
     mobile_login,
     mobile_complete_profile,
     mobile_profile_photo,
@@ -96,6 +99,7 @@ from modules.notifications import mobile_views as mobile_notifications
 urlpatterns = [
     path("api/mobile/push/device/", mobile_notifications.device_registration, name="mobile_push_device"),
     path("api/mobile/seller/workspace/", mobile_seller_views.workspace, name="mobile_seller_workspace"),
+    path("api/mobile/seller/inventory/receive/", mobile_seller_views.receive_stock, name="mobile_seller_receive_stock"),
     path("api/mobile/seller/orders/<int:order_id>/progress/", mobile_seller_views.order_progress, name="mobile_seller_order_progress"),
     path("api/mobile/seller/suggestions/<str:pair_id>/", mobile_seller_views.suggestion_choice, name="mobile_seller_suggestion_choice"),
     path("api/mobile/facilities/contact/", mobile_facilities.contact),
@@ -103,6 +107,11 @@ urlpatterns = [
     path("api/mobile/facilities/<str:facility_id>/quote/", mobile_facilities.quote),
     path("api/mobile/bookings/", mobile_facilities.bookings),
     path("api/mobile/bookings/<str:booking_id>/", mobile_facilities.booking_detail),
+    path('api/mobile/bookings/<str:booking_id>/job-order/handoff/', job_order_signature_views.mobile_handoff),
+    path('api/mobile/bookings/<str:booking_id>/job-order/view/', job_order_signature_views.mobile_view),
+    path('api/mobile/bookings/<str:booking_id>/job-order/sign/', job_order_signature_views.mobile_sign),
+    path('api/mobile/bookings/<str:booking_id>/job-order/document/', job_order_signature_views.mobile_document),
+    path('api/mobile/bookings/<str:booking_id>/job-order/signatures/<str:section>/', job_order_signature_views.mobile_image),
     path("api/mobile/bookings/<str:booking_id>/cancel/", mobile_facilities.cancel),
     path("", admin_login_page, name="admin_login_page"),
     path("admin-logout/", admin_logout_page, name="admin_logout_page"),
@@ -186,6 +195,7 @@ urlpatterns = [
     path("api/mobile/signup/", mobile_signup, name="mobile_signup"),
     path("api/mobile/academic-options/", mobile_academic_options, name="mobile_academic_options"),
     path("api/mobile/profile/photo/", mobile_profile_photo, name="mobile_profile_photo"),
+    path("api/mobile/profile/preferences/", mobile_food_preferences, name="mobile_food_preferences"),
     path(
         "api/mobile/profile/complete/",
         mobile_complete_profile,
@@ -220,6 +230,8 @@ urlpatterns = [
     path("api/bookings/preview/", admin_booking_views.preview, name="admin_booking_preview"),
     path('api/bookings/', booking_workflow_views.listing, name='admin_booking_list'),
     path('api/bookings/<str:booking_id>/update/', booking_workflow_views.update, name='admin_booking_update'),
+    path('api/bookings/<str:booking_id>/job-order/sign/', job_order_signature_views.admin_sign, name='admin_job_order_sign'),
+    path('api/bookings/<str:booking_id>/job-order/signatures/<str:section>/', job_order_signature_views.admin_image, name='admin_job_order_signature'),
     path('api/bookings/<str:booking_id>/documents/<str:kind>/', booking_workflow_views.document, name='admin_booking_document'),
     path('api/bookings/<str:booking_id>/attachments/<str:key>/', booking_workflow_views.attachment, name='admin_booking_attachment'),
     path('api/mobile/bookings/<str:booking_id>/slip/', mobile_facilities.slip, name='mobile_booking_slip'),
@@ -234,6 +246,8 @@ urlpatterns = [
     path("api/facility-schedules/<str:booking_id>/attachment/", admin_booking_views.attachment, name="admin_facility_schedule_attachment"),
     path("api/products/approved/", approved_products, name="approved_products"),
     path("api/orders/", marketplace_orders, name="marketplace_orders"),
+    path("api/orders/quote/", marketplace_checkout_quote, name="marketplace_checkout_quote"),
+    path("api/mobile/seller/delivery-setting/", mobile_seller_views.delivery_setting, name="mobile_seller_delivery_setting"),
     path("api/products/<int:product_id>/image/", product_image, name="product_image"),
     path("api/products/remove-bg/", remove_product_background, name="remove_product_background"),
     path("api/products/admin/save/", admin_save_product, name="admin_save_product"),

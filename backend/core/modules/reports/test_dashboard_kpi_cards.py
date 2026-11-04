@@ -16,7 +16,7 @@ from api.models import MarketplaceOrder, Product
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
 class SystemOverviewCardsTests(TestCase):
     keys = ['total_users', 'active_sellers', 'total_products', 'total_orders',
-            'marketplace_revenue', 'total_facilities', 'total_bookings', 'pending_approvals']
+            'total_facilities', 'total_bookings', 'marketplace_revenue', 'pending_approvals']
 
     def setUp(self):
         self.root = User.objects.create_superuser(username='kpi-root', email='kpi@example.test', password='test')
@@ -31,13 +31,15 @@ class SystemOverviewCardsTests(TestCase):
         self.assertEqual(re.findall(r'data-dashboard-kpi="([^"]+)"', html), self.keys)
         links = re.findall(r'class="dashboard-stat-card h-100 dashboard-kpi-link" href="([^"]+)"', html)
         routes = ['admin_users_page', 'admin_sellers_page', 'admin_products_page', 'admin_orders_page',
-                  'admin_marketplace_analytics_page', 'admin_facility_page', 'admin_bookings_page']
-        self.assertEqual(links, [reverse(route) for route in routes])
-        for link in links:
+                  'admin_facility_page', 'admin_bookings_page', 'admin_marketplace_analytics_page']
+        self.assertEqual(links, [reverse(route) for route in routes] + ['#dashboardAttentionTitle'])
+        for link in links[:-1]:
             with self.subTest(link=link):
                 self.assertEqual(self.client.get(link).status_code, 200)
         self.assertContains(response, 'id="dashboardKpiStale"')
-        self.assertContains(response, 'class="marketplace-recommendation-counts"', count=1)
+        self.assertContains(response, 'href="' + reverse('bundle_monitor_list') + '"')
+        self.assertContains(response, 'All web and mobile accounts')
+        self.assertContains(response, 'Current approval queue')
         self.assertNotContains(response, 'id="dashboardSystemStatus"')
 
     def test_initial_values_match_api_and_large_currency_is_not_truncated(self):

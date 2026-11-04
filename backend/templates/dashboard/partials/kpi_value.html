@@ -1,0 +1,3 @@
+{% if metric.trend %}<div class="dashboard-kpi-value-row">{% endif %}
+<strong data-dashboard-kpi="{{ key }}">{% if currency %}&#8369;{{ value|floatformat:"2g" }}{% else %}{{ value|default:0 }}{% endif %}</strong>
+{% if metric.trend %}{% include 'dashboard/partials/kpi_trend.html' with key=key trend=metric.trend only %}</div>{% endif %}

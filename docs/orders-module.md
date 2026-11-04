@@ -1,5 +1,251 @@
 # Orders module: Pickup, Seller Delivery and payment monitoring
 
+## Payment icons and circle touch targets - October 30, 2026
+
+### 1. Cause / reason
+
+The user requested payment-method icons and clickable circles. Confirmed: both checkout paths reuse `OrderSummaryCard`, and neither choice had an identifying icon. Direct circle taps already selected enabled choices in a pre-change regression test; no broken enabled-circle handler was reproduced. Flutter's `RadioListTile` defaults its internal radio to a smaller shrink-wrapped target. Unsupported seller delivery intentionally disables COD, and checkout locks intentionally prevent edits. These rules must not be bypassed to make an unavailable circle clickable.
+
+### 2. Exact files changed
+
+- `campushub/lib/module_app/widgets/order_summary_widgets.dart:318` - pickup `RadioListTile`, keyed `checkout-cash-pickup`; delivery begins at line 347, keyed `checkout-cash-delivery`.
+- `campushub/test/order_summary_test.dart:7` - `payment circles select once and keep locked choices unchanged` regression test.
+- `docs/orders-module.md:3` - this implementation, verification and troubleshooting report. No other application files were manually changed for this follow-up.
+
+### 3. Changes made
+
+Added native outlined storefront/pickup and truck/seller-delivery icons on the left, with selection circles on the right. Each radio explicitly uses `MaterialTapTargetSize.padded` and standard density, giving a measured 48-by-48 logical-pixel radio target. The native tile keeps the circle, text, icon and row selectable without extra overlapping gesture handlers. Both tiles now explicitly expose a disabled state while checkout is locked; COD additionally requires the existing `deliverySupported` flag. The unavailable delivery icon uses the existing secondary-text color. Existing typography, copy, colors, totals, delivery location and confirmation behavior remain.
+
+### 4. How it works / functions and data flow
+
+`OrderSummaryCard` receives `deliverySupported` and `locked` from its existing checkout parent. `RadioGroup<String>` receives the selected fulfillment code. Tapping an enabled tile or its circle calls the existing `_selectPayment(String method)` at line 194 once: its input is `pickup` or `seller_delivery`; it updates local state, then emits the existing payment and fulfillment callbacks. Pickup outputs `cash_on_pickup` and an empty destination; delivery outputs `cash_on_delivery` and the current destination. Parent checkout validation and order submission are unchanged. Icons are decorative native glyphs, not new buttons or payment gateways.
+
+For example, choosing the delivery circle emits `onPaymentMethodChanged('cash_on_delivery')` and `onFulfillmentChanged('seller_delivery', currentDestination)`. Choosing Pickup hides the destination field and emits an empty destination, so previously typed delivery text is not submitted for pickup. Native controls were kept to preserve built-in radio selection and accessibility behavior rather than rebuilding the circles manually.
+
+### 5. Backend / API behavior
+
+No endpoint, payload, permission or server-side eligibility change. Both single-product and cart checkout inherit the shared UI update. Existing quote validation and Django order creation remain authoritative; delivery selection does not mark payment Paid.
+
+### 6. Database / migration impact
+
+None. No model, migration, configuration, dependency, asset, real order, seller setting or inventory record was changed. No deployment, APK build, installation or app restart was performed.
+
+### 7. Tests performed
+
+- Pre-change direct-circle test passed, confirming no enabled-circle handler failure in the isolated widget.
+- Final `flutter test --no-pub test/order_summary_test.dart test/checkout_layout_test.dart test/checkout_workflow_test.dart`: all 18 tests passed. New 390px-width coverage checks both icons, both 48px targets, exact callback sequences for direct circle taps, icon/label taps, destination show/hide, locked checkout and unavailable delivery. Existing coverage includes long content at 320/430px, 1.8x text and both host themes, payloads and read-only confirmation.
+- `flutter analyze --no-pub lib/module_app/widgets/order_summary_widgets.dart test/order_summary_test.dart`: no issues found. Dart formatting was applied to these two files.
+- Existing optional capture test was actually run with `CHECKOUT_REVIEW_DIR` and the bundled Montserrat font: passed and produced `scratch/payment-icons-20261030/checkout-320.png` and `checkout-390.png`. Both were visually inspected; payment icons, wrapped labels and right-side circles fit. Captures use an isolated unsigned-in fixture, so its validation error/disabled Place Order are expected, not a live transaction.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+No physical-device tap/TalkBack or full accessibility audit was performed. The optional design-skill kit's `.agents/tokens` directory is missing, so its external kit-wide gate was unavailable; Flutter tests, analysis and actual widget captures were used instead. No overall WCAG or kit-wide pass is claimed.
+
+If COD's circle remains gray, check Seller Management -> My Products -> Enable Seller Delivery and refresh checkout. All selected sellers must support delivery; do not remove the disabled guard. If all controls are locked, check whether an order request is pending or uncertain before retrying. Use the existing development hot reload to view this UI change; do not submit a real order just to test icons.
+
+Safe practice exercise: in `campushub/`, run `flutter test --no-pub test/order_summary_test.dart --plain-name "payment circles select once and keep locked choices unchanged"`. Read the test's `pump(delivery: false)` case and verify it leaves the callback count unchanged after tapping the delivery circle. Compare it with the first enabled-circle tap, which emits exactly one payment/fulfillment pair. This exercises real widget events without network or database writes.
+
+## Final Flutter checkout and seller delivery setting — October 30, 2026
+
+### 1. Cause / reason
+
+Confirmed by inspecting the existing implementation: checkout had a separate receiving-method dropdown; a seller delivery choice was not backed by an eligibility setting; totals initially came from the selected product snapshot; and failed order requests hid the backend error. The existing compact buyer widget already had no Buyer Information heading, so it was refined rather than rebuilt. The user explicitly requested seller-controlled delivery, disabled for existing sellers until enabled.
+
+### 2. Exact files changed — current lines and anchors
+
+- `backend/core/api/models.py:392` — `seller_delivery_enabled =`
+- `backend/core/api/migrations/0052_seller_delivery_setting.py:4` — `class Migration`
+- `backend/core/modules/marketplace/mobile_seller_views.py:146` — `def delivery_setting`
+- `backend/core/modules/marketplace/services/checkout.py:8` — `def quote_cart`
+- `backend/core/modules/marketplace/services/fulfillment.py:61` — `def creation_fields`
+- `backend/core/api/views.py:1977` — `def marketplace_checkout_quote`
+- `backend/core/core/urls.py:249` — `name="marketplace_checkout_quote"`
+- `campushub/lib/module_app/services/checkout_validation.dart:6` — `class CheckoutValidation`
+- `campushub/lib/module_app/services/order_service.dart:10` — `class OrderSubmission`
+- `campushub/lib/module_app/services/seller_application_service.dart:125` — `Future<bool> setSellerDelivery`
+- `campushub/lib/module_app/screens/seller_workspace_content.dart:77` — `Widget _deliverySetting()`
+- `campushub/lib/module_app/screens/checkout_screen.dart:126` — `Future<void> _placeOrder()`
+- `campushub/lib/module_app/screens/cart_screen.dart:465` — `class _CartBulkCheckoutScreenState`
+- `campushub/lib/module_app/widgets/order_summary_widgets.dart:146` — `class OrderSummaryCard`
+- `campushub/test/checkout_workflow_test.dart:16` — `void main()`
+- `campushub/test/checkout_layout_test.dart:24` — `void main()`
+- `campushub/test/order_summary_test.dart:6` — `void main()`
+- `backend/core/modules/marketplace/test_checkout.py:11` — `class CheckoutTests`
+- `backend/core/modules/marketplace/test_order_fulfillment.py:17` — `def setUp(self)`
+
+Supporting verification helpers/reports are in `scratch/checkout-final-20261030/`: `migrate_local.py` (guarded local backup/migration), `verify_localhost.py` (read-only requests), `migration-result.json`, `localhost-result.json`, and actual Flutter screenshots under `renders/`. `edit_sources.py` and `refine_sources.py` record one-time scoped edits; do not rerun them. This guide and `CAMPUSHUB_CONTEXT.md` are updated in place.
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Receiving-method dropdown plus fulfillment/payment explanation | One Payment Method section with Cash on Pickup and Cash on Delivery radio choices | Gives the buyer one selection while retaining the backend receiving method. |
+| Delivery was selectable without a saved seller capability | Enable Seller Delivery switch in Seller Management → My Products | Uses the seller's actual approved application record, default false. |
+| Delivery needed only nonempty text | Inline Delivery Location validation: trimmed 5–500 characters containing a letter or number | Rejects blanks and punctuation-only locations in Flutter and Django. |
+| Client snapshot used for the payable amount | Authenticated, read-only server quote before Place Order is enabled | Verifies current price, required variants, stock and bundle components. |
+| Every failed POST left an opaque locked submission | Clear server errors; definite rejection allows correction; uncertain response retains the original payload/key | Protects retries without trapping the buyer after a known validation failure. |
+| Fixed text scaling in the single-item bottom bar | Responsive gold button and total; narrow/large-text layouts stack them | Keeps system text enlargement usable and the button label readable. |
+| Variable Montserrat weight could render thin | Explicit variable-font weight on checkout typography | Preserves the requested font with readable real weights; no app-wide font change. |
+| Confirmation reused editable payment choices starting at Pickup | Confirmation shows the submitted method as text and hides payment controls | A confirmed delivery order cannot appear to switch back to Pickup. |
+
+Buyer name/contact/student ID come from `SessionService.loadUser()`. Student ID is shown for student accounts only. Missing identity/contact shows account-profile guidance; there is no invented name, account email disclosure, or address field for Pickup. Existing seller, thumbnail, selected variants, quantity, optional note, bundle behavior and success review remain. The requested checkout navy `#1A1851`, gold `#FCB316`, white and bundled Montserrat are scoped to this flow. Existing subtotal disclosure respects reduced motion; no decorative motion was added.
+
+### 4. How it works / functions and data flow
+
+`SellerWorkspaceContent._deliverySetting()` reads `seller.seller_delivery_enabled` from the existing workspace response. `_setDelivery(bool)` disables the switch while saving. `SellerApplicationService.setSellerDelivery(bool)` posts only that boolean with the existing bearer token. Django `delivery_setting(request)` authenticates the account, requires current approved/non-suspended seller access, locks that account's SellerRequest and saves the flag. Caller-supplied seller IDs and extra fields are rejected. Reloading the workspace reads the saved PostgreSQL value.
+
+`CheckoutValidation.refresh(items)` loads the signed-in account and calls `OrderService.quote(items)`. It ignores late responses from an older quantity change and ignores results after disposal. The quote returns validated unit prices/subtotals, available stock, confirmed delivery eligibility and a known total. `quote_item()` uses existing `component_inventory()` or `describe_bundle()` functions; `quote_cart()` combines shared SKU/component demands across all lines. It performs no reservation or order write. Place Order stays disabled while checking, on an error, for an unknown/malformed amount, or for an invalid delivery selection/location.
+
+The single-product and cart checkout screens display the validated unit prices and subtotal. `OrderSummaryCard` reports the selected receiving code and destination to its parent. Switching to Pickup hides the field and passes an empty destination; the delivery text can be restored if the buyer switches back while editing. Delivery is enabled only when every selected product's seller is eligible. No GPS/map permission is requested.
+
+On submission, `_placeOrder()` / `_placeAllOrders()` snapshot the payload and hold the existing UUID request key. `OrderService.submitOrder()` returns `OrderSubmission(confirmed, uncertain, message, order)`: only an API response containing a created order ID confirms success. A timeout/5xx/unclear response preserves the snapshot/key; retry checks the same submission. A definite rejection exposes its message and refreshes validation before editing. Cart retry skips already confirmed rows. A local history-storage failure cannot turn an already confirmed API order into a failed checkout.
+
+Annotated payload example (illustrative fields only, not a production record):
+
+```json
+{
+  "fulfillment_method": "seller_delivery",
+  "payment_method": "cash_on_delivery",
+  "delivery_destination": "Library entrance",
+  "expected_unit_price": "25.00"
+}
+```
+
+`product_id`, authenticated `buyer_user_id`, quantity and selected customization accompany those fields. The server retrieves the actual product, locks it, checks the saved seller delivery flag, compares the expected unit price with the current validated price, then calls the existing stock/bundle reservation functions. Pickup instead sends `fulfillment_method: pickup`, `payment_method: cash_on_pickup`, and an empty destination.
+
+### 5. Backend / API behavior
+
+- New `POST /api/orders/quote/`: authenticated, read-only `{items:[...]}` → validated item prices/stock/eligibility. No current fee configuration exists, so the authoritative delivery fee is zero and total equals product subtotal. No fee system, courier or online payment was introduced.
+- New `POST /api/mobile/seller/delivery-setting/`: approved current seller's boolean only → saved boolean. Existing `GET /api/mobile/seller/workspace/` now includes it under `seller`.
+- Existing `POST /api/orders/` still creates the real MarketplaceOrder and uses the existing idempotency wrapper, inventory reservations and locks. Invalid quantity, inconsistent payment/receiving mapping, unsupported delivery, invalid location or changed quoted price is rejected before stock writes.
+- There is no separate payment-method database column to duplicate. The existing persisted receiving code losslessly determines `cash_on_pickup` / `cash_on_delivery`, exposed as `payment_method` and `payment_method_label`. Web Admin continues to show Customer Pickup / Seller Delivery. Historical blank receiving codes remain Not recorded; they are not backfilled.
+- Payment status remains Unpaid until the existing authorized payment confirmation. Seller processing/delivery actions do not mark an order Paid or Completed. Existing statuses, cancellations, FIFO/Simple tracking and bundle component transactions stay in the canonical services.
+
+### 6. Database / migration impact
+
+Added one necessary capability flag: `SellerRequest.seller_delivery_enabled`, Python and PostgreSQL default false. Migration `api.0052_seller_delivery_setting` also records the already-existing Customer Pickup display choice in migration state without changing stored `pickup` values. No duplicate order/payment columns or statuses were added.
+
+Applied only to the selected local database at `127.0.0.1:5432/campushub`, after a complete pg_dump backup at `backend/backups/localhost-return-20261030/checkout-before-20261029T183628Z.sql` (UTC filename; October 30 locally), SHA-256 `eae2ffe4e6e638d73d7f00217c246aac3acf5dfe1ae395b25b37a2ed30079990`. Before/after order receiving/payment/destination fingerprints, order counts, product counts and stock totals match. Enabled sellers after migration: zero. Local Django was restarted to load the APIs; chat and Kamatera were not changed. There were no real test orders, real seller eligibility changes or stock transactions during verification.
+
+### 7. Tests performed
+
+- 91 Django regressions passed in a disposable local PostgreSQL database: checkout, fulfillment, seller permissions, bundles, FIFO, cancellation and concurrency. The subsequent focused checkout run passed all 9 tests, including two added exact-variant/shared-bundle checks. Disposable databases were destroyed after each run.
+- Flutter: 35 tests passed across order summary, checkout layout/workflow, seller fulfillment and seller workspace. After the final confirmation refinement, 17 focused tests passed, including an additional actual COD payload/confirmation test. These are overlapping runs, not additive totals.
+- Final scoped Flutter analysis passed with no issues across the seven changed runtime files and the new checkout workflow test, including the final confirmation refinement.
+- Captured and visually inspected actual Flutter renders at 320/390px with bundled Montserrat. Existing layout tests covered long content at 320/430px, 1.8× text and both host themes; seller tests included 320px and landscape at 2× text. Test fixtures are local to the tests and are not production records.
+- Actual localhost read-only quote returned HTTP 200 with delivery disabled and known zero fee. Live login/products returned HTTP 200; enforced read-only Orders rendering and served CSS also passed. Django migration-state check: no changes detected.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+No physical Android interaction or full assistive-technology audit was performed, and no APK was rebuilt/deployed. Hot restart/relaunch the local development app so its Dart state loads this implementation. Remote Kamatera has not received this schema/code and needs a coordinated deployment before an online build can use it.
+
+Cash on Delivery disabled: open Seller Management → My Products as the approved seller and enable delivery, wait for save confirmation, then reopen/recheck checkout. Mixed-seller cart delivery requires every selected seller to enable it. Existing delivery orders remain delivery orders after the toggle is disabled. Permission failures require active approved seller access; do not bypass that check in Flutter.
+
+Place Order disabled: inspect the inline quote error, signed-in token, selected variant/quantity and location. Verify Django is running on the app's selected local address and use Retry checkout check after fixing the cause. A price-change rejection requires reviewing the refreshed amount. A connection-uncertain order must retry the original submission rather than creating a new checkout. The existing cart remains one order per line, so partial confirmation is possible; confirmed lines are skipped on retry within the current checkout. Durable retry recovery across app termination remains outside this change.
+
+Safe practice exercise: run `flutter test --no-pub test/checkout_workflow_test.dart` in `campushub/`. In the test MockClient, change `delivery_supported` to false and verify COD is disabled. Restore true, enter punctuation only, and verify Place Order stays disabled; enter Library entrance, switch to Pickup, and verify the posted destination is empty. This uses intercepted test HTTP only. For backend practice run the isolated runner with `modules.marketplace.test_checkout`; verify invalid requests leave stock/order counts unchanged. Do not use a working marketplace order as demo data.
+
+## Orders columns fit without sideways scrolling — October 30, 2026
+
+### 1. Cause / reason
+The Orders table forced a 1,380px minimum width and an additional receiving-column minimum. Percentage widths omitted that column. Bootstrap's responsive wrapper exposed the resulting horizontal scroll; the filter grid also reserved eight tracks for seven fields.
+
+### 2. Exact files changed
+- `backend/static/components/css/admin_orders.css:44` — `.orders-table {`
+- `backend/core/modules/marketplace/templates/marketplace/pages/admin_orders.html:94` — `id="ordersTableWrap"`
+
+Verification: `scratch/orders-no-scroll-20261030/check.cjs`, exported isolated Django fixtures and `result.json`; `verify_localhost.py` checks actual read-only rendering/served CSS. This guide and project context record the change.
+
+### 3. Changes made
+Removed the forced table width, fixed all 11 column percentages to total 100%, wrapped long values and made seven filters flexible. Removed the horizontal-scroll wrapper and obsolete scroll instruction. At widths below 1200px, order fields become labeled two-column rows; below 576px they use one column. No fields, details actions, filters or selected values were removed.
+
+### 4. How it works
+The existing Django template still renders every order cell and View Details action. CSS uses fixed desktop table layout and a narrow-screen grid. Added aria-hidden cell labels provide visual context on narrow screens while native headers/explicit table roles preserve semantics. No JavaScript interaction or order data flow changed.
+
+### 5. Backend / API behavior
+Unchanged queries, scope/permissions, filtering, pagination, details modal and order/payment operations.
+
+### 6. Database / migration impact
+None for the scrolling change; all order data remains intact.
+
+### 7. Tests performed
+352/352 intercepted Chromium checks passed across 22 normal/stress renders at 11 widths (1920 through 280px). Checks covered page/table/cell overflow, seven filters, retained columns/rows, mobile labels, View Details opening/closing and zero HTTP writes. The existing Django fulfillment/filter fixture test passed in disposable local PostgreSQL. Desktop/narrow screenshots were reviewed and label alignment corrected. Actual local read-only rendering returned 200 and served CSS matched source.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+Normal page vertical scrolling and the existing details-modal item scrolling remain. No physical tablet or full screen-reader audit was performed. If the old table still scrolls, refresh once to load `admin_orders.css?v=20261030-orders-fit-columns`. Practice by running the intercepted browser harness and extending only its stress fixture's long product name; verify every order field remains visible without horizontal overflow, then restore the fixture. Never add demo rows to the working database.
+
+## Receiving Method Terminology & Filter Alignment — October 30, 2026
+
+### 1. Cause / reason
+The term "Fulfillment" was ambiguous in a student-to-student marketplace. In CampusHub, products are received in two straightforward ways:
+1. **Customer Pickup**: The buyer collects the order at the agreed location and pays via Cash on Pickup.
+2. **Seller Delivery**: The seller delivers the order to the buyer's specified campus destination and collects payment via Cash on Delivery.
+
+To make the workflow intuitive and consistent across both the Web Admin interface and the Flutter mobile app, "Fulfillment" was replaced with "Receiving Method" on the Orders page, table headers, filters, order details modals, and seller workspace views. The redundant "Clear Filters" button was also removed to match the Inventory page design convention.
+
+### 2. Exact files changed — current lines and anchors
+
+| File | Current Line / Anchor | Change & Purpose |
+| --- | --- | --- |
+| `backend/core/api/models.py` | 927, `fulfillment_method` | Updated `choices` from `("pickup", "Pickup")` to `("pickup", "Customer Pickup")`. Keeps database column value `"pickup"` untouched while providing institutional, descriptive display names. |
+| `backend/core/modules/marketplace/services/orders.py` | 21-27, `filter_orders` | Accepts both `fulfillment` and `receiving_method` query parameters so web views, APIs, and existing test suites operate without breaking. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_orders.html` | 82-87, `ordersFulfillmentFilter` | Renamed filter label to **Receiving Method** with options: `All Methods`, `Customer Pickup`, and `Seller Delivery`. Removed the `Clear Filters` button. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_orders.html` | 122, table header | Renamed table column header from `FULFILLMENT` to `RECEIVING METHOD` while preserving `col-fulfillment` CSS class. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_orders.html` | 345-348, modal detail | Updated Order Details modal section heading to **Receiving Information** and label to **Receiving Method**. |
+| `campushub/lib/module_app/widgets/order_summary_widgets.dart` | 242, `DropdownButtonFormField` | Updated input label to `Receiving Method` with explicit options for `Customer Pickup` and `Seller Delivery`. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 1244, 1246, 1339 | Replaced "Fulfillment Method" and "Fulfillment" with "Receiving Method" and "Receiving Progress" in seller order lists and detail views. |
+| `campushub/lib/module_app/screens/profile_details_pages.dart` | 223, 296 | Displayed receiving method on student order history cards and updated payment guidance in FAQ. |
+
+### 3. Changes made
+1. **Orders Table**: Renamed column `FULFILLMENT` → `RECEIVING METHOD`. Displays `Customer Pickup` or `Seller Delivery` (and `Not recorded` for legacy orders).
+2. **Receiving Method Filter**: Renamed label to `Receiving Method`. Options provided are `All Methods`, `Customer Pickup` (`pickup`), and `Seller Delivery` (`seller_delivery`). Removed `Clear Filters` button.
+3. **Web Admin Modal**: Displays `Receiving Method` and `Receiving Progress` alongside customer delivery destinations.
+4. **Flutter Checkout & Seller Workspace**: Displays `Receiving Method` on checkout dropdown and seller workspace cards.
+5. **Buyer Profile Orders**: Displays the selected method on the buyer's order history cards.
+
+### 4. How it works / data flow
+1. When a buyer checks out on mobile or cart, they select either `Customer Pickup` or `Seller Delivery` from the Receiving Method dropdown.
+2. If `Seller Delivery` is selected, the destination field is required. If `Customer Pickup` is chosen, destination is omitted.
+3. The order payload carries `'fulfillment_method': 'pickup'` or `'seller_delivery'`, along with the destination.
+4. In Django, `MarketplaceOrder.fulfillment_method` stores the method code (`"pickup"` or `"seller_delivery"`).
+5. When rendering the Web Admin Orders table or API presentation:
+   - `order.get_fulfillment_method_display()` maps `"pickup"` to `"Customer Pickup"` and `"seller_delivery"` to `"Seller Delivery"`.
+   - Blank/unspecified historical records fall back gracefully to `"Not recorded"`.
+6. Filtering by Receiving Method:
+   - Selecting "Customer Pickup" queries `?fulfillment=pickup` (or `?receiving_method=pickup`).
+   - `filter_orders` executes `queryset.filter(fulfillment_method="pickup")`.
+   - All other filters (Search, Status, Payment, Program, Major, Date) continue to combine seamlessly.
+
+### 5. Backend / API behavior
+- `GET /api/orders/` and `GET /admin-orders/` serialize `fulfillment_label` as `"Customer Pickup"` or `"Seller Delivery"`.
+- Legacy orders without recorded fulfillment remain `"Not recorded"`.
+- Payment status remains strictly separate: an order is `unpaid` upon creation and is only marked `paid` when payment is explicitly confirmed.
+- Order transitions remain intact:
+  - Customer Pickup: `pending` -> `processing` -> `ready_for_pickup` -> `completed`
+  - Seller Delivery: `pending` -> `processing` -> `ready_for_pickup` (Ready for Seller Delivery) -> `start_delivery` -> `delivered` -> `completed`
+
+### 6. Database / migration impact
+- Zero schema migrations needed. The underlying column `campushub_orders.fulfillment_method` remains a `CharField(max_length=20)`. Only the Python display mapping (`choices`) was enhanced.
+- Historical orders remain completely intact with empty strings represented as `"Not recorded"`.
+
+### 7. Tests performed
+1. `modules.marketplace.test_order_fulfillment`: All 9 Django unit and integration tests passed (verifying delivery transitions, cancellation restores, pickup isolation, replay authorization, and filter queries).
+2. `modules.marketplace.tests`: All 29 marketplace tests passed.
+3. `campushub/test/order_summary_test.dart`: All widget tests passed.
+4. `campushub/test/order_fulfillment_test.dart`: All 4 mobile seller and order fulfillment tests passed.
+5. `campushub/test/profile_page_test.dart`: All 15 profile tests passed.
+6. `campushub/test/seller_workspace_test.dart`: All 15 seller workspace tests passed.
+7. `flutter analyze lib`: 0 issues found across all Dart code.
+
+### 8. Limits & practice exercise
+- **Limitations**: Historical orders created before fulfillment tracking had empty strings; these display as `"Not recorded"` and must never have synthetic methods fabricated for them.
+- **Safe Practice Exercise**:
+  1. Open `admin_orders.html` in your browser.
+  2. Select the "Receiving Method" dropdown and choose "Customer Pickup".
+  3. Verify that only orders with `Customer Pickup` appear and the URL contains `fulfillment=pickup`.
+  4. Switch to "Seller Delivery" and verify delivery orders display their destination and progress.
+
+
 ## One-row desktop filter bar — October 25, 2026
 
 1. **Cause / reason:** `.orders-filters` used four grid columns, falling to three below1440px, so its seven fields plus Clear Filters occupied multiple desktop rows.

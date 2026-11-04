@@ -1,0 +1,9 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'components/css/admin_orders.css' %}?v=20261026-dashboard-modal">
+<link rel="stylesheet" href="{% static 'components/css/dashboard_recent_orders.css' %}?v=20261031-no-scroll">
+<div class="dashboard-order-modals">
+{% include 'marketplace/pages/admin_orders.html' with order_modal_fragment=True %}
+</div>
+<p class="dashboard-order-feedback" id="dashboardOrderFeedback" role="status" hidden></p>
+<script src="{% static 'components/js/admin_orders.js' %}?v=20261026-dashboard-modal"></script>
+<script src="{% static 'components/js/dashboard_recent_orders.js' %}?v=20261026-eye"></script>

@@ -16,22 +16,25 @@ ORDER_TRANSITIONS = {
 
 
 def fulfillment_buyer_guard(view):
-    """Authenticate new fulfillment requests before any cached idempotency replay."""
+    """Authenticate all order creation before any cached idempotency replay."""
     @wraps(view)
     def wrapped(request, *args, **kwargs):
         if request.method == "POST":
             try: data = json.loads(request.body)
             except (ValueError, TypeError): return view(request, *args, **kwargs)
-            if isinstance(data, dict) and data.get("fulfillment_method"):
-                if request.headers.get("Authorization"):
-                    from api.views import _mobile_user_from_bearer
-                    buyer, error = _mobile_user_from_bearer(request)
-                    if error is not None: return error
-                elif request.user.is_authenticated: buyer = request.user
-                else: return JsonResponse({"error": "Sign in before selecting order fulfillment."}, status=401)
+            if isinstance(data, dict):
+                from .product_ownership import authenticated_actor, owns_product
+                buyer, error = authenticated_actor(request)
+                if error is not None: return error
                 if str(data.get("buyer_user_id")) != str(buyer.pk):
                     return JsonResponse({"error": "The order buyer must match the signed-in account."}, status=403)
                 request.fulfillment_buyer = buyer
+                product_id = data.get('product_id')
+                if isinstance(product_id, (str, int)) and str(product_id).isdecimal():
+                    from api.models import Product
+                    product = Product.objects.filter(pk=product_id).first()
+                    if product is not None and owns_product(buyer, product):
+                        return JsonResponse({'error': 'You cannot purchase your own product.'}, status=403)
         return view(request, *args, **kwargs)
     return wrapped
 
@@ -49,6 +52,8 @@ def presentation(order):
         "Out for Seller Delivery" if delivery and order.delivery_started_at else
         "Collected" if not delivery and order.picked_up_at else status_label(order))
     return {"fulfillment_method": order.fulfillment_method,
+        "payment_method": ("cash_on_delivery" if delivery else "cash_on_pickup") if order.fulfillment_method else "",
+        "payment_method_label": ("Cash on Delivery" if delivery else "Cash on Pickup") if order.fulfillment_method else "Not recorded",
         "fulfillment_label": order.get_fulfillment_method_display() if order.fulfillment_method else "Not recorded",
         "fulfillment_progress": progress, "status_label": status_label(order),
         "delivery_destination": order.delivery_destination,
@@ -66,8 +71,12 @@ def creation_fields(data):
     if not isinstance(destination, str) or len(destination.strip()) > 500:
         raise ValueError("Delivery destination must be text of at most 500 characters.")
     destination = destination.strip()
-    if method == "seller_delivery" and not destination:
-        raise ValueError("Enter the destination for seller delivery.")
+    if method == "seller_delivery" and (len(destination) < 5 or not any(c.isalnum() for c in destination)):
+        raise ValueError("Enter a meaningful delivery location (5–500 characters).")
+    payment = data.get("payment_method")
+    expected = {"pickup": "cash_on_pickup", "seller_delivery": "cash_on_delivery"}.get(method)
+    if payment is not None and payment != expected:
+        raise ValueError("Payment method must match the selected receiving method.")
     if method != "seller_delivery" and destination:
         raise ValueError("A delivery destination applies only to Seller Delivery.")
     return {"fulfillment_method": method, "delivery_destination": destination}

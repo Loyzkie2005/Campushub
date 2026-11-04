@@ -1,5 +1,288 @@
 # Product Details — approval, listing and inventory
 
+## Current: automatic product ownership and buyer-action protection - November 4, 2026
+
+### 1. Cause / reason
+
+Confirmed in the existing implementation: Product Details used a caller-supplied `ownerView` flag. Ordinary catalog entry points did not supply it, while the notification entry point did. That flag also suppressed the rating summary, reviews and recommendations, which should remain visible to the owner. The order API previously authenticated only requests carrying a fulfillment method, so a legacy-shaped request could skip that binding. The interaction endpoint accepted a supplied user ID without authenticating it. Cart and favorites are local Flutter storage, not Django cart/favorite tables.
+
+The user requested automatic actual-owner detection, no buyer controls or reserved purchase-bar space for owners, retained product content, and matching backend protection. Seller role alone must never decide ownership.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / anchor | Change and reason |
+| --- | --- | --- |
+| `campushub/lib/module_app/services/product_ownership.dart` |4 `ownsProduct`;16 `authenticatedProductViewer` | New small shared identity helper. Compare the authenticated mobile account with the actual namespaced seller reference. Missing identity returns unknown, not permission to buy. |
+| `campushub/lib/module_app/screens/product_details_screen.dart` |86 `_resolveOwnership`;102 `didUpdateWidget`;175 `initState`;213 recommendations | Replace the public manual owner flag with resolved session ownership; reset safely on product/owner changes; load recommendations for owners too. |
+| Same screen |269 favorite;323 selection;349 cart;403 checkout;445 chat;537 header actions;637 bottom bar | Gate UI and callbacks from the resolved identity. Use `bottomNavigationBar: null` for owners/unknown identity, removing its reserved space. Retain normal buyer controls otherwise. |
+| Same screen |990 seller tap;1030 reviews;1653 seller chevron;2094 related cards | Preserve seller details and all review/recommendation sections, disable self-chat entry, and hide recommendation hearts for products owned by the viewer or with unknown ownership. |
+| `campushub/lib/module_app/screens/notification_product_page.dart` |102 existing ProductDetailsScreen call | Remove its manual owner override; pass its existing actual seller fields into the same automatic page logic. |
+| `campushub/lib/module_app/services/product_service.dart` |107 `ensureBuyerIntent`;195 `trackInteraction`;210 bearer header | Use the existing interaction URL to validate cart/favorite/chat intent against authenticated backend ownership before local actions; authenticate ordinary interaction tracking too. |
+| `campushub/lib/module_app/services/cart_service.dart` |46 `quickAdd`;87 `addFromProduct`;97 buyer-intent check | Central check before local cart persistence, also covering quick-add callers. Display a failure instead of false success when the backend rejects an action. |
+| `backend/core/modules/marketplace/services/product_ownership.py` |10 `owns_product`;18 `authenticated_actor`;28 `require_other_owner` | One server ownership predicate, preserving distinct mobile/Django account namespaces. Authenticate bearer or active Django session without trusting a body ID. |
+| `backend/core/modules/marketplace/services/fulfillment.py` |18 `fulfillment_buyer_guard`;31 bound buyer;36 ownership check | Apply authentication, buyer-ID binding and self-purchase denial to all order creation, including legacy fields and before an idempotent replay. |
+| `backend/core/modules/marketplace/services/checkout.py` |8 `quote_cart(..., buyer=...)`;29 ownership check | Validate every supplied cart item against the actual buyer before returning checkout quotes. Retain original pricing, shared-stock and variant/bundle rules. |
+| `backend/core/api/views.py` |1989 quote;2002 buyer-aware service;2097 locked-order ownership;2186 interaction;2230 denial;2233 allow response | Reuse existing routes and JsonResponse handlers. Recheck ownership under the product lock before any stock reservation; reject forged/self interactions. No parallel API or route. |
+| `backend/core/modules/marketplace/test_product_ownership.py` |17 new `ProductOwnershipTests` | Seven meaningful authenticated database regressions for own/other owner, namespace collisions, missing/forged/inactive credentials, malformed input, legacy orders and locked revalidation. |
+| `backend/core/modules/marketplace/test_checkout.py` |24 buyer token;33 order buyer;104 replay payload | Existing checkout fixtures now use a different actual buyer from their seller. Seller-setting operations retain seller authentication. |
+| `backend/core/modules/marketplace/test_fifo_inventory.py` |24 separate buyer;145 order helper | Keep existing inventory fixtures/operator, while purchase requests use a separate signed-in buyer. |
+| `backend/core/modules/marketplace/test_order_fulfillment.py` |25/42 buyer requests;110 replay;130 logout | Same fixture correction for delivery/pickup and authenticated replay/logout checks. Runtime inventory/fulfillment rules were not weakened to allow self-purchases. |
+| `campushub/test/product_details_layout_test.dart` |184 ownership math;201 role/owner matrix;263 missing identity;280 recommendations;333 API denial | Session-backed own/other/unknown/loading cases, no footer gap, retained reviews/recommendations and actual navigation. Update the existing font expectations to the unchanged current `AppTypography.family`, rather than changing typography for this task. |
+| `campushub/test/notification_product_page_test.dart`; `campushub/test/checkout_layout_test.dart` | owned product seller reference / existing local-cart setup | Adapt fixtures to automatic ownership and the actual cart authorization contract. Existing navigation/layout assertions remain. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entries | Preserve implementation, data flow, API contract, checks and safe verification. |
+
+### 3. Changes made
+
+For a signed-in mobile owner, Product Details shows no Chat, Add to Cart, Buy Now, favorite/heart action, or bottom purchase bar. The Scaffold receives no bottom bar at all. No Manage Product replacement is introduced. Product images, names, price, variants, description, seller identity/presence, supplied ratings, reviews and recommendations remain. Existing approval status/rejection details from authorized notification data remain available.
+
+For a different actual owner, the existing buyer design and callbacks remain. An approved seller buying another seller's item has the same buyer UI as other accounts. Header Cart/Favorite and the existing availability restrictions remain for buyers. Owner/unknown pages omit those header buyer actions, disable seller-row chat and its chevron, and keep Back navigation. Unknown/loading user, token, owner reference or product identity does not briefly render buyer actions.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+1. Existing callers pass the real `sellerRef`/`sellerId` from `ProductItem`, parsed from the existing product response. `_resolveOwnership` reads the saved authenticated session user and bearer token through `authenticatedProductViewer`. The route's optional `userId` is not trusted as the logged-in identity.
+2. `ownsProduct(mobileUserId, sellerRef: ..., sellerId: ...)` returns true, false or null. References preserve account source: `mobile:7` belongs to mobile user7, while `admin:7` belongs to a different account. A legacy integer seller ID represents the existing Django seller namespace; malformed/missing references remain unknown. No display name, seller role or manual switch determines ownership.
+3. `_canInteract` requires a valid product ID and a resolved different owner. Initial null ownership hides actions before asynchronous loading finishes. Product/owner changes invalidate the prior result; a generation counter discards stale ownership completions. Recommendations use the resolved authenticated viewer and load for both owners and buyers. Their original product rows, ordering and detail navigation are preserved.
+4. Before adding a local cart row, `CartService.addFromProduct` calls `ensureBuyerIntent(productId, 'cart')`. Favorite additions and seller-chat entry on this page similarly validate intent before acting. The existing `/api/products/interaction/` endpoint accepts optional `intent=cart|favorite|chat`, derives the real actor from bearer/session authentication, checks the body ID matches that actor, and compares actual Product ownership. An allowed intent returns `{allowed: true, product_id: ...}` without writing a tracking/cart/favorite record. Client persistence requires an affirmative matching response. Errors/timeouts leave local additions unchanged and report failure. Removing an already saved favorite remains a local cleanup operation.
+5. Checkout quote and order POSTs independently enforce ownership even if Flutter is bypassed. The order guard binds every request's buyer before the existing idempotency wrapper. The writer repeats the same ownership predicate after acquiring the original product lock, before inventory reservation, order creation or purchase interaction. The existing quote service checks every cart line, including mixed carts. Authenticating as another legitimate seller does not block normal purchases.
+
+Annotated identity example, not working product data:
+
+```text
+Authenticated mobile user: 7
+Product seller_ref mobile:7 -> owner -> read-only details, no purchase bar
+Product seller_ref mobile:8 -> different owner -> normal buyer actions
+Product seller_ref admin:7  -> different account namespace -> normal buyer actions
+Missing user/ref/product ID -> unresolved -> keep buyer actions hidden
+```
+
+The shared predicate is implemented once per platform because UI visibility and server authorization are separate responsibilities. FastAPI remains chat-only. Its existing direct-conversation service already rejects identical participant actor keys; it was inspected and left unchanged.
+
+### 5. Backend / API behavior
+
+Existing routes, models, serializers and buyer payload fields remain. The repository's current marketplace endpoints are Django JSON handlers; the fix reuses them rather than introducing duplicate DRF endpoints. `/api/orders/`, `/api/orders/quote/` and `/api/products/interaction/` now consistently require the existing bearer or valid session identity for the operations described above. Forged buyer/user IDs and self-purchase/buyer intents return403; missing/invalid credentials return the existing authentication errors. Malformed interaction IDs/types return400. Normal own-product view tracking remains allowed; a self-purchase tracking event does not.
+
+Order pricing, payment-versus-fulfillment separation, FIFO/bundle/variant reservations, audit/notification behavior, seller permissions and source data are unchanged. A rejected self-order does not reserve stock, create an order, write a purchase interaction or consume an idempotency operation. Buyer-intent checks make no server persistence claims for the locally stored cart/favorites.
+
+### 6. Database / migration impact
+
+None for working records: no models, migrations, data cleanup, seeds, account edits, checkout execution or inventory changes were performed in the configured working database. Regression setup and successful/denied order writes ran only in uniquely named disposable local PostgreSQL test databases. No new dependency or route was added.
+
+### 7. Tests performed / actual results
+
+- **80 Django tests passed in17.008 seconds**, no system-check issues: new ownership suite, checkout, fulfillment, FIFO inventory, mobile seller workspace and existing recommendation endpoint. Checks include authenticated owner denial with/without fulfillment fields, actual other-seller success, equal numeric IDs across mobile/admin accounts, forged/missing/inactive identity, malformed interaction data, mixed-cart rejection and ownership revalidation under the product lock. Existing inventory, stock restoration, seller access, delivery/payment and idempotent replay coverage remains.
+- **43 Flutter tests passed in23 seconds** across Product Details, notification entry and checkout layout. They verify initial hidden actions, session identity winning over a supplied route user ID, owner/other-owner/seller-role behavior, absent entire bottom bar and reserved space, retained reviews/recommendations with actual test rows, recommendation navigation restoring buyer controls, denied API preventing local cart/favorite writes, normal buyer add/favorite/variant/checkout behavior and responsive/dark/high-contrast layouts.
+- Whole-app **`flutter analyze --no-pub`: No issues found in19.2 seconds**. Dart formatting completed. Thirteen actual widget captures were generated; inspected owner390dp entry, owner280dp reviews/recommendations and unchanged buyer entry. Captures use isolated API-shaped fixtures and existing image fallbacks, not working catalog data. Evidence: `scratch/product-ownership-20261104/`, final backend log/JSON, `flutter-tests.log` and `renders/`.
+- Early runs identified obsolete self-buying checkout/FIFO fixtures, the manual notification expectation and older font assertions. Fixtures now use distinct authenticated buyers; the existing runtime font was preserved. A recommendation tap check initially targeted offscreen text; scrolling its actual card into view fixed the harness. No production authorization or stock rule was relaxed to make tests pass.
+
+Reproduce from the repository root:
+
+```powershell
+backend/core/venv/Scripts/python.exe -B scratch/product-ownership-20261104/run_checks.py --log=final-backend-tests modules.marketplace.test_product_ownership modules.marketplace.test_checkout modules.marketplace.test_order_fulfillment modules.marketplace.test_fifo_inventory api.test_mobile_seller_workspace api.tests.MarketplaceRecommendationTests
+```
+
+From `campushub/`: `flutter test --no-pub test/product_details_layout_test.dart test/notification_product_page_test.dart test/checkout_layout_test.dart`, then `flutter analyze --no-pub`. The Python helper uses the existing guarded disposable local PostgreSQL setup; do not run fixtures against working records.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device, deployed signed-in acceptance, real chat send or full-project test-suite run is claimed. UI failure/success tests use isolated transport responses; actual backend authorization, stock and persistence are separately tested in PostgreSQL. A stale already-saved local cart is not erased automatically, but quoting/submitting its self-owned item is denied. Other screens' local favorite collections were not redesigned or purged.
+
+The app and Django backend need this matching contract: an older server that does not affirm buyer intent cannot authorize a new local cart/favorite/chat action through the updated client. Network failure reports an error instead of inventing permission. Missing owner metadata keeps controls hidden; check that the existing product response contains its actual seller reference. A role label, similar seller name or coincident numeric admin ID cannot substitute for ownership. The existing reviews implementation may truthfully report that individual reviews are unavailable; this task preserves it rather than creating review data.
+
+Safe exercise: with an existing signed-in seller, open one own product from the catalog and verify no heart/purchase bar/gap or Manage Product action, then scroll through seller information, ratings/reviews and recommendations. Open another seller's existing product and confirm the normal buyer controls return. Do not buy, favorite or message a working account just to test the restriction. Use `ProductOwnershipTests` for direct self-order/cart/favorite/chat/forged-ID denial and stock-preservation checks in the disposable database. Hot-restart the app and refresh the running backend checkout if the old manual behavior persists.
+
+## Current carousel spacing, stemless Back and gray controls — October 30, 2026
+
+### 1. Cause / reason
+
+The user requested arranged carousel spacing, a Back arrow without its straight/horizontal stem, and gray or transparent containers for Back/Cart/Favorite. Gray was selected so the navy icons remain readable over uploaded photos. Confirmed: the prior header could reach440dp and always reserved a48dp pagination strip, including one-photo products.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/product_details_screen.dart` |473 `expandedHeight: _ProductHeroImage.heightFor`;485 `LucideIcons.chevronLeft` | Reuses the gallery height helper; replaces the stemmed Back glyph with a22dp chevron. The original Navigator pop callback remains. |
+| Same screen |621 `_ProductHeroImage`;637 `heightFor`;646 gallery height;671 `if (indicatorCount > 1)` | Compact photo stage, matching header/gallery geometry, meaningful multi-image pagination and16dp single-image spacing. |
+| Same screen |728 `_ProductHeaderButton`;750 `headerControlSurface`;755 `BorderSide.none` | Matching borderless gray controls in both favorite states;48dp size, native feedback, tooltips and selected semantics remain. Related-product hearts already reuse this helper and receive the same gray surface. |
+| `campushub/lib/module_app/theme/marketplace_colors.dart` |18 `headerControlSurface` | Added one shared `#EEF0F3` control-surface token. |
+| `campushub/test/product_details_layout_test.dart` |192 gray controls;202 chevron;224 single-photo spacing;387 selected Favorite;555 multi-photo pagination;593 indicator tap | Extended existing tests for the requested styling/spacing and original page-selection behavior. No duplicate test screen was created. |
+| `campushub/DESIGN.md` |90 `header`;91 `gallery` | Updated the current control and carousel specifications. |
+| `CAMPUSHUB_CONTEXT.md` |3 carousel/gray-control summary | Saved current behavior, verification and source-only workflow. |
+| `docs/product-details-status-inventory.md` |3 this section | Updated the existing feature/debugging guide. |
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Width×1.05 header, up to440dp | Photo height clamped240–320dp plus only the needed lower spacing | Reduces empty carousel height. |
+| One dot and48dp strip for a single image | No pagination;16dp before product information | A one-image product has no additional page to navigate. |
+| Straight-stem arrow | Simple left chevron | Implements the requested Back shape. |
+| White outlined controls and gold selected Favorite backing | Consistent borderless light-gray circles | Matches the requested gray treatment across Back/Cart/Favorite. |
+
+### 4. How it works — functions, inputs/outputs and data flow
+
+`_ProductHeroImage.heightFor(width, imageCount)` accepts the logical screen width and the existing display-image count. It returns `width.clamp(240, 320) + (imageCount > 1 ? 48 : 16)`. Both `SliverAppBar.expandedHeight` and the gallery read this helper, avoiding separate formulas that can drift apart. The photo remains `BoxFit.contain`; the lower area is a centered48dp pagination row for multiple images or a16dp spacer for one image.
+
+The existing `_galleryImages` data still determines the pages. Swiping and tapping dots call the same page-index handlers, including direct jumps under reduced motion. `_ProductHeaderButton` reads `ProductDetailsColors.headerControlSurface` regardless of selection; Favorite still changes from outline to filled and exposes selected semantics. Back and Cart retain their original navigation callbacks. No product-information sections were edited.
+
+Annotated example: at390dp width, a single-photo gallery uses320+16=336dp expanded height; two photos use320+48=368dp. System top-safe padding is handled separately by the existing SliverAppBar. In the two-image fixture, choosing the saved image-linked color still opens page2, and tapping the first indicator returns to page1.
+
+### 5. Backend / API behavior
+
+Unchanged. Product/image/option data, permissions, recommendations, chat, favorites, cart and checkout keep their existing sources/handlers. This change makes no server request or payload change.
+
+### 6. Database / migration impact
+
+None. No records, models, migrations, dependencies, image assets, runtime configuration or deployment changes.
+
+### 7. Tests performed / actual results
+
+- `flutter test --no-pub test/product_details_layout_test.dart test/product_item_test.dart test/notification_product_page_test.dart` passed **29/29 tests in9seconds**. Capture environment enabled the existing font-loaded renderer.
+- Existing tests now verify the chevron,48dp borderless gray controls, gray selected Favorite,16dp single-photo gap, no unnecessary single-photo dots, multi-photo48dp strip/targets and working indicator navigation. Existing variant/cart/checkout/owner/rating/responsive cases still pass.
+- Nine actual Flutter widget captures were written under `scratch/product-details-carousel-spacing-20261030/`. Inspected390dp coffee entry and320dp2× details: spacing is compact and gray controls remain clear. These are fixture renders, not phone screenshots or generated product images.
+- Three-file Dart analysis returned **No issues found**. Final `dart format --output=none --set-exit-if-changed` reported **3 files,0 changed** in0.09seconds; scoped `git diff --check` returned no errors.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No app/device/server launch, restart, reload, build or installation was performed. Physical-device/TalkBack verification remains pending; the user retains Ctrl+F5 control. Existing `BoxFit.contain` letterboxing for different photo shapes is intentional. A missing photo still uses the existing placeholder. A one-photo product intentionally has no pagination dots.
+
+If an unexpected gallery gap appears, compare the actual image count and both calls to `heightFor`, rather than adding independent padding to the app bar. Safe exercise: run the existing layout tests, then temporarily change the test fixture from one image to two distinct data-image URLs. Verify pagination appears with48dp tap targets, the product overview remains immediately below that strip, and tapping a dot changes page. Restore the fixture and rerun; no live catalog edit is needed.
+
+## Current reference-photo layout, all information retained — October 30, 2026
+
+### 1. Cause / reason
+
+The user supplied sweatshirt and shoe product-detail references and clarified: redesign the **layout only**, preserve all contents/information, and remove the selected navbar container. The earlier navy-summary/gradient experiment below is superseded by this flatter reference-inspired layout. The shared navbar change is documented in [the existing Profile/navigation guide](mobile-profile.md), under Navbar selection without a background box.
+
+### 2. Exact files changed / current anchors
+
+All paths are repository-relative. Current source lines below describe this revision; named anchors are useful if later edits move them.
+
+| File | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/product_details_screen.dart` |473 `expandedHeight`;621 `_ProductHeroImage` | Photo stage uses width×1.05 clamped280–440dp, flat neutral backing and `BoxFit.contain`, showing the complete uploaded photo. Header/gallery share the same height formula. |
+| Same screen |814 `_ProductInfoContainer`;873 `product-overview`;993 `_ProductHeading`;1075 `TextPainter` | Removed the decorative summary container; added the reference's name/price row, category and review summary below. Actual badge/sold information remains.20dp gutters and620dp maximum content width. Heading measures the real scaled price and stacks it when necessary. |
+| Same screen |1138 `_ProductVariantChoices`;1158 `constraints.maxWidth >= 600`;1235 `StadiumBorder` | Each saved option group has a full-width phone row. Two groups split only at600dp content width and normal text. White outlined option pills become navy/white when selected; native selection semantics remain. |
+| Same screen |1497 `_SellerIdentity`;1606 `_ProductBottomBar`;1622 `StadiumBorder`;1789 `_ProductReviewSummary`;1906 `_ProductReviewsSection` | Seller/reviews are flat sections, with original information/callbacks. Review summary has readable navy/gray styling on white. All three purchase actions remain; Buy Now gains the reference's pill shape and keeps its existing large-text fallback/loading/disabled behavior. |
+| `campushub/lib/module_app/theme/marketplace_colors.dart` |10 `ProductDetailsColors` | Removed now-unused summary/gallery gradients and inverse-text color; retained navy, scoped gold, white, neutral and notice colors. |
+| `campushub/lib/module_app/widgets/navigation/floating_bottom_navbar.dart` |198 `_buildNavItem`;259 `SizedBox` →262 `Center` | Removed the selected-background `DecoratedBox`, preserving the existing icon layout and navigation behavior. See navigation guide for full report. |
+| `campushub/test/product_details_layout_test.dart` |161 header/gallery assertions;218 review geometry;638 name/price/content/footer;791 phone/wide options;996 render harness | Updated existing assertions for contained photos, heading/review order, responsive price placement and full-width phone option groups. Existing functional tests remain. |
+| `campushub/test/floating_bottom_navbar_test.dart` |213 reduced-motion selection;262 tab switching;328 no indicator/DecoratedBox;474 capture directory | Existing tests verify no selection container after any tab click while glyphs, semantics, callbacks and dock geometry still work. |
+| `campushub/DESIGN.md` |87 `product-details`;161 `bottom-navigation`;285 floating-navbar specification | Recorded the final flat layout and unboxed navbar selection. |
+| `CAMPUSHUB_CONTEXT.md` |3 reference-layout summary | Saved current direction/checks without replacing the recent profile-header guidance. |
+| `docs/product-details-status-inventory.md`, `docs/mobile-profile.md` | This section; Navbar selection without a background box | Updated existing implementation/learning guides. |
+
+### 3. Changes made / Before–After rationale
+
+| Before | After | Why |
+| --- | --- | --- |
+| Rounded gradient photo stage with cropped `BoxFit.cover` | Larger flat neutral stage with `BoxFit.contain` | Matches the photo-led references and preserves the whole uploaded product image. |
+| Name, reviews and price inside a navy panel | Name left, price right, actual category/reviews underneath on white | Reproduces the reference's reading hierarchy while retaining the saved information. |
+| Two phone option groups competed for width | Full-width group rows on phones; outlined/selected navy pills | Keeps available choices readable and gives the size row room to fit. |
+| Seller and reviews inside pale cards | Flat sections with the same identity, presence, reviews and empty states | Uses the references' continuous content layout. |
+| Rounded-rectangle Buy Now | Pill-shaped Buy Now; Chat and Add to Cart retained | Applies the reference action shape while preserving every shopping action. |
+| Persistent selected navbar background box | Filled/navy glyph and selected semantics without the box | Implements the user's explicit navigation request. |
+
+The full Description stays visible. Category, badge, actual sold count, seller identity/photo/presence, optional expiry, unavailable notice, aggregate reviews and recommendations remain governed by their original data/visibility rules. No shoe sizes, clothing options, ratings, photos or other content from the reference images were hardcoded into the application.
+
+### 4. How it works — functions, inputs/outputs and data flow
+
+- `_ProductHeroImage` takes the existing URL list, page controller/index and callbacks. `ProductImage` still performs the existing loading/error/size-bounded decoding; `fit: BoxFit.contain` changes only how the resulting image is laid out. Indicators, swipe, favorites, cart and reduced-motion jumps keep their original handlers.
+- `_ProductInfoContainer` receives the same fields and places `_ProductHeading(name, priceText, badge)` first, then the real category/reviews/sold line, choices, description, seller and optional information. Its output is a widget tree; it does not mutate products or calculate server stock.
+- `_ProductHeading` creates the same peso-aware price span and uses `TextPainter` with the actual `TextScaler` to measure its width. It stacks name then price when scaled20sp exceeds28dp, content width is below260dp, or price needs more than38% of the row. Otherwise `Expanded` gives the name remaining width and price sits at the right. The temporary painter is disposed after measurement. Long names wrap rather than being deleted or abbreviated.
+- `_ProductVariantChoices` receives only the saved groups/selection map/callback. At phone widths each group gets the whole row; two groups can share a row at600dp content width if scaled13sp≤18dp. The existing `_toggleOption` still changes the selection map; `_unitPrice` still adds saved extra prices; `_purchaseSelection()` still validates required choices and produces quantity1 with the same payload for Cart/Checkout.
+- `_ProductBottomBar` uses the same three callbacks/flags; only the Buy Now shape changes here. Its existing large-text two-row arrangement keeps the labels readable, and `Scaffold.bottomNavigationBar` reserves the footer height.
+
+Annotated isolated-fixture example: saved base250 + Size M extra10 → price260 in the right side of the normal header. At2× text the same260 moves below the name, and Cart/Checkout still receive Size M and quantity1. No price or stock value is inferred from the screenshot.
+
+### 5. Backend / API behavior
+
+No backend/API changes. Existing Django catalog/variants/prices/stock/checkout validation and owner permissions remain authoritative; chat remains on its existing service. Favorites, cart, review jump and recommendations keep their original callbacks/data sources. Existing parent profile-name/photo headers are untouched.
+
+### 6. Database / migration impact
+
+None. No migrations, live records, images, settings, dependencies or deployment were changed. Render data and mock preferences remain isolated test fixtures.
+
+### 7. Tests performed / actual results
+
+- Final combined **43/43 Flutter tests passed in11seconds**: `flutter test --no-pub --dart-define=CAPTURE_FLOATING_NAV=true test/product_details_layout_test.dart test/floating_bottom_navbar_test.dart test/product_item_test.dart test/notification_product_page_test.dart test/dashboard_center_add_button_test.dart` from `campushub/`.
+- Capture environment used `PRODUCT_DETAILS_REVIEW_DIR=.../scratch/product-details-reference-20261030` and the available local `PRODUCT_DETAILS_REVIEW_ROBOTO` font. Nine actual-font product widget renders and four navbar renders were produced. Navigation output is `scratch/floating-navbar-no-selection-20261030/`. Inspected product entry/coffee/lower/320dp2×/landscape and both normal/seller390dp navbar captures. These are actual Flutter fixture renders, not physical-phone screenshots or replacement artwork.
+- Existing coverage includes name/price row and stack, full description, all saved choices/required validation, actual selected price/cart/checkout payload, linked option photo, favorites/cart count, invalid/no-rating states, fractional stars/review jump, seller-photo fallback, owner/unavailable restrictions,280/320/375/390dp,812dp wide/landscape,2× text, dark parent, high contrast and safe-bottom clearance. Nav tests also cover768dp,844dp landscape,3× text, rapid selection, selected semantics, full touch targets and seller Add Product remaining an action.
+- Five-file `dart analyze` passed **No issues found** after the final implementation. Final `dart format --output=none --set-exit-if-changed` reported **5 files,0 changed** in0.11seconds. Scoped `git diff --check` returned no errors.
+
+### 8. Remaining limitations / debugging / safe practice
+
+- No app/device/backend launch, restart, hot reload, APK build or installation was performed. Use the user's existing Ctrl+F5 workflow to view actual saved products. Physical-device/TalkBack/live-chat verification and pixel-identical image matching are not claimed. References determine layout only; real product photos/content differ.
+- Missing-photo fixtures intentionally show the existing image fallback; `BoxFit.contain` may leave neutral letterboxing for portrait/landscape uploads. This is how the whole original photo remains visible. No fake reference photo was added. Current capture recommendations are empty mock results; no new populated-recommendation test is claimed.
+- The earlier optional design-kit gate remains absent. This report claims the actual Flutter tests/analysis/render inspection above, not a kit-wide or full accessibility pass. Existing native focus/press feedback remains available.
+- Debugging: if price stacks, inspect `_ProductHeading`'s actual width/text scaling rather than hardcoding a phone width. If options still split on a wide device, inspect the content constraint600dp. If a clicked navbar item shows only a temporary ripple/focus surface, that is existing input feedback; the persistent selected `DecoratedBox` is removed.
+- Safe exercise: change only the isolated test fixture's price to `123456.78` and text scale to2, then run the existing Product Details tests/capture command. Confirm the complete price is available on a separate line and all saved content remains scrollable. Restore the fixture. No live product/order edit is needed.
+
+## Current Flutter navy/gold redesign, existing sections retained — October 30, 2026
+
+### 1. Cause / reason
+
+The user supplied the existing mobile product-detail screenshot and requested a visual redesign using navy and gold, explicitly allowing gradients. This is a presentation change to the existing Flutter route. It supersedes the earlier cream image backing, smaller type, tight12dp spacing and solid-navy Buy Now styling described in the historical sections below.
+
+**Design direction:** campus marketplace; student/faculty shoppers; confident and readable; subtle selection feedback; photo stage → leading navy summary → saved choices → full description → seller → reviews → recommendations, with fixed purchase actions. The navy summary leads; the remaining sections use quieter white/neutral surfaces.
+
+### 2. Exact files changed / current line anchors
+
+| File | Current lines and nearby anchor | What changed and why |
+| --- | --- | --- |
+| `campushub/lib/module_app/theme/marketplace_colors.dart` | 10 `ProductDetailsColors` | Added scoped navy/gold, neutral, pale-gold and gradient tokens so the new presentation has one palette definition. The requested Product Details gold is exactly `#FCB316`. Existing shared marketplace white card tokens remain at5–6. |
+| `campushub/lib/module_app/screens/product_details_screen.dart` | 119 `_selectImage`;126 `jumpToPage`;549 `category: widget.category`;620 `_ProductHeroImage`;725 `_ProductHeaderButton`;760 `_ProductDetailsCartButton` | Reduced motion now jumps instead of animating the gallery. Forward actual category to the information widget; round the gallery's lower corners, replace cream with a gentle navy/white/gold backing, keep actual images clear, enlarge indicator targets to48dp, give selected favorites a pale-gold backing and use the scoped gold for the cart count. |
+| Same screen | 819 `_ProductInfoContainer`;878 `product-summary-panel`;1071 `_ProductDescription`;1105 `_ProductVariantChoices`;1186 `MaterialTapTargetSize.padded`;1242 `_ColorVariantChoice` | Added620dp bounded reading width,24dp section rhythm and a rounded navy summary containing saved category, reviews, badge/name and gold price. White name26sp, price32sp, description14sp. Choices retain saved data; text chips gain selected checks/pale gold and48dp targets; color-swatch targets also grow to48dp. |
+| Same screen | 1461 `_SellerIdentity`;1547 `Flexible`;1575 `_ProductBottomBar`;1598 `largeText`;1685 `_BottomIconTextAction` | Pale rounded seller surface,44dp photo and full wrapping name; status text can shrink/wrap inside its row. Gold Buy Now becomes the primary action; footer uses a centered620dp maximum and SafeArea. When scaled14sp exceeds20dp, Chat/Add to Cart occupy a row above full-width Buy Now. |
+| Same screen | 1760 `_ProductReviewSummary`;1833 `_ProductRatingStars`;1877 `_ProductReviewsSection`;1950 `_YouMayAlsoLikeSection`;2005 `_RelatedProductCard` |48dp accessible review jump, light text on navy and gold actual-rating stars. Reviews get a pale rounded surface. Removed the old static `See All` text because it was not an action and had no destination. Related cards reuse native48dp Favorite buttons and size their list height from scaled text. |
+| `campushub/test/product_details_layout_test.dart` |86 `showProduct`;161 titleless-header test;637 section/footer geometry;958 responsive matrix;979 capture test | Updated existing geometry/surface assertions and capture helper; verified48dp chip targets and added280dp, dark-parent, high-contrast and safe-bottom scenarios to the existing matrix. Coffee data is an isolated render fixture; it is never saved or sent to Django. |
+| `campushub/DESIGN.md` |87 `components.product-details` | Recorded this current product-only direction and the unchanged data contract. |
+| `CAMPUSHUB_CONTEXT.md` |3 `Product Details navy/gold visual redesign` | Saved current direction, real verification results and the user's source-only/device workflow. |
+| `docs/product-details-status-inventory.md` |3 this section | Updated the existing learning/debugging guide rather than creating a duplicate. |
+
+### 3. Changes made / expected behavior
+
+- Existing sections and conditional information remain in their established sequence. Actual category is visible again, as in the user's supplied screenshot, inside the summary. Blank category is hidden.
+- Rounded gallery backing blends `#F4F4F8` → white → `#FFF7E5`; images use transparent backing and `BoxFit.cover`. No tint/filter is applied to uploaded photos. Pagination visuals stay compact inside48dp tap targets.
+- Navy summary blends `#1A1851` → deeper navy `#121138`; high contrast uses solid navy. White text and gold price establish the primary hierarchy without adding promotional claims or new data.
+- Seller and Reviews use quiet pale-neutral surfaces; Description remains fully expanded. Native button/chip feedback, required-choice messages, cart loading/added state and disabled purchase behavior remain available.
+- Full-width Buy Now on large text avoids splitting Chat into individual letters. Extra footer height is reserved by the existing `Scaffold.bottomNavigationBar`, so the body still scrolls normally.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+1. `ProductDetailsScreen` still receives the same `ProductItem` values and saved `ProductCustomizationConfig`. It passes `widget.category` to `_ProductInfoContainer` in addition to the existing fields; this is a display value, not a new backend field.
+2. `_ProductHeroImage(images, currentIndex, controller, callbacks)` renders the original `PageView` over `ProductDetailsColors.galleryGradient`. Swiping updates `_onImagePageChanged`; tapping an indicator or image-linked option calls `_selectImage(index)`. That function either jumps directly for reduced motion or runs the original250ms page animation.
+3. `_ProductInfoContainer` reads the scoped palette and builds the same information sequence. Its summary consumes actual name/category/price/rating data. `MediaQuery.highContrastOf` selects the solid navy alternative. The centered width constraint changes only the reading measure.
+4. `_ProductVariantChoices` still calls `_toggleOption(group, option.name)` at263. That function updates the existing `_selectedOptions` map, `_unitPrice` recomputes the amount, and `_purchaseSelection()` at280 validates required groups and returns `BuySelection(quantity: 1, selections, summary, unitPrice)`. Both cart and `_openCheckout` at358 consume that same selection.
+5. `_ProductBottomBar` receives the existing callbacks and `canPurchase/isAddingToCart/addedToCart`. Its `largeText` decision changes layout only; both arrangements use the same three action widgets. `_SellerIdentity` receives the same photo/name/presence values and existing chat callback. Reviews and recommendations continue to use only supplied/fetched real values.
+
+**Annotated example using the existing isolated test fixture:** base price250 + saved Size M extra10 + saved Front extra5 + saved Back extra8 → displayed273. `Buy Now` still passes the exact three saved selections and quantity1 to checkout. The new gold styling never changes that arithmetic or creates an order. Saved red/green/etc. product swatches and uploaded image pixels are product content, not extra application accent colors.
+
+### 5. Backend / API behavior
+
+No backend/API edits. Existing Django catalog/recommendation/product/option data, server stock and checkout validation, permissions/owner view and FastAPI chat-only behavior remain authoritative. Existing favorite/cart services and navigation callbacks remain. No new review source, review-submission flow or fabricated aggregate was introduced. Static `See All` removal does not remove an API/action: the prior widget was plain `Text`.
+
+### 6. Database / migration impact
+
+None. No models, migrations, records, configuration, dependencies or image assets were changed by this task. Test/capture fixtures are memory-only and use mocked requests/preferences.
+
+### 7. Tests performed / actual results
+
+- Final command from `campushub`: `C:\flutter\bin\flutter.bat test --no-pub test/product_details_layout_test.dart test/product_item_test.dart test/notification_product_page_test.dart` with `PRODUCT_DETAILS_REVIEW_DIR` and the available local Roboto font path set. **29/29 passed in14seconds**. Capture generation ran as part of this pass.
+- Final three-file `dart analyze` for the screen, palette and existing layout test: **No issues found**. Final `dart format --output=none --set-exit-if-changed` reported **3 files,0 changed** in0.11seconds. Scoped `git diff --check` returned no errors.
+- Existing tests exercise required options, single/multiple saved choices, correct price/cart/checkout payloads, linked option photos, honest invalid/missing-rating handling, fractional stars/review jump, favorites/cart count, full description, missing options, seller-photo fallback and owner/unavailable purchase restrictions.
+- Responsive matrix covers280dp normal text,320dp2x,390dp normal/2x,812dp landscape2x, light/dark parent themes, high contrast and24dp safe-bottom clearance. Standard375dp captures and landscape1.5x also render. This intentionally remains a white branded product-detail surface under a dark parent theme.
+- Nine actual-font widget PNGs were rendered in `scratch/product-details-navy-gold-20261030/`: entry, scrolled details,320dp large text, landscape, saved color/size choices, coffee entry/lower sections, dark parent and high-contrast unavailable state. Inspected the coffee, small-text, landscape, dark-parent and unavailable captures; corrected cramped footer labels based on those actual renders. These are Flutter fixture renders, not physical-phone screenshots or generated artwork.
+- Calculated WCAG relative-luminance ratios with Python: white/navy16.24:1; gold/navy and navy/gold8.97:1; muted/white4.97:1; muted/soft-navy4.53:1; secondary/navy12.40:1; navy/soft-gold15.22:1. These cover those static text pairs only, not a full accessibility certification or every pressed/focus state.
+- Initial analysis caught unsupported `clipBehavior` on `DecoratedBox`; using `Container` for the rounded clipping fixed it. The first widget run found a confirmed4.8dp overflow in the seller-status `Row` at320dp2x; wrapping its `Text` in `Flexible` fixed it. Final test run above passed after both fixes and the large-text footer adjustment.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+- No app/device/backend launch, restart, hot reload, APK build or installation was performed. Open Product Details through the user's existing Ctrl+F5 workflow to inspect real saved products. Physical-device/TalkBack and live chat were not exercised. The optional design-kit tokens/gate scripts are absent; no kit-wide gate pass is claimed. UI/UX Pro Max's verified Flutter `LayoutBuilder responsive` search supported constraint-based layout; its earlier broader query had no match.
+- The catalog's existing absence of genuine marketplace rating data remains an honest `No reviews yet`. The New/Hot rules are unchanged. A missing product photo remains an icon fallback; backing gradients do not invent a photograph. `BoxFit.cover` retains its existing portrait-photo cropping behavior.
+- Related-card favorite controls/list sizing were updated, but final captures use the honest empty recommendation response; no populated related-card render was added. Main gallery's saved-photo/controller path is exercised by the existing data-image fixture.
+- If the price changes unexpectedly, inspect saved extra prices and `_toggleOption`/`_purchaseSelection` before changing color or spacing code. If large-text footer arrangement differs, inspect the actual `TextScaler` result: the breakpoint is scaled14sp >20dp, not a fixed device width. If a gallery gradient is invisible behind an opaque photo, that is expected: the uploaded pixels cover its backing.
+- **Safe exercise:** in the isolated test, change `showProduct(... scale: 1)` to `scale: 2` for a temporary capture. Run the existing layout-test command with `PRODUCT_DETAILS_REVIEW_DIR` pointed under `scratch/`. Verify Chat/Add to Cart move above Buy Now, the full seller name can wrap, and the selected Size M still produces260 in the existing price assertion. Restore the fixture afterward. This demonstrates responsive presentation without editing a live product or submitting an order.
+
 ## Top-filling hero gallery on cream `#F9FDE7` image background, white Product Details section & marketplace cards, removed quantity, navy blue `#1A1851` heart, `Chat | Add to Cart` bottom bar, seller below Description, circular color swatches without select prompt text, and review stars above `[Badge] Product Name` — October 20, 2026
 
 1. **Cause / reason:** Following the user's request (`"/emil-design-eng /frontend-design redesign my products detailsremove the products details text =fill image in te top apply the cream color to the bg  then in marketplace card change to white then remove quantity yjrm change color o he heart to navyblue"`), their surface clarification (`"change back to white the section facility details"`, `"i mean product details got cream color remove that only bg on the image"`), their layout follow-up (`"can youbadd chat behind add to cart then has Chat | add to cart then move the seller below of the description"`, `"then insrtead add to cart button or container can you same as chat top is icon then buttom is text"`), their variant follow-up (`"remove text message please seklect colorsdo rvariants below of the variants can you do the colors variants cvircle color instead of texct? /emil-design-eng"`), and their heading hierarchy follow-up (`"can you move the review star top of product name then badge put left behind poduct name"`):

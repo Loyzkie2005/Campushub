@@ -125,6 +125,15 @@ class DashboardServicesTests(fixtures.DedicatedDomainDashboardTests):
             self.assertNotIn('Upcoming Bookings', section)
             self.assertNotIn('Most Requested Service', section)
             self.assertNotIn('operationalAttentionTitle', html)
+            services_markup = html[html.index('<section class="executive-section executive-services"'):html.index('data-users-overview')]
+            self.assertNotIn('<details', services_markup)
+            self.assertNotIn('<summary', services_markup)
+            self.assertEqual(services_markup.count('dash-card services-card'), 4)
+            trend_start = services_markup.index('data-empty-region="service-trend"')
+            trend_markup = services_markup[trend_start:services_markup.index('</article>', trend_start)]
+            self.assertIn('Service Summary', trend_markup)
+            self.assertIn('id="serviceGroupingSelect"', trend_markup)
+            self.assertEqual(trend_markup.count('data-service-metric='), 4)
             self.assertEqual(section.count('data-service-metric='), 4)
             data = self.payload()
             for url in (reverse('admin_services_page'), reverse('admin_service_requests_page'), data['executive']['analytics_urls']['services']):

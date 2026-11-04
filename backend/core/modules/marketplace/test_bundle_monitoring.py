@@ -32,6 +32,8 @@ class BundleMonitoringTests(TestCase):
         super().setUpClass()
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()  # Disposable test process only; isolate explicit-run results.
         self.program, _ = Department.objects.get_or_create(code="BSIT", defaults={"name": "Information Technology", "is_program": True})
         self.other, _ = Department.objects.get_or_create(code="BFPT", defaults={"name": "Food Technology", "is_program": True})
         self.root = User.objects.create_superuser(username="monitor-root", password="test", email="root@example.test")
@@ -48,6 +50,107 @@ class BundleMonitoringTests(TestCase):
             name="Test Cookie", category="Food", price=10, stock=20, approval_status="approved")
         self.row = BundleRecommendation.objects.create(product_a=self.a, product_b=self.b, metrics={"support": 25, "confidence": 80, "lift": 2})
         self.client.force_login(self.root)
+
+    def test_carousel_one_saved_pair_per_server_page_and_role_actions(self):
+        for index in range(2):
+            product = Product.objects.create(mobile_seller=self.seller, department=self.program,
+                name=f'Carousel product {index}', price=10, stock=20, approval_status='approved')
+            BundleRecommendation.objects.create(product_a=self.a, product_b=product)
+        before = (Product.objects.count(), BundleRecommendation.objects.count(), AccountActivity.objects.count())
+        ids = list(BundleRecommendation.objects.order_by('-generated_at', '-pk').values_list('pk', flat=True))
+        import os
+        from pathlib import Path
+        directory = os.environ.get('BUNDLE_CAROUSEL_REVIEW_DIR')
+        for role, actor in [('super', self.root), ('manager', self.manager)]:
+            self.client.force_login(actor)
+            for number in range(1, 4):
+                with patch('modules.marketplace.services.bundle_suggestions.build_bundle_suggestions', side_effect=AssertionError('No mining on GET')):
+                    response = self.client.get(reverse('bundle_monitor_list'), {'page': number})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.context['current'].paginator.per_page, 1)
+                self.assertEqual(len(response.context['rows']), 1)
+                self.assertEqual(response.context['rows'][0]['id'], ids[number - 1])
+                self.assertContains(response, 'class="bm-carousel-slide"', count=1)
+                self.assertContains(response, 'class="bundle-product-photo"', count=2)
+                self.assertContains(response, f'Suggestion {number} of 3')
+                self.assertContains(response, '<h1>Suggested Product Bundle</h1>', html=True)
+                for removed in ('class="bm-summary"', 'bm-source-subtitle', 'id="aprioriSummaryTitle"', 'id="frequentTogetherTitle"'):
+                    self.assertNotContains(response, removed)
+                self.assertEqual(response.context['rows'][0]['can_send'], role == 'manager')
+                self.assertContains(response, 'data-bundle-send-form', count=1 if role == 'manager' else 0)
+                if number == 1:
+                    self.assertContains(response, 'disabled aria-label="Previous suggestion"')
+                if number == 3:
+                    self.assertContains(response, 'disabled aria-label="Next suggestion"')
+                if directory:
+                    target = Path(directory); target.mkdir(parents=True, exist_ok=True)
+                    (target / f'{role}-{number}.html').write_bytes(response.content)
+                    record = response.context['rows'][0]
+                    (target / f'detail-{record["id"]}.html').write_bytes(self.client.get(
+                        reverse('bundle_monitor_detail', args=[record['id']]), {'format': 'drawer'}).content)
+            if directory:
+                import json
+                (Path(directory) / 'data.json').write_text(json.dumps({'ids': ids}), encoding='utf-8')
+        self.assertEqual(before, (Product.objects.count(), BundleRecommendation.objects.count(), AccountActivity.objects.count()))
+
+    def test_carousel_json_send_reuses_authorization_and_idempotent_workflow(self):
+        url = reverse('bundle_monitor_highlight', args=[self.row.pk])
+        self.assertEqual(self.client.post(url, HTTP_ACCEPT='application/json').status_code, 403)
+        self.client.force_login(self.manager)
+        with patch('modules.marketplace.services.bundle_monitoring.build_bundle_suggestions', return_value=self.live_result()):
+            first = self.client.post(url, HTTP_ACCEPT='application/json')
+            repeated = self.client.post(url, HTTP_ACCEPT='application/json')
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.json(), {'id': self.row.pk, 'sent': True, 'status': 'Awaiting Seller Response'})
+        self.assertEqual(repeated.json(), first.json())
+        self.assertEqual(AccountActivity.objects.filter(activity_type='BUNDLE_SUGGESTION_HIGHLIGHTED').count(), 1)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.sent_by, self.manager)
+        page = self.client.get(reverse('bundle_monitor_list'))
+        self.assertNotContains(page, 'data-bundle-send-form')
+        self.assertContains(page, 'Awaiting Seller Response')
+
+    def test_carousel_send_errors_csrf_scope_and_empty_are_not_success(self):
+        from django.test import Client
+        url = reverse('bundle_monitor_highlight', args=[self.row.pk])
+        self.client.force_login(self.manager)
+        with patch('modules.marketplace.services.bundle_monitoring.build_bundle_suggestions', return_value={**self.live_result(), 'rows': []}):
+            failed = self.client.post(url, HTTP_ACCEPT='application/json')
+        self.assertEqual(failed.status_code, 409)
+        self.assertIn('error', failed.json())
+        with patch('modules.marketplace.bundle_monitoring_views.highlight', side_effect=DatabaseError('private details')):
+            failed = self.client.post(url, HTTP_ACCEPT='application/json')
+        self.assertEqual(failed.status_code, 503)
+        self.assertNotIn('private details', failed.content.decode())
+        Product.objects.filter(pk=self.a.pk).update(is_archived=True)
+        self.assertNotContains(self.client.get(reverse('bundle_monitor_list')), 'data-bundle-send-form')
+        Product.objects.filter(pk=self.a.pk).update(is_archived=False)
+        manage = Permission.objects.get(codename='can_manage_sellers')
+        self.manager.user_permissions.remove(manage)
+        self.assertNotContains(self.client.get(reverse('bundle_monitor_list')), 'data-bundle-send-form')
+        self.assertEqual(self.client.post(url, HTTP_ACCEPT='application/json').status_code, 403)
+        self.manager.user_permissions.add(manage)
+        csrf_client = Client(enforce_csrf_checks=True); csrf_client.force_login(self.manager)
+        self.assertEqual(csrf_client.post(url, HTTP_ACCEPT='application/json').status_code, 403)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.row.refresh_from_db(); self.assertIsNone(self.row.sent_at)
+        Product.objects.filter(pk=self.a.pk).update(department=self.other)
+        self.assertEqual(self.client.post(url, HTTP_ACCEPT='application/json').status_code, 404)
+        self.assertEqual(BundleRecommendation.objects.count(), 1)
+        BundleRecommendation.objects.all().delete()
+        import os
+        from pathlib import Path
+        for role, actor in [('super', self.root), ('manager', self.manager)]:
+            self.client.force_login(actor)
+            page = self.client.get(reverse('bundle_monitor_list'))
+            self.assertContains(page, 'No Bundle Suggestions Yet')
+            self.assertContains(page, 'Saved product combinations will appear here when available.')
+            for absent in ('bm-carousel-pagination', 'data-bundle-send-form', 'class="bm-carousel-product"'):
+                self.assertNotContains(page, absent)
+            directory = os.environ.get('BUNDLE_CAROUSEL_REVIEW_DIR')
+            if directory:
+                target = Path(directory); target.mkdir(parents=True, exist_ok=True)
+                (target / f'{role}-empty.html').write_bytes(page.content)
 
     def test_source_tabs_dataset_never_mines_or_reads_live_recommendations(self):
         from .services.bundle_suggestions import _cached_synthetic
@@ -72,7 +175,8 @@ class BundleMonitoringTests(TestCase):
                 self.assertNotContains(response, 'Run Demo Analysis')
                 self.assertNotContains(response, 'Highlight for Seller')
                 self.assertNotContains(response, self.a.name)
-                self.assertEqual(response.headers['Cache-Control'], 'private, no-store, max-age=0, no-cache, must-revalidate')
+                self.assertEqual({part.strip() for part in response.headers['Cache-Control'].split(',')},
+                                 {'private', 'no-store', 'max-age=0', 'no-cache', 'must-revalidate'})
         self.assertEqual(_cached_synthetic.cache_info(), cache_before)
         self.assertEqual((BundleRecommendation.objects.count(), AccountActivity.objects.count()), before)
 
@@ -85,8 +189,8 @@ class BundleMonitoringTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.context['recommendation_view'], 'live')
                 self.assertEqual(response.context['summary']['total'], 1)
-                self.assertContains(response, 'Saved Bundle Suggestions')
-                self.assertContains(response, 'Product bundle suggestions generated from actual CampusHub marketplace transactions.')
+                self.assertContains(response, 'Suggested Product Bundle')
+                self.assertContains(response, 'class="bm-carousel-slide"')
                 self.assertNotContains(response, 'Saved dataset results unavailable')
                 args = parse_qs(urlsplit(response.context['dataset_url']).query)
                 self.assertEqual(args['q'], [self.a.name])
@@ -117,6 +221,132 @@ class BundleMonitoringTests(TestCase):
                 response = self.client.get(reverse('bundle_monitor_list'), {'view': source})
                 self.assertEqual(response.status_code, 200)
                 (target / f'{role}-{source}.html').write_bytes(response.content)
+
+    def test_unified_analysis_get_is_readonly_for_both_roles_and_sources(self):
+        from django.core.cache import cache
+        from contextlib import ExitStack
+        before = (BundleRecommendation.objects.count(), Product.objects.count(), AccountActivity.objects.count())
+        with ExitStack() as stack:
+            for target in ('modules.marketplace.services.bundle_suggestions.calculate_market_basket',
+                           'modules.marketplace.bundle_monitoring_views.execute_synthetic_research'):
+                stack.enter_context(patch(target, side_effect=AssertionError('GET must not execute')))
+            write = stack.enter_context(patch.object(cache, 'set', wraps=cache.set))
+            for actor in (self.root, self.manager):
+                self.client.force_login(actor)
+                for source in ('marketplace', 'synthetic'):
+                    for tab in ('dataset', 'results'):
+                        response = self.client.get(reverse('bundle_monitor_research'), {'source': source, 'tab': tab})
+                        self.assertContains(response, '<h1>Dataset &amp; Apriori Analysis</h1>', html=True)
+                        self.assertContains(response, 'aria-label="Dataset source"')
+                        self.assertContains(response, 'aria-label="Research views"')
+                        self.assertEqual(response.context['dataset_source'], source)
+                        self.assertEqual(len(response.context['statistics']), 3)
+                        self.assertNotContains(response, 'Saved Recommendation Evidence')
+                        self.assertNotContains(response, 'Highlight for Seller')
+                        if actor == self.manager and source == 'synthetic':
+                            self.assertContains(response, 'Synthetic dataset access restricted')
+                            self.assertTrue(all(r['value'] is None for r in response.context['statistics']))
+                            self.assertNotContains(response, 'Run Demo Analysis')
+                        if source == 'marketplace':
+                            self.assertNotIn('dataset_page', response.context)
+                            self.assertNotIn('result', response.context)
+            write.assert_not_called()
+        self.assertEqual(before, (BundleRecommendation.objects.count(), Product.objects.count(), AccountActivity.objects.count()))
+
+    def test_unified_synthetic_pagination_search_and_legacy_links(self):
+        from urllib.parse import parse_qs, urlsplit
+        url = reverse('bundle_monitor_research')
+        self.assertEqual(self.client.get(url).context['dataset_source'], 'synthetic')
+        preview = self.client.get(url, {'tab': 'dataset', 'page': 2, 'q': 'S03', 'custom': 'keep'})
+        self.assertEqual(preview.context['current'].number, 2)
+        self.assertEqual(len(preview.context['dataset_page']), 20)
+        self.assertTrue(all('S03' in ' '.join(row) for row in preview.context['dataset_page']))
+        args = parse_qs(urlsplit(preview.context['results_url']).query)
+        self.assertEqual(args['q'], ['S03'])
+        self.assertEqual(args['custom'], ['keep'])
+        self.assertNotIn('page', args)
+        self.assertEqual(self.client.post(reverse('bundle_monitor_research_run'), QUERY_STRING='q=Coffee&custom=keep').status_code, 302)
+        result = self.client.get(url, {'source': 'synthetic', 'tab': 'results', 'itemsets_page': 2, 'q': 'S03'})
+        self.assertIn('itemsets_page', result.context['query_args'])
+        self.assertNotIn('itemsets_page=', result.context['itemsets_query_args'])
+        self.assertEqual(result.context['query'], 'S03')
+        self.client.force_login(self.manager)
+        self.assertEqual(self.client.get(url, {'tab': 'marketplace'}).context['dataset_source'], 'marketplace')
+        self.assertEqual(self.client.get(url, {'tab': 'synthetic'}).context['dataset_source'], 'synthetic')
+        self.assertEqual(self.client.get(url, {'tab': 'results'}).context['dataset_source'], 'marketplace')
+        self.assertEqual(self.client.get(url, {'source': 'live'}).context['dataset_source'], 'marketplace')
+
+    def test_synthetic_post_requires_super_admin_and_csrf(self):
+        from django.test import Client
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.root)
+        get = client.get(reverse('bundle_monitor_research'), {'source': 'synthetic', 'tab': 'results'})
+        self.assertEqual(get.status_code, 200)
+        token = client.cookies['csrftoken'].value
+        url = reverse('bundle_monitor_research_run')
+        with patch('modules.marketplace.bundle_monitoring_views.execute_synthetic_research') as run:
+            self.assertEqual(client.post(url).status_code, 403)
+            run.assert_not_called()
+            self.assertEqual(client.post(url, {'csrfmiddlewaretoken': token}).status_code, 302)
+            run.assert_called_once()
+            run.reset_mock()
+            client.force_login(self.manager)
+            self.assertEqual(client.post(url, {'csrfmiddlewaretoken': token}).status_code, 403)
+            self.assertEqual(client.get(url).status_code, 405)
+            run.assert_not_called()
+
+    def test_failed_and_zero_rule_analyses_are_distinct_from_missing_cache(self):
+        from django.core.cache import cache
+        before = AccountActivity.objects.count()
+        with patch('modules.marketplace.services.bundle_suggestions.calculate_market_basket', side_effect=ValueError('private failure')), patch.object(cache, 'set') as write:
+            failed = self.client.post(reverse('bundle_monitor_research_run'))
+            self.assertEqual(failed.status_code, 503)
+            self.assertNotContains(failed, 'private failure', status_code=503)
+            write.assert_not_called()
+        with override_settings(CAMPUSHUB_BUNDLE_MIN_LIFT=10000):
+            self.assertEqual(self.client.post(reverse('bundle_monitor_research_run')).status_code, 302)
+            result = self.client.get(reverse('bundle_monitor_research'), {'source': 'synthetic', 'tab': 'results'})
+            self.assertEqual(result.status_code, 200)
+            self.assertIn('result', result.context)
+            self.assertEqual(result.context['current'].paginator.count, 0)
+            self.assertGreater(result.context['itemsets_current'].paginator.count, 0)
+            self.assertNotContains(result, 'Synthetic analysis results unavailable')
+        self.assertEqual(AccountActivity.objects.count(), before)
+
+    def test_synthetic_completion_time_is_recorded_and_displayed_in_manila(self):
+        from datetime import datetime, timezone as dt_timezone
+        stamp = datetime(2026, 10, 25, 18, 30, tzinfo=dt_timezone.utc)
+        with patch('modules.marketplace.services.bundle_suggestions.timezone.now', return_value=stamp):
+            self.assertEqual(self.client.post(reverse('bundle_monitor_research_run')).status_code, 302)
+        response = self.client.get(reverse('bundle_monitor_research'), {'source': 'synthetic', 'tab': 'results'})
+        self.assertEqual(response.context['analysis_completed_at'], stamp)
+        self.assertContains(response, 'Oct 26, 2026 ' + chr(183) + ' 2:30 AM PHT')
+
+    def test_optional_unified_analysis_browser_fixtures(self):
+        import os, json
+        from pathlib import Path
+        target = os.environ.get('UNIFIED_ANALYSIS_REVIEW_DIR')
+        if not target:
+            return
+        root = Path(target)
+        root.mkdir(parents=True, exist_ok=True)
+        expectations = {}
+        def save(name, actor, source, tab):
+            self.client.force_login(actor)
+            response = self.client.get(reverse('bundle_monitor_research'), {'source': source, 'tab': tab})
+            self.assertEqual(response.status_code, 200)
+            (root / (name + '.html')).write_bytes(response.content)
+            expectations[name] = {'source': source, 'tab': tab, 'super_admin': actor == self.root,
+                'statistics': response.context['statistics'], 'has_result': bool(response.context.get('result')),
+                'rule_count': response.context['current'].paginator.count if response.context.get('result') else None,
+                'itemset_count': response.context['itemsets_current'].paginator.count if response.context.get('result') else None}
+        save('super-synthetic-cold', self.root, 'synthetic', 'results')
+        self.assertEqual(self.client.post(reverse('bundle_monitor_research_run')).status_code, 302)
+        for role, actor in (('super', self.root), ('manager', self.manager)):
+            for source in ('marketplace', 'synthetic'):
+                for label, tab in (('preview', 'dataset'), ('results', 'results')):
+                    save(role + '-' + source + '-' + label, actor, source, tab)
+        (root / 'expected.json').write_text(json.dumps(expectations, indent=2), encoding='utf-8')
 
     def test_workspace_evidence_missing_and_database_error_are_unknown(self):
         from .services.bundle_monitoring import workspace_analysis_summary, saved_analysis_summary
@@ -249,11 +479,10 @@ class BundleMonitoringTests(TestCase):
             response = self.client.get(reverse('bundle_monitor_list'))
         self.assertEqual(response.status_code, 200)
         for heading in ('Recommendation Overview', 'Apriori Analysis Summary', 'Frequently Bought Together', 'Saved Bundle Suggestions', 'Excel Analysis Export'):
-            self.assertContains(response, heading)
-        self.assertContains(response, 'Historical analysis information unavailable')
-        self.assertContains(response, 'Analysis history not recorded')
+            self.assertNotContains(response, heading)
+        self.assertContains(response, 'Suggested Product Bundle')
+        self.assertContains(response, reverse('bundle_monitor_research'))
         self.assertContains(response, 'data-bundle-detail')
-        self.assertContains(response, 'Export is unavailable')
         self.assertNotContains(response, 'download=')
         self.assertIsNone(response.context['analysis']['rule_count'])
         self.assertEqual(response.context['summary'], {'total': 1, 'sent': 0, 'created': 0, 'awaiting': 0})
@@ -268,8 +497,11 @@ class BundleMonitoringTests(TestCase):
         self.row.delete()
         for params in ({}, {'page': '2'}, {'q': ''}, {'__at': 'irrelevant'}, {'q': 'missing'}):
             response = self.client.get(url, params)
-            self.assertContains(response, 'No Saved Bundle Suggestions Yet')
-            self.assertContains(response, 'Saved product recommendations will appear here when available.')
+            if '__at' in params:
+                self.assertEqual(response.status_code, 302)  # Invalid per-tab token keeps its existing redirect.
+                continue
+            self.assertContains(response, 'No Bundle Suggestions Yet')
+            self.assertContains(response, 'Saved product combinations will appear here when available.')
             self.assertNotContains(response, 'No Matching Suggestions')
 
     def test_workspace_recorded_zero_counts_manila_dates_and_unknown_raw_rules(self):
@@ -282,13 +514,13 @@ class BundleMonitoringTests(TestCase):
                 'basket_count': 0, 'multi_item_basket_count': 0, 'recommendation_count': 0, 'outcome': 'insufficient_data'})
         self.client.force_login(self.manager)
         response = self.client.get(reverse('bundle_monitor_list'))
-        self.assertContains(response, 'Marketplace Orders')
-        self.assertContains(response, 'Oct 26, 2026 · 2:30 AM PHT')
+        self.assertEqual(response.context['analysis']['source_label'], 'Marketplace Orders')
+        self.assertIn('Oct 26, 2026', response.context['analysis']['completed_label'])
         self.assertNotContains(response, 'PHT PHT')
-        self.assertContains(response, 'Insufficient transaction-basket data')
+        self.assertEqual(response.context['analysis']['state'], 'insufficient_data')
         self.assertEqual((response.context['analysis']['basket_count'], response.context['analysis']['multi_item_basket_count']), (0, 0))
         self.assertIsNone(response.context['analysis']['rule_count'])
-        self.assertContains(response, 'Raw rule count not recorded')
+        self.assertNotContains(response, 'Raw rule count not recorded')
 
     def test_workspace_drawer_fragment_original_evidence_history_and_fallback_are_readonly(self):
         from django.utils import timezone
@@ -344,8 +576,7 @@ class BundleMonitoringTests(TestCase):
         for actor in (self.root, self.manager):
             self.client.force_login(actor)
             listing = self.client.get(url)
-            for label in ('<h1>Bundle Recommendations</h1>', 'Saved Bundle Suggestions',
-                          'Review suggested product combinations and seller responses across the marketplace.',
+            for label in ('<h1>Suggested Product Bundle</h1>',
                           'View Dataset &amp; Analysis'):
                 self.assertContains(listing, label)
             for params in ({'q': 'missing'}, {'response': 'created'}, {'seller': 'invalid'}):
@@ -359,8 +590,8 @@ class BundleMonitoringTests(TestCase):
             for params in ({}, {'page': '1'}, {'page': '99', 'unrelated': '1'},
                            {'q': '   ', 'response': '   '}, {'q': 'missing'}):
                 response = self.client.get(url, params)
-                self.assertContains(response, 'No Saved Bundle Suggestions Yet')
-                self.assertContains(response, 'Saved product recommendations will appear here when available.')
+                self.assertContains(response, 'No Bundle Suggestions Yet')
+                self.assertContains(response, 'Saved product combinations will appear here when available.')
                 self.assertNotContains(response, 'No Matching Suggestions')
                 self.assertFalse(response.context['has_active_filters'] if not params.get('q', '').strip() else False)
 
@@ -392,24 +623,24 @@ class BundleMonitoringTests(TestCase):
                            'modules.marketplace.services.bundle_monitoring.build_bundle_suggestions',
                            'modules.marketplace.services.bundle_suggestions.calculate_market_basket',
                            'modules.marketplace.services.bundle_suggestions._cached_synthetic',
-                           'modules.marketplace.bundle_monitoring_views.Path.open'):
+                           'modules.marketplace.bundle_monitoring_views.research_dataset'):
                 stack.enter_context(patch(target, side_effect=AssertionError('Read-only must not execute/read CSV')))
             for params in ({}, {'tab': 'results'}, {'tab': 'dataset'}, {'tab': 'synthetic'},
                            {'source': 'synthetic', 'refresh': '1'}, {'run': '1', 'page': '1'}):
                 response = self.client.get(reverse('bundle_monitor_research'), params)
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.context['mode'], 'analysis_readonly')
+                self.assertEqual(response.context['mode'], 'research')
                 self.assertContains(response, 'Marketplace Orders')
-                self.assertContains(response, 'Synthetic Demo')
+                self.assertContains(response, 'Synthetic Dataset')
                 self.assertNotContains(response, 'Run Demo Analysis')
                 self.assertNotContains(response, 'Highlight for Seller')
                 self.assertNotContains(response, 'bm-action-form')
-                if params.get('tab') == 'synthetic':
-                    self.assertContains(response, 'Saved demo analysis unavailable')
+                if response.context['dataset_source'] == 'synthetic':
+                    self.assertContains(response, 'Synthetic dataset access restricted')
                     self.assertEqual(response.context['rows'], [])
                 else:
-                    self.assertContains(response, 'Historical dataset unavailable')
-                    self.assertEqual([r['item']['id'] for r in response.context['rows']], [self.row.pk])
+                    self.assertContains(response, 'Verified Apriori results unavailable.' if response.context['tab'] == 'results' else 'Historical transaction dataset unavailable.')
+                    self.assertEqual(response.context['rows'], [])
         self.assertEqual(_cached_synthetic.cache_info(), cache_before)
         self.assertEqual(before, (Product.objects.count(), BundleRecommendation.objects.count(), AccountActivity.objects.count()))
         self.assertEqual(self.client.post(reverse('bundle_monitor_research')).status_code, 405)
@@ -430,7 +661,11 @@ class BundleMonitoringTests(TestCase):
         for actor, expected in ((self.manager, set()), (self.root, {self.row.pk, other_row.pk})):
             self.client.force_login(actor)
             listing = self.client.get(reverse('bundle_monitor_list'))
-            self.assertEqual({r['id'] for r in listing.context['rows']}, expected)
+            visible_ids = set()
+            for number in listing.context['current'].paginator.page_range:
+                part = self.client.get(reverse('bundle_monitor_list'), {'page': number})
+                visible_ids.update(r['id'] for r in part.context['rows'])
+            self.assertEqual(visible_ids, expected)
             detail = self.client.get(reverse('bundle_monitor_detail', args=[other_row.pk]), {'format': 'drawer'})
             self.assertEqual(detail.status_code, 200 if actor == self.root else 404)
             if actor == self.manager:
@@ -444,7 +679,8 @@ class BundleMonitoringTests(TestCase):
         self.manager.save(update_fields=['major'])
         self.client.force_login(self.manager)
         analysis = self.client.get(reverse('bundle_monitor_research'))
-        self.assertEqual([r['item']['id'] for r in analysis.context['rows']], [other_row.pk])
+        self.assertEqual(analysis.context['rows'], [])
+        self.assertEqual({r['id'] for r in self.client.get(reverse('bundle_monitor_list')).context['rows']}, {other_row.pk})
         self.assertNotContains(analysis, 'Test Coffee')
 
     def test_phase2_facilities_anonymous_and_missing_permission_denied(self):
@@ -473,8 +709,9 @@ class BundleMonitoringTests(TestCase):
             with timezone.override('UTC'):
                 response = self.client.get(reverse('bundle_monitor_list'), {'start': '2026-10-27', 'end': '2026-10-27'})
                 self.assertEqual(len(response.context['rows']), 1)
-                self.assertContains(response, 'Oct 27, 2026')
-                self.assertContains(response, '3:30 AM PHT')
+                detail = self.client.get(reverse('bundle_monitor_detail', args=[self.row.pk]))
+                self.assertContains(detail, 'Oct 27, 2026')
+                self.assertContains(detail, '3:30 AM PHT')
                 response = self.client.get(reverse('bundle_monitor_list'), {'end': '2026-10-26'})
                 self.assertEqual(len(response.context['rows']), 0)
                 for section in ('details', 'response', 'history'):
@@ -497,19 +734,19 @@ class BundleMonitoringTests(TestCase):
             response = self.client.get(reverse('bundle_monitor_list'), {'q': 'Paging', 'response': 'na', 'page': '2'})
             self.assertEqual(response.context['current'].number, 2)
             self.assertEqual(response.context['current'].paginator.count, 22)
-            self.assertEqual(len(response.context['rows']), 2)
+            self.assertEqual(len(response.context['rows']), 1)
             self.assertEqual(response.context['summary']['total'], 23)
             self.assertIn('q=Paging', response.context['query_args'])
             self.assertIn('response=na', response.context['query_args'])
             if actor == self.manager:
                 evidence = self.client.get(reverse('bundle_monitor_research'), {'q': 'Paging', 'page': '2'})
-                self.assertEqual(evidence.context['current'].paginator.count, 22)
-                self.assertEqual(len(evidence.context['rows']), 2)
+                self.assertEqual(evidence.context['rows'], [])
+                self.assertContains(evidence, 'Historical transaction dataset unavailable.')
                 self.assertIn('q=Paging', evidence.context['query_args'])
 
     def test_phase2_readonly_analysis_error_is_not_successful_empty_state(self):
         self.client.force_login(self.manager)
-        with patch('modules.marketplace.bundle_monitoring_views.recommendations_for', side_effect=DatabaseError('private detail')):
+        with patch('modules.marketplace.bundle_monitoring_views.workspace_analysis_summary', side_effect=DatabaseError('private detail')):
             response = self.client.get(reverse('bundle_monitor_research'))
         self.assertEqual(response.status_code, 503)
         self.assertContains(response, 'Unable to load saved analysis.', status_code=503)
@@ -544,9 +781,9 @@ class BundleMonitoringTests(TestCase):
         self.assertEqual((summary['sent'], summary['awaiting'], summary['created']), (1, 1, 0))
         self.assertEqual(summary['suggested'], 1)
         html = page.content.decode()
-        start = html.index('class="dash-card bundle-dss marketplace-recommendation-summary"')
+        start = html.index('class="dash-card bundle-dss marketplace-recommendation-summary super-recommendation-preview"')
         panel = html[start:html.index('</section>', start)]
-        for label in ('Suggested Product Bundles', 'Saved Suggestions', 'Sent to Sellers', 'Awaiting Seller Response', 'Bundles Created'):
+        for label in ('Suggested Product Bundles', 'Awaiting Seller Response'):
             self.assertIn(label, panel)
         self.assertEqual(panel.count('<a '), 1)
         self.assertIn(reverse('bundle_monitor_list'), panel)
@@ -579,8 +816,10 @@ class BundleMonitoringTests(TestCase):
         self.assertNotIn('rates', activity_summary(self.root), 'Default callers retain their existing output')
         self.client.force_login(self.manager)
         page = self.client.get(reverse('admin_dashboard_page'))
-        self.assertContains(page, '66.7%')
-        self.assertContains(page, '33.3%')
+        self.assertEqual(page.context['bundle_analysis']['activity']['rates']['response_rate'], 66.7)
+        self.assertEqual(page.context['bundle_analysis']['activity']['rates']['creation_rate'], 33.3)
+        self.assertNotContains(page, 'Seller Response Rate')
+        self.assertNotContains(page, 'Bundle Creation Rate')
         import os
         from pathlib import Path
         if os.environ.get('MARKETPLACE_DASHBOARD_REVIEW_DIR'):
@@ -666,11 +905,12 @@ class BundleMonitoringTests(TestCase):
         self.assertIn('Test Coffee', panel)
         self.assertIn('Seller Example', panel)
         self.assertNotIn('<dt>Suggested Product Bundles</dt>', panel)
-        self.assertIn('Overview of marketplace product bundle recommendations.', panel)
+        self.assertIn('Current saved product bundle recommendations.', panel)
         self.assertNotIn('<dt>', panel)
         self.assertNotIn('Recommendation Activity', panel)
-        self.assertNotIn('View Recommendations', panel)
-        self.assertNotIn('<a ', panel)
+        self.assertIn('View Recommendations', panel)
+        self.assertIn(reverse('bundle_monitor_list'), panel)
+        self.assertEqual(panel.count('<a '), 1)
         self.assertNotIn('executive-bundles', html)
         self.assertEqual(html.count('id="marketplaceRecommendationsTitle"'), 1)
         self.assertLess(html.index('id="dashboardAttentionTitle"'), start)
@@ -678,6 +918,15 @@ class BundleMonitoringTests(TestCase):
             self.assertNotIn(text, panel)
         self.assertEqual(before, (BundleRecommendation.objects.count(), AccountActivity.objects.count(), Product.objects.count()))
         self.assertEqual(self.client.get(reverse('bundle_monitor_list')).status_code, 200)
+        with patch('modules.marketplace.services.bundle_suggestions.build_bundle_suggestions',
+                   side_effect=AssertionError('Dashboard refresh must not mine')):
+            response = self.client.get(reverse('admin_dashboard_api'))
+        self.assertEqual(response.status_code, 200)
+        preview = response.json()['bundle_preview_html']
+        self.assertEqual(preview.count('data-recommendation-id='), 2)
+        self.assertIn('Test Coffee', preview)
+        self.assertIn(reverse('bundle_monitor_list'), preview)
+        self.assertEqual(before, (BundleRecommendation.objects.count(), AccountActivity.objects.count(), Product.objects.count()))
         import os
         from pathlib import Path
         if os.environ.get('DASHBOARD_TOP_REVIEW_DIR'):
@@ -716,7 +965,7 @@ class BundleMonitoringTests(TestCase):
         self.assertIn('Not Sent to Seller', html)
         self.assertNotIn('Recommendation Activity', html)
         self.assertNotIn('<dt>', html)
-        self.assertNotIn('<a ', html)
+        self.assertIn(reverse('bundle_monitor_list'), html)
         self.row.sent_at = timezone.now()
         self.row.save(update_fields=['sent_at'])
         html = panel('sent')
@@ -750,7 +999,8 @@ class BundleMonitoringTests(TestCase):
         html = render_to_string(template, {'bundle_analysis': data})
         self.assertIn('Unable to load bundle suggestions', html)
         self.assertIn('Reload the dashboard to retry.', html)
-        for absent in ('No Bundle Suggestions Yet', 'Recommendation Activity', 'private details', '<dt>', '<a '):
+        self.assertIn(reverse('bundle_monitor_list'), html)
+        for absent in ('No Bundle Suggestions Yet', 'Recommendation Activity', 'private details', '<dt>'):
             self.assertNotIn(absent, html)
         BundleRecommendation.objects.all().delete()
         html = render_to_string(template, {'bundle_analysis': dashboard_bundle_suggestions(self.root)})
@@ -758,7 +1008,7 @@ class BundleMonitoringTests(TestCase):
         self.assertIn('Saved product combinations will appear here when available.', html)
         self.assertNotIn('<dt>Suggested Product Bundles</dt>', html)
         self.assertNotIn('data-recommendation-id=', html)
-        self.assertNotIn('View Recommendations', html)
+        self.assertIn('View Recommendations', html)
         export_page('empty')
 
     def test_super_template_limits_saved_previews_to_two_without_mutating_context(self):
@@ -777,11 +1027,68 @@ class BundleMonitoringTests(TestCase):
         self.assertNotIn(f'data-recommendation-id="{ids[2]}"', html)
         self.assertEqual([row['id'] for row in data['monitor_rows']], ids)
 
+    def test_shared_dashboard_empty_state_requires_no_saved_records(self):
+        import os
+        from pathlib import Path
+        from django.template.loader import render_to_string
+
+        def dashboard_card(actor, role, state):
+            self.client.force_login(actor)
+            before = (BundleRecommendation.objects.count(), Product.objects.count(), AccountActivity.objects.count())
+            with patch('modules.marketplace.services.bundle_suggestions.build_bundle_suggestions',
+                       side_effect=AssertionError('Dashboard must only read saved recommendations')):
+                page = self.client.get(reverse('admin_dashboard_page'))
+            self.assertEqual(page.status_code, 200)
+            self.assertEqual(before, (BundleRecommendation.objects.count(), Product.objects.count(), AccountActivity.objects.count()))
+            html = page.content.decode()
+            start = html.index('<section class="dash-card bundle-dss marketplace-recommendation-summary super-recommendation-preview"')
+            card = html[start:html.index('</section>', start)]
+            self.assertIn('Current saved product bundle recommendations.', card)
+            self.assertEqual(card.count('View Recommendations'), 1)
+            self.assertIn('href="'+reverse('bundle_monitor_list')+'"', card)
+            for absent in ('Send to Seller', '<button', '<form', 'bundleReviewDialog', '>Support<', '>Confidence<', '>Lift<'):
+                self.assertNotIn(absent, card)
+            directory = os.environ.get('BUNDLE_EMPTY_REVIEW_DIR')
+            if directory:
+                target = Path(directory); target.mkdir(parents=True, exist_ok=True)
+                (target / f'{role}-{state}.html').write_bytes(page.content)
+            return card
+
+        actors = [('super', self.root), ('manager', self.manager)]
+        for role, actor in actors:
+            card = dashboard_card(actor, role, 'populated')
+            self.assertIn('data-recommendation-id=', card)
+            self.assertNotIn('No Bundle Suggestions Yet', card)
+        Product.objects.filter(pk=self.a.pk).update(is_archived=True)
+        for role, actor in actors:
+            card = dashboard_card(actor, role, 'no-preview')
+            self.assertIn('No Eligible Preview', card)
+            self.assertNotIn('No Bundle Suggestions Yet', card)
+        with patch('modules.marketplace.services.bundle_monitoring.recommendations_for', side_effect=DatabaseError('private details')):
+            for role, actor in actors:
+                card = dashboard_card(actor, role, 'error')
+                self.assertIn('Unable to load bundle suggestions', card)
+                self.assertNotIn('No Bundle Suggestions Yet', card)
+                self.assertNotIn('private details', card)
+        BundleRecommendation.objects.all().delete()
+        for role, actor in actors:
+            card = dashboard_card(actor, role, 'empty')
+            self.assertIn('No Bundle Suggestions Yet', card)
+            self.assertIn('Saved product combinations will appear here when available.', card)
+            for absent in ('data-recommendation-id=', 'bundle-product-photo', '<img', 'super-recommendation-status', 'role="alert"'):
+                self.assertNotIn(absent, card)
+            data = dashboard_bundle_suggestions(actor)
+            data.update(error=True, dashboard_summary={'suggested': None})
+            unknown = render_to_string('marketplace/partials/super_recommendation_preview.html', {'bundle_analysis': data})
+            self.assertIn('Unable to load bundle suggestions', unknown)
+            self.assertNotIn('No Bundle Suggestions Yet', unknown)
+
     def test_listing_is_readonly_and_hides_research_metrics(self):
         before = (BundleRecommendation.objects.count(), AccountActivity.objects.count(), Product.objects.count())
         response = self.client.get(reverse("bundle_monitor_list"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Test Coffee + Test Cookie")
+        self.assertContains(response, "Test Coffee")
+        self.assertContains(response, "Test Cookie")
         self.assertNotContains(response, "Highlight for Seller")
         self.assertNotContains(response, ">Support<")
         self.assertEqual(before, (BundleRecommendation.objects.count(), AccountActivity.objects.count(), Product.objects.count()))
@@ -800,42 +1107,47 @@ class BundleMonitoringTests(TestCase):
         nav = sidebar(dashboard)
         marketplace = nav[nav.index('<!-- Marketplace -->'):nav.index('<!-- User Management -->')]
         self.assertEqual(re.findall(r'<span class="item-label">([^<]+)</span>', marketplace),
-                          ['Products', 'Inventory', 'Orders', 'Seller Applications', 'Bundle Suggestions'])
-        self.assertIn(reverse('bundle_monitor_list'), nav)
+                          ['Products', 'Inventory', 'Orders', 'Seller Applications'])
+        self.assertNotIn(reverse('bundle_monitor_list'), nav)
         self.assertContains(dashboard, 'Suggested Product Bundles')
+        self.assertContains(dashboard, 'View Recommendations')
         self.assertNotContains(dashboard, 'class="marketplace-recommendation-action" href="'+reverse('bundle_monitor_list')+'"')
 
         listing = self.client.get(reverse('bundle_monitor_list'))
         self.assertEqual(listing.status_code, 200)
-        self.assertContains(listing, '<title>Bundle Recommendations | CampusHub</title>', html=True)
-        self.assertContains(listing, '<h1>Bundle Recommendations</h1>', html=True)
-        self.assertContains(listing, 'Review suggested product combinations and seller responses across the marketplace.')
+        self.assertContains(listing, '<title>Suggested Product Bundle | CampusHub</title>', html=True)
+        self.assertContains(listing, '<h1>Suggested Product Bundle</h1>', html=True)
+        self.assertNotContains(listing, 'Review suggested product combinations and seller responses across the marketplace.')
         self.assertContains(listing, '<span class="breadcrumb-current" aria-current="page">Bundle Suggestions</span>', html=True)
         self.assertContains(listing, '<span class="breadcrumb-text">Marketplace</span>', html=True)
-        self.assertIn(reverse('bundle_monitor_list'), sidebar(listing))
-        self.assertIn('class="sidebar-item active" aria-current="page"', sidebar(listing))
-        self.assertIn('<div class="nav-group open">', sidebar(listing))
+        self.assertNotIn(reverse('bundle_monitor_list'), sidebar(listing))
+        self.assertNotIn('class="sidebar-item active" aria-current="page"', sidebar(listing))
         for url in (reverse('bundle_monitor_detail', args=[self.row.pk]), reverse('bundle_monitor_activity')):
             detail = self.client.get(url)
             self.assertEqual(detail.status_code, 200)
             self.assertContains(detail, '<a class="breadcrumb-link" href="'+reverse('bundle_monitor_list')+'">Bundle Suggestions</a>', html=True)
-            self.assertIn(reverse('bundle_monitor_list'), sidebar(detail))
-            self.assertIn('class="sidebar-item active" aria-current="page"', sidebar(detail))
+            self.assertNotIn(reverse('bundle_monitor_list'), sidebar(detail))
+            self.assertNotIn('class="sidebar-item active" aria-current="page"', sidebar(detail))
         for text in ('>Support<', '>Confidence<', '>Lift<', 'Highlight for Seller', 'Approve Recommendation', 'Reject Recommendation'):
             self.assertNotContains(listing, text)
 
         # Both authorized identities can navigate; this never grants management.
         self.root.role = 'Marketplace Admin'
         self.root.save(update_fields=['role'])
-        self.assertIn(reverse('bundle_monitor_list'), sidebar(self.client.get(reverse('bundle_monitor_list'))))
+        self.assertNotIn(reverse('bundle_monitor_list'), sidebar(self.client.get(reverse('bundle_monitor_list'))))
 
         self.client.force_login(self.manager)
         manager_page = self.client.get(reverse('bundle_monitor_list'))
         self.assertEqual(manager_page.status_code, 200)
-        self.assertIn(reverse('bundle_monitor_list'), sidebar(manager_page))
-        self.assertIn('<span class="item-label">Bundle Suggestions</span>', sidebar(manager_page))
-        self.assertIn('class="sidebar-item active" aria-current="page"', sidebar(manager_page))
-        self.assertContains(manager_page, '<h1>Bundle Recommendations</h1>', html=True)
+        self.assertNotIn(reverse('bundle_monitor_list'), sidebar(manager_page))
+        self.assertNotIn('<span class="item-label">Bundle Suggestions</span>', sidebar(manager_page))
+        self.assertNotIn('class="sidebar-item active" aria-current="page"', sidebar(manager_page))
+        self.assertContains(manager_page, '<h1>Suggested Product Bundle</h1>', html=True)
+        manager_dashboard = self.client.get(reverse('admin_dashboard_page'))
+        self.assertEqual(manager_dashboard.status_code, 200)
+        self.assertNotIn(reverse('bundle_monitor_list'), sidebar(manager_dashboard))
+        self.assertContains(manager_dashboard, 'View Recommendations')
+        self.assertContains(manager_dashboard, 'href="'+reverse('bundle_monitor_list')+'"')
         self.assertEqual(before, (BundleRecommendation.objects.count(), AccountActivity.objects.count(), Product.objects.count()))
 
     def test_bundle_sidebar_visibility_uses_existing_authorization(self):
@@ -844,6 +1156,16 @@ class BundleMonitoringTests(TestCase):
         from django.contrib.auth.models import AnonymousUser
         from django.contrib.auth.context_processors import PermWrapper
         from .services.bundle_suggestions import can_view_bundle_suggestions
+        analytics_only = User.objects.create_user(username='bundle-nav-analytics-only', role='Marketplace Admin',
+            is_staff=True, department=self.program)
+        analytics_only.groups.clear()
+        analytics_only.user_permissions.clear()
+        analytics_only.user_permissions.add(Permission.objects.get(codename='can_view_marketplace_analytics'))
+        self.client.force_login(analytics_only)
+        analytics_page = self.client.get(reverse('bundle_monitor_list'))
+        self.assertEqual(analytics_page.status_code, 200)
+        self.assertNotContains(analytics_page, '<span class="nav-group-title">Marketplace</span>')
+        self.assertContains(analytics_page, '<span class="item-label">Analytics</span>')
         reader = User.objects.create_user(username='bundle-nav-reader', role='Marketplace Admin',
             is_staff=True, department=self.program)
         reader.groups.clear()
@@ -870,7 +1192,8 @@ class BundleMonitoringTests(TestCase):
         root.mkdir(parents=True, exist_ok=True)
         for role, actor in [('super', self.root), ('manager', self.manager)]:
             self.client.force_login(actor)
-            for name, url in [('list', reverse('bundle_monitor_list')),
+            for name, url in [('dashboard', reverse('admin_dashboard_page')),
+                              ('list', reverse('bundle_monitor_list')),
                               ('detail', reverse('bundle_monitor_detail', args=[self.row.pk])),
                               ('activity', reverse('bundle_monitor_activity'))]:
                 response = self.client.get(url)
@@ -948,9 +1271,9 @@ class BundleMonitoringTests(TestCase):
                     self.assertEqual(response.context['analysis']['basket_count'], 17)
                     self.assertContains(response, 'Oct 26, 2026')
                     self.assertContains(response, '2:30 AM')
-                    self.assertContains(response, 'Test Coffee')
+                    self.assertNotContains(response, 'Test Coffee')
                 else:
-                    self.assertContains(response, 'Saved demo analysis unavailable')
+                    self.assertContains(response, 'Synthetic dataset access restricted')
                     self.assertNotContains(response, 'Test Coffee')
                 self.assertIn('no-store', response['Cache-Control'])
         self.assertEqual(cache_before, _cached_synthetic.cache_info())
@@ -1122,8 +1445,8 @@ class BundleMonitoringTests(TestCase):
         self.client.force_login(self.manager)
         with patch('modules.marketplace.services.bundle_suggestions.build_bundle_suggestions', side_effect=AssertionError('Dashboard must not mine')):
             response = self.client.get(reverse('admin_dashboard_page'))
-        self.assertContains(response, 'Analysis Summary')
-        self.assertContains(response, 'Marketplace Orders')
+        self.assertNotContains(response, 'Analysis Summary')
+        self.assertEqual(response.context['bundle_analysis']['analysis_summary']['source_label'], 'Marketplace Orders')
         self.assertNotContains(response, '>Support<')
         self.client.force_login(self.root)
         self.assertNotContains(self.client.get(reverse('admin_dashboard_page')), 'marketplaceAnalysisSummaryTitle')
@@ -1191,18 +1514,15 @@ class BundleMonitoringTests(TestCase):
         before = (AccountActivity.objects.count(), BundleRecommendation.objects.count(), Product.objects.count())
         with patch('modules.marketplace.services.bundle_suggestions.build_bundle_suggestions', side_effect=AssertionError('Dashboard must not mine')):
             response = self.client.get(reverse('admin_dashboard_page'))
-        self.assertContains(response, 'Eligible saved recommendations will appear here.', count=1)
-        self.assertContains(response, '<dt>Last Analysis</dt><dd>Not recorded</dd>', html=True)
-        self.assertContains(response, '<dt>Data Source</dt><dd>Not recorded</dd>', html=True)
-        self.assertContains(response, 'No completed analysis record is available for your scope.', count=1)
-        self.assertContains(response, '<dt>Seller Response Rate</dt><dd>&mdash;</dd>', html=True)
-        self.assertContains(response, '<dt>Bundle Creation Rate</dt><dd>&mdash;</dd>', html=True)
-        self.assertContains(response, 'Rates are unavailable until suggestions are sent.', count=1)
+        self.assertContains(response, 'Saved product combinations will appear here when available.', count=1)
+        self.assertContains(response, 'Saved Recommendations')
+        self.assertContains(response, 'Awaiting Seller Response')
+        for label in ('Last Analysis', 'Data Source', 'Analysis Summary', 'Seller Response Rate', 'Bundle Creation Rate'):
+            self.assertNotContains(response, label)
         self.assertNotContains(response, 'No Analysis Yet')
         html = response.content.decode()
-        self.assertLess(html.index('Recommendation Activity</h3>'), html.index('Seller response and bundle rates</summary>'))
-        self.assertLess(html.index('Seller response and bundle rates</summary>'), html.index('Analysis Summary</h3>'))
-        self.assertNotIn('open', html.split('<details class="marketplace-dashboard-details"',1)[1].split('>',1)[0])
+        self.assertNotIn('marketplaceAnalysisSummaryTitle', html)
+        self.assertNotIn('Seller response and bundle rates</summary>', html)
         # The existing saved-only data contract is intentionally unchanged.
         self.assertEqual(response.context['bundle_analysis']['analysis_summary']['history_label'], 'Analysis history not recorded')
         self.assertEqual(response.context['bundle_analysis']['analysis_summary']['source_label'], 'No Analysis Yet')
@@ -1216,10 +1536,12 @@ class BundleMonitoringTests(TestCase):
             refresh_live(self.root)
         self.client.force_login(self.manager)
         response = self.client.get(reverse('admin_dashboard_page'))
-        self.assertContains(response, 'Marketplace Orders')
-        self.assertContains(response, '0.0%', count=2)
-        self.assertContains(response, '0 bundles from 1 sent suggestion.')
-        self.assertContains(response, 'Baskets in your scope from the saved marketplace-wide analysis.', count=1)
+        self.assertEqual(response.context['bundle_analysis']['analysis_summary']['source_label'], 'Marketplace Orders')
+        self.assertEqual(response.context['bundle_analysis']['activity']['rates']['response_rate'], 0.0)
+        self.assertEqual(response.context['bundle_analysis']['activity']['rates']['creation_rate'], 0.0)
+        self.assertNotContains(response, 'Seller Response Rate')
+        self.assertNotContains(response, 'Bundle Creation Rate')
+        self.assertNotContains(response, 'Analyzed Baskets')
         self.assertNotContains(response, 'Analysis completed; eligible saved suggestions appear above.')
         self.assertEqual(response.context['bundle_analysis']['dashboard_summary'],
             {'suggested':1,'sent':1,'awaiting':1,'created':0})
@@ -1285,55 +1607,57 @@ class BundleMonitoringTests(TestCase):
         self.assertNotIn('Bundle Suggestions', fallback)
 
     def test_research_reads_csv_but_does_not_touch_live_records(self):
-        from .services.bundle_suggestions import build_bundle_suggestions
+        from .services.bundle_suggestions import research_dataset, calculate_market_basket
         before = (Product.objects.count(), BundleRecommendation.objects.count(), AccountActivity.objects.count())
-        response = self.client.get(reverse("bundle_monitor_research"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id="syntheticNoticeTitle">Synthetic Dataset')
-        self.assertNotContains(response, 'Demo Only')
-        self.assertContains(response, "Simulated marketplace transactions for Apriori analysis. Not actual customer purchases.")
-        self.assertNotContains(response, "This dataset contains simulated marketplace transactions used for research")
-        self.assertGreater(response.context["result"]["transaction_count"], 0)
-        rules = self.client.get(reverse("bundle_monitor_research"), {"tab": "results"})
-        self.assertEqual(rules.status_code, 200)
+        expected = research_dataset()
+        with patch('modules.marketplace.services.bundle_suggestions.calculate_market_basket', side_effect=AssertionError('GET must not mine')):
+            response = self.client.get(reverse('bundle_monitor_research'))
+            cold = self.client.get(reverse('bundle_monitor_research'), {'tab': 'results'})
+        self.assertContains(cold, 'Synthetic analysis results unavailable')
+        self.assertNotIn('result', cold.context)
+        with patch('modules.marketplace.services.bundle_suggestions.calculate_market_basket', wraps=calculate_market_basket) as mine:
+            self.assertEqual(self.client.post(reverse('bundle_monitor_research_run')).status_code, 302)
+            self.assertEqual(mine.call_count, 1)
+            mine.reset_mock()
+            rules = self.client.get(reverse('bundle_monitor_research'), {'tab': 'results'})
+            self.assertEqual(mine.call_count, 0)
         for rendered in (response, rules):
+            self.assertEqual(rendered.status_code, 200)
+            self.assertContains(rendered, 'id="analysisDatasetTitle">Synthetic Dataset')
+            self.assertContains(rendered, 'Simulated marketplace transactions for Apriori analysis. Not actual customer purchases.')
             html = rendered.content.decode()
-            panel = html.index('<section class="bm-panel bm-research-panel">')
-            notice = html.index('<aside class="bm-disclosure"')
+            panel = html.index('<section class="bm-panel bm-research-panel"')
             metadata = html.index('<dl class="bm-dataset-stats"')
             tabs = html.index('<nav class="bm-tabs" aria-label="Research views">')
-            self.assertLess(html.index('Back to Suggestions'), panel)
-            self.assertLess(html.index('<h1>'), panel)
-            self.assertLess(panel, notice)
-            self.assertLess(notice, metadata)
+            self.assertLess(panel, metadata)
             self.assertLess(metadata, tabs)
-            self.assertIn('</dl>\n<nav class="bm-tabs" aria-label="Research views">', html.replace('\r\n', '\n'))
             self.assertEqual(html.count('class="bm-panel'), 1)
-            self.assertEqual(html.count('id="syntheticNoticeTitle"'), 1)
-            self.assertEqual(html.count('class="bm-dataset-stats"'), 1)
-            self.assertNotContains(rendered, 'class="bm-dataset-details"')
-            self.assertNotContains(rendered, 'Dataset Details')
-            self.assertContains(rendered, '<dt>Transactions</dt><dd>%s</dd>' % rendered.context['result']['transaction_count'], html=True)
-            self.assertContains(rendered, '<dt>Order Items</dt><dd>%s</dd>' % rendered.context['result']['item_count'], html=True)
-            self.assertContains(rendered, '<dt>Unique Products</dt><dd>%s</dd>' % rendered.context['distinct_products'], html=True)
-            self.assertTrue(rendered.context['filename'])
-            self.assertNotContains(rendered, '<dt>File</dt>')
-            self.assertNotContains(rendered, '<dt>Data Source</dt>')
             self.assertNotContains(rendered, 'Demo Only')
-        expected = build_bundle_suggestions(self.root, source="synthetic")["directional_rows"]
-        self.assertEqual(rules.context["current"].paginator.count, len(expected))
-        self.assertNotContains(rules, "Highlight for Seller")
+            self.assertNotContains(rendered, 'Dataset Details')
+            self.assertNotContains(rendered, 'Saved Recommendation Evidence')
+            self.assertEqual([r['value'] for r in rendered.context['statistics']],
+                             [expected['transaction_count'], expected['item_count'], expected['unique_product_count']])
+        self.assertContains(rules, 'Frequent Itemsets')
+        self.assertContains(rules, 'Supporting Transactions')
+        for row in rules.context['current']:
+            self.assertGreater(row['together_count'], 0)
+            self.assertContains(rules, '<small>%s</small>' % row['product_a_id'], html=True)
+        self.assertNotContains(rules, 'Highlight for Seller')
         self.assertEqual(before, (Product.objects.count(), BundleRecommendation.objects.count(), AccountActivity.objects.count()))
+
 
     @override_settings(CAMPUSHUB_SYNTHETIC_ORDER_ITEMS_PATH="missing-dataset.csv")
     def test_missing_dataset_is_an_error_not_empty_success(self):
-        response = self.client.get(reverse("bundle_monitor_research"))
+        response = self.client.get(reverse('bundle_monitor_research'))
         self.assertEqual(response.status_code, 503)
-        self.assertContains(response, "Dataset unavailable", status_code=503)
+        self.assertContains(response, 'Dataset unavailable', status_code=503)
         self.assertContains(response, 'class="bm-panel bm-research-panel"', status_code=503)
-        self.assertNotContains(response, 'class="bm-dataset-stats"', status_code=503)
-        self.assertNotContains(response, 'class="bm-dataset-details"', status_code=503)
-        self.assertNotContains(response, 'aria-label="Research views"', status_code=503)
+        self.assertContains(response, 'aria-label="Dataset source"', status_code=503)
+        self.assertContains(response, 'aria-label="Research views"', status_code=503)
+        self.assertTrue(all(stat['value'] is None for stat in response.context['statistics']))
+        self.assertNotIn('dataset_page', response.context)
+        self.assertNotIn('result', response.context)
+
 
     def test_dashboard_preview_uses_stable_ids_without_internal_objects_or_metrics(self):
         from django.core.serializers.json import DjangoJSONEncoder

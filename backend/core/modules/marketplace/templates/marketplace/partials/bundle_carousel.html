@@ -1,0 +1,52 @@
+<details class="bm-carousel-filters"><summary>Filter suggestions</summary>
+<form class="bm-filters" data-action-filter method="get" aria-label="Filter suggestions">
+<input type="hidden" name="view" value="live">
+<label class="bm-search">Search suggestions<input name="q" value="{{ request.GET.q }}" placeholder="Product, seller, or suggestion ID" maxlength="150" type="search"></label>
+<label>Program<select name="program"><option value="">All programs</option>{% for program in programs %}<option value="{{ program.pk }}"{% if request.GET.program == program.pk|stringformat:'s' %} selected{% endif %}>{{ program.code }}</option>{% endfor %}</select></label>
+<label data-major-filter>Major<select name="major"><option value="">All applicable majors</option>{% for major in majors %}<option value="{{ major.pk }}" data-program="{{ major.program_id }}"{% if request.GET.major == major.pk|stringformat:'s' %} selected{% endif %}>{{ major.name }}</option>{% endfor %}</select></label>
+<label>Seller<select name="seller"><option value="">All authorized sellers</option>{% for ref, name in sellers %}<option value="{{ ref }}"{% if request.GET.seller == ref %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+<label>Seller Response<select name="response"><option value="">All responses</option><option value="awaiting"{% if request.GET.response == 'awaiting' %} selected{% endif %}>Awaiting Response</option><option value="created"{% if request.GET.response == 'created' %} selected{% endif %}>Bundle Created</option><option value="dismissed"{% if request.GET.response == 'dismissed' %} selected{% endif %}>Dismissed</option><option value="na"{% if request.GET.response == 'na' %} selected{% endif %}>Not Applicable</option></select></label>
+<label>Generated from<input type="date" name="start" value="{{ request.GET.start }}"></label><label>Generated through<input type="date" name="end" value="{{ request.GET.end }}"></label>
+<button class="bm-button bm-primary" type="submit">Apply filters</button><a href="{% url 'bundle_monitor_list' %}">Reset</a>
+</form></details>
+{% if form_error %}<p role="alert">{{ form_error }}</p>{% endif %}
+<section class="bm-panel bm-carousel" aria-label="Saved bundle suggestions" aria-roledescription="carousel">
+{% for row in rows %}
+<article class="bm-carousel-slide" data-suggestion-id="{{ row.id }}" role="group" aria-label="Suggestion {{ current.number }} of {{ current.paginator.count }}">
+<div class="bm-carousel-products">
+<div class="bm-carousel-product">{% include 'marketplace/partials/bundle_photo.html' with product=row.products.0 %}<h2>{{ row.products.0.name }}</h2></div>
+<span class="bm-carousel-plus" aria-hidden="true">+</span><span class="visually-hidden">paired with</span>
+<div class="bm-carousel-product">{% include 'marketplace/partials/bundle_photo.html' with product=row.products.1 %}<h2>{{ row.products.1.name }}</h2></div>
+</div>
+<p class="bm-carousel-seller">Seller: <strong>{{ row.seller }}</strong></p>
+<p class="bm-status" data-suggestion-status role="status">{% if row.response == 'Awaiting Response' %}Awaiting Seller Response{% elif row.response == 'Not Applicable' %}{{ row.delivery }}{% else %}{{ row.response }}{% endif %}</p>
+<div class="bm-carousel-actions">
+<a class="bm-button" href="{% url 'bundle_monitor_detail' row.id %}" data-bundle-detail aria-controls="bundleDetailsDrawer" aria-haspopup="dialog">View Details</a>
+{% if row.can_send %}<button type="button" class="bm-button bm-primary" data-bs-toggle="modal" data-bs-target="#bundleSendModal" data-bundle-send>Send to Seller</button>{% endif %}
+</div>
+<p class="bm-carousel-feedback" data-send-feedback role="status" hidden></p>
+</article>
+<nav class="bm-carousel-pagination" aria-label="Suggestion pagination">
+{% if current.has_previous %}<a class="bm-button" rel="prev" href="?{{ query_args }}&amp;page={{ current.previous_page_number }}" aria-label="Previous suggestion">&larr; Previous</a>{% else %}<button class="bm-button" type="button" disabled aria-label="Previous suggestion">&larr; Previous</button>{% endif %}
+<div class="bm-carousel-pages">{% for number in carousel_pages %}{% if number == current.paginator.ELLIPSIS %}<span>{{ number }}</span>{% else %}<a class="bm-button" href="?{{ query_args }}&amp;page={{ number }}"{% if number == current.number %} aria-current="page"{% endif %} aria-label="Suggestion {{ number }}">{{ number }}</a>{% endif %}{% endfor %}</div>
+{% if current.has_next %}<a class="bm-button" rel="next" href="?{{ query_args }}&amp;page={{ current.next_page_number }}" aria-label="Next suggestion">Next &rarr;</a>{% else %}<button class="bm-button" type="button" disabled aria-label="Next suggestion">Next &rarr;</button>{% endif %}
+</nav>
+<p class="bm-carousel-counter">Suggestion {{ current.number }} of {{ current.paginator.count }}</p>
+{% if row.can_send %}
+<div class="modal fade bm-send-modal" id="bundleSendModal" tabindex="-1" aria-labelledby="bundleSendTitle" aria-describedby="bundleSendDescription" aria-hidden="true">
+<div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+<form method="post" action="{% url 'bundle_monitor_highlight' row.id %}" data-bundle-send-form>{% csrf_token %}
+<div class="modal-header"><h2 class="modal-title" id="bundleSendTitle">Send Bundle Suggestion?</h2></div>
+<div class="modal-body"><p id="bundleSendDescription">Are you sure you want to send this product bundle suggestion to the seller?</p>
+<p><strong>{{ row.products.0.name }}</strong> + <strong>{{ row.products.1.name }}</strong></p><p>Seller: <strong>{{ row.seller }}</strong></p>
+<p class="bm-note">This highlights the suggestion in the seller workspace. Email and push delivery are not recorded.</p>
+<p data-send-error role="alert" hidden></p></div>
+<div class="modal-footer"><button class="bm-button" type="button" data-bs-dismiss="modal" data-send-cancel>Cancel</button><button class="bm-button bm-primary" type="submit" data-send-confirm>Confirm Send</button></div>
+</form></div></div></div>
+{% endif %}
+{% empty %}
+{% if summary.total and has_active_filters %}{% include 'dashboard/partials/empty_state.html' with title='No Matching Suggestions' description='Try a different search or reset your filters.' icon='bag' %}
+{% else %}{% include 'dashboard/partials/empty_state.html' with title='No Bundle Suggestions Yet' description='Saved product combinations will appear here when available.' icon='bag' %}{% endif %}
+{% endfor %}
+</section>
+{% if rows %}<div class="offcanvas offcanvas-end bm-detail-drawer" tabindex="-1" id="bundleDetailsDrawer" aria-labelledby="bundleDetailsTitle"><div class="offcanvas-header"><div><h2 id="bundleDetailsTitle">Recommendation Details</h2><p class="bm-note" id="bundleDetailsSubtitle"></p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close recommendation details"></button></div><div class="offcanvas-body" id="bundleDetailsBody"></div></div>{% endif %}

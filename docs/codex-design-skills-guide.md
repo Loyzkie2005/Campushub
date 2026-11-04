@@ -1,5 +1,73 @@
 # CampusHub: using design skills in Codex
 
+## Windows "Hook failed" launcher fix (October 27, 2026)
+
+### 1. Cause / reason
+
+The project Impeccable hooks had a Windows override beginning with `if exist ...`, followed by a parenthesized command and `& exit /b`. Those are Command Prompt instructions. PowerShell rejects that text with `MissingOpenParenthesisInIfStatement` and `AmpersandNotAllowed` before the Node helper can start. This syntax mismatch was reproduced with PowerShell's parser. The recent accessible daemon error logs did not identify the user's exact failed hook invocation, so the connection to that particular visible message remains unverified; the project launcher defect itself is confirmed.
+
+The [official OpenAI hook documentation](https://learn.chatgpt.com/docs/hooks) defines `commandWindows` as the Windows override and confirms that hooks run in the session working directory. It also explains that changed non-managed hook definitions may require review and trust again. The OpenAI Docs skill was used to verify these configuration rules.
+
+### 2. Exact files changed / current line anchors
+
+| File | Current line / anchor | Change |
+|---|---|---|
+| `.codex/hooks.json` | 12 and 25, `commandWindows` | Explicitly launch the Windows conditional with `cmd.exe /d /c` for PostToolUse and Stop. |
+| `scratch/hook-fix/verify_hooks.py` | 1, module docstring; `for event` | Local verification helper reads the actual manifest and exercises both events. This ignored scratch helper is not a permanent application test. |
+| `docs/codex-design-skills-guide.md` | 3, this section | Cause, configuration/data flow, checks, troubleshooting and learning exercise. |
+
+The existing Impeccable detector source, Unix command, event matchers, timeouts and check behavior are preserved. No hook was disabled and no trust setting was bypassed.
+
+### 3. Changes made
+
+Both Windows overrides now use this command (shown as shell text, not JSON):
+
+```text
+cmd.exe /d /c "if exist .agents\skills\impeccable\scripts\hook.mjs node .agents\skills\impeccable\scripts\hook.mjs"
+```
+
+`cmd.exe` selects the interpreter that understands `if exist`; `/d` prevents Command Prompt AutoRun commands from changing this invocation; `/c` runs the supplied command and exits. The existing optional-install check remains: if the helper is absent, the command does nothing successfully. The old explicit `exit /b` is unnecessary after the single guarded Node call.
+
+### 4. Functions, inputs/outputs and data flow
+
+`hooks.json` is configuration rather than a Python/Dart function. Codex selects `PostToolUse` after a matching edit or `Stop` when the turn stops, supplies a JSON event through standard input, and uses the Windows override on Windows. The explicit Command Prompt child passes standard input/output through to Node. Node executes the unchanged `hook.mjs`, whose `main()` reads the event, chooses `runHook` or `runStopHook`, and returns the existing detector response and exit status.
+
+```text
+Codex event + JSON stdin
+  -> commandWindows -> cmd.exe -> optional helper existence check
+  -> node hook.mjs -> existing immediate/deep detector
+  -> existing JSON stdout + process exit status -> Codex
+```
+
+The verifier loads the manifest using Python `json.loads`, then `subprocess.run` invokes each configured Windows command through PowerShell and Command Prompt. Its inputs are safe no-edit events and temporary fixtures; outputs are exit codes, captured stdout/stderr and a JSON result summary. A temporary echo helper confirms the complete event reaches Node unchanged, including when the working-directory path contains spaces. It does not edit a UI file or scan a real changed-file session.
+
+Why this approach: the installed helper already handles its own event parsing and detector behavior. Selecting its intended shell fixes the launcher without rewriting the detector or removing its checks.
+
+### 5. Backend / API behavior
+
+None changed. This is Codex tooling configuration. No Django/Flutter server, endpoint, booking, payment, authentication or notification workflow changed or ran during verification.
+
+### 6. Database / migration impact
+
+None. No database connection, migration, live record operation or application restart was performed. Tests use subprocesses and disposable temporary helper files.
+
+### 7. Tests performed
+
+- Reproduced the original Windows override's two PowerShell parser errors before changing it.
+- Parsed the updated manifest and ran **10 launcher checks**: both real hook events through PowerShell and Command Prompt (4); absent-helper guards for both events (2); event/stdin forwarding through both shells for both events using temporary helpers in directories with spaces (4). All exited successfully without stderr.
+- The first verifier attempt used Python list escaping for a nested Command Prompt string, producing a test-harness quoting failure. Corrected the verifier to pass a raw Command Prompt command line; the final checks exercise the actual configured command correctly.
+- A sandbox run could not access the virtual environment's base Python executable. The approved rerun outside that sandbox completed the checks. No application test suite, browser acceptance or live Codex hook-trust/reload verification is claimed.
+
+To repeat: from the CampusHub root, run `backend\core\venv\Scripts\python.exe scratch\hook-fix\verify_hooks.py`. Expected summary: `"passed": 10`. The helper is an ignored local scratch artifact and may not be present in another checkout.
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+The helper path remains relative to the session working directory, as in the original configuration. Start the session at the CampusHub root; supporting sessions started in subdirectories would require a separate path-resolution change. Node must remain available on PATH. These checks prove launcher execution and event forwarding, not the detector's findings on a changed UI.
+
+If Codex still displays the previous error, reopen the project/session so it can load the updated definition. If it requests hook review, review the updated command in the hook controls; official documentation requires trust for the changed definition. Do not bypass that review. A new failure needs its actual event/error text to distinguish command launch, missing Node, timeout or trust state.
+
+Safe exercise: read the two `commandWindows` entries and locate the matching event names and timeouts. Run the scratch verifier from the project root and confirm all ten checks pass. It creates its absent-helper and echo-helper cases in temporary directories, so you do not need to rename or delete the installed helper or change a real booking.
+
 ## UX/UI Agent Skills reference kit — October 20, 2026
 
 The complete [plugin87/ux-ui-agent-skills](https://github.com/plugin87/ux-ui-agent-skills) reference kit is installed locally at `.agents/vendor/ux-ui-agent-skills`. Its version is **2.9.10**, commit `d271880757842ea3bee70d958cab80da5621eb81`. The 25 project skill entries already existed under `.agents/skills/` and matched this version. The isolated copy supplies the missing tokens, component specifications, framework adapters, examples and checking scripts without scattering files into CampusHub's root.

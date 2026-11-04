@@ -1,4 +1,4 @@
-"""Read-only calendar projection of existing bookings and structured schedules."""
+"""Read-only calendar projection of existing bookings an structured schedules."""
 from datetime import datetime, time, timedelta
 
 from django.db.models import Q

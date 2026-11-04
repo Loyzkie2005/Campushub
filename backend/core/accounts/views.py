@@ -126,7 +126,14 @@ def products_module_required(view_func):
 
 
 def admin_login_page(request):
-    return render(request, "user_management/pages/admin_login.html")
+    token = get_tab_token_from_request(request)
+    if token:
+        revoke_admin_tab_token(token)
+    response = render(request, "user_management/pages/admin_login.html")
+    response["Cache-Control"] = "private, no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    response["Expires"] = "0"
+    return response
 
 
 def admin_logout_page(request):
@@ -142,7 +149,11 @@ def admin_logout_page(request):
         )
     revoke_admin_tab_token(token)
     logout(request)
-    return redirect(reverse("admin_login_page"))
+    response = redirect(reverse("admin_login_page"))
+    response["Cache-Control"] = "private, no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    response["Expires"] = "0"
+    return response
 
 
 def get_notification_context(limit=5, *, user=None):
@@ -176,7 +187,9 @@ def admin_products_page(request):
         context["inventory_page"] = Paginator(context.pop("inventory_rows"), 30).get_page(request.GET.get("page"))
         context.update(get_notification_context(user=request.user))
         return render(request, "marketplace/pages/admin_inventory.html", context)
-    active_products = all_products.filter(is_archived=False)
+    from modules.marketplace.services.product_catalog import catalog_selection
+    selected_products, product_stats, product_filters = catalog_selection(all_products, request.GET)
+    products_page = Paginator(selected_products, 10).get_page(request.GET.get('page'))
     from accounts.academic import academic_options, product_academic, scope_users
     from modules.marketplace.services.inventory import inventory_sku
     departments, majors = academic_options()
@@ -186,9 +199,9 @@ def admin_products_page(request):
         Q(role__iexact="Seller") | Q(seller_access_requests__status="approved")
     ), request.user).select_related("department", "major").distinct().order_by("first_name", "last_name")
     seller_products = prime_bundle_inventory(
-        all_products.select_related(
+        products_page.object_list.select_related(
             "mobile_seller", "mobile_seller__department", "mobile_seller__major", "seller", "seller__department", "seller__major", "approved_by", "department", "major"
-        ).prefetch_related("inventory_skus").order_by("-submitted_at")
+        ).prefetch_related("inventory_skus")
     )
     today = timezone.localdate()
     for product in seller_products:
@@ -211,25 +224,12 @@ def admin_products_page(request):
         product.admin_tags_json = json.dumps(product.tags)
         product.admin_has_low_stock = any(iter_product_low_stock(product, today=today))
         product.admin_low_stock_variant_count = variant_summary["low_stock_variant_count"]
-    low_stock_count = sum(
-        1
-        for product in seller_products
-        if not product.is_archived and product.admin_has_low_stock
-    )
-    product_stats = {
-        "total": all_products.count(),
-        "pending": all_products.filter(approval_status=Product.STATUS_PENDING).count(),
-        "approved": all_products.filter(approval_status=Product.STATUS_APPROVED).count(),
-        "rejected": active_products.filter(approval_status=Product.STATUS_REJECTED).count(),
-        "low_stock": low_stock_count,
-        "archived": all_products.filter(is_archived=True).count(),
-    }
-    return render(
-        request,
-        "marketplace/pages/admin_products.html",
-        {
+    context = {
             "seller_products": seller_products,
             "product_stats": product_stats,
+            "products_page": products_page,
+            "product_filters": product_filters,
+            "product_page_range": list(products_page.paginator.get_elided_page_range(products_page.number)),
             "low_stock_threshold": low_stock_threshold(),
             "expiry_warning_days": getattr(settings, "CAMPUSHUB_EXPIRY_WARNING_DAYS", 7),
             "departments": departments,
@@ -241,10 +241,20 @@ def admin_products_page(request):
             "can_approve_products": request.user.has_perm(
                 "accounts.can_approve_products"
             ),
-            "can_add_products": request.user.is_superuser or _is_marketplace_admin(request.user),
+            "can_add_products": user_can_manage_products(request.user),
             **get_notification_context(user=request.user),
-        },
-    )
+        }
+    if request.GET.get('format') == 'json':
+        from django.template.loader import render_to_string
+        response = JsonResponse({
+            'rows_html': render_to_string('marketplace/partials/product_rows.html', context, request=request),
+            'pagination_html': render_to_string('marketplace/partials/product_pagination.html', context, request=request),
+            'stats': product_stats, 'page': products_page.number, 'pages': products_page.paginator.num_pages,
+            'total': products_page.paginator.count, 'start': products_page.start_index(), 'end': products_page.end_index(),
+        })
+        response['Cache-Control'] = 'private, no-store'
+        return response
+    return render(request, 'marketplace/pages/admin_products.html', context)
 
 
 @login_required(login_url="admin_login_page")
@@ -381,6 +391,28 @@ def admin_messages_page(request):
 @admin_read_permissions("can_manage_orders", "can_view_orders")
 def admin_orders_page(request):
     from modules.marketplace.services.orders import orders_page_context
+
+    if request.GET.get("format") == "dashboard-order":
+        from django.http import Http404, HttpResponseNotAllowed
+
+        if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
+
+        # A fragment must explicitly name one order, intersected with the same
+        # authorized queryset and presentation used by the existing Orders page.
+        selected = (request.GET.get("order") or "").strip()
+        if not selected.isdecimal() or len(selected) > 18:
+            raise Http404("Order not found.")
+        params = request.GET.copy()
+        params.clear()
+        params["order"] = selected
+        context = orders_page_context(request.user, params)
+        if len(context["orders"]) != 1:
+            raise Http404("Order not found.")
+        response = render(request, "marketplace/partials/dashboard_order_fragment.html", context)
+        response["Cache-Control"] = "private, no-store"
+        response["Vary"] = "Cookie, X-Admin-Tab-Token"
+        return response
 
     return render(request, "marketplace/pages/admin_orders.html", {
         **orders_page_context(request.user, request.GET),
@@ -781,7 +813,7 @@ def admin_users_delete(request):
 def admin_facility_page(request, *, services=False):
     from api.models import Booking, Facility, Room
     from modules.facilities.services.operating_schedule import workflow_for_display
-    from modules.facilities.services.rental_configuration import PRICING_METHODS, capacity_label, pricing_label
+    from modules.facilities.services.rental_configuration import PRICING_METHODS, capacity_label, compact_pricing_label, eligible_clients_label, pricing_label, pricing_sub_label
     from modules.facilities.services.facility_configuration import (
         BOOKING_MODE_LABELS,
         FACILITY_TYPE_CONFIG,
@@ -800,6 +832,9 @@ def admin_facility_page(request, *, services=False):
         facility.capacity_display = capacity_label(facility)
         from modules.facilities.services.service_configuration import service_pricing_label
         facility.pricing_display = service_pricing_label(facility) if services else pricing_label(facility)
+        facility.pricing_compact_display = facility.pricing_display if services else compact_pricing_label(facility)
+        facility.pricing_sub_display = "" if services else pricing_sub_label(facility)
+        facility.eligible_clients_display = "" if services else eligible_clients_label(facility)
         facility.price_method_display = PRICING_METHODS.get(facility.price_type, f"Per {facility.price_type}")
         facility.service_type_display, facility.request_type_display = service_labels(facility)
         facility.service_status_display = {"available": "Active", "inactive": "Inactive"}.get(facility.availability_status, "Temporarily Unavailable")

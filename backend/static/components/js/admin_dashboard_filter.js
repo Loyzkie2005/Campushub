@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
     const controls = document.getElementById('dashboardGlobalControls');
     if (!controls) return;
-    const root = controls.closest('[data-global-dashboard]');
+    // Locate the live data region independently of the controls' layout.
+    const root = document.querySelector('[data-global-dashboard]');
+    if (!root) return;
     const form = document.getElementById('dashboardGlobalFilter');
     const select = document.getElementById('dashboardPeriod');
     const custom = document.getElementById('dashboardCustomRange');
@@ -147,9 +149,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (custom.hidden) return;
         const viewport = document.documentElement.clientWidth || window.innerWidth;
         const anchor = form.getBoundingClientRect();
+        const contentLeft = document.getElementById('mainWrapper')?.getBoundingClientRect().left || 0;
+        const leftEdge = Math.max(16, contentLeft + 16);
+        custom.style.maxWidth = `${Math.max(0, viewport - leftEdge - 16)}px`;
         const width = custom.getBoundingClientRect().width;
-        // Keep the panel beneath the selector and inside the viewport on narrow screens.
-        custom.style.left = `${Math.max(16 - anchor.left, Math.min(0, viewport - 16 - anchor.left - width))}px`;
+        // Keep the panel inside the content area, clear of the persistent sidebar.
+        custom.style.left = `${Math.max(leftEdge - anchor.left, Math.min(0, viewport - 16 - anchor.left - width))}px`;
     }
     window.addEventListener('resize', positionCustomRange);
     function restoreAppliedPeriod() {
@@ -223,7 +228,10 @@ document.addEventListener('DOMContentLoaded', () => {
             arrow.setAttribute('aria-hidden', 'true');
             arrow.textContent = '\u2192';
             action.appendChild(arrow);
-            row.append(icon, count, label, action);
+            const summary = document.createElement('span');
+            summary.className = 'dashboard-attention-summary';
+            summary.append(label, document.createTextNode(' '), count);
+            row.append(icon, summary, action);
             fragment.appendChild(row);
         }
         list.replaceChildren(fragment);
@@ -292,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const body = root.querySelector('[data-recent-order-rows]');
         if (!body) return;
         if (!Array.isArray(orders)) throw new Error('Recent orders payload is unavailable');
+        const columnLabels = Array.from(body.closest('table').querySelectorAll('thead th'), heading => heading.textContent.trim());
         const rows = document.createDocumentFragment();
         for (const order of (document.querySelector('[data-executive-dashboard]') ? orders.slice(0, 5) : orders)) {
             const row = document.createElement('tr');
@@ -323,29 +332,42 @@ document.addEventListener('DOMContentLoaded', () => {
             pill.className = `status-pill status-${order.status_key}`; pill.textContent = order.status; status.append(pill);
             if (document.querySelector('[data-executive-dashboard]')) {
                 const reference = document.createElement('th'); reference.scope = 'row';
-                const link = document.createElement('a'); link.textContent = order.code;
-                link.className = 'recent-order-link';
+                reference.textContent = order.code;
                 const target = new URL(order.url, location.origin);
                 if (target.origin !== location.origin || target.pathname !== '/admin-orders/') throw new Error('Invalid order destination');
                 const token = window.CampusHubAdminSession?.getTabToken() || new URL(location.href).searchParams.get('__at');
                 if (token) target.searchParams.set('__at', token);
-                link.href = target.href; reference.append(link);
                 pill.classList.add('recent-orders-status');
-                const payment = cell('');
+                status.classList.add('text-center');
+                const payment = cell('', 'text-center');
                 const paymentLabel = document.createElement('span');
                 paymentLabel.className = 'status-pill recent-orders-payment';
                 paymentLabel.dataset.paymentStatus = order.payment_key;
                 paymentLabel.textContent = order.payment_status;
                 payment.append(paymentLabel);
-                const action = cell('');
-                const detailsLink = link.cloneNode(false);
-                detailsLink.className = 'recent-order-details';
-                detailsLink.textContent = 'View Details';
-                detailsLink.setAttribute('aria-label', `View details for order ${order.code}`);
+                const action = cell('', 'text-center');
+                const detailsLink = document.createElement('a');
+                detailsLink.href = target.href;
+                detailsLink.className = 'dashboard-order-eye';
+                detailsLink.dataset.dashboardOrderDetails = '';
+                detailsLink.setAttribute('aria-label', `View Order Details for ${order.code}`);
+                // Constant decorative icon only. Record values remain assigned with textContent.
+                detailsLink.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+                const tooltip = document.createElement('span');
+                tooltip.className = 'dashboard-order-tooltip';
+                tooltip.setAttribute('role', 'tooltip');
+                tooltip.textContent = 'View Order Details';
+                detailsLink.append(tooltip);
                 action.append(detailsLink);
-                row.append(reference, cell(order.date), cell(order.buyer_name, 'recent-orders-person'),
-                    cell(order.seller_name || 'Not recorded', 'recent-orders-person'), cell(order.item_count ?? 'Not recorded', 'text-center'),
-                    cell(`\u20b1${order.total}`, 'text-end'), status, payment, action);
+                const buyerCell = cell(order.buyer_name, 'recent-orders-person');
+                if (order.buyer_name) buyerCell.title = order.buyer_name;
+                row.append(reference, buyerCell, cell(order.date),
+                    cell(`₱${order.total}`, 'text-end'), status, payment, action);
+                row.setAttribute('role', 'row');
+                Array.from(row.children).forEach((element, index) => {
+                    element.dataset.label = columnLabels[index];
+                    element.setAttribute('role', index === 0 ? 'rowheader' : 'cell');
+                });
             } else {
             row.append(cell(order.code, 'recent-order-code'), items, cell(order.buyer_name, 'recent-order-customer'),
                 cell(`₱${order.total}`, 'text-end recent-order-amount'), status,
@@ -362,13 +384,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderSalesTrend(payload) {
         const grouping = payload.grouping;
-        root.querySelector('.sales-overview__trend-header p').textContent = 'Marketplace revenue over the selected period.';
+        root.querySelector('.sales-overview__trend-header p').textContent = 'Completed and paid sales in the selected period.';
         const hasSales = payload.marketplace.sales_overview.has_sales;
         root.querySelector('.sales-overview__empty').hidden = hasSales;
         root.querySelector('.sales-overview__canvas').dataset.hasSales = String(hasSales);
         root.querySelector('.sales-overview__legend').hidden = !hasSales;
         root.querySelector('.sales-overview__canvas').hidden = !hasSales;
-        document.getElementById('salesOverviewChart').setAttribute('aria-label', `Marketplace revenue by ${grouping} period. Use left and right arrow keys to inspect each period.`);
+        document.getElementById('salesOverviewChart').setAttribute('aria-label', `Completed and paid marketplace sales by ${grouping} period. Use left and right arrow keys to inspect each period.`);
         root.querySelectorAll('.sales-overview__cta-btn').forEach((detailLink) => {
             const url = new URL(detailLink.href);
             url.searchParams.set('date_from', payload.period.start_date);
@@ -379,6 +401,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function render(payload) {
         if (kpiStale) kpiStale.hidden = true;
+        const bundlePreview = root.querySelector('[data-bundle-preview]');
+        if (bundlePreview && typeof payload.bundle_preview_html === 'string') {
+            // Same-origin Django fragment: record values are escaped by its template.
+            bundlePreview.innerHTML = payload.bundle_preview_html;
+            bundlePreview.querySelectorAll('a[href]').forEach(link => {
+                if (window.CampusHubAdminSession) link.href = window.CampusHubAdminSession.urlWithToken(link.href);
+            });
+        }
         const marketplace = payload.marketplace;
         renderRecentOrders(payload.operations?.recent_orders);
         renderLowStock(payload.low_stock);
@@ -387,8 +417,30 @@ document.addEventListener('DOMContentLoaded', () => {
             setText(`[data-dashboard-kpi="${key}"]`, key === 'marketplace_revenue' ? wrapMoney(money.format(metric.value)) : number.format(metric.value));
             const secondary = root.querySelector(`[data-dashboard-secondary="${key}"]`);
             if (secondary) {
+                const trend = root.querySelector(`[data-dashboard-trend="${key}"]`);
                 const recordedFreeSales = key === 'marketplace_revenue' && marketplace.sales_overview.has_sales;
-                secondary.textContent = Number(metric.value) === 0 && secondary.dataset.zeroCopy && !recordedFreeSales ? secondary.dataset.zeroCopy : metric.secondary_text;
+                if (trend) {
+                    const info = metric.trend;
+                    const known = info && Number.isFinite(info.current_value) && Number.isFinite(info.previous_value);
+                    const firstActivity = known && info.previous_value === 0 && info.current_value > 0;
+                    const changed = known && info.previous_value > 0 && Number.isFinite(info.percentage_change) && info.percentage_change !== 0;
+                    const visible = Boolean(known && info.visible !== false && (firstActivity || changed) &&
+                        (firstActivity || (typeof info.label === 'string' && /^[+−-](?:\d+(?:\.\d+)?|<0\.1)%$/.test(info.label))));
+                    trend.hidden = !visible;
+                    secondary.hidden = !visible;
+                    trend.textContent = visible ? (firstActivity ? '↗ New Activity' : info.label.replace(/^-/, '−')) : '';
+                    secondary.textContent = visible ? 'vs. previous period' : '';
+                    trend.dataset.trendDirection = visible ? (firstActivity || info.percentage_change > 0 ? 'up' : 'down') : 'neutral';
+                    if (visible) {
+                        trend.title = info.explanation;
+                        trend.setAttribute('aria-label', `${info.basis}: ${trend.textContent} vs. previous period. ${info.explanation}`);
+                    } else {
+                        trend.removeAttribute('title');
+                        trend.removeAttribute('aria-label');
+                    }
+                } else {
+                    secondary.textContent = Number(metric.value) === 0 && secondary.dataset.zeroCopy && !recordedFreeSales ? secondary.dataset.zeroCopy : metric.secondary_text;
+                }
                 secondary.dataset.semanticType = metric.semantic_type;
                 secondary.dataset.trendState = metric.trend_state;
                 secondary.dataset.direction = metric.direction;
@@ -406,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
             content.querySelector('strong').textContent = `${metric.currency ? '₱' : ''}${metric.value}`;
             const comparison = content.querySelector('.dashboard-comparison');
             const isZero = !marketplace.sales_overview.has_sales;
-            comparison.textContent = isZero
+            comparison.textContent = metric.defined === false ? metric.comparison_text : isZero
                 ? `No completed ${metric.key === 'sales' ? 'sales' : 'orders'} this period.`
                 : metric.comparison_text;
             comparison.dataset.semanticType = isZero ? 'neutral' : metric.semantic_type;
@@ -652,6 +704,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     restoreAppliedPeriod();
                     error.hidden = false;
                     if (kpiStale) kpiStale.hidden = false;
+                    root.querySelectorAll('[data-dashboard-trend]').forEach((trend) => {
+                        trend.hidden = true;
+                        trend.textContent = '';
+                        trend.removeAttribute('title');
+                        trend.removeAttribute('aria-label');
+                        const caption = root.querySelector(`[data-dashboard-secondary="${trend.dataset.dashboardTrend}"]`);
+                        if (caption) { caption.hidden = true; caption.textContent = ''; }
+                    });
                     if (lowStockContent) lowStockContent.hidden = true;
                     if (lowStockError) lowStockError.hidden = false;
                     if (recentOrdersContent) recentOrdersContent.hidden = true;

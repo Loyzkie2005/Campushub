@@ -17,6 +17,8 @@ from .dashboard_marketplace import recent_marketplace_orders, sales_by_product_c
 from .dashboard_low_stock import build_low_stock_card
 from .dashboard_bookings import most_booked_facilities, upcoming_reservations
 from .dashboard_utilization import build_facility_utilization
+from .account_metrics import account_population
+from modules.marketplace.services.reporting_metrics import average_order_value, seller_access_snapshot
 
 
 PERIOD_LABELS = {
@@ -147,6 +149,8 @@ def build_dashboard_data(params, *, today=None, legacy=False):
     from .views import _count_booking_conflicts, _facility_dashboard_analytics
 
     period, metadata = resolve_dashboard_period(params, today, legacy=legacy)
+    from .dashboard_kpi_trends import attach_kpi_trends, comparison_dates
+    kpi_previous_range = comparison_dates(period)
     previous_range = (metadata["previous_start_date"], metadata["previous_end_date"])
     current_range = (period.start, period.end)
     grouping = params.get("grouping") or params.get("sales_grouping") or "daily"
@@ -158,27 +162,12 @@ def build_dashboard_data(params, *, today=None, legacy=False):
     service_grouping = params.get('service_grouping') or 'daily'
     if service_grouping not in {'daily', 'weekly', 'monthly'}:
         service_grouping = 'daily'
-    users = User.objects.aggregate(
-        total=Count("pk"), new=Count("pk", filter=Q(date_joined__date__range=current_range)),
-        enabled=Count("pk", filter=Q(is_active=True, is_suspended=False)),
-    )
+    population = account_population(period, include_sellers=True, previous_range=kpi_previous_range)
+    users = {'total': sum(source['total'] for source in population.values()),
+             'new': sum(source['new'] for source in population.values()),
+             'enabled': sum(source['active'] for source in population.values())}
     # Seller access is a permission status, including approved student/faculty users.
-    sellers = User.objects.filter(is_active=True, is_suspended=False).exclude(
-        seller_access_requests__is_suspended=True
-    ).filter(
-        Q(role__iexact="Seller") | Q(seller_access_requests__status=SellerRequest.STATUS_APPROVED,
-                                    seller_access_requests__is_suspended=False)
-    ).aggregate(
-        total=Count("pk", distinct=True),
-        approved_in_period=Count("pk", distinct=True, filter=Q(
-            seller_access_requests__status=SellerRequest.STATUS_APPROVED,
-            seller_access_requests__reviewed_at__date__range=current_range,
-        )),
-        with_recorded_approval=Count("pk", distinct=True, filter=Q(
-            seller_access_requests__status=SellerRequest.STATUS_APPROVED,
-            seller_access_requests__reviewed_at__isnull=False,
-        )),
-    )
+    sellers = seller_access_snapshot(period, population=population)
     products = Product.objects.filter(is_archived=False).aggregate(
         total=Count("pk"), new=Count("pk", filter=Q(submitted_at__date__range=current_range)),
         pending=Count("pk", filter=Q(approval_status=Product.STATUS_PENDING)),
@@ -211,18 +200,20 @@ def build_dashboard_data(params, *, today=None, legacy=False):
     orders = MarketplaceOrder.objects.aggregate(
         current=Count("pk", filter=Q(created_at__date__range=current_range)),
         previous=Count("pk", filter=Q(created_at__date__range=previous_range)),
+        kpi_previous=Count("pk", filter=Q(created_at__date__range=kpi_previous_range)),
     )
     revenue_orders = valid_sales_queryset()
     sales = revenue_orders.aggregate(
         current=Sum("total_price", filter=Q(analytics_at__date__range=current_range)),
         previous=Sum("total_price", filter=Q(analytics_at__date__range=previous_range)),
+        kpi_previous=Sum("total_price", filter=Q(analytics_at__date__range=kpi_previous_range)),
         count=Count("pk", filter=Q(analytics_at__date__range=current_range)),
         previous_count=Count("pk", filter=Q(analytics_at__date__range=previous_range)),
     )
     revenue = sales["current"] or Decimal("0")
     previous_revenue = sales["previous"] or Decimal("0")
-    average = revenue / sales["count"] if sales["count"] else Decimal("0")
-    previous_average = previous_revenue / sales["previous_count"] if sales["previous_count"] else Decimal("0")
+    average = average_order_value(revenue, sales["count"])
+    previous_average = average_order_value(previous_revenue, sales["previous_count"])
     label = metadata["comparison_label"]
     facility_other = facilities["total"] - sum(facilities[key] for key in ("open", "unavailable", "maintenance", "inactive"))
     facility_summary = [f"{facilities['open']} open for booking"]
@@ -256,6 +247,12 @@ def build_dashboard_data(params, *, today=None, legacy=False):
         ("orders", "Completed Orders", sales["count"], sales["previous_count"], False),
         ("average", "Average Order Value", average, previous_average, True),
     ):
+        if key == 'average' and (value is None or baseline is None):
+            metrics.append({'key': key, 'label': name, 'value': f'{value:,.2f}' if value is not None else 'N/A',
+                'currency': value is not None, 'defined': value is not None, 'change': 'N/A',
+                'comparison_text': f'No qualifying completed-paid orders in the selected period vs {label}.' if value is None else f'No qualifying completed-paid orders vs {label}.',
+                'percentage_change': None, 'semantic_type': 'neutral'})
+            continue
         comparison = comparison_metric(value, baseline, label)
         legacy_change = (f"{comparison['percentage_change']:+.1f}%" if comparison["percentage_change"] else "0.0%") if baseline else ("No previous sales" if value else "No change")
         metrics.append({
@@ -294,7 +291,8 @@ def build_dashboard_data(params, *, today=None, legacy=False):
     facility_analytics["utilization"] = facility_analytics["utilization_summary"]["rows"]
     from .dashboard_executive import executive_overview
     executive = executive_overview(period, metadata, grouping=booking_grouping, service_grouping=service_grouping,
-        services_current={'active_services': facilities['open_services'], 'pending_current': bookings['pending_services']})
+        services_current={'active_services': facilities['open_services'], 'pending_current': bookings['pending_services']},
+        kpi_previous_range=kpi_previous_range)
     # Current work queue, independent of the reporting period; reuse the existing aggregates.
     executive['facility_attention'] = {
         'pending': bookings['pending'] - bookings['pending_services'],
@@ -311,6 +309,10 @@ def build_dashboard_data(params, *, today=None, legacy=False):
                 _count_label(products['pending'], 'product'), _count_label(pending_sellers, 'seller'),
                 _count_label(bookings['pending'] - bookings['pending_services'], 'booking'),
                 _count_label(bookings['pending_services'], 'service request'))))
+    attach_kpi_trends(kpis, period, new_users=users['new'], previous_orders=orders['kpi_previous'],
+                      previous_users=sum(source['previous_new'] for source in population.values()),
+                      previous_bookings=executive['booking_overview']['kpi_previous_total'],
+                      current_sales=sales['current'] or Decimal('0'), previous_sales=sales['kpi_previous'] or Decimal('0'))
     return {
         "period": metadata, "kpis": kpis,
         "executive": executive,
@@ -318,7 +320,8 @@ def build_dashboard_data(params, *, today=None, legacy=False):
                               "pending": bookings["pending_services"]},
         "accounts_overview": {"total": users["total"], "enabled": users["enabled"],
                               "restricted": users["total"] - users["enabled"]},
-        "operations": {"recent_orders": recent_marketplace_orders(MarketplaceOrder.objects.all(), limit=5)},
+        "operations": {"recent_orders": recent_marketplace_orders(
+            MarketplaceOrder.objects.filter(created_at__date__range=current_range), limit=5)},
         "low_stock": build_low_stock_card(today=today, include_out_of_stock=True),
         "attention_required": build_attention_required(
             today=today or timezone.localdate(), pending_products=products["pending_reviews"],
@@ -329,7 +332,7 @@ def build_dashboard_data(params, *, today=None, legacy=False):
             unavailable_facilities=facilities["active_unavailable"],
         ),
         "marketplace": {
-            "completed_orders": sales["count"], "average_order_value": float(average),
+            "completed_orders": sales["count"], "average_order_value": float(average) if average is not None else None,
             "sales_trend": chart, "top_selling_product": leader, "top_products": top_products,
             "product_categories": categories,
             "sales_overview": overview,

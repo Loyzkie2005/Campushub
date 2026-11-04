@@ -1,0 +1,15 @@
+<article class="analytics-panel marketplace-category-card">
+    <header class="analytics-panel-header"><div><h3>Sales by Category</h3><p>Share of recognized sales revenue</p></div></header>
+    {% if analytics.category_has_revenue %}
+    <div class="analytics-donut-layout marketplace-category-layout">
+        <div class="analytics-donut marketplace-category-donut">
+            <canvas id="marketplaceCategoryChart" role="img" aria-label="Recognized revenue by category; total {{ analytics.kpis.sales }} pesos" aria-describedby="marketplaceCategorySummary"></canvas>
+            <div class="marketplace-category-total" aria-hidden="true"><span>Total</span><strong>&#8369;{{ analytics.kpis.sales }}</strong></div>
+        </div>
+        <dl class="marketplace-category-legend" id="marketplaceCategorySummary" tabindex="0" aria-label="Categories ranked by recognized revenue">
+            {% for category in analytics.category_sales %}<div data-category-index="{{ forloop.counter0 }}"><dt><span class="marketplace-category-indicator" aria-hidden="true"></span><span>{{ category.category }}</span></dt><dd><strong>&#8369;{{ category.sales }}</strong><span>{{ category.percent }}%</span></dd></div>{% endfor %}
+        </dl>
+    </div>
+    {% elif analytics.category_sales %}<p class="marketplace-compact-empty">No positive category revenue in selected dates. Qualifying zero-price sales are retained in the data table.</p>{% include 'reports/partials/analytics_chart_data.html' with chart_table=analytics.category_table caption='Completed paid revenue by category' %}
+    {% else %}{% include 'reports/partials/marketplace_chart_empty.html' with empty_icon='pie' empty_title='No Category Sales Yet' empty_text='Category revenue share will appear once completed and paid orders are recorded in the selected period.' %}{% endif %}
+</article>

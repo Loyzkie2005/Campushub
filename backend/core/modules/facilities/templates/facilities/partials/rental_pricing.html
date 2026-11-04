@@ -6,6 +6,11 @@
     <label for="facilityAdditionalHourRate" class="form-label">Additional Hour Rate (₱) *</label>
     <input type="number" class="form-control" id="facilityAdditionalHourRate" min="0" step="0.01" placeholder="Enter additional hour rate">
 </div>
+<div class="facility-form-field" data-rental-field="hourly_rate" hidden>
+    <label for="facilityHourlyRateOption" class="form-label">Optional Hourly Rental Rate (₱/hr)</label>
+    <input type="number" class="form-control" id="facilityHourlyRateOption" min="0" step="0.01" placeholder="e.g. 700 (optional hourly rate)">
+    <span class="facility-form-help">Optional standalone hourly rate when policy allows either package or hourly rental.</span>
+</div>
 <div class="facility-form-field facility-form-field-wide" data-rental-field="pricing_notes" hidden>
     <label for="facilityPricingNotes" class="form-label">Custom Pricing Description *</label>
     <textarea class="form-control" id="facilityPricingNotes" maxlength="2000" rows="3" placeholder="Explain the charging basis and quote requirements"></textarea>
@@ -27,6 +32,7 @@
     <label for="facilityDepositValue" class="form-label">Deposit Value *</label>
     <input type="number" class="form-control" id="facilityDepositValue" min="0" step="0.01" placeholder="Enter deposit value">
     <span id="facilityDepositHelp" class="facility-form-help">Enter an amount or a percentage.</span>
+    <span id="facilityDepositPreview" class="facility-deposit-preview" hidden></span>
 </div>
 <div class="facility-form-field facility-form-field-wide" data-rental-field="fees">
     <h3 class="facility-config-heading">Optional Additional Fees</h3>

@@ -1,6 +1,200 @@
 # Roles & Permissions: implementation, debugging and learning guide
 
-## Current update: final administrator role structure (October 10, 2026)
+## Idle web tabs keep their login after temporary session-check errors — October 30, 2026
+
+The user explicitly selected **“Stay signed in while idle.”** This change fixes erroneous logout during session verification when returning to an unused/background tab. It does not add an inactivity logout timer or change role permissions.
+
+### 1. Cause / reason
+
+Confirmed in `admin_session.js:verifySession`: every non-success response from `/api/admin/session/` called `goToLogin()`. That function cleared the tab's token and requested `/admin-logout/`, which revokes the database token. A temporary 503/502/500 or rate limit therefore became a real logout when focus/visibility events checked the session. A real Chromium regression reproduced this with a mocked HTTP 503 before the fix. This proves that error path; no private browser log was captured to establish the exact response the user's own tab received.
+
+Focus, visibility and page-show events could also start overlapping checks, and an old rejected response could clear a newer token. There was no existing click-based inactivity timer. The server has a separate absolute token expiry, which remains in place.
+
+### 2. Exact files changed / current lines and code anchors
+
+| File / line | Anchor | Change / expected behavior |
+| --- | --- | --- |
+| `backend/static/components/js/admin_session.js:245` | `sessionCheck`, `verifySession` | Share an in-flight check for the same token; use a bounded 15-second request and preserve valid tab state after temporary failures. |
+| Same JS, line 271 | `response.status === 401 || response.status === 403` | Revoke only on confirmed rejected authentication, or a successful JSON response explicitly containing `authenticated: false` at line 279. A missing field is not interpreted as logout. |
+| Same JS, line 269 / 278 | `getTabToken() !== token` | Ignore a response for a replaced token, including a late old 401. |
+| Same JS, line 283 | `window.clearTimeout(timeout)` | Always release the request timer/lock so a future focus can retry after timeout or network recovery. |
+| `backend/templates/partials/admin_header.html:107` | `admin_session.js` | Load version `20261030-session-recheck` across shared admin screens. |
+| `backend/core/modules/user_management/templates/user_management/pages/admin_login.html:185` | `admin_session.js` | Use the same version on the existing login page. |
+| `backend/core/modules/user_management/templates/user_management/pages/admin_tab_bootstrap.html:10` | session script | Use the same version when restoring tab authentication for an HTML navigation. |
+| `backend/core/modules/facilities/templates/facilities/pages/job_order.html:17` | session script | Refresh the shared controller version for this existing standalone page. |
+| `backend/core/modules/facilities/templates/facilities/pages/booking_slip.html:10` | session script | Same asset update for the browser-only slip; PDF behavior stays unchanged. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_bookings.html:201` | session script | Same shared controller version; booking logic/layout is unchanged. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_booking_details.html:68` | session script | Same shared controller version; booking details/workflows are unchanged. |
+| `scratch/admin-session-20261030/check.cjs:1` | original focused Chromium regression | Reproduce a 503-on-focus logout before the change and verify token retention afterward. All requests are intercepted. |
+| `scratch/admin-session-20261030/regression.cjs:1` | `scenario`, `retained` | Exercise idle time, temporary failures/recovery, coalescing, stale responses, timeout, genuine rejections and existing explicit/history logout. |
+| `scratch/admin-session-20261030/verify_served.py:1` | public asset/login checks | Compare the actual localhost-served JS bytes to the updated file and check the login template's asset version without signing in. |
+| `docs/roles-permissions.md:3` | this eight-part report | Record the reproduced cause, data flow, checks, beginner practice and limits. |
+| `CAMPUSHUB_CONTEXT.md:3` | idle-session correction | Preserve the clarified user preference and completed localhost state. |
+
+The seven template edits are script-version updates only, so cached copies cannot keep running different session-controller versions. They are not interface redesigns or changes to those modules' business logic.
+
+### 3. Changes made
+
+Idle/background time does not itself revoke login. On focus, a temporary HTTP 408/429/500/502/503/504, unreadable response, offline error or timeout retains the tab token. The next focus/visibility event can retry. Concurrent events share one check for that token. A response from an older token cannot sign a newer login out. Explicit Logout and the existing login/history-revocation behavior are retained.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+```text
+Tab focus / visible / normal page-show
+  -> verifySession reads current tab token and current admin page identity
+  -> reuse pending check for that token, or GET /api/admin/session/
+     401/403 or JSON authenticated:false -> existing logout/revocation flow
+     temporary failure / unreadable JSON -> keep token, release check, allow retry
+     authenticated:true                 -> keep token
+  -> ignore any response if the tab token changed during the request
+```
+
+`verifySession()` accepts browser events indirectly and uses the existing token/header; it returns a promise for the current check. `sessionCheck` stores the token and pending promise, not a new session credential. The 15-second `AbortController` timeout applies to the HTTP request, **not** to user inactivity. `finally` clears the request timer and releases only its own check object. `goToLogin()`/`revokeAndRedirectToLogin()` remain the existing confirmed-logout path.
+
+Example: a tab has a valid token, sits unused, then regains focus while Django temporarily returns 503. Previously the token was cleared/revoked. Now it stays in tab storage; after the server recovers, another focus checks the same token successfully. If the server instead confirms that token expired with 401, the existing logout redirect still occurs.
+
+### 5. Backend / API behavior
+
+No endpoint, authentication rule, permission or token format changed. `GET /api/admin/session/` still returns authorized identity JSON or 401 for an invalid/revoked/expired token. Protected APIs continue checking authorization on the server even when the browser keeps its tab token during a failed check. The browser does not treat an offline state as authenticated server access.
+
+`accounts/admin_tab_auth.py:create_admin_tab_token` still uses the existing **12-hour** normal or **30-day Remember Me** absolute expiry. `get_user_for_tab_token` still rejects expired, deactivated and suspended accounts. This change does not extend or renew those lifetimes.
+
+### 6. Database / migration impact
+
+No models, schema, migrations, database configuration, stored token expiry, user/role records or stock changed. Tests used an isolated disposable local PostgreSQL database, removed afterward. No live login was created for verification. Only local Django was restarted to clear its cached templates; chat and the hosted Kamatera release were not changed. Existing database login records were retained by the restart.
+
+### 7. Tests performed / verification
+
+- The initial Chromium 503-on-focus regression failed before the change because a logout request was issued. Its three checks passed after the change.
+- **51/51 Chromium assertions passed across 18 intercepted scenarios**: six temporary statuses with healthy retries; offline/bad JSON/missing authentication field; **45 minutes of simulated no-click idle time**; simultaneous focus/visibility/page-show; stale 401 after a newer login; request timeout and retry; real rejection responses; explicit logout; and the existing cached Back/Forward policy. The 45 minutes used the browser test clock, not an unattended real-time session.
+- **23 existing Django authentication/session regressions passed**: `accounts.tests.AdminBackForwardLogoutTests`, `accounts.test_activity_api`, and `accounts.test_user_management.FinalUserManagementTests.test_disabled_admin_authentication_and_tab_token_are_blocked`. The first runner invocation used a wrong user-management class name; that was a test-label error, corrected before the successful run. No authentication implementation changed to accommodate the tests.
+- `node --check backend/static/components/js/admin_session.js` passed.
+- Localhost served JS bytes match the updated source and its login page now references `20261030-session-recheck`. The first live check found a cached older template, so local Django was restarted and the same check then passed. No actual user token was revoked by these probes.
+
+Safe practice exercise: run `node scratch/admin-session-20261030/regression.cjs`. In its isolated temporary-status list, substitute one 503 case with 502 and rerun; the token should still remain and the healthy retry should work. Do not edit production status handling or expire a real account to practice. For a manual check, refresh localhost once, sign in if necessary, switch tabs and return; inspect only HTTP status codes in Developer Tools, never copy the tab token/header into screenshots or chat.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh an already-open admin page once to load the new controller. If the old controller already revoked its token, sign in again; revoked sessions are not resurrected. Genuine absolute expiry, explicit Logout, account deactivation/suspension and the existing Back/Forward/login-page revocation policy still end access. Browser storage clearing also removes a tab's credential. No multi-hour real-time, physical-device or hosted deployment check was claimed; the working localhost asset and accelerated browser/isolated backend checks are the verification evidence.
+
+## Current update: Reports & Analytics Navigation Group and Breadcrumbs across All Admin Roles (October 29, 2026)
+
+### 1. Cause / reason
+The sidebar navigation group for reports and analytics was previously titled `<span class="nav-group-title">Reports</span>`. However, this group encompasses both domain analytics (Marketplace Analytics, Facilities Analytics, Services Analytics, User Analytics) and report generation (`Generate Reports`). In addition, the header breadcrumb section on analytics and report generator pages was inconsistently labeled `breadcrumb_section='Reports'` or blank (`breadcrumb_section=''`). The user requested that the sidebar section and related views be clearly named **"Reports & Analytics"** across all administrator roles (`Super Admin`, `Marketplace Admin`, `Facilities Admin`, and custom admin roles).
+
+### 2. Exact files, current lines and code anchors
+
+| File | Line / anchor | Change and expected behavior |
+| --- | --- | --- |
+| `backend/templates/partials/admin_sidebar.html` | 184 `<span class="nav-group-title">Reports & Analytics</span>` | Renamed sidebar nav-group title from "Reports" to "Reports & Analytics". Applies to all administrator roles sharing the admin sidebar. |
+| `backend/core/accounts/role_permissions.py` | 75 `PERMISSION_MODULES` | Updated permission grouping category from `"Reports"` to `"Reports & Analytics"` so that the Roles & Permissions panel displays "Reports & Analytics" as the module tab. |
+| `backend/core/modules/reports/templates/reports/pages/admin_generate_reports.html` | 20 `breadcrumb_section='Reports & Analytics'` | Updated breadcrumb section from `'Reports'` to `'Reports & Analytics'` for university-grade consistency. |
+| `backend/core/modules/reports/templates/reports/pages/admin_marketplace_analytics.html` | 21, 23 `breadcrumb_section='Reports & Analytics'` | Updated breadcrumb section for both marketplace admin and super admin to `'Reports & Analytics'`. |
+| `backend/core/modules/reports/templates/reports/pages/admin_facility_analytics.html` | 23 `breadcrumb_section='Reports & Analytics'` | Updated breadcrumb section from `'Reports'` to `'Reports & Analytics'`. |
+| `backend/core/modules/reports/templates/reports/pages/admin_services_analytics.html` | 19 `breadcrumb_section='Reports & Analytics'` | Updated breadcrumb section from `'Reports'` to `'Reports & Analytics'`. |
+| `backend/core/modules/reports/templates/reports/pages/admin_users_analytics.html` | 20 `breadcrumb_section='Reports & Analytics'` | Updated breadcrumb section from `'Reports'` to `'Reports & Analytics'`. |
+| `backend/core/modules/reports/templates/reports/pages/admin_domain_analytics.html` | 9 `breadcrumb_section='Reports & Analytics'` | Updated breadcrumb section from `'Reports'` to `'Reports & Analytics'`. |
+| `backend/core/accounts/tests.py` | 146, 179, 274 `assertContains` | Added assertions for `"Reports & Analytics"` across Marketplace Admin, Facilities Admin, and Super Admin sidebar tests. |
+| `CAMPUSHUB_CONTEXT.md` | Top development record | Documented the Reports & Analytics naming unification. |
+
+### 3. Changes made
+- In `backend/templates/partials/admin_sidebar.html`:
+  - Updated the navigation group title: `<span class="nav-group-title">Reports & Analytics</span>`.
+  - Updated section comment to `<!-- Reports & Analytics -->`.
+  - Preserved existing permission checks (`can_view_reports`, `can_generate_reports`, `can_view_marketplace_reports`, `can_view_facility_reports`, `can_view_marketplace_analytics`, `can_view_facility_analytics`), collapsible animation, and active item indicators.
+- In `backend/core/accounts/role_permissions.py`:
+  - Updated the display category tuple in `PERMISSION_MODULES` from `"Reports"` to `"Reports & Analytics"`.
+  - Permission codenames and database models remain untouched.
+- In all 6 reports and analytics page templates (`admin_generate_reports.html`, `admin_marketplace_analytics.html`, `admin_facility_analytics.html`, `admin_services_analytics.html`, `admin_users_analytics.html`, and `admin_domain_analytics.html`):
+  - Updated `breadcrumb_section` from `'Reports'` (or empty) to `'Reports & Analytics'`.
+  - Standardized breadcrumb display across Super Admin, Marketplace Admin, and Facilities Admin to: `Dashboard › Reports & Analytics › <Page>`.
+- In `backend/core/accounts/tests.py`:
+  - Added assertions for `"Reports & Analytics"` in `DomainAnalyticsPermissionTests`.
+
+### 4. Functions, inputs / outputs and data flow
+1. When an administrator accesses any admin page (`/admin-dashboard/`, `/admin-generate-reports/`, `/admin-analytics/`, etc.):
+   - Django renders `admin_sidebar.html`.
+   - The template checks permissions for the reports group.
+   - If the user has any report or analytics permission, it outputs `<span class="nav-group-title">Reports & Analytics</span>`.
+   - Inside the group, it displays links to `Analytics` (routing to marketplace or facility analytics based on role) and/or `Generate Reports` (routing to report builder).
+2. When an administrator accesses an analytics or report generator view:
+   - The view passes context to the page template (e.g., `admin_marketplace_analytics.html`).
+   - The template includes `partials/admin_header.html` with `breadcrumb_section='Reports & Analytics'`.
+   - `admin_header.html` outputs `Dashboard › Reports & Analytics › <breadcrumb_page>`.
+3. When Super Admin manages roles in `/admin-roles/`:
+   - `admin_roles_page` in `role_management.py` iterates `PERMISSION_MODULES` and builds `permission_groups`.
+   - The module button outputs `Reports & Analytics`.
+
+### 5. Backend / API behavior
+- All existing endpoints, views, and permission definitions remain identical.
+- Zero changes to API schemas, serialization, or permission codenames.
+
+### 6. Database / migration impact
+- Zero database changes or migrations.
+- No live database records modified.
+
+### 7. Tests performed
+- Executed Django template loader rendering verification for `admin_sidebar.html` across `Super Admin`, `Marketplace Admin`, and `Facilities Admin` simulating their respective permissions: confirmed `"Reports & Analytics"` renders for all roles.
+- Executed template rendering verification across all 6 report templates: confirmed `"Reports & Analytics"` is present in all rendered templates.
+- Executed `python manage.py check`: 0 issues identified.
+- Updated automated regression tests in `backend/core/accounts/tests.py`.
+
+### 8. Remaining limitations & safe exercise
+- Safe exercise: Log into Web Admin as Super Admin, Marketplace Admin, or Facilities Admin. Open the sidebar and verify that the group title displays "Reports & Analytics". Click "Analytics" or "Generate Reports" and verify that the top breadcrumb displays `Dashboard › Reports & Analytics › ...`.
+
+## Current update: Administrator login destination - Dashboard default for all admin roles (October 29, 2026)
+
+### 1. Cause / reason
+When Marketplace Admin or Facilities Admin logged in, the system redirected them directly to `/admin-products/` (Products table) or `/admin-facility/` (Facilities list), causing the sidebar to expand and highlight those specific sub-modules instead of opening their dedicated operational dashboards.
+This occurred because `get_admin_home_url` in `backend/core/accounts/role_permissions.py` only checked `if user.is_superuser:` to return `reverse("admin_dashboard_page")`. For non-superusers, it evaluated module permission ladders (`can_manage_products` / `can_view_products` -> `/admin-products/`, and `can_manage_facilities` / `can_view_facilities` -> `/admin-facility/`), skipping the Dashboard entirely even though dedicated operational dashboard templates (`admin_marketplace_dashboard.html` and `admin_facilities_dashboard.html`) exist and are fully functional at `/admin-dashboard/`.
+
+### 2. Exact files, current lines and code anchors
+
+| File | Line / anchor | Change and expected behavior |
+| --- | --- | --- |
+| `backend/core/accounts/role_permissions.py` | 444 `def get_admin_home_url(user)` | Check `user_has_admin_access(user)` first. When True, return `reverse("admin_dashboard_page")`. Ensures Super Admin, Marketplace Admin, Facilities Admin, and any active administrator with admin access land on the Dashboard upon login. |
+| `backend/core/accounts/tests.py` | 21, 551 `test_marketplace_and_facilities_admin_login_redirect_to_dashboard` | Added regression test asserting `get_admin_home_url` returns `/admin-dashboard/` and login API returns `redirect_url` to `/admin-dashboard/` for Super Admin, Marketplace Admin, and Facilities Admin. |
+| `CAMPUSHUB_CONTEXT.md` | Top development record | Documented the login destination fix and role redirection behavior. |
+
+### 3. Changes made
+- Updated `get_admin_home_url(user)` in `backend/core/accounts/role_permissions.py`:
+  - If `user_has_admin_access(user)` is `True` (which requires an active, non-suspended administrator), return `reverse("admin_dashboard_page")`.
+  - Inactive or suspended users fail `user_has_admin_access(user)` and return `reverse("admin_login_page")`.
+  - Preserved the existing fallback ladder for non-dashboard administrative capability contexts.
+- Updated `backend/core/accounts/tests.py`:
+  - Imported `get_admin_home_url`.
+  - Added unit test asserting all three administrator roles receive the dashboard URL and that login POST responses return `redirect_url` pointing to `reverse("admin_dashboard_page")`.
+
+### 4. Functions, inputs / outputs and data flow
+1. User enters username and password on `/admin-login/`.
+2. Form submits via POST to `/api/admin_login/` (`admin_login` in `backend/core/api/views.py`).
+3. Upon authentication, `admin_login` calls `get_admin_redirect_url(user)` -> `get_admin_home_url(user)` in `backend/core/accounts/role_permissions.py`.
+4. `get_admin_home_url(user)` checks `user_has_admin_access(user)`:
+   - For Super Admin: returns `/admin-dashboard/` (renders `admin_dashboard.html` with full university overview).
+   - For Marketplace Admin: returns `/admin-dashboard/` (renders `admin_marketplace_dashboard.html` with marketplace KPIs, sales charts, top categories, and pending seller applications).
+   - For Facilities Admin: returns `/admin-dashboard/` (renders `admin_facilities_dashboard.html` with facility counts, pending bookings, reservations, and maintenance status).
+5. The API response returns `{"redirect_url": "/admin-dashboard/?__at=..."}`.
+6. The frontend script `admin_login.js` executes `window.location.replace(nextUrl)`.
+7. The browser loads `/admin-dashboard/`, and the sidebar highlights the **Dashboard** link at the top of the navigation.
+
+### 5. Backend / API behavior
+- `POST /api/admin_login/`: Returns `redirect_url: /admin-dashboard/?__at=<token>` for all authorized administrators.
+- `GET /api/admin/session/`: Returns `"home_url": "/admin-dashboard/"` for authorized administrators.
+- No permissions or access controls were relaxed.
+
+### 6. Database / migration impact
+- Zero database schema changes or migrations.
+- No live database records modified.
+
+### 7. Tests performed
+1. Executed isolated python script testing `get_admin_home_url` with mock `Super Admin`, `Marketplace Admin`, `Facilities Admin`, regular buyer, suspended admin, and inactive admin: all assertions passed.
+2. Verified `get_admin_redirect_url` from `api.views` returns `/admin-dashboard/` for all administrator roles.
+3. Added automated regression test `test_marketplace_and_facilities_admin_login_redirect_to_dashboard` in `DedicatedDomainDashboardTests`.
+
+### 8. Remaining limitations & safe exercise
+- Safe exercise: Log into Web Admin as a Marketplace Admin or Facilities Admin; observe that you are taken directly to `/admin-dashboard/` and the "Dashboard" sidebar item is active. Navigate to other modules (Products, Facilities) via the sidebar as needed.
+
+## Historical update: final administrator role structure (October 10, 2026)
 
 This update supersedes the visible Standard User row and Access Scope wording in older sections. The previous three-dot implementation remains the source of the menu layout; it was not redesigned.
 

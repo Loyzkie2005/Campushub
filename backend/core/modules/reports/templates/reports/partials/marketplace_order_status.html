@@ -1,0 +1,10 @@
+<article class="analytics-panel marketplace-order-status">
+    <header class="analytics-panel-header"><div><h3>Order Status Breakdown</h3><p>Currently recorded outcomes of orders submitted in selected dates.</p></div><a href="{% url 'admin_orders_page' %}">View orders &rarr;</a></header>
+    {% for row in analytics.order_status_breakdown.rows %}
+    <div class="analytics-status-row">
+        <div class="analytics-status-info"><span>{% if row.url and row.count %}<a href="{{ row.url }}">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}</span><strong>{{ row.count }}</strong></div>
+        <div class="analytics-progress-track" aria-hidden="true"><div class="analytics-progress-bar" style="width: {{ row.percentage }}%;"></div></div>
+        <small>{{ row.percentage }}% of submitted orders</small>
+    </div>
+    {% empty %}<p class="marketplace-compact-empty">No orders submitted in selected period.</p>{% endfor %}
+</article>

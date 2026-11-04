@@ -20,9 +20,9 @@ class FIFOConcurrencyTests(TransactionTestCase):
     available_apps = ["accounts", "api", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions"]
     def setUp(self):
         self.admin = User.objects.create_superuser(username="fifo-race", role="Super Admin")
-        self.product = Product.objects.create(seller=self.admin, name="Race item", stock=0, price=10, approval_status="approved")
-        self.sku = self.product.inventory_skus.get(variant_name="")
         fifo.initialize(fifo.reconciliation()["fingerprint"])
+        self.product = Product.objects.create(inventory_method="fifo",seller=self.admin, name="Race item", stock=0, price=10, approval_status="approved")
+        self.sku = self.product.inventory_skus.get(variant_name="")
 
     def race(self, action):
         barrier = Barrier(2)
@@ -44,6 +44,23 @@ class FIFOConcurrencyTests(TransactionTestCase):
         self.assertEqual(results[0], results[1])
         self.product.refresh_from_db(); self.assertEqual(self.product.stock, 50)
         self.assertEqual(self.sku.batches.count(), 1)
+
+    def test_simple_stock_simultaneous_orders_cannot_oversell(self):
+        self.product.inventory_method="simple";self.product.save(update_fields=["inventory_method"])
+        fifo.receive(self.sku.pk,1,"Simple stock",self.admin,uuid4())
+        results=self.race(lambda user:self.request(1))
+        self.assertEqual(sorted(results),[201,409])
+        self.product.refresh_from_db();self.assertEqual(self.product.stock,0)
+        self.assertFalse(self.sku.batches.exists())
+
+    def test_simple_receipt_simultaneous_retry_posts_once(self):
+        self.product.inventory_method="simple";self.product.save(update_fields=["inventory_method"])
+        key=uuid4()
+        results=self.race(lambda user:fifo.receive(self.sku.pk,3,"Simple retry",user,key))
+        self.assertEqual(results[0],results[1])
+        self.product.refresh_from_db();self.assertEqual(self.product.stock,3)
+        self.assertEqual(self.sku.movements.filter(kind="receipt").count(),1)
+        self.assertFalse(self.sku.batches.exists())
 
     def request(self, quantity, key=None):
         client = Client()

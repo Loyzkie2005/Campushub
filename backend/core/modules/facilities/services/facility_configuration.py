@@ -6,7 +6,7 @@ import unicodedata
 from django.core.exceptions import ValidationError
 
 from .operating_schedule import WEEKDAYS, duration_hours, validate_weekly_hours, weekly_hours, parse_time
-from .rental_configuration import DISCOUNT_CLIENTS, DISCOUNT_TYPES, DISCOUNT_SCOPES, DISCOUNT_SCOPE_METHODS, FORM_DEFAULTS, FORM_TYPES, FEE_UNITS, PRICING_METHODS, RULE_FIELDS, number, validate_rental_options
+from .rental_configuration import DISCOUNT_CLIENTS, DISCOUNT_TYPES, DISCOUNT_SCOPES, DISCOUNT_SCOPE_METHODS, ELIGIBLE_CLIENTS, FORM_DEFAULTS, FORM_TYPES, FEE_UNITS, PRICING_METHODS, RULE_FIELDS, number, validate_rental_options
 from .feature_configuration import FEATURES, validate_features
 
 
@@ -150,6 +150,7 @@ def facility_form_configuration():
         "pricing_methods": PRICING_METHODS,
         "booking_form_types": FORM_TYPES,
         "booking_form_defaults": FORM_DEFAULTS,
+        "eligible_clients": ELIGIBLE_CLIENTS,
         "fee_units": FEE_UNITS,
         "discount_clients": DISCOUNT_CLIENTS,
         "discount_types": DISCOUNT_TYPES,
@@ -284,9 +285,12 @@ def validate_facility_payload(data, *, facility=None):
         errors["workflow_config"] = "Facility workflow details are invalid."
         raw_workflow = {}
     if physical and "equipment" in raw_workflow:
-        errors["equipment"] = "Use Facility Features and Optional Additional Fees instead of separate equipment configuration."
+        errors["equipment"] = "Use Additional Requirements and Optional Additional Fees instead of separate equipment configuration."
     # Preserve unowned saved settings; validate owned settings after merging.
     raw_workflow = {**existing_workflow, **raw_workflow}
+    if physical and existing_workflow.get("weekend_only") is True and raw_workflow.get("weekend_only") is not True:
+        errors["weekend_only"] = "The existing weekend-only policy cannot be removed through the facility schedule form."
+        raw_workflow["weekend_only"] = True
     if physical:
         amenities, other_feature = validate_features(amenities, raw_workflow, existing_workflow, errors)
     custom_type = ""
@@ -349,13 +353,15 @@ def validate_facility_payload(data, *, facility=None):
         if field in workflow_config:
             value = _positive_integer(workflow_config[field], field, errors)
             workflow_config[field] = str(value)
+            if booking_mode == "room" and capacity and value and value > capacity:
+                errors["capacity_per_room"] = "Capacity per room cannot exceed maximum facility capacity."
     for field in ("check_in_time", "check_out_time"):
         if field in workflow_config:
             try:
                 workflow_config[field] = parse_time(workflow_config[field]).strftime("%H:%M")
             except ValidationError:
                 errors[field] = "Enter a valid time."
-    owned = WORKFLOW_CONFIG_FIELDS | set(RULE_FIELDS) | {"capacity_min", "booking_form_type", "pricing", "damage_deposit", "additional_fees", "custom_facility_type", "discount_rules"}
+    owned = WORKFLOW_CONFIG_FIELDS | set(RULE_FIELDS) | {"capacity_min", "booking_form_type", "pricing", "damage_deposit", "additional_fees", "custom_facility_type", "discount_rules", "eligible_clients", "weekend_only", "advance_payment_days"}
     if physical:
         owned |= {"other_feature"}
     workflow_config = {**{key: value for key, value in existing_workflow.items() if key not in owned}, **workflow_config}
@@ -367,6 +373,9 @@ def validate_facility_payload(data, *, facility=None):
         workflow_config.update(validate_rental_options(raw_workflow, mode=booking_mode,
             rate=rate, price_type=price_type, capacity=capacity, errors=errors,
             facility_type=facility_type, legacy=bool(facility)))
+        if workflow_config.get("weekend_only") and isinstance(workflow_config.get("operating_hours"), dict):
+            if any(workflow_config["operating_hours"].get(day) is not None for day in WEEKDAYS[:5]):
+                errors["operating_hours"] = "Weekend-only restriction requires Monday through Friday to be Closed."
     if errors:
         raise ValidationError(errors)
 

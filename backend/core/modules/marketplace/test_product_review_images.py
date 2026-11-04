@@ -16,21 +16,26 @@ from api.models import Product
 
 
 class ProductReviewButtonsTests(SimpleTestCase):
-    def render(self, status="pending", archived=False, approve=True):
+    def render(self, status="pending", archived=False, approve=True, manage=True):
         return render_to_string("marketplace/partials/product_actions.html", {
             "product": SimpleNamespace(approval_status=status, is_archived=archived),
-            "can_manage_products": True, "can_approve_products": approve,
+            "can_manage_products": manage, "can_approve_products": approve,
         })
 
     def test_pending_has_named_check_and_cross_with_existing_management(self):
         html = self.render()
-        for action in ("approve", "reject", "archive"):
+        for action in ("approve", "reject", "edit", "archive"):
             self.assertIn(f'aria-label="{action.capitalize()} product"', html)
+        self.assertIn('title="View Product"', html)
         self.assertIn('aria-label="View Details"', html)
-        self.assertNotIn('btn-edit-product', html)
+        self.assertIn('btn-edit-product', html)
         self.assertNotIn("product-review-menu", html)
         self.assertIn('d="m5 12 4 4L19 6"', html)
         self.assertIn('d="m6 6 12 12M18 6 6 18"', html)
+        read_only_html = self.render(manage=False)
+        self.assertNotIn('btn-edit-product', read_only_html)
+        self.assertNotIn('btn-archive-product', read_only_html)
+        self.assertNotIn('btn-restore-product', read_only_html)
 
     def test_decision_controls_require_pending_active_and_permission(self):
         for args in ({"status": "approved"}, {"status": "rejected"},
@@ -76,6 +81,8 @@ class PendingProductImageTests(TestCase):
         self.assertContains(response, f'src="{image_url}?__at={token}"')
         self.assertContains(response, 'referrerpolicy="no-referrer"')
         self.assertContains(response, 'class="product-table-image product-table-image-empty" hidden')
+        self.assertContains(response, 'class="listing-status-pill listing-status-active"')
+        self.assertContains(response, 'class="btn-user-action btn-edit-product"')
         self.assertNotContains(response, 'class="product-review-menu"')
         for element_id in ("productDecisionModal", "productDecisionModalLabel",
                            "productDecisionReason", "confirmProductDecisionButton"):

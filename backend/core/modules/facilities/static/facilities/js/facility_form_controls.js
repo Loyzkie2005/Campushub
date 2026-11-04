@@ -51,6 +51,39 @@
         }
 
         buildSchedule() {
+            const presetsBar = document.createElement('div');
+            presetsBar.className = 'facility-schedule-presets';
+            presetsBar.setAttribute('role', 'group');
+            presetsBar.setAttribute('aria-label', 'Operating schedule presets');
+            this.presets = [
+                {key: 'weekdays', label: 'Weekdays', days: this.configuration.weekdays.slice(0, 5)},
+                {key: 'weekends', label: 'Weekends', days: this.configuration.weekdays.slice(5)},
+                {key: 'daily', label: 'Daily', days: this.configuration.weekdays},
+                {key: 'custom', label: 'Custom', days: null},
+            ];
+            this.presetButtons = this.presets.map((preset) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'facility-schedule-preset-btn';
+                btn.dataset.schedulePreset = preset.key;
+                btn.textContent = preset.label;
+                btn.setAttribute('aria-pressed', 'false');
+                btn.addEventListener('click', () => {
+                    if (btn.disabled) return;
+                    if (preset.days) this.applyPreset(preset.days);
+                    else this.syncPresets(true); // Editing mode only; do not replace saved hours.
+                });
+                return {preset, button: btn};
+            });
+            presetsBar.append(...this.presetButtons.map(({button}) => button));
+            const help = document.createElement('p');
+            help.className = 'facility-schedule-help';
+            help.textContent = 'Presets keep configured hours. New days use 8:00 AM–5:00 PM.';
+            this.policyNotice = document.createElement('p');
+            this.policyNotice.className = 'facility-schedule-help';
+            this.policyNotice.textContent = 'This facility’s policy permits weekend bookings only.';
+            this.policyNotice.hidden = true;
+            this.schedule.append(presetsBar, help, this.policyNotice);
             this.rows = this.configuration.weekdays.map((day) => {
                 const row = document.createElement('div');
                 row.className = 'facility-hours-row';
@@ -79,12 +112,15 @@
                 active.addEventListener('change', () => {
                     this.scheduleDirty = true;
                     active.setCustomValidity('');
+                    if (active.checked) this.fillDefaultHours(entry);
                     this.syncDay(entry);
+                    this.syncPresets();
                 });
                 [open, close].forEach((field) => field.addEventListener('change', () => {
                     this.scheduleDirty = true;
                     open.setCustomValidity('');
                     close.setCustomValidity('');
+                    this.syncPresets();
                 }));
                 return entry;
             });
@@ -99,12 +135,58 @@
             operatingScheduleUi.setTime(select, value);
         }
 
+        fillDefaultHours(row) {
+            if (!row.open.value) this.setTime(row.open, '08:00');
+            if (!row.close.value) this.setTime(row.close, '17:00');
+        }
+
+        applyPreset(days) {
+            // Presets change the schedule, never the facility's saved policy.
+            if (this.readOnly || (this.weekendOnly && days.some(day => !['saturday', 'sunday'].includes(day)))) return;
+            this.scheduleDirty = true;
+            for (const row of this.rows) {
+                row.active.checked = days.includes(row.day);
+                if (row.active.checked) this.fillDefaultHours(row);
+                row.active.setCustomValidity('');
+                row.open.setCustomValidity('');
+                row.close.setCustomValidity('');
+                this.syncDay(row);
+            }
+            this.syncPresets();
+        }
+
+        syncPresets(custom = false) {
+            const active = this.rows.filter(row => row.active.checked);
+            // A named preset has its exact day set and a common daily time range.
+            const matched = !custom && this.presets.find(preset => preset.days
+                && active.length === preset.days.length
+                && active.every(row => preset.days.includes(row.day)
+                    && row.open.value && row.close.value
+                    && row.open.value < row.close.value
+                    && row.open.value === active[0].open.value && row.close.value === active[0].close.value));
+            const visible = !this.schedule.closest('[data-facility-field]').hidden;
+            for (const {preset, button} of this.presetButtons) {
+                button.setAttribute('aria-pressed', String(preset.key === (matched ? matched.key : 'custom')));
+                button.disabled = this.readOnly || !visible || Boolean(this.weekendOnly
+                    && preset.days?.some(day => !['saturday', 'sunday'].includes(day)));
+            }
+        }
+
+        setReadOnly(value) {
+            this.readOnly = value;
+            this.rows.forEach(row => this.syncDay(row));
+            this.syncPresets();
+        }
+
         syncDay(row) {
             const visible = !this.schedule.closest('[data-facility-field]').hidden;
+            const lockedWeekday = this.weekendOnly && !['saturday', 'sunday'].includes(row.day);
+            if (lockedWeekday) row.active.checked = false;
+            row.active.disabled = this.readOnly || !visible || lockedWeekday;
             row.times.hidden = !row.active.checked;
             row.closed.hidden = row.active.checked;
             for (const field of [row.open, row.close]) {
-                field.disabled = !visible || !row.active.checked;
+                field.disabled = this.readOnly || !visible || !row.active.checked;
                 field.required = visible && row.active.checked;
             }
         }
@@ -145,12 +227,18 @@
         }
 
         getFeatureWorkflow() {
-            return this.physical ? {other_feature: this.other.checked ? this.otherInput.value.trim() : null} : {};
+            if (!this.physical) return {};
+            return {
+                other_feature: this.other.checked ? this.otherInput.value.trim() : null,
+                weekend_only: this.weekendOnly,
+            };
         }
 
         setWorkflow(workflow) {
             this.customFeature = this.physical && typeof workflow.other_feature === 'string' ? workflow.other_feature : '';
             this.other.checked = Boolean(this.customFeature); this.otherInput.value = this.customFeature; this.syncOther();
+            this.weekendOnly = workflow.weekend_only === true;
+            this.policyNotice.hidden = !this.weekendOnly;
             const hours = workflow.operating_hours;
             this.originalHours = hours;
             this.scheduleDirty = false;
@@ -166,6 +254,7 @@
                 row.close.setCustomValidity('');
                 this.syncDay(row);
             }
+            this.syncPresets();
             const duration = String(workflow.minimum_booking_duration || '');
             this.minimum.querySelectorAll('[data-existing-duration]').forEach((option) => option.remove());
             const normalized = duration ? String(Number(duration)) : '';
@@ -207,6 +296,7 @@
             this.minimum.disabled = minimumField.hidden;
             this.syncMinimum();
             this.rows.forEach((row) => this.syncDay(row));
+            this.syncPresets();
             this.syncOther();
         }
 

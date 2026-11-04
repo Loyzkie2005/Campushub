@@ -1,0 +1,11 @@
+<article class="analytics-panel marketplace-order-distribution-card">
+    <header class="analytics-panel-header"><div><h3>{{ title }}</h3><p>{{ subtitle }}</p></div></header>
+    {% if analytics.operations.total %}
+    <div class="marketplace-order-distribution-layout">
+        <div class="analytics-donut marketplace-order-donut"><canvas id="{{ chart_id }}" role="img" aria-label="{{ title }} for submitted orders" aria-describedby="{{ chart_id }}Summary"></canvas></div>
+        <dl class="marketplace-order-distribution" id="{{ chart_id }}Summary" aria-label="{{ title }} counts and shares">
+            {% for row in rows %}<div><dt><span class="marketplace-order-indicator" aria-hidden="true"></span><span>{% if receiving and forloop.last %}Not Recorded{% else %}{{ row.label }}{% endif %}</span></dt><dd><strong>{{ row.count }} order{{ row.count|pluralize }}</strong><span>{{ row.percentage }}%</span></dd></div>{% endfor %}
+        </dl>
+    </div>
+    {% else %}<p class="marketplace-compact-empty">{{ empty_text }}</p>{% endif %}
+</article>

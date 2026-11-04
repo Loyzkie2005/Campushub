@@ -1,5 +1,143 @@
 # PostgreSQL backups and server transfers
 
+## Returned this PC to localhost — October 30, 2026
+
+Current mode: open **http://127.0.0.1:8000/**. Both this PC's Django backend and chat service connect to **127.0.0.1:5432/campushub**, using the original saved local credentials. Local changes now affect the PC database. The hosted Kamatera deployment/database was not changed by this switch. This supersedes the online-database selection described below.
+
+### 1. Cause / reason
+
+The user requested “back to localhost.” Confirmed before changing settings: both local services selected port 15432, the SSH forwarding port for Kamatera. The original saved local settings selected port 5432, and a read-only connection confirmed that database was reachable. Its schema needed migrations 0050 and 0051 to support the current inventory code.
+
+### 2. Exact files changed
+
+| File / current line | Nearby anchor | Change |
+| --- | --- | --- |
+| `backend/core/.env:10` | `DATABASE_URL` | Restore only the saved Django localhost database URL; retain other current settings. |
+| `backend/chat_service/.env:1` | `DATABASE_URL` | Restore only the saved asyncpg localhost URL; retain the existing chat signing settings. |
+| `scratch/fifo-workflow-20261029/return_localhost.py:1` | `database_value`, `apply` branch | Validate targets, inspect the local migration plan, privately back up settings/database, stop this checkout's local app processes, restore the two URLs and apply only the two expected local migrations. |
+| `scratch/fifo-workflow-20261029/verify_localhost.py:1` | `code`, `chat_code`, HTTP checks | Verify each actual database connection and read-only Inventory renders, then check the real localhost HTTP endpoints. |
+| `docs/database-backup-neon.md:3` | `Returned this PC to localhost` | Record the current selection, checks, data flow and troubleshooting. |
+| `CAMPUSHUB_CONTEXT.md:3` | `Current runtime: local PostgreSQL` | Preserve the current database choice above the historical Kamatera report. |
+
+The original Django/chat connection values came from the restricted `backend/backups/kamatera-switch-20261029/` backup. Credentials and full connection URLs are intentionally omitted here.
+
+### 3. Changes made
+
+Only this PC's database-selection lines changed. Existing local Django/chat processes were stopped and restarted as hidden processes: Django on port 8000 and chat on port 8001. No remote service, remote data, role permission, application business logic, product quantity or Flutter API default was changed for the switch. Existing IDE launch configurations already use local development addresses.
+
+### 4. How it works / functions and data flow
+
+`database_value(path)` reads the one `DATABASE_URL` line from the original private settings. The switch validates its host, port and database before using it. Its `apply` branch first creates a local PostgreSQL dump and private settings snapshots. It then replaces only the current database lines, applies the checked schema updates to the PC database and reports safe host/port/count metadata.
+
+```text
+Browser / local Flutter build -> PC Django :8000 -> PC PostgreSQL :5432/campushub
+Local chat requests           -> PC chat :8001  -> PC PostgreSQL :5432/campushub
+```
+
+Django's existing `core/settings.py:_load_dotenv` loads `backend/core/.env`; chat's `app/config.py:Settings` loads `backend/chat_service/.env`. Their running connections were verified independently, rather than assuming that an edited file changed an already running process. Example: port **5432** means the PC PostgreSQL server; port **15432** is the Kamatera tunnel and should no longer appear in either active local database setting.
+
+### 5. Backend / API behavior
+
+The existing APIs keep their routes, permissions and workflows. Verified responses: login `/` HTTP 200, `/api/products/approved/` HTTP 200 and chat `/health` HTTP 200. Stock Overview, Stock Movements and Stock Batches each rendered HTTP 200 using a real authorized local admin inside an enforced read-only transaction. The first verification script used the nonexistent `/api/products/` route, returned 404, and was corrected to the actual approved-products route; this was a probe error, not a production API change.
+
+### 6. Database / migration impact
+
+Before the local migrations, a full local dump and both previous settings files were saved in restricted `backend/backups/localhost-return-20261030/`. The dump is `localhost-before-switch-20261029T171152Z.sql` (UTC filename; October 30 in Asia/Singapore). Do not publish this private folder.
+
+Applied existing migrations `0050_inventory_movement_notes` and `0051_hybrid_inventory` to **local PostgreSQL only**. No migrations remain pending. The original local data remains: **15 products, 344 available, 1 reserved and 14 existing batches**. Migration 0051 preserves FIFO for products that already have genuine batch history; it did not create those 14 batches or copy them from Kamatera. New products still default to Simple stock. The remote database was neither copied over the local one nor changed.
+
+### 7. Tests performed / safe practice
+
+- Read-only PostgreSQL checks confirmed `current_database() = campushub` and `inet_server_port() = 5432` for both Django and chat's async SQLAlchemy engine.
+- Read-only reconciliation found no inventory errors and preserved the totals above; all three Inventory tabs rendered successfully.
+- Local web/products/chat HTTP checks returned 200. Existing local migration plan is empty.
+- Ran the existing `campushub/scripts/connect_android.py`: no single authorized physical phone was attached, so forwarding was safely skipped. No device was selected automatically.
+- This was a configuration/runtime switch; no new business-logic test suite was needed or claimed. Detailed verification is privately recorded in `verification-result.json` beside the backup.
+
+Safe practice: open the localhost login page without submitting any stock/order form. In a private terminal, check only the database host/port or PostgreSQL `SELECT current_database(), inet_server_port();`; expect `campushub` and `5432`. Never paste the connection URL or password into a screenshot, commit or chat. Restart local services after changing `.env`, because existing processes can keep their previous connection.
+
+### 8. Remaining limitations / troubleshooting
+
+Local and Kamatera records are separate and are not automatically synchronized. If a future launch still reaches Kamatera, check for a process-level `DATABASE_URL` override before editing application code; existing environment variables take precedence over `.env`. An APK explicitly built with an online `CAMPUSHUB_API_BASE_URL` needs a local development rebuild/relaunch to use the PC backend. No phone build/install was performed here, and no phone was connected for ADB verification. The earlier Kamatera public-hostname DNS issue is independent of this working localhost setup.
+
+## Local servers reconnected to Kamatera - October 29, 2026
+
+Current mode: open **http://127.0.0.1:8000/** on this PC. Django and local chat use the existing online `campushub` database through SSH. Changes submitted through localhost now affect shared Kamatera records. This supersedes the October 21 local-database configuration below. The separately hosted application source was not redeployed.
+
+### 1. Cause / reason
+
+The user clarified that “back to Kamatera run” means switching local servers from PC PostgreSQL to Kamatera. The private `.env` files selected PC port 5432. A read-only login verified the saved remote credential before either file changed. After switching, the actual approved-product endpoint returned HTTP 500: PostgreSQL reported missing `campushub_product.source_recommendation_id`. Confirmed Kamatera lacked migrations 0045 through 0049. The user explicitly approved a backup and those five migrations.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/.env` | 10 `DATABASE_URL` | Kamatera through `127.0.0.1:15432`; retain Django's five-second connection timeout. |
+| `backend/chat_service/.env` | 1 `DATABASE_URL` | Same database using asyncpg, without a psycopg-only timeout parameter. |
+| `scratch/switch_kamatera_database.py` | 13 `env_values`; 20 `main` | Ignored one-time connection switch, original-file backups and key comparison. |
+| `scratch/verify_kamatera_database.py` | 10 `django_check`; 33 `chat_check` | Ignored read-only checks through actual application settings/drivers. |
+| `scratch/backup_kamatera_before_migrations.py` | 14 `main` | Ignored backup helper guarded by the approved five-migration plan. |
+| `docs/database-backup-neon.md` | 3 this report | Active mode, recovery, verification and learning guide. |
+| `CAMPUSHUB_CONTEXT.md` | 3 current Kamatera note | Preserve the active database destination and result. |
+
+Private originals, SQL backup, verification JSON, runtime metadata and service logs are in `backend/backups/kamatera-switch-20261029/`. Windows access is restricted to the user, SYSTEM and Administrators. That folder and `.env` files are Git-ignored. Passwords are not included here. Existing application settings, SSH helper, routes, models and migration source were not edited.
+
+### 3. Changes made
+
+Started existing `backend/start_kamatera_db_tunnel.ps1` using the dedicated saved key and strict known-host checking. Both `.env` before/after comparisons confirmed only `DATABASE_URL` changed. Restarted the verified local Django process tree, preserving `0.0.0.0:8000` and reload. Started local chat on `127.0.0.1:8001` with reload after confirming no existing listener. Hidden launches load fresh settings; logs and `runtime.json` are in the private directory above. No push worker was started.
+
+After backup verification, applied existing `api.0045_bundle_recommendation_monitoring`, `0046_inventory_fifo`, `0047_fifo_receipt_movement`, `0048_order_fulfillment` and `0049_mobile_food_preferences`. No FIFO initialization/cutover command ran.
+
+### 4. How it works: functions, inputs / outputs and data flow
+
+Unchanged `backend/core/core/settings.py:23`, `_load_dotenv(path)`, accepts a file path and loads missing process environment keys. Line 167 reads `DATABASE_URL`; line 170 builds Django's connection through `dj_database_url.parse`. An existing process environment value takes precedence over the file, so launch commands cleared a shell-level database override.
+
+Unchanged chat `app/config.py:8`, `Settings`, reads its `.env`; line 31 `get_settings()` caches it. `app/database.py:18` creates an engine from the URL, line 19 creates `SessionLocal`, and line 22 `get_db()` yields a request-scoped session. Fresh processes were required to discard cached local settings.
+
+```text
+Browser -> PC Django :8000 -> PC loopback :15432 -> SSH -> Kamatera PostgreSQL :5432
+Local chat :8001           -> same tunnel and online database
+```
+
+Annotated example: in `127.0.0.1:15432 -> SSH -> 127.0.0.1:5432`, the first loopback address belongs to this PC; the second belongs to Kamatera. SQL correctly reports server port 5432 while Django's client configuration uses 15432. Reusing the existing tunnel avoids opening PostgreSQL publicly or duplicating connection logic.
+
+The switch helper's `env_values(raw)` returns a key/value map for comparison; `main()` verifies database identity, saves exact original bytes and replaces only the two database keys, restoring originals if its update fails. The verification helper's `django_check()` reads actual database identity and pending migrations; `chat_check()` does the equivalent asynchronously and disposes its engine. Neither creates fixtures.
+
+The backup helper requires the expected database/user/client port and exact five forward migrations. It runs `pg_dump` with literal arguments and the password in its child environment, then verifies exit code, completion marker, size, table/data sections and SHA-256. Its output is a private SQL file and verification JSON. The separate approved `manage.py migrate --noinput` command applied the schema afterward.
+
+### 5. Backend / API behavior
+
+Local login, approved products, facilities, mobile services and chat health now respond successfully using Kamatera. The confirmed missing-column catalog failure disappeared after migration. Existing routes, permissions and business rules remain intact; FastAPI remains messaging-only. No server application release or Flutter configuration/build/install/restart occurred.
+
+The PC database was not merged/copied into Kamatera. Media still comes from local application paths; changing the database does not synchronize uploads or local-only records. Local and separately hosted requests now share online records.
+
+### 6. Database / migration impact
+
+Full pre-migration backup: `backend/backups/kamatera-switch-20261029/kamatera-before-migrations-20261029T121419Z.sql`, **368,967 bytes**, 42 table definitions and 42 data sections, `pg_dump` exit 0 and completion marker verified. SHA-256: `4f17d427c270b7ba4e407e15cd5977ff9fa695497b6520a37508b018e9bdec80`. **Not restore-tested; media is not included.**
+
+The five approved migrations add bundle/FIFO/food-preference tables and product/order/inventory fields, indexes and constraints. Django also maintains migration/content-type/permission metadata. No database restore, credential change, sample products/orders/bookings or stock initialization occurred. These schema changes affect shared Kamatera. Final migration inspection found zero pending operations.
+
+### 7. Tests performed
+
+- Read-only saved-credential login succeeded before the switch; both actual application drivers afterward reported `campushub` / `campushub_app` through client port 15432.
+- Only `DATABASE_URL` changed in each file; originals were privately backed up.
+- SQL backup passed all completion/size/table/hash checks above before migrations.
+- All five migrations reported `OK`; `migrate --check` exited 0; final migration plan had zero pending operations.
+- Django `check --database default`: no issues.
+- Final HTTP GET: `/`, `/api/products/approved/`, `/api/facilities/`, `/api/mobile/services/` on local Django and `/health` on local chat all returned 200.
+- Earlier checks of nonexistent `/login/`, `/api/products/` and `/api/services/` returned 404; route inspection corrected those test URLs. The actual catalog-route 500 was separately confirmed and resolved as described above.
+- No automated suite, phone workflow, authenticated order/booking submission or backup restore rehearsal ran for this configuration operation.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+Localhost depends on this PC's running SSH helper and Internet connection. After PC restart, start the tunnel first, then the normal local Django/chat commands in the earlier report below. The tunnel script reuses only a verified matching listener, refuses unknown port owners and never kills processes. Do not start duplicate servers or blindly reuse saved PIDs.
+
+If the database cannot connect, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\start_kamatera_db_tunnel.ps1` from the root and inspect its reported SSH error log. Check shell-level `DATABASE_URL` overrides and restart application processes after settings changes. Keep host-key verification enabled. The one-time switch helper refuses an existing backup directory. Do not restore the pre-migration SQL merely to change connection mode.
+
+Safe exercise: open `http://127.0.0.1:8000/` and `http://127.0.0.1:8001/health`; expect the normal login page and `{"status":"ok"}`. Run `backend/core/venv/Scripts/python.exe scratch/verify_kamatera_database.py django` from the root; expect client port 15432 and zero pending migrations. These are reads only. Avoid sample-order connectivity tests because localhost now writes shared records. To return to PC PostgreSQL later, restore only the backed-up database keys, preserve newer unrelated settings and restart both local services; switching connection does not require reversing online migrations.
+
+---
+
 ## Returned PC development to localhost — October 21, 2026
 
 ### 1. Cause / reason

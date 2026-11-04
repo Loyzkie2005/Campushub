@@ -1,4 +1,21 @@
 document.addEventListener('DOMContentLoaded', async () => {
+    // Keep this page's requested typeface in canvas labels without changing shared charts.
+    if (typeof Chart !== 'undefined') Chart.register({
+        id: 'marketplaceDashboardTypeface',
+        beforeInit(chart) {
+            if (!chart.canvas.closest('.marketplace-dashboard')) return;
+            const family = getComputedStyle(chart.canvas).fontFamily;
+            for (const scale of Object.values(chart.options.scales || {})) {
+                if (scale.ticks?.font) scale.ticks.font.family = family;
+                if (scale.title?.font) scale.title.font.family = family;
+            }
+            const tooltip = chart.options.plugins?.tooltip;
+            if (tooltip) {
+                tooltip.titleFont = {...tooltip.titleFont, family};
+                tooltip.bodyFont = {...tooltip.bodyFont, family};
+            }
+        },
+    });
     const refresh = document.getElementById('marketplaceDashboardRefresh');
     if (refresh) {
         refresh.hidden = false;

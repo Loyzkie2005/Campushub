@@ -151,7 +151,7 @@ def validated_selection(data):
     return {'service_types': selected, 'service_other': other, 'service_requested': requested}
 
 
-def job_order_data(booking, *, row=None):
+def current_job_order_data(booking, *, row=None):
     """Saved client and Job Order data in; plain Word field values out."""
     details = metadata(booking)
     record = details.get('job_order') or {}
@@ -176,6 +176,11 @@ def job_order_data(booking, *, row=None):
         'turnaround_time': record.get('turnaround_time') or '',
         'received_at': paper_value(local_stamp(record['received_at'])) if record.get('received_at') else '',
         'required_at': paper_value(local_stamp(record['required_at'])) if record.get('required_at') else ''}
+
+
+def job_order_data(booking, *, row=None):
+    from .job_order_signatures import document_data
+    return document_data(booking, current_job_order_data(booking, row=row))
 
 
 def client_data(booking, details, row):

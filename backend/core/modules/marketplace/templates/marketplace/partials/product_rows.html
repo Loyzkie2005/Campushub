@@ -1,0 +1,69 @@
+                                    {% for product in seller_products %}
+                                    <tr data-product-id="{{ product.id }}"
+                                        data-product-status="{{ product.approval_status|lower }}"
+                                        data-is-archived="{% if product.is_archived %}1{% else %}0{% endif %}"
+                                        data-product-description="{{ product.description|default:''|escapejs }}"
+                                        data-seller-id="{{ product.owner_key }}"
+                                        data-product-image-url="{{ product.image_url|default:''|escape }}"
+                                        data-product-images="{{ product.get_images_json|escapejs }}"
+                                        data-product-expiry="{{ product.expiry_date|date:'Y-m-d'|default:'' }}"
+                                        data-inventory-status="{{ product.get_inventory_status }}"
+                                        data-product-stock="{{ product.admin_total_stock }}"
+                                        data-product-type="{{ product.product_type }}"
+                                        data-inventory-method="{{ product.inventory_method }}"
+                                        data-bundle="{{ product.admin_bundle_json|escapejs }}"
+                                        data-product-tags="{{ product.admin_tags_json|escapejs }}"
+                                        data-department-id="{{ product.admin_academic.program_id|default_if_none:'' }}" data-major-id="{{ product.admin_academic.major_id|default_if_none:'' }}" data-program-label="{{ product.admin_academic.program }}" data-major-label="{{ product.admin_academic.major }}" data-program-major="{{ product.admin_academic.program_major }}" data-sku="{{ product.admin_sku }}"
+                                        data-low-stock-threshold="{{ product.admin_threshold|default_if_none:'' }}"
+                                        data-product-base-price="{{ product.price }}"
+                                        data-product-submitted-at="{{ product.submitted_at|date:'c' }}"
+                                        data-product-updated-at="{{ product.updated_at|date:'c' }}"
+                                        data-seller-department="{% if product.department_id %}{{ product.department }}{% else %}{{ product.owner.department|default:'' }}{% endif %}"
+                                        data-variant-count="{{ product.admin_variant_count }}"
+                                        data-has-low-stock="{{ product.admin_has_low_stock|yesno:'1,0' }}"
+                                        data-product-category="{{ product.category|default:''|escape }}"
+                                        data-customization-enabled="{% if product.customization_enabled %}1{% else %}0{% endif %}"
+                                        data-customization-options="{{ product.get_customization_json|escapejs }}">
+                                        <td class="col-num">{{ forloop.counter0|add:products_page.start_index }}</td>
+                                        <td class="col-product-name">
+                                            <div class="product-name-cell">
+                                                <img src="{% url 'product_image' product.id %}{% if request.admin_tab_token %}?__at={{ request.admin_tab_token|urlencode }}{% endif %}" alt="{{ product.name }}"
+                                                    class="product-table-image" loading="lazy"
+                                                    referrerpolicy="no-referrer">
+                                                <span class="product-table-image product-table-image-empty" hidden>
+                                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m3 7 9-5 9 5v10l-9 5-9-5V7Zm0 0 9 5 9-5M12 12v10"/></svg>
+                                                </span>
+                                                <div class="product-name-meta">
+                                                    <strong title="{{ product.name }}">{{ product.name }}</strong>
+                                                    <span class="product-id-label">{{ product.admin_sku }}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="col-seller"><strong title="{{ product.owner.get_full_name|default:product.owner.username }}">{{ product.owner.get_full_name|default:product.owner.username }}</strong><span title="{{ product.admin_academic.program_major }}">{{ product.admin_academic.program_major }}</span></td>
+                                        <td class="col-category" title="{{ product.category|default:'Uncategorized' }}">{{ product.category|default:"Uncategorized" }}</td>
+                                        <td class="col-price">{{ product.get_price_display }}</td>
+                                        <td class="col-inventory">
+                                            <div class="inventory-summary-clean">
+                                                <span class="inventory-number">{{ product.admin_total_stock }} {% if product.product_type == 'bundle' %}bundle{{ product.admin_total_stock|pluralize }} available{% else %}pc{{ product.admin_total_stock|pluralize }}{% endif %}</span>
+                                                {% if product.product_type == 'bundle' %}<span class="inventory-threshold">Derived from components</span>{% endif %}
+                                                {% if product.admin_threshold != None %}<span class="inventory-threshold">Threshold: {{ product.admin_threshold }}</span>{% endif %}
+                                                {% if product.admin_variant_count or product.admin_quantity_status != 'in_stock' %}
+                                                <span class="inventory-secondary{% if product.admin_variant_count %} inventory-secondary--variants{% endif %}">
+                                                    {% if product.admin_variant_count %}<span class="inventory-variant-sub">{{ product.admin_variant_count }} variant{{ product.admin_variant_count|pluralize }}</span>{% endif %}
+                                                    {% if product.admin_quantity_status == 'out_of_stock' %}<span class="inventory-warning out-of-stock"><span class="inventory-warning-dot" aria-hidden="true"></span>Out of Stock</span>
+                                                    {% elif product.admin_has_low_stock %}<span class="inventory-warning low-stock"><span class="inventory-warning-dot" aria-hidden="true"></span>{% if product.admin_low_stock_variant_count %}{{ product.admin_low_stock_variant_count }} variant{{ product.admin_low_stock_variant_count|pluralize }} Low Stock{% else %}Low Stock{% endif %}</span>{% endif %}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td class="col-status">
+                                            <div class="status-cell-stack"><span class="status-pill status-{{ product.approval_status|lower }}" title="Approval status: {{ product.approval_status|title }}">{{ product.approval_status|title }}</span><span class="listing-status-pill listing-status-{% if product.is_archived %}archived{% else %}active{% endif %}" title="Listing status: {% if product.is_archived %}Archived{% else %}Active{% endif %}">{% if product.is_archived %}Archived{% else %}Active{% endif %}</span></div>
+                                        </td>
+                        <td class="col-date">
+                                            <strong>{{ product.submitted_at|date:"M d, Y" }}</strong>
+                                            <span>{{ product.submitted_at|date:"g:i A" }}</span>
+                                        </td>
+                                        {% include "marketplace/partials/product_actions.html" %}
+                                    </tr>
+                                    {% empty %}
+                                    {% endfor %}

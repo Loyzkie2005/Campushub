@@ -34,11 +34,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const feedback = document.getElementById('fifoReceiveFeedback');
     let busy = false, previous = '', key = '';
     const storageKey = `campushub.fifo.receiving.${form.dataset.receiver}`;
-    try { const draft = JSON.parse(sessionStorage.getItem(storageKey) || 'null'); if (draft) { previous = draft.previous; key = draft.key; } } catch (_) { /* Receiving remains usable when storage is unavailable. */ }
+    try {
+        const draft = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+        if (draft) {
+            previous = draft.previous; key = draft.key;
+            const values = JSON.parse(previous);
+            for (const name of ['sku', 'quantity', 'reference', 'received_at', 'notes', 'inventory_method']) {
+                const field = form.elements.namedItem(name);
+                if (field) field.value = values[name] || '';
+            }
+        }
+    } catch (_) { /* Receiving remains usable when storage is unavailable. */ }
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (busy || !form.reportValidity()) return;
         const data = new FormData(form), payload = {sku: data.get('sku'), quantity: data.get('quantity'), reference: data.get('reference').trim()};
+        if (data.get('received_at')) payload.received_at = data.get('received_at');
+        if (data.get('notes')?.trim()) payload.notes = data.get('notes').trim();
+        if (data.get('inventory_method')) payload.inventory_method = data.get('inventory_method');
         const draft = JSON.stringify(payload);
         if (draft !== previous) {
             const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -48,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         try { sessionStorage.setItem(storageKey, JSON.stringify({previous, key})); } catch (_) { /* Current-page retries still reuse the key. */ }
         busy = true;
-        const controls = [...form.querySelectorAll('input, select, button')];
+        const controls = [...form.querySelectorAll('input, select, textarea, button')];
         controls.forEach(input => { input.disabled = true; });
         form.setAttribute('aria-busy', 'true'); feedback.textContent = 'Recording receipt…';
         const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
@@ -59,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'Unable to record this receipt.');
             try { sessionStorage.removeItem(storageKey); } catch (_) { /* No persisted key to clear. */ }
-            feedback.textContent = `${result.message} ${result.batch}`;
+            feedback.textContent = [result.message, result.batch].filter(Boolean).join(' ');
             window.setTimeout(() => window.location.reload(), 1000);
         } catch (error) {
             feedback.textContent = error.name === 'AbortError' ? 'The response timed out. Retry the same draft safely; it will not receive stock twice.' : error.message;

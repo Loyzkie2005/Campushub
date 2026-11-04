@@ -1,5 +1,5 @@
 {% if has_data %}
 <div class="analytics-chart {{ size|default:'analytics-chart-medium' }}"><canvas id="{{ chart_id }}" role="img" aria-label="{{ label }}" aria-describedby="{{ chart_id }}Description"></canvas></div>
-<p class="visually-hidden" id="{{ chart_id }}Description">{{ label }}. Exact values are available in View chart data below.</p>
+<p class="visually-hidden" id="{{ chart_id }}Description">{{ label }}. {% if marketplace_sections or analytics_flat %}Exact values are in the table below.{% else %}Exact values are available in View chart data below.{% endif %}</p>
 {% include 'reports/partials/analytics_chart_data.html' with chart_table=table caption=label %}
-{% else %}<div class="analytics-empty-state"><strong>{{ empty_title|default:'No activity in the selected period' }}</strong><span>{{ empty_text|default:'Recorded activity will appear when available for these dates.' }}</span></div>{% endif %}
+{% else %}{% if marketplace_sections and empty_icon %}{% include 'reports/partials/marketplace_chart_empty.html' %}{% elif marketplace_sections %}<p class="marketplace-compact-empty">{{ empty_title|default:'No activity in the selected period' }}</p>{% else %}<div class="analytics-empty-state"><strong>{{ empty_title|default:'No activity in the selected period' }}</strong><span>{{ empty_text|default:'Recorded activity will appear when available for these dates.' }}</span></div>{% endif %}{% endif %}

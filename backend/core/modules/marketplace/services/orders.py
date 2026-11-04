@@ -19,11 +19,13 @@ from .order_access import admin_order_queryset
 def filter_orders(queryset, params):
     """Combine GET filters within an already authorized seller/product scope."""
     values = {name: (params.get(name) or "").strip() for name in
-              ("search", "status", "payment", "program", "major", "date", "date_from", "date_to", "fulfillment")}
+              ("search", "status", "payment", "program", "major", "date", "date_from", "date_to", "fulfillment", "receiving_method")}
+    fulfillment_val = values["receiving_method"] or values["fulfillment"]
+    values["fulfillment"] = fulfillment_val
     error = ""
     if values["fulfillment"]:
         if values["fulfillment"] not in {"pickup", "seller_delivery", "not_recorded"}:
-            return queryset.none(), values, "Select a valid fulfillment method."
+            return queryset.none(), values, "Select a valid receiving method."
         queryset = queryset.filter(fulfillment_method="" if values["fulfillment"] == "not_recorded" else values["fulfillment"])
     # Dashboard link selection intersects the already authorized Orders queryset.
     selected_order = (params.get("order") or "").strip()

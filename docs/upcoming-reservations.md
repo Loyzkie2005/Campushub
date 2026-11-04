@@ -84,7 +84,9 @@ Verification tools added under `scratch/upcoming-reservations/`: `check-card.cjs
 
 The card uses the existing `marketplace-summary-card` foundation from `admin_marketplace_overview.css`: white background, subtle border, 12px corners, 14px semibold title, navy text and no decorative shadow. Scoped CSS adds 16px padding and compact rows without nested mini-cards, charts, extra filters or KPIs. Names wrap rather than being cut off. Status is plain navy semibold text.
 
-The existing facility grid position is retained. The card has a 380px minimum height and fills its grid row; longer lists scroll inside it with hidden scrollbar tracks, matching the accepted dashboard behavior. Focus the list and use keyboard scrolling, a touch gesture, or the mouse wheel to see remaining rows. Header wrapping keeps the Calendar link usable in narrower cards; its target height is 44px.
+The existing facility grid position is retained. The card has a 380px minimum height and fills its grid row; longer lists scroll inside it with hidden scrollbar tracks, matching the accepted dashboard behavior. Focus the list and use keyboard scrolling, a touch gesture, or the mouse wheel to see remaining rows. Header wrapping keeps the Calendar link usable in narrower cards; its target height is 44px. **For the executive table, Section 9 supersedes this sizing: the card is auto-height, full-width and shows at most five one-line rows.**
+
+
 
 Only the global Super Admin card is replaced. Existing domain-specific pages are not restyled here.
 
@@ -193,3 +195,122 @@ In a local branch, change only the error button text in `upcoming_reservations.h
 - This card lists Booking records, not separate laboratory job orders or lease service requests that do not exist as bookings. It does not invent records for those workflows.
 - Date-only reservations have no precise start-time cutoff. Same-day stays are eligible by date. There is no timer polling: initial load, global date requests and Refresh fetch current results.
 - Existing domain dashboards retain their legacy Upcoming card; this request targets Super Admin. Mobile app screens are outside this change.
+
+## 9. Update 2026-10-31: Full-Width One-Row Reservations
+
+### Cause / Reason
+
+Two separate CSS problems produced the reported result:
+
+1. **Truncated ID and underline:** the original table used `table-layout: fixed`, a narrow Booking No. column, `white-space: nowrap`, `overflow: hidden`, `text-overflow: ellipsis`, and an underlined anchor. A real number such as `BK-2026-2786ED550F1C4A57` was wider than its column, so the tail became `...`.
+2. **The card was too narrow for one row:** Upcoming Reservations shared a `1.7fr / 1fr` two-column row with Most Booked Facilities. At a 1280px viewport the Upcoming card had roughly 350–450px of usable table space, while the five real values need about 556px even at 10.25px. The first fix allowed wrapping, but the user then explicitly asked for **one row per reservation, like Recent Orders**. Wrapping therefore was not the accepted result.
+
+This is a confirmed layout/CSS cause. The complete reservation number was already present in the DOM and in the link's `title` attribute; no API or database value was missing.
+
+### Exact Files Changed
+
+- `backend/static/components/css/admin_executive_refinement.css`
+  - Lines 893-896: executive Facilities operations grid becomes one column, so each card owns the full row.
+  - Lines 898-908: Upcoming card allows full height, removes horizontal padding and becomes a container-query context; header/note/state keep a 12px inline margin.
+  - Lines 946-1014: base table cells wrap only below 564px; booking link has no default underline; status badge is compact.
+  - Lines 1016-1100: container-query one-line mode switches to content-sized columns, edge padding and font scaling.
+- `backend/templates/dashboard/pages/admin_dashboard.html`
+  - Lines 25 and 29: asset versions changed to `20261031-upcoming-reservations-one-row-v2` so browsers do not reuse the earlier wrapping CSS.
+- `CAMPUSHUB_CONTEXT.md:868`
+  - Replaces the earlier wrapping rule with the current one-row/full-width rule.
+
+### Changes Made
+
+| Concern | Before | After |
+| --- | --- | --- |
+| Card placement | Shared row with Most Booked Facilities (`1.7fr / 1fr`) | Own full-width row (single-column operations grid) |
+| Card padding | 16px inline | 0 inline for the table; 12px inline margins on header/note/state |
+| Booking No. | Truncated, then wrapped | Full ID on one line, column sized by its content |
+| Facility | 20% | Content-sized |
+| Client | 17% | Content-sized |
+| Date / Time | 26% | Content-sized |
+| Status | 12% | Content-sized, compact centered badge |
+| Link | Underlined | No underline at rest; hover underline only |
+
+In one-line mode the table switches from `table-layout: fixed` to `table-layout: auto`, and all five `<col>` widths become `auto`. The browser then sizes each column to the actual text instead of guessed percentages. No horizontal scrollbar is shown. Below 564px of table width (small screens), cells wrap as a safe fallback; from 564px upward every `td` and booking link uses `white-space: nowrap`.
+
+### How It Works
+
+`upcoming_reservations.html` renders each row through `admin_upcoming_reservations.js`. The JavaScript inserts the full reservation number into the anchor; it does not shorten it. CSS decides the visible layout.
+
+The card is now a **size container** (`container: upcoming-reservations / inline-size`). Container queries change only the type scale, never the data:
+
+| Card/table width | Cell font | Status badge | Intent |
+| --- | --- | --- | --- |
+| Below 564px | 12px, wrapping | 11px | Safe mobile/narrow fallback |
+| 564px and up | 10.25px, one line | 10px | Fits a 1280px dashboard |
+| 585px and up | 10.5px | 10px | Slightly larger laptop text |
+| 600px and up | 11px | 10px | 1366px dashboard |
+| 620px and up | 11.5px | 10.5px | Larger laptop text |
+| 642px and up | 12px | 11px | Common 1440px dashboard |
+| 700px and up | 13px | 12px | Wide/1920px dashboard |
+
+In one-line mode every body cell uses `12px 2px` padding and header cells use matching 2px inline padding; the first and last header/body cells use 6px inline padding so text does not touch the card border. The status column stays centered. Because the table is auto-layout, these paddings plus the real text widths determine each column, so there are no fragile percentage totals to maintain.
+
+Data flow:
+
+```text
+Booking model -> dashboard API -> admin_upcoming_reservations.js
+  -> full booking_number -> <a title="...">BK-2026-...</a>
+  -> CSS one-row table, no ellipsis, no default underline
+```
+
+Why this approach: it keeps the existing markup, JavaScript, API, query and data untouched. It changes only presentation and placement, and it gives the table the width its real values require instead of hiding information.
+
+### Backend / API Behavior
+
+No change. The endpoint still returns the same fields, ordering, five-row limit and Approved-only filtering. The link still points to the existing bookings page. The `title` tooltip remains as an optional aid, but the full value is readable without hovering.
+
+### Database / Migration Impact
+
+None. No model, schema, query, permission or migration change. No fixture or live record was modified.
+
+### Tests Performed
+
+- `venv\Scripts\python.exe manage.py test modules.reports.test_upcoming_reservations modules.reports.test_dashboard_executive modules.reports.test_dashboard_services --keepdb --noinput`
+  - Result: **36 passed**, Django system check clean. This run covered the CSS/template integration and data rules; CSS layout itself is not asserted by Django tests.
+- A real Chrome layout harness loaded the actual partial markup and all four relevant stylesheets with the executive **Montserrat** font, including border-box sizing. At table widths 566, 609, 646 and 726px (the 1280/1366/1440/1920 dashboard widths), every cell's text fit its content box, no cell wrapped, and the scroll container had no horizontal overflow. At 561px the intended wrapping fallback activated.
+- The measured single-line row heights were about 44px at 10.25px and 46.6px at 13px, confirming one line rather than the 75px wrapped fallback.
+- `git diff --check` on the changed tracked files: clean. The repository-wide check still reports unrelated pre-existing whitespace in `admin_user_access_control.html`.
+- Not run: a signed-in screenshot at 1280/1366/1440/1920. The harness verifies geometry with real fonts and CSS, but not the surrounding authenticated page.
+
+### Remaining Limitations
+
+- The dashboard switches to a single-column Facilities operations grid at every width, including very wide screens. Most Booked Facilities therefore becomes a full-width card rather than a narrow side card. This is intentional: it is the only way the one-row reservation table can fit inside the existing domain column at 1280px.
+- At exactly 1280px the table uses 10.25px text, which is small. At about 1320px and wider it uses 10.5px or larger. If the user prefers larger text at 1280px, the alternative is to wrap the date or shorten its format; do not truncate the booking ID.
+- The table is full-bleed inside the card. Header, note and state messages keep a 12px inset while edge cells use 6px, a deliberate 6px difference that avoids clipping.
+- Very long facility or client names can still exceed their content even in one-line mode. With `nowrap` and auto layout the table becomes wider than the card and the hidden-overflow wrapper clips it. The supplied real row fits; future unusually long names may need a smaller font, a shorter display value, or a wrap exception.
+- Hover still underlines the link. This is deliberate affordance; remove the hover rule too if no underline is wanted in any state.
+- The one-line mode depends on CSS container queries. Modern Chrome/Edge/Firefox support them; very old browsers fall back to the wrapping base rule.
+
+### Manual Verification
+
+1. Hard-refresh the Super Admin dashboard so the new CSS assets load.
+2. Confirm the Booking No. link has no underline at rest and shows the complete value, e.g. `BK-2026-2786ED550F1C4A57`.
+3. Confirm the sample row is a single line: `BK-2026-2786ED550F1C4A57`, `Covered Court`, `Jay Mark`, `Nov 06, 2026 · 7:00 AM – 5:00 PM`, `Approved`.
+4. Resize to 1280px, 1366px, 1440px and 1920px. Each row must remain one line with no `...` and no horizontal scrollbar.
+5. Check that the card spans the full Facilities content width and that Most Booked Facilities appears above/below it, not beside it.
+6. Tab to the booking link; focus must remain visible and hover must underline it.
+
+### Debugging / Troubleshooting
+
+| Symptom | Confirm first | Next step |
+| --- | --- | --- |
+| Still truncated or wrapped | Browser loaded the old CSS | Hard-refresh; verify the stylesheet URL ends with `20261031-upcoming-reservations-one-row-v2` |
+| Rows still share a column with Most Booked | The operations-grid override did not load or was overridden | Inspect `.facilities-operations-grid` in DevTools; it must resolve to one `minmax(0, 1fr)` |
+| Text touches the card edge | Card padding is still 16px or edge padding was overridden | Check `#upcomingReservationsCard` `padding-inline` and the `:first-child`/`:last-child` rules |
+| Underline still visible | A later rule with an ID or `!important` wins | Inspect the anchor; compare `admin_facilities_overview.css` with refinement lines 983-999 |
+| Status clipped | The content-sized column is narrower than the badge | Check the badge font size at the current container width and whether the status column still has `width: auto` |
+| Horizontal scrollbar returns | A child has a fixed `min-width` | Inspect `.facilities-table-scroll` and the table; do not re-enable `min-width: 760px` here |
+| One value overflows its cell | The value's text is wider than its content box | Measure the text in DevTools; reduce the font at that breakpoint, shorten the display value, or allow a wrap exception — never truncate with `...` |
+
+These are investigation steps, not claims that every listed problem is present. Use `docs/DEBUGGING_GUIDE.md` to record the actual symptom, evidence, cause, change and verification.
+
+### Safe Learning Exercise
+
+In a local branch, change only the `font-size` in the `@container upcoming-reservations (min-width: 600px)` block from `11px` to `10.75px`. Reload at 1366px and observe that the row remains one line and the columns keep their content-based widths; the text simply gets slightly smaller. Then change the cell padding from `12px 2px` to `12px 8px` at the same width and observe how the extra padding consumes the available space. Restore both values. This teaches how auto-layout columns, container queries and padding interact without touching booking data or JavaScript.

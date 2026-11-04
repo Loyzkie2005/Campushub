@@ -1,0 +1,69 @@
+{% with marketplace_sections=True %}
+<div class="marketplace-five-sections super-analytics-content marketplace-refined">
+    <section class="marketplace-analytics-section" aria-labelledby="marketplaceOverviewTitle" data-marketplace-section="overview">
+        <header class="marketplace-section-heading"><h2 id="marketplaceOverviewTitle">Marketplace Overview</h2><p>Selected-period paid sales; catalog counts are current snapshots.</p></header>
+        {% include 'reports/partials/marketplace_analytics_cards.html' with card='kpis' %}
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="marketplaceRevenueTitle" data-marketplace-section="sales">
+        <header class="marketplace-section-heading"><h2 id="marketplaceRevenueTitle">Sales &amp; Revenue Analysis</h2><p>Recognized revenue, equivalent-period growth, order value and category contribution.</p></header>
+        {{ analytics.sales_chart|json_script:'marketplaceSalesChartData' }}
+        {{ analytics.category_chart|json_script:'marketplaceCategoryChartData' }}
+        <div class="marketplace-section-grid marketplace-revenue-grid marketplace-revenue-primary">
+            {% include 'reports/partials/marketplace_analytics_cards.html' with card='sales' %}
+            {% include 'reports/partials/marketplace_refined_panels.html' with card='growth' %}
+        </div>
+        <div class="marketplace-section-grid marketplace-revenue-grid marketplace-revenue-secondary">
+            {% include 'reports/partials/marketplace_revenue_aov.html' %}
+            {% include 'reports/partials/marketplace_analytics_cards.html' with card='category' %}
+        </div>
+    </section>
+    <section class="marketplace-analytics-section marketplace-orders-section" aria-labelledby="marketplaceOrdersTitle" data-marketplace-section="orders">
+        <header class="marketplace-section-heading"><h2 id="marketplaceOrdersTitle">Orders &amp; Payments Analytics</h2><p>{{ analytics.operations.total }} submitted orders in selected dates, including pending and unpaid records.</p></header>
+        {% include 'reports/partials/marketplace_order_kpis.html' %}
+        {{ analytics.order_volume.chart|json_script:'marketplaceOrderVolumeData' }}
+        {{ analytics.payment_chart|json_script:'marketplacePaymentChartData' }}
+        {{ analytics.fulfillment_chart|json_script:'marketplaceFulfillmentChartData' }}
+        <div class="marketplace-section-grid marketplace-order-pair">
+            {% include 'reports/partials/marketplace_order_volume.html' %}
+            {% include 'reports/partials/marketplace_order_status.html' %}
+        </div>
+        <div class="marketplace-section-grid marketplace-payment-pair">
+            {% include 'reports/partials/marketplace_order_distribution.html' with title='Payment Status Analysis' subtitle='Recorded payment state of submitted orders.' chart_id='marketplacePaymentChart' rows=analytics.operations.payment empty_text='No payment records in selected dates.' %}
+            {% include 'reports/partials/marketplace_order_distribution.html' with title='Receiving Method Analysis' subtitle='Missing or unclassified historical methods appear as Not Recorded.' chart_id='marketplaceFulfillmentChart' rows=analytics.operations.fulfillment receiving=True empty_text='No receiving methods recorded in selected dates.' %}
+        </div>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="marketplaceProductsTitle" data-marketplace-section="products">
+        <header class="marketplace-section-heading"><h2 id="marketplaceProductsTitle">Product &amp; Inventory Analytics</h2><p>Historical sales alongside current stock health.</p></header>
+        <div class="marketplace-section-grid marketplace-product-grid">
+            {% include 'reports/partials/marketplace_analytics_cards.html' with card='top' %}
+            {% include 'reports/partials/marketplace_analytics_cards.html' with card='slow' %}
+            {% include 'reports/partials/marketplace_refined_panels.html' with card='inventory' %}
+            {% include 'reports/partials/marketplace_refined_panels.html' with card='turnover' %}
+            <article class="analytics-panel marketplace-variant-sales"><header class="analytics-panel-header"><div><h3>Sales by Product Variant</h3><p>Recorded selections only; each order contributes revenue once.</p></div></header>{% if analytics.variant_sales %}<div class="table-responsive"><table class="analytics-table"><thead><tr><th>Product</th><th>Variant</th><th class="number-cell">Units Sold</th><th class="number-cell">Revenue</th></tr></thead><tbody>{% for row in analytics.variant_sales %}<tr><td>{{ row.product }}</td><td>{{ row.variant }}</td><td class="number-cell">{{ row.units }}</td><td class="number-cell">&#8369;{{ row.sales }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="marketplace-compact-empty">No recorded variant sales in selected dates.</p>{% endif %}</article>
+        </div>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="marketplacePeopleTitle" data-marketplace-section="people">
+        <header class="marketplace-section-heading"><h2 id="marketplacePeopleTitle">Buyers &amp; Sellers Analytics</h2><p>Actual purchase activity and distinct seller identities.</p></header>
+        {{ analytics.buyer_activity.purchase_chart|json_script:'buyerPurchaseChartData' }}
+        <div class="marketplace-section-grid">
+            {% include 'reports/partials/marketplace_analytics_cards.html' with card='buyers' %}
+            <div class="marketplace-seller-stack">
+                {% include 'reports/partials/marketplace_refined_panels.html' with card='sellers' %}
+                {% include 'reports/partials/marketplace_refined_panels.html' with card='fulfillment' %}
+            </div>
+        </div>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="marketplaceInsightsTitle" data-marketplace-section="insights">
+        <header class="marketplace-section-heading"><h2 id="marketplaceInsightsTitle">Marketplace Insights &amp; Recommendations</h2><p>Evidence-based analysis and planning guidance.</p></header>
+        {% if analytics.forecast.sufficient %}{{ analytics.forecast.chart|json_script:'demandForecastChartData' }}{% endif %}
+        {{ analytics.peak_sales.chart|json_script:'peakSalesChartData' }}
+        <div class="marketplace-section-grid">
+            {% include 'reports/partials/marketplace_analytics_cards.html' with card='forecast' %}
+            {% include 'reports/partials/marketplace_refined_panels.html' with card='association' %}
+            {% include 'reports/partials/marketplace_analytics_cards.html' with card='peak' %}
+            {% include 'reports/partials/marketplace_refined_panels.html' with card='restock' %}
+        </div>
+    </section>
+    <footer class="analytics-footer">Revenue: existing eligible completed-paid orders by recognition date. Operational metrics: submission dates. Inventory/catalog: current snapshots. Synthetic research data is excluded.</footer>
+</div>
+{% endwith %}

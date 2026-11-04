@@ -50,20 +50,13 @@
                         <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="20"></circle>
                         {% endif %}
                     </svg>
-                    <div class="donut-center-label">
-                        <strong>{{ category_total|default:0 }}</strong>
-                        <span>{% if category_total == 1 %}Product{% else %}Products{% endif %}</span>
-                    </div>
+                    <div class="donut-chart-center"><span class="donut-total">{{ category_count|default:"0" }}</span><span class="donut-label">Categories</span></div>
                 </div>
-                <div class="category-legend category-legend-below">
+                <div class="category-legend">
                     {% for cat in top_categories %}
-                    <div class="legend-item">
-                        <span class="legend-dot" data-color="{{ cat.color }}" style="background-color: {{ cat.color }};"></span>
-                        <span class="legend-name">{% firstof cat.category cat.name %}</span>
-                        <strong class="legend-count">{{ cat.count }}</strong>
-                    </div>
+                    <div class="legend-item"><span class="legend-dot" style="background-color: {{ cat.color }};"></span><span class="legend-name">{{ cat.name }}</span><span class="legend-pct">{{ cat.percentage }}%</span></div>
                     {% empty %}
-                    <p class="text-muted" style="font-size:0.82rem; margin:0;">No product categories yet.</p>
+                    <p class="dash-empty-message">No active categories.</p>
                     {% endfor %}
                 </div>
             </div>

@@ -2,16 +2,15 @@
 import csv
 from django.contrib import messages
 from datetime import date
-from pathlib import Path
+from decimal import InvalidOperation
 from urllib.parse import urlencode
 
-from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import DatabaseError
 from django.db.models import Q, Value
 from django.db.models.functions import Concat
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
@@ -19,7 +18,8 @@ from django.views.decorators.http import require_GET, require_POST
 
 from accounts.models import Department, ProgramMajor
 from api.models import BundleRecommendation, Product
-from .services.bundle_suggestions import DATASET, build_bundle_suggestions, can_view_bundle_suggestions
+from .services.bundle_suggestions import (build_bundle_suggestions, can_view_bundle_suggestions,
+    research_dataset, thresholds, saved_synthetic_research, execute_synthetic_research)
 from .services.bundle_monitoring import (history_for, highlight, is_super_monitor,
                                          presentation, recommendations_for, status_records_for,
                                          activity_summary, activity_events_for,
@@ -31,6 +31,13 @@ DETAIL_TEMPLATE = "marketplace/partials/bundle_monitor_details.html"
 
 def uses_analysis_workspace(user):
     return not is_super_monitor(user) and user.role.strip().lower() == "marketplace admin"
+
+
+def can_send_suggestion(user, item):
+    """Use the existing detail-page visibility rules; highlight rechecks on POST."""
+    return (not is_super_monitor(user) and user.has_perm("accounts.can_manage_sellers")
+            and bool(item["record"].product_a.mobile_seller_id) and item["eligible"]
+            and not item["record"].sent_at)
 
 
 def annotated(user):
@@ -84,7 +91,7 @@ def suggestion_list(request):
     source_context = dict(recommendation_view=recommendation_view,
                           dataset_url=dataset_url, live_url=live_url)
     if recommendation_view == "dataset":
-        return page(request, mode="list", heading="Bundle Recommendations", **source_context)
+        return page(request, mode="list", heading="Suggested Product Bundle", **source_context)
     try:
         base = annotated(request.user)
         summary = {"total": base.count(), "sent": base.filter(sent_at__isnull=False).count(),
@@ -141,7 +148,7 @@ def suggestion_list(request):
                     rows, error = rows.none(), "Enter valid generated dates."
         if "start" in dates and "end" in dates and dates["start"] > dates["end"]:
             rows, error = rows.none(), "Generated from must be on or before Generated through."
-        paginator = Paginator(rows, 20)
+        paginator = Paginator(rows, 1)
         current = paginator.get_page(request.GET.get("page"))
         sellers = {}
         owner_fields = [f"product_a__{source}__{field}" for source in ("seller", "mobile_seller")
@@ -153,15 +160,19 @@ def suggestion_list(request):
         args = request.GET.copy()
         args.pop("page", None)
         workspace = uses_analysis_workspace(request.user)
-        return page(request, mode="list", heading="Bundle Recommendations", summary=summary, **source_context,
-            rows=[presentation(row) for row in current], current=current, query_args=args.urlencode(),
+        slides = [presentation(row) for row in current]
+        for item in slides:
+            item["can_send"] = can_send_suggestion(request.user, item)
+        return page(request, mode="list", heading="Suggested Product Bundle", summary=summary, **source_context,
+            rows=slides, current=current, query_args=args.urlencode(),
+            carousel_pages=paginator.get_elided_page_range(current.number, on_each_side=2, on_ends=1),
             programs=Department.objects.filter(is_program=True), majors=ProgramMajor.objects.all(),
             sellers=sorted(sellers.items(), key=lambda item: item[1].casefold()), form_error=error,
             workspace=workspace, analysis=workspace_analysis_summary(request.user) if workspace else None,
             has_active_filters=bool(query or any(request.GET.get(key, "").strip()
                 for key in ("program", "major", "seller", "response", "start", "end"))))
     except DatabaseError:
-        return page(request, mode="error", heading="Bundle Recommendations", http_status=503,
+        return page(request, mode="error", heading="Suggested Product Bundle", http_status=503,
                     failure="Unable to load recommendations. Please retry or ask the administrator to check the database.")
 
 
@@ -178,8 +189,7 @@ def suggestion_detail(request, pk, section="details"):
             raise Http404
         item = presentation(row)
         events = Paginator(history_for(row), 25).get_page(request.GET.get("page"))
-        can_highlight = (not is_super_monitor(request.user) and request.user.has_perm("accounts.can_manage_sellers")
-                         and bool(row.product_a.mobile_seller_id) and item["eligible"] and not row.sent_at)
+        can_highlight = can_send_suggestion(request.user, item)
         evidence = recommendation_evidence(row)
         if drawer:
             response = render(request, DETAIL_TEMPLATE, {"item": item, "current": events,
@@ -197,70 +207,120 @@ def suggestion_detail(request, pk, section="details"):
 @never_cache
 @require_POST
 def suggestion_highlight(request, pk):
+    json_request = "application/json" in request.headers.get("Accept", "")
     try:
-        highlight(request, pk)
+        row = highlight(request, pk)
+        if json_request:
+            item = presentation(row)
+            status = "Awaiting Seller Response" if item["response"] == "Awaiting Response" else item["response"]
+            return JsonResponse({"id": row.pk, "sent": bool(row.sent_at), "status": status})
     except ValidationError as exc:
+        if json_request:
+            return JsonResponse({"error": " ".join(exc.messages)}, status=409)
         return page(request, mode="error", heading="Suggestion unavailable", http_status=409, failure=" ".join(exc.messages))
     except BundleRecommendation.DoesNotExist:
+        if json_request:
+            return JsonResponse({"error": "This suggestion is no longer available in your scope."}, status=404)
         raise Http404
+    except PermissionDenied:
+        if json_request:
+            return JsonResponse({"error": "You are not authorized to send this suggestion."}, status=403)
+        raise
+    except DatabaseError:
+        if json_request:
+            return JsonResponse({"error": "Unable to confirm sending. Please retry; an already recorded send will not be duplicated."}, status=503)
+        raise
     messages.success(request, "Recommendation highlighted in the seller workspace. No push notification or email was sent.")
     return redirect("bundle_monitor_detail", pk=pk)
+
+
+def _analysis_selection(request):
+    """Keep legacy role defaults/tab links; use separate source and result tabs."""
+    legacy = request.GET.get('tab', '')
+    source = request.GET.get('source', '')
+    if source not in {'marketplace', 'live', 'synthetic'}:
+        source = legacy if legacy in {'marketplace', 'synthetic'} else (
+            'synthetic' if is_super_monitor(request.user) else 'marketplace')
+    return ('marketplace' if source == 'live' else source,
+            'results' if legacy == 'results' else 'dataset')
+
+
+def _analysis_args(request, source, tab, *, reset_pages=False, remove_page='page'):
+    args = request.GET.copy()
+    args['source'], args['tab'] = source, tab
+    args.pop(remove_page, None)
+    if reset_pages:
+        args.pop('page', None)
+        args.pop('itemsets_page', None)
+    return args.urlencode()
+
+
+def _matching_records(records, query):
+    return [row for row in records if query.casefold() in
+            ' '.join(str(value) for value in row.values()).casefold()] if query else records
+
+
+def _render_analysis(request, *, source=None, tab=None, failure=''):
+    selected_source, selected_tab = _analysis_selection(request)
+    source, tab = source or selected_source, tab or selected_tab
+    super_admin = is_super_monitor(request.user)
+    query = request.GET.get('q', '').strip()[:150]
+    data = dict(mode='research', heading='Dataset & Apriori Analysis', workspace=False,
+        dataset_source=source, tab=tab, query=query, rows=[], analysis=None,
+        restricted=source == 'synthetic' and not super_admin,
+        can_execute=source == 'synthetic' and super_admin,
+        source_marketplace_url='?' + _analysis_args(request, 'marketplace', 'dataset', reset_pages=True),
+        source_synthetic_url='?' + _analysis_args(request, 'synthetic', 'dataset', reset_pages=True),
+        preview_url='?' + _analysis_args(request, source, 'dataset', reset_pages=True),
+        results_url='?' + _analysis_args(request, source, 'results', reset_pages=True),
+        run_query_args=_analysis_args(request, 'synthetic', 'results', reset_pages=True),
+        query_args=_analysis_args(request, source, tab),
+        itemsets_query_args=_analysis_args(request, source, tab, remove_page='itemsets_page'),
+        statistics=[{'label': 'Transactions' if source == 'synthetic' else 'Eligible Transactions / Baskets', 'value': None},
+                    {'label': 'Order Items', 'value': None}, {'label': 'Unique Products', 'value': None}],
+        analysis_error=failure, http_status=503 if failure else 200)
+    try:
+        if source == 'marketplace':
+            analysis = workspace_analysis_summary(request.user)
+            data['analysis'] = analysis
+            data['statistics'][0]['value'] = analysis['basket_count']
+            if analysis['state'] == 'unavailable':
+                data.update(analysis_error='Unable to load saved analysis. Please retry.', http_status=503)
+        elif super_admin and not failure:
+            snapshot = research_dataset()  # Validated CSV/metadata only; never mines.
+            for field, key in zip(data['statistics'], ('transaction_count', 'item_count', 'unique_product_count')):
+                field['value'] = snapshot[key]
+            if tab == 'dataset':
+                records = _matching_records(snapshot['records'], query)
+                current = Paginator(records, 20).get_page(request.GET.get('page'))
+                data.update(columns=snapshot['columns'], current=current, preview_available=True,
+                            dataset_page=[list(row.values()) for row in current])
+            else:
+                saved = saved_synthetic_research(request.user, snapshot, thresholds())
+                if saved:
+                    result = saved['result']
+                    current = Paginator(_matching_records(result['directional_rows'], query), 20).get_page(request.GET.get('page'))
+                    itemsets = Paginator(_matching_records(result['frequent_itemsets'], query), 20).get_page(request.GET.get('itemsets_page'))
+                    data.update(result=result, current=current, itemsets_current=itemsets,
+                                analysis_completed_at=saved['completed_at'])
+    except (OSError, ValueError, InvalidOperation, csv.Error, DatabaseError):
+        data.update(analysis_error='Synthetic transaction dataset is unavailable. Please retry.'
+                    if source == 'synthetic' else 'Unable to load saved analysis. Please retry.', http_status=503)
+    return page(request, **data)
 
 
 @never_cache
 @require_GET
 def research(request):
-    if not is_super_monitor(request.user):
-        # An explicit separate branch: never call the research GET executor or
-        # its lru_cache on behalf of a read-only Marketplace Admin.
-        if not can_view_bundle_suggestions(request.user) or not uses_analysis_workspace(request.user):
-            raise PermissionDenied
-        return readonly_analysis(request)
-    result = build_bundle_suggestions(request.user, source="synthetic")
-    if result["error"]:
-        return page(request, mode="research", heading="Dataset & Apriori Analysis", research_error=result["message"], http_status=503)
-    path = Path(getattr(settings, "CAMPUSHUB_SYNTHETIC_ORDER_ITEMS_PATH", "") or DATASET)
-    try:
-        with path.open(encoding="utf-8-sig", newline="") as stream:
-            reader = csv.DictReader(stream)
-            columns, dataset = reader.fieldnames, list(reader)
-        tab = "results" if request.GET.get("tab") == "results" else "dataset"
-        query = request.GET.get("q", "").strip()[:150]
-        records = result["directional_rows"] if tab == "results" else dataset
-        if query:
-            records = [row for row in records if query.casefold() in " ".join(str(v) for v in row.values()).casefold()]
-        current = Paginator(records, 20).get_page(request.GET.get("page"))
-        return page(request, mode="research", heading="Dataset & Apriori Analysis", result=result, tab=tab,
-            filename=path.name, columns=columns, dataset_page=[list(row.values()) for row in current] if tab == "dataset" else [],
-            current=current, distinct_products=len({(row["seller_id"], row["product_id"]) for row in dataset}),
-            query_args=urlencode({"tab": tab, "q": query}))
-    except (OSError, ValueError, csv.Error):
-        return page(request, mode="research", heading="Dataset & Apriori Analysis", http_status=503,
-                    research_error="Synthetic transaction dataset is unavailable. Please retry.")
+    if (not can_view_bundle_suggestions(request.user)
+            or not (is_super_monitor(request.user) or uses_analysis_workspace(request.user))):
+        raise PermissionDenied
+    return _render_analysis(request)
 
 
 def readonly_analysis(request):
-    """Project saved authorized evidence only; no CSV, order queries or mining.
-
-    Called only by the GET/permission-checked research view. The synthetic demo
-    has no persisted, safely scoped result snapshot, so this branch cannot show
-    it by invoking the existing calculate-and-cache helper.
-    """
-    tab = "synthetic" if request.GET.get("tab") == "synthetic" else "marketplace"
-    try:
-        analysis = workspace_analysis_summary(request.user)
-        records = recommendations_for(request.user)
-        query = request.GET.get("q", "").strip()[:150]
-        if query:
-            records = records.filter(Q(product_a__name__icontains=query) | Q(product_b__name__icontains=query))
-        current = Paginator(records if tab == "marketplace" else records.none(), 20).get_page(request.GET.get("page"))
-        rows = [{"item": presentation(row), "evidence": recommendation_evidence(row)} for row in current]
-        return page(request, mode="analysis_readonly", heading="Dataset & Analysis", workspace=True,
-                    analysis=analysis, tab=tab, rows=rows, current=current,
-                    query_args=urlencode({"tab": tab, "q": query}))
-    except DatabaseError:
-        return page(request, mode="error", heading="Dataset & Analysis", http_status=503,
-                    failure="Unable to load saved analysis. Please retry.", retry_url=request.path)
+    """Compatibility wrapper; the common view retains GET and permission checks."""
+    return research(request)
 
 
 @never_cache
@@ -268,11 +328,18 @@ def readonly_analysis(request):
 def run_research(request):
     if not is_super_monitor(request.user):
         raise PermissionDenied
-    from .services.bundle_suggestions import _cached_synthetic
-    _cached_synthetic.cache_clear()  # Research-only cache. No live generation or persistence.
-    return redirect(reverse_research_results())
+    try:
+        execute_synthetic_research(request.user)
+    except (OSError, ValueError, InvalidOperation, csv.Error):
+        return _render_analysis(request, source='synthetic', tab='results',
+                                failure='Unable to complete synthetic analysis. Please check the dataset and retry.')
+    return redirect(reverse_research_results(request.GET))
 
 
-def reverse_research_results():
+def reverse_research_results(params=None):
     from django.urls import reverse
-    return reverse("bundle_monitor_research") + "?tab=results"
+    args = params.copy() if params is not None else {}
+    args.update(source='synthetic', tab='results')
+    args.pop('page', None)
+    args.pop('itemsets_page', None)
+    return reverse('bundle_monitor_research') + '?' + urlencode(args)

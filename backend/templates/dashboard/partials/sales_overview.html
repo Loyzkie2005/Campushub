@@ -46,7 +46,6 @@
     {% if marketplace_compact and sales_overview.comparison %}<p class="marketplace-comparison-period">Previous period: {{ sales_overview.comparison.start|date:'M j, Y' }} – {{ sales_overview.comparison.end|date:'M j, Y' }} ({{ sales_overview.comparison.days }} day{{ sales_overview.comparison.days|pluralize }}).</p>{% endif %}
     <div class="sales-overview__metrics">
         {% for metric in sales_overview.metrics %}
-        {% if not executive_mode or metric.key != 'average' %}
         <article class="sales-overview__metric" data-metric="{{ metric.key }}">
             {% if not global_dashboard %}<span class="sales-overview__icon{% if metric.key == 'orders' %} sales-overview__icon--gold{% endif %}" aria-hidden="true">
                 {% if metric.key == 'sales' %}&#8369;{% elif metric.key == 'orders' %}{% include 'dashboard/partials/sales_overview_icon.html' with icon='cart' %}{% else %}{% include 'dashboard/partials/sales_overview_icon.html' with icon='receipt' %}{% endif %}
@@ -64,16 +63,13 @@
                     {% if global_dashboard %}<span class="sales-overview__metric-symbol" aria-hidden="true">{% include 'dashboard/partials/marketplace_icon.html' with icon=metric.key %}</span>
                 </div>{% endif %}
                 {% if marketplace_compact and metric.comparison %}
-                <p class="marketplace-metric-comparison"><span>Previous: {% if metric.comparison.previous == None %}&mdash;{% else %}{% if metric.currency %}&#8369;{% endif %}{{ metric.comparison.previous }}{% endif %}</span><span>Change: {% if metric.comparison.change == None %}&mdash;{% else %}{{ metric.comparison.change }}{% endif %}</span></p>
-                {% if metric.comparison.note %}<small class="marketplace-metric-note">{{ metric.comparison.note }}</small>{% endif %}
+                <p class="marketplace-metric-comparison"><span>Previous: {% if metric.comparison.previous == None %}&mdash;{% else %}{% if metric.currency %}&#8369;{% endif %}{{ metric.comparison.previous }}{% endif %}</span>{% if metric.comparison.change != None %}<span>Change: {{ metric.comparison.change }}</span>{% endif %}</p>
                 {% elif not marketplace_compact or sales_overview.has_sales or metric.change != 'No change' %}
-                {% if global_dashboard %}<p class="dashboard-comparison" data-semantic-type="{% if not sales_overview.has_sales %}neutral{% else %}{{ metric.semantic_type }}{% endif %}">{% if not sales_overview.has_sales %}No completed {% if metric.key == 'sales' %}sales{% else %}orders{% endif %} this period.{% else %}{{ metric.comparison_text }}{% endif %}</p>{% else %}<p><b>{% if '-' not in metric.change and metric.change != 'No change' and metric.change != 'No previous sales' %}&#8599; {% elif '-' in metric.change %}&#8600; {% endif %}{{ metric.change }}</b> <span>vs. previous {% if sales_period_key == 'today' %}day{% elif sales_period_key == 'month' %}month{% elif sales_period_key == 'year' %}year{% else %}{{ sales_days }} days{% endif %}</span></p>{% endif %}
+                {% if global_dashboard %}<p class="dashboard-comparison" data-semantic-type="{% if not sales_overview.has_sales %}neutral{% else %}{{ metric.semantic_type }}{% endif %}">{% if metric.defined == False %}{{ metric.comparison_text }}{% elif not sales_overview.has_sales %}No completed {% if metric.key == 'sales' %}sales{% else %}orders{% endif %} this period.{% else %}{{ metric.comparison_text }}{% endif %}</p>{% else %}<p><b>{% if '-' not in metric.change and metric.change != 'No change' and metric.change != 'No previous sales' %}&#8599; {% elif '-' in metric.change %}&#8600; {% endif %}{{ metric.change }}</b> <span>vs. previous {% if sales_period_key == 'today' %}day{% elif sales_period_key == 'month' %}month{% elif sales_period_key == 'year' %}year{% else %}{{ sales_days }} days{% endif %}</span></p>{% endif %}
                 {% endif %}
             </div>
         </article>
-        {% endif %}
         {% endfor %}
-        {% if executive_mode %}<article class="sales-overview__metric"><div class="sales-overview__metric-content"><h3>Active Sellers</h3><div class="sales-overview__metric-value"><strong data-executive-sellers>{{ dashboard_stats.active_sellers }}</strong><span class="sales-overview__metric-symbol" aria-hidden="true">{% include 'dashboard/partials/marketplace_icon.html' with icon='products' %}</span></div><p>Current approved seller access</p></div></article>{% endif %}
     </div>
     {% if marketplace_compact and not sales_overview.has_sales %}<p class="marketplace-sales-empty-summary">No completed and paid orders in the selected period.</p>{% endif %}
     <div class="sales-overview__trend">
@@ -110,7 +106,7 @@
             <p>{% if marketplace %}Data is based on completed marketplace orders with confirmed payment. Delivery and payment are recorded separately.{% else %}Data is based on completed orders with confirmed payment (Cash on Pickup).{% endif %}</p>
         </div>
         {% if not global_dashboard %}{% if perms.accounts.can_view_marketplace_analytics or user.is_staff or user.is_superuser %}
-        <a href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ sales_overview.start|date:'Y-m-d' }}&amp;date_to={{ sales_overview.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}" class="sales-overview__cta-btn">View Detailed Analytics <span aria-hidden="true">&rarr;</span></a>
+        {% if not marketplace_compact or perms.accounts.can_view_marketplace_analytics %}<a href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ sales_overview.start|date:'Y-m-d' }}&amp;date_to={{ sales_overview.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}" class="sales-overview__cta-btn">View Detailed Analytics <span aria-hidden="true">&rarr;</span></a>{% endif %}
         {% endif %}{% endif %}
     </footer>{% endif %}
 </section>

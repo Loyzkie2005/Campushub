@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
     <link rel="stylesheet" href="{% static 'components/css/admin_booking.css' %}?v=20261017-cancelled-history">
     <link rel="stylesheet" href="{% static 'components/css/booking_slip.css' %}?v=20261022-inter">
-    <link rel="stylesheet" href="{% static 'components/css/job_order.css' %}?v=20261017-job-paper">
+    <link rel="stylesheet" href="{% static 'components/css/job_order.css' %}?v=20261027-sign-action-only">
 {% include 'partials/web_typography.html' %}
 </head>
 <body class="campushub-bookings-page">
@@ -65,10 +65,12 @@
     {% csrf_token %}
     {{ booking_detail|json_script:'bkBookingDetailData' }}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{% static 'components/js/admin_session.js' %}?v=20260708"></script>
+    <script src="{% static 'components/js/admin_session.js' %}?v=20261030-session-recheck"></script>
     <script src="{% static 'components/js/admin_bookings.js' %}?v=20261017-cancelled-history"></script>
     <script src="{% static 'components/js/admin_booking_forms.js' %}?v=20261017-closed-day-message"></script>
-    <script src="{% static 'components/js/job_order_preview.js' %}?v=20261017-job-preload"></script>
-    <script src="{% static 'components/js/admin_booking_workflow.js' %}?v=20261017-cancelled-history"></script>
+    <script src="{% static 'components/js/job_order_preview.js' %}?v=20261027-sign-action-only"></script>
+    <script src="{% static 'vendor/signature_pad/5.1.4/signature_pad.umd.min.js' %}"></script>
+    <script src="{% static 'components/js/job_order_signatures.js' %}?v=20261027-sign-action-only"></script>
+    <script src="{% static 'components/js/admin_booking_workflow.js' %}?v=20261027-sign-action-only"></script>
 </body>
 </html>

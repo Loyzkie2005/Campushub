@@ -1,0 +1,141 @@
+{% if card == 'kpis' %}
+<section class="analytics-kpi-grid{% if marketplace_sections %} marketplace-performance-kpis{% endif %}" aria-label="Marketplace summary">
+                        <article class="analytics-kpi{% if marketplace_sections %} dashboard-stat-card{% endif %}"><span>Total Sales Revenue</span>{% if marketplace_sections %}<div class="dashboard-stat-icon" aria-hidden="true"><svg data-kpi-icon="wallet" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 8V5a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v3M3 6v12a3 3 0 0 0 3 3h12a2 2 0 0 0 2-2v-3"/><path d="M18 12h4v4h-4a2 2 0 0 1 0-4Z"/></svg></div>{% endif %}<strong>&#8369;{{ analytics.kpis.sales }}</strong>{% if super_analytics and not marketplace_sections %}<small>{{ analytics.comparison.sales.comparison_text }}</small>{% endif %}<small>{% if super_analytics %}Completed and paid orders in selected dates{% else %}Completed &amp; paid Cash on Pickup orders{% endif %}</small></article>
+                        <article class="analytics-kpi{% if marketplace_sections %} dashboard-stat-card{% endif %}"><span>Completed Orders</span>{% if marketplace_sections %}<div class="dashboard-stat-icon" aria-hidden="true"><svg data-kpi-icon="shopping-bag" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z"/></svg></div>{% endif %}<strong>{{ analytics.kpis.completed_orders }}</strong>{% if super_analytics and not marketplace_sections %}<small>{{ analytics.comparison.orders.comparison_text }}</small>{% endif %}<small>Settled orders in {{ analytics.period.label }}</small></article>
+                        <article class="analytics-kpi{% if marketplace_sections %} dashboard-stat-card{% endif %}"><span>Active Sellers</span>{% if marketplace_sections %}<div class="dashboard-stat-icon" aria-hidden="true"><svg data-kpi-icon="store" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l4.071-4.071A1.5 1.5 0 0 1 9.06 3h5.88a1.5 1.5 0 0 1 1.06.44l4.071 4.071a3 3 0 0 1-.621 4.72"/></svg></div>{% endif %}<strong>{{ analytics.kpis.active_sellers }}</strong><small>{% if super_analytics %}Selected-period activity: approved web/mobile sellers with listing updates or completed-paid sales{% else %}Approved sellers with activity{% endif %}</small></article>
+                        <article class="analytics-kpi{% if marketplace_sections %} dashboard-stat-card{% endif %}"><span>Approved Products</span>{% if marketplace_sections %}<div class="dashboard-stat-icon" aria-hidden="true"><svg data-kpi-icon="package-check" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 2 2 4-4M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0M3.3 7 12 12l8.7-5M12 22V12M7.5 4.27l9 5.15"/></svg></div>{% endif %}<strong>{{ analytics.kpis.approved_products }}</strong><small>{% if super_analytics %}Current snapshot · approved, non-archived listings{% else %}Current active catalog listings{% endif %}</small></article>
+                    </section>
+{% elif card == 'sales' %}
+<article class="analytics-panel analytics-sales-panel">
+                            <header class="analytics-panel-header">
+                                <div>
+                                    {% if marketplace_sections %}<h3>Sales Trend</h3>{% else %}<h2>{% if super_analytics %}Sales Performance{% else %}Monthly Sales Performance{% endif %}</h2>{% endif %}
+                                    <p>Completed and paid marketplace orders</p>
+                                </div>
+                                <form method="get" data-action-filter class="analytics-inline-form">
+                                    <input type="hidden" name="period" value="{{ analytics.period.key }}" />
+                                    {% if marketplace_sections %}<input type="hidden" name="forecast_product" value="{{ analytics.forecast.product_id|default:'' }}" /><input type="hidden" name="forecast_horizon" value="{{ analytics.forecast.horizon }}" />{% endif %}
+                                    {% if analytics.period.key == 'custom' %}<input type="hidden" name="date_from" value="{{ analytics.period.start|date:'Y-m-d' }}" /><input type="hidden" name="date_to" value="{{ analytics.period.end|date:'Y-m-d' }}" />{% endif %}
+                                    <label for="salesGrouping" class="visually-hidden">Group sales by</label>
+                                    <select name="grouping" id="salesGrouping" class="analytics-select analytics-select-compact">
+                                        <option value="daily"{% if analytics.grouping == 'daily' %} selected{% endif %}>Daily</option>
+                                        <option value="weekly"{% if analytics.grouping == 'weekly' %} selected{% endif %}>Weekly</option>
+                                        <option value="monthly"{% if analytics.grouping == 'monthly' %} selected{% endif %}>Monthly</option>
+                                    </select>
+                                </form>
+                            </header>
+                            {% if super_analytics %}{% if not marketplace_sections %}<p class="analytics-method-note">{{ analytics.comparison.sales.comparison_text }}. Previous revenue: &#8369;{{ analytics.comparison.previous_sales }}; completed paid orders: {{ analytics.comparison.previous_orders }}. {{ analytics.comparison.orders.comparison_text }} for order count.</p>{% endif %}{% include 'reports/partials/analytics_chart.html' with chart_id='marketplaceSalesChart' label='Revenue and completed paid orders by recognition period' table=analytics.sales_table has_data=analytics.has_sales size='analytics-chart-large' empty_title='No Sales Data Yet' empty_text='Sales trend will appear once completed and paid marketplace orders exist in the selected period.' empty_icon='line' %}{% else %}<div class="analytics-chart analytics-chart-large"><canvas id="marketplaceSalesChart"></canvas></div>{% endif %}
+                        </article>
+{% elif card == 'status' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Order Status Breakdown{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>Orders submitted in selected period</p></div><a href="{% url 'admin_orders_page' %}">View orders &rarr;</a></header>
+                            <div class="analytics-status-breakdown-card">
+                                {% for row in analytics.order_status_breakdown.rows %}
+                                <div class="analytics-status-row">
+                                    <div class="analytics-status-info">
+                                        <span class="analytics-status-badge status-badge-{{ row.status }}">{% if super_analytics and row.url and row.count %}<a href="{{ row.url }}">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}</span>
+                                        <strong>{{ row.count }}</strong>
+                                    </div>
+                                    <div class="analytics-progress-track">
+                                        <div class="analytics-progress-bar" style="width: {{ row.percentage }}%;"></div>
+                                    </div>
+                                    <small>{{ row.percentage }}% of orders</small>
+                                </div>
+                                {% empty %}
+                                <div class="analytics-table-empty">No orders submitted in selected period.</div>
+                                {% endfor %}
+                            </div>
+                        </article>
+{% elif card == 'category' %}
+{% if marketplace_sections %}{% include 'reports/partials/marketplace_revenue_category.html' %}{% else %}
+<article class="analytics-panel{% if marketplace_sections %} marketplace-category-card{% endif %}">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Sales by Category{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>Share of completed sales</p></div></header>
+                            {% if super_analytics and analytics.category_has_revenue or not super_analytics and analytics.category_sales %}
+                            <div class="analytics-donut-layout">
+                                <div class="analytics-donut"><canvas id="marketplaceCategoryChart"{% if super_analytics %} role="img" aria-label="Share of completed paid revenue by category"{% endif %}></canvas></div>
+                                <div class="analytics-legend">{% for category in analytics.category_sales %}<div><span>{{ category.category }}</span><strong>{{ category.percent }}%{% if super_analytics %} · &#8369;{{ category.sales }}{% endif %}</strong></div>{% endfor %}</div>
+                            </div>{% if super_analytics %}{% include 'reports/partials/analytics_chart_data.html' with chart_table=analytics.category_table caption="Completed paid revenue by category" %}{% endif %}
+                            {% else %}
+                            {% if super_analytics and analytics.category_sales %}<div class="analytics-empty-state"><strong>No positive category revenue in selected dates</strong><span>Qualifying zero-price sales are retained in the data table.</span></div>{% include 'reports/partials/analytics_chart_data.html' with chart_table=analytics.category_table caption="Completed paid revenue by category" %}{% elif marketplace_sections %}<p class="marketplace-compact-empty">No completed paid category sales in selected dates.</p>{% else %}<div class="analytics-empty-state"><strong>No completed sales in this period.</strong><span>Category contribution will appear after paid orders are completed.</span></div>{% endif %}
+                            {% endif %}
+                        </article>
+{% endif %}
+{% elif card == 'top' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Top-Selling Products{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>Ranked by completed units sold</p></div><a href="{% url 'admin_products_page' %}">View products</a></header>
+                            <div class="table-responsive"><table class="analytics-table"><thead><tr><th>#</th><th>Product</th><th>Seller</th><th class="number-cell">Units Sold</th><th class="number-cell">Sales</th></tr></thead><tbody>
+                                {% for product in analytics.top_products %}<tr><td>{{ forloop.counter }}</td><td><strong>{% if super_analytics and product.url %}<a href="{{ product.url }}">{{ product.product }}</a>{% else %}{{ product.product }}{% endif %}</strong></td><td>{{ product.seller }}</td><td class="number-cell">{{ product.units }}</td><td class="number-cell">&#8369;{{ product.sales }}</td></tr>{% empty %}<tr><td colspan="5"><div class="analytics-table-empty">No completed product sales in this period.</div></td></tr>{% endfor %}
+                            </tbody></table></div>
+                        </article>
+{% elif card == 'slow' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Slow-Moving Products{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>{% if marketplace_sections and not analytics.slow_moving.sufficient %}Current stock and selected-period eligible sales.{% else %}{{ analytics.slow_moving.rule }}{% endif %}</p>{% if super_analytics and analytics.slow_moving.sufficient %}<p>Minimum: 30 selected days and 5 completed paid orders. Current stock; selected-period units.</p>{% endif %}</div><a href="{% url 'admin_products_page' %}">View products</a></header>
+                            {% if analytics.slow_moving.sufficient %}
+                            <div class="table-responsive"><table class="analytics-table"><thead><tr><th>Product</th><th class="number-cell">Units Sold</th><th class="number-cell">Current Stock</th><th>Last Sold</th></tr></thead><tbody>
+                                {% for product in analytics.slow_moving.rows %}<tr><td><strong>{{ product.product }}</strong></td><td class="number-cell">{{ product.units }}</td><td class="number-cell">{{ product.stock }}</td><td>{{ product.last_sold }}</td></tr>{% empty %}<tr><td colspan="4"><div class="analytics-table-empty">No products meet the slow-moving rule.</div></td></tr>{% endfor %}
+                            </tbody></table></div>
+                            {% else %}<div class="analytics-empty-state"><strong>Insufficient history</strong><span>{{ analytics.slow_moving.rule }}</span></div>{% endif %}
+                        </article>
+{% elif card == 'buyers' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Buyer Activity{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>Marketplace purchases, not authentication activity</p></div></header>
+                            <div class="analytics-metric-strip">
+                                <div><span>Total Buyers</span><strong>{{ analytics.buyer_activity.total }}</strong></div><div><span>New Buyers</span><strong>{{ analytics.buyer_activity.new }}</strong></div><div><span>Repeat Buyers</span><strong>{{ analytics.buyer_activity.repeat }}</strong></div><div><span>Avg. Orders / Buyer</span><strong>{{ analytics.buyer_activity.average_orders }}</strong></div>
+                            </div>
+                            {% if super_analytics %}<p class="analytics-method-note">Buyers use recorded account ID, otherwise email; unknown identities are excluded from buyer counts. New means no earlier qualifying purchase; repeat means more than one qualifying order within this period. These groups can overlap. The chart counts all qualifying orders, including those without a buyer identity.</p>{% include 'reports/partials/analytics_chart.html' with chart_id='buyerPurchaseChart' label='Completed paid purchases by recognition period' table=analytics.buyer_table has_data=analytics.has_sales size='analytics-chart-medium' empty_title='No activity in the selected period' empty_text='Recorded activity will appear when available for these dates.' %}{% else %}<div class="analytics-chart analytics-chart-medium"><canvas id="buyerPurchaseChart"></canvas></div>{% endif %}
+                            {% if not marketplace_sections %}<div class="analytics-category-bars" aria-label="Most purchased categories">
+                                {% for category in analytics.category_sales|slice:':5' %}<div><span>{{ category.category }}</span><div><i data-width="{{ category.percent }}"></i></div><strong>{{ category.percent }}%</strong></div>{% empty %}<p>No purchased categories in this period.</p>{% endfor %}
+                            </div>{% endif %}
+                        </article>
+{% elif card == 'sellers' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Seller Performance{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>{% if super_analytics %}Current approved sellers and listing/stock counts; completed paid sales within selected dates. Ranked by revenue, then units.{% else %}Approved sellers with marketplace activity{% endif %}</p></div><a href="{% url 'admin_sellers_page' %}">View sellers</a></header>
+                            <div class="table-responsive"><table class="analytics-table"><thead><tr><th>Seller</th><th class="number-cell">Products</th><th class="number-cell">Completed Orders</th><th class="number-cell">Units Sold</th><th class="number-cell">Sales</th><th class="number-cell">Low Stock</th></tr></thead><tbody>
+                                {% for seller in analytics.seller_performance.rows %}<tr><td><strong>{% if super_analytics and seller.search_url %}<a href="{{ seller.search_url }}" title="Search existing seller applications">{{ seller.seller }}</a>{% else %}{{ seller.seller }}{% endif %}</strong><small>{{ seller.department }}</small></td><td class="number-cell">{{ seller.products }}</td><td class="number-cell">{{ seller.orders }}</td><td class="number-cell">{{ seller.units }}</td><td class="number-cell">&#8369;{{ seller.sales }}</td><td class="number-cell">{{ seller.low_stock }}</td></tr>{% empty %}<tr><td colspan="6"><div class="analytics-table-empty">No approved seller activity found in this period.</div></td></tr>{% endfor %}
+                            </tbody></table></div>
+                        </article>
+{% elif card == 'inventory' %}
+<section class="analytics-panel analytics-inventory-panel">
+                        <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Inventory Insights{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>Current stock compared with completed sales in {{ analytics.period.label }}</p>{% if super_analytics %}<p>Available quantities are current snapshots, not historical stock. Bundle availability is derived from components and must not be added to physical component stock. Daily averages and days remaining are observed-rate estimates, not forecasts; sparse history is not a reliable restocking prediction.</p>{% endif %}</div><a href="{% url 'admin_products_page' %}">View products</a></header>
+                        <div class="analytics-inventory-layout">
+                            <div class="analytics-inventory-summary">
+                                <div><span>Low Stock Products</span><strong>{{ analytics.inventory.summary.low_stock }}</strong></div><div><span>Out of Stock Products</span><strong>{{ analytics.inventory.summary.out_of_stock }}</strong></div><div><span>Total Products</span><strong>{{ analytics.inventory.summary.total }}</strong></div><div><span>Healthy Stock</span><strong>{{ analytics.inventory.summary.healthy }}</strong></div>
+                            </div>
+                            <div class="table-responsive"><table class="analytics-table"><thead><tr><th>Product</th><th class="number-cell">Current Stock</th><th>Avg. Daily Sales</th><th>Est. Days Left</th><th>Recommended Action</th></tr></thead><tbody>
+                                {% for product in analytics.inventory.rows %}<tr><td><strong>{% if super_analytics and product.url %}<a href="{{ product.url }}">{{ product.product }}</a>{% else %}{{ product.product }}{% endif %}</strong><small>{{ product.state }}{% if super_analytics %} · {{ product.stock_basis }}{% endif %}</small></td><td class="number-cell">{{ product.stock }}</td><td>{{ product.average_daily_sales }}</td><td>{{ product.days_left }}</td><td>{{ product.action }}</td></tr>{% empty %}<tr><td colspan="5"><div class="analytics-table-empty">No approved products are available for inventory analysis.</div></td></tr>{% endfor %}
+                            </tbody></table></div>
+                        </div>
+                    </section>
+{% elif card == 'forecast' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Demand Forecast{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>Simple moving-average stock guidance</p></div></header>
+                            <form method="get" data-action-filter class="analytics-forecast-form">
+                                <input type="hidden" name="period" value="{{ analytics.period.key }}" /><input type="hidden" name="grouping" value="{{ analytics.grouping }}" />
+                                {% if analytics.period.key == 'custom' %}<input type="hidden" name="date_from" value="{{ analytics.period.start|date:'Y-m-d' }}" /><input type="hidden" name="date_to" value="{{ analytics.period.end|date:'Y-m-d' }}" />{% endif %}
+                                <label for="forecastProduct">Product</label><select name="forecast_product" id="forecastProduct" class="analytics-select">{% for product in analytics.product_options %}<option value="{{ product.id }}"{% if product.id == analytics.forecast.product_id %} selected{% endif %}>{{ product.name }}</option>{% empty %}<option value="">No approved products</option>{% endfor %}</select>
+                                <label for="forecastHorizon">Forecast</label><select name="forecast_horizon" id="forecastHorizon" class="analytics-select"><option value="7"{% if analytics.forecast.horizon == 7 %} selected{% endif %}>Next 7 Days</option><option value="30"{% if analytics.forecast.horizon == 30 %} selected{% endif %}>Next 30 Days</option></select>
+                            </form>
+                            {% if analytics.forecast.sufficient %}
+                            {% if super_analytics %}{% include 'reports/partials/analytics_chart.html' with chart_id='demandForecastChart' label='Historical demand and existing moving-average forecast' table=analytics.forecast_table has_data=analytics.forecast.sufficient size='analytics-chart-dss' empty_title='No activity in the selected period' empty_text='Recorded activity will appear when available for these dates.' %}{% else %}<div class="analytics-chart analytics-chart-dss"><canvas id="demandForecastChart"></canvas></div>{% endif %}
+                            <div class="analytics-dss-summary"><div><span>Current Stock</span><strong>{{ analytics.forecast.current_stock }}</strong></div><div><span>Forecast Demand</span><strong>{{ analytics.forecast.forecast_total }}</strong></div><div><span>{% if marketplace_sections and analytics.forecast.inventory_review %}Aggregate Gap Only{% else %}Suggested Preparation{% endif %}</span><strong>{{ analytics.forecast.suggested_preparation }}</strong></div></div>
+                            <p class="analytics-method-note">Method: {{ analytics.forecast.method }}. Suggested preparation is forecast demand minus current stock, never below zero. {% if marketplace_sections %}Training: {{ analytics.forecast.observed_start|date:'M j, Y' }}–{{ analytics.forecast.observed_end|date:'M j, Y' }}; {{ analytics.forecast.history_days }} observed days, {{ analytics.forecast.sales_days }} sales days, {{ analytics.forecast.units }} completed-paid units in {{ analytics.forecast.eligible_orders }} orders. {% if not analytics.forecast.operational %}Historical projection; the stock gap is only a current-stock scenario.{% else %}Today's observations may be partial.{% endif %} {% if analytics.forecast.inventory_review %}Component, variant or expiry review is required before using a quantity.{% endif %} Recorded sales can understate demand during stockouts. Minimum coverage is a safeguard, not an accuracy guarantee.{% endif %}</p>
+                            {% else %}<div class="analytics-empty-state analytics-empty-compact"><strong>{{ analytics.forecast.message }}</strong><span>Requires at least {{ analytics.forecast.minimum.days|default:14 }} observed days, {{ analytics.forecast.minimum.nonzero_days|default:3 }} sales days, {{ analytics.forecast.minimum.units|default:7 }} completed-paid units, and positive demand in the final seven days.{% if marketplace_sections %} Available coverage: {{ analytics.forecast.history_days|default:0 }} observed days, {{ analytics.forecast.sales_days|default:0 }} sales days and {{ analytics.forecast.units|default:0 }} units.{% endif %}</span></div>{% endif %}
+                        </article>
+{% elif card == 'basket' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Frequently Bought Together{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>Product combinations recommended from completed purchases</p></div></header>
+                            {% if marketplace_sections %}<p class="analytics-method-note">Apriori association analysis from actual completed paid transactions. Synthetic research transactions are excluded from this page and its operational totals.</p>{% endif %}
+                            {% if analytics.market_basket.sufficient %}
+                            <div class="table-responsive"><table class="analytics-table analytics-table-compact"><thead><tr><th>Product A</th><th>Product B</th></tr></thead><tbody>{% for pair in analytics.market_basket.rows %}<tr><td>{{ pair.product_a }}</td><td>{{ pair.product_b }}</td></tr>{% endfor %}</tbody></table></div>
+                            <p class="analytics-method-note">Consider offering these products together as a bundle. No bundle is created automatically.</p>
+                            {% else %}<div class="analytics-empty-state"><strong>{{ analytics.market_basket.message }}</strong><span>CampusHub needs completed orders that share a real checkout transaction identifier before association rules can be calculated.</span></div>{% endif %}
+                        </article>
+{% elif card == 'peak' %}
+<article class="analytics-panel">
+                            <header class="analytics-panel-header"><div>{% if marketplace_sections %}<h3>{% else %}<h2>{% endif %}Peak Sales Period{% if marketplace_sections %}</h3>{% else %}</h2>{% endif %}<p>{% if super_analytics %}Revenue by Philippine-local recognition weekday and three-hour interval; this is not checkout-time activity.{% else %}Completed sales by day and three-hour interval{% endif %}</p></div></header>
+                            {% if super_analytics and analytics.has_positive_revenue or not super_analytics and analytics.peak_sales.sufficient %}
+                            <div class="analytics-peak-summary"><div><span>Day of Week</span><strong>{{ analytics.peak_sales.day }}</strong><small>&#8369;{{ analytics.peak_sales.day_sales }} sales</small></div><div><span>Time of Day</span><strong>{{ analytics.peak_sales.time }}</strong><small>&#8369;{{ analytics.peak_sales.time_sales }} sales</small></div></div>
+                            {% if super_analytics %}{% include 'reports/partials/analytics_chart.html' with chart_id='peakSalesChart' label='Revenue by Philippine-local recognition time' table=analytics.peak_table has_data=analytics.peak_sales.sufficient size='analytics-chart-dss' empty_title='No activity in the selected period' empty_text='Recorded activity will appear when available for these dates.' %}{% else %}<div class="analytics-chart analytics-chart-dss"><canvas id="peakSalesChart"></canvas></div>{% endif %}
+                            {% else %}<div class="analytics-empty-state"><strong>{% if super_analytics and analytics.peak_sales.sufficient and not analytics.has_positive_revenue %}No positive revenue to identify a peak period.{% else %}{{ analytics.peak_sales.message }}{% endif %}</strong><span>Peak periods will appear after completed paid orders are available.</span></div>{% endif %}
+                        </article>
+{% endif %}

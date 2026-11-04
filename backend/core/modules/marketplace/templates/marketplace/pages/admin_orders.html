@@ -1,4 +1,5 @@
 {% load static %}
+{% if not order_modal_fragment %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,7 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter">
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
-    <link rel="stylesheet" href="{% static 'components/css/admin_orders.css' %}?v=20261025-filter-row">
+    <link rel="stylesheet" href="{% static 'components/css/admin_orders.css' %}?v=20261030-orders-fit-columns">
 {% include 'partials/web_typography.html' %}
 </head>
 <body class="orders-page" data-can-manage-orders="{{ perms.accounts.can_manage_orders|yesno:'true,false' }}">
@@ -78,13 +79,11 @@
                                 <option value="">All Dates</option>
                                 {% for value, label in date_options %}<option value="{{ value }}" {% if filters.date == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                             </select></label>
-                            <label>Fulfillment<select name="fulfillment" id="ordersFulfillmentFilter">
+                            <label>Receiving Method<select name="fulfillment" id="ordersFulfillmentFilter">
                                 <option value="">All Methods</option>
-                                <option value="pickup" {% if filters.fulfillment == 'pickup' %}selected{% endif %}>Pickup</option>
+                                <option value="pickup" {% if filters.fulfillment == 'pickup' %}selected{% endif %}>Customer Pickup</option>
                                 <option value="seller_delivery" {% if filters.fulfillment == 'seller_delivery' %}selected{% endif %}>Seller Delivery</option>
-                                <option value="not_recorded" {% if filters.fulfillment == 'not_recorded' %}selected{% endif %}>Not recorded</option>
                             </select></label>
-                            <a href="{{ orders_reset_url }}" class="orders-clear">Clear Filters</a>
                             <div class="orders-custom-date-range" id="ordersCustomDateRange" {% if filters.date != 'custom' %}hidden{% endif %}>
                                 <label>From<input type="date" name="date_from" id="ordersDateFrom" value="{{ filters.date_from }}" {% if filters.date != 'custom' %}disabled{% endif %}></label>
                                 <label>To<input type="date" name="date_to" id="ordersDateTo" value="{{ filters.date_to }}" {% if filters.date != 'custom' %}disabled{% endif %}></label>
@@ -92,9 +91,9 @@
                         </form>
                         {% if filter_error %}<p class="orders-filter-error" role="alert">{{ filter_error }}</p>{% endif %}
 
-                        <div class="table-responsive" id="ordersTableWrap" tabindex="0" role="region" aria-label="Orders table, scroll horizontally to see all columns" {% if not orders %}style="display:none"{% endif %}>
+                        <div id="ordersTableWrap" role="region" aria-label="Orders" {% if not orders %}style="display:none"{% endif %}>
                             <div class="orders-table-container">
-                                <table class="orders-table" id="ordersTable">
+                                <table class="orders-table" id="ordersTable" role="table">
                                     <colgroup>
                                         <col class="table-col-num">
                                         <col class="table-col-orderid">
@@ -108,8 +107,8 @@
                                         <col class="table-col-date">
                                         <col class="table-col-action">
                                     </colgroup>
-                                    <thead>
-                                        <tr>
+                                    <thead role="rowgroup">
+                                        <tr role="row">
                                             <th scope="col" class="col-num">#</th>
                                             <th scope="col" class="col-orderid">ORDER ID</th>
                                             <th scope="col" class="col-customer">CUSTOMER</th>
@@ -118,55 +117,18 @@
                                             <th scope="col" class="col-amount">TOTAL</th>
                                             <th scope="col" class="col-status">ORDER STATUS</th>
                                             <th scope="col" class="col-payment">PAYMENT STATUS</th>
-                                            <th scope="col" class="col-fulfillment">FULFILLMENT</th>
+                                            <th scope="col" class="col-fulfillment">RECEIVING METHOD</th>
                                             <th scope="col" class="col-date">ORDER DATE</th>
                                             <th scope="col" class="col-action">ACTIONS</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="ordersTableBody">
+                                    <tbody id="ordersTableBody" role="rowgroup">
                                         {% for order in orders %}
-                                        <tr data-order-id="{{ order.id }}"
-                                            data-update-url="{% url 'admin_order_update' order.id %}"
-                                            data-order-status="{{ order.status|lower }}"
-                                            data-payment-status="{{ order.payment_status }}"
-                                            data-fulfillment-method="{{ order.fulfillment_method }}"
-                                            data-fulfillment-label="{{ order.fulfillment.fulfillment_label }}"
-                                            data-fulfillment-progress="{{ order.fulfillment.fulfillment_progress }}"
-                                            data-delivery-destination="{{ order.delivery_destination }}"
-                                            data-delivery-started-at="{{ order.fulfillment.delivery_started_at|default:'' }}"
-                                            data-delivered-at="{{ order.fulfillment.delivered_at|default:'' }}"
-                                            data-order-code="{{ order.order_code|default:'' }}"
-                                            data-buyer-name="{{ order.display_buyer_name|default:order.buyer_name|default:''|escape }}"
-                                            data-buyer-type="{{ order.buyer_user_type|default:''|escape }}"
-                                            data-buyer-email="{{ order.display_buyer_email|default:order.buyer_email|default:''|escape }}"
-                                            data-buyer-phone="{{ order.display_buyer_phone|default:''|escape }}"
-                                            data-product-name="{{ order.product_name|escape }}"
-                                            data-display-items="{{ order.display_items|escape }}"
-                                            data-buyer-program="{{ order.buyer_academic.program }}" data-buyer-major="{{ order.buyer_academic.major }}"
-                                            data-seller-program="{{ order.seller_academic.program }}" data-seller-major="{{ order.seller_academic.major }}"
-                                            data-items-subtotal="{{ order.items_subtotal }}"
-                                            data-picked-up-at="{% if order.picked_up_at %}{{ order.picked_up_at|date:'M d, Y at g:i A' }}{% endif %}"
-                                            data-seller-name="{{ order.display_seller_name|default:''|escape }}"
-                                            data-message-to-seller="{{ order.message_to_seller|default:''|escape }}"
-                                            data-option="{{ order.option|default:''|escape }}"
-                                            data-customization="{{ order.get_customization_json|escape }}"
-                                            data-items-json="{{ order.items_json|escape }}"
-                                            data-quantity="{{ order.display_qty }}"
-                                            data-unit-price="{{ order.unit_price }}"
-                                            data-total-price="{{ order.total_price }}"
-                                            data-category="{{ order.category|default:''|escape }}"
-                                            data-receipt-no="{{ order.official_receipt_no|default:''|escape }}"
-                                            data-payment-encoded-by="{{ order.payment_encoded_by|default:''|escape }}"
-                                            data-paid-at="{% if order.paid_at %}{{ order.paid_at|date:'M d, Y at g:i A' }}{% endif %}"
-                                            data-pickup-location="{{ order.pickup_location|default:''|escape }}"
-                                            data-pickup-scheduled-at="{% if order.pickup_scheduled_at %}{{ order.pickup_scheduled_at|date:'M d, Y at g:i A' }}{% endif %}"
-                                            data-cancellation-reason="{{ order.cancellation_reason|default:''|escape }}"
-                                            data-status-history="{{ order.status_history_json|escape }}"
-                                            data-created-date="{{ order.created_at|date:'Y-m-d' }}"
-                                            data-created-at="{{ order.created_at|date:'M d, Y' }} at {{ order.created_at|date:'g:i A' }}">
-                                            <td class="col-num">{{ forloop.counter0|add:page_obj.start_index }}</td>
-                                            <td class="col-orderid"><a class="order-id-link view-order-action" href="{% url 'admin_orders_page' %}{% querystring order=order.id page=None __at=orders_tab_token|default:None %}" aria-label="View order {{ order.order_code|default:'details' }}"><strong>{{ order.order_code|default:'Not assigned' }}</strong></a></td>
-                                            <td class="col-customer">
+                                        <tr role="row" {% include 'marketplace/partials/order_row_data.html' %}>
+                                            <td class="col-num" role="cell"><span class="orders-cell-label" aria-hidden="true">#</span>{{ forloop.counter0|add:page_obj.start_index }}</td>
+                                            <td class="col-orderid" role="cell"><span class="orders-cell-label" aria-hidden="true">Order ID</span><a class="order-id-link view-order-action" href="{% url 'admin_orders_page' %}{% querystring order=order.id page=None __at=orders_tab_token|default:None %}" aria-label="View order {{ order.order_code|default:'details' }}"><strong>{{ order.order_code|default:'Not assigned' }}</strong></a></td>
+                                            <td class="col-customer" role="cell">
+                                                <span class="orders-cell-label" aria-hidden="true">Customer</span>
                                                 <strong title="{{ order.display_buyer_name }}">{{ order.display_buyer_name }}</strong>
                                                 {% if order.display_buyer_email %}
                                                     <span>{{ order.display_buyer_email }}</span>
@@ -174,25 +136,30 @@
                                                     <span>{{ order.buyer_user_type }}</span>
                                                 {% endif %}
                                             </td>
-                                            <td class="col-product-name">
+                                            <td class="col-product-name" role="cell">
+                                                <span class="orders-cell-label" aria-hidden="true">Items</span>
                                                 <strong title="{{ order.display_items }}">{{ order.display_items }}</strong>
                                                 <span>{{ order.display_seller_name }} · {{ order.seller_academic.program_major }}</span>
                                             </td>
-                                            <td class="col-qty"><strong>{{ order.display_qty }}</strong></td>
-                                            <td class="col-amount">&#8369; {{ order.total_price }}</td>
-                                            <td class="col-status">
+                                            <td class="col-qty" role="cell"><span class="orders-cell-label" aria-hidden="true">Qty</span><strong>{{ order.display_qty }}</strong></td>
+                                            <td class="col-amount" role="cell"><span class="orders-cell-label" aria-hidden="true">Total</span>&#8369; {{ order.total_price }}</td>
+                                            <td class="col-status" role="cell">
+                                                <span class="orders-cell-label" aria-hidden="true">Order Status</span>
                                                 <span class="status-pill status-{{ order.status|lower }}">{{ order.fulfillment.status_label }}</span>
                                             </td>
-                                            <td class="col-payment">
+                                            <td class="col-payment" role="cell">
+                                                <span class="orders-cell-label" aria-hidden="true">Payment Status</span>
                                                 <span class="payment-pill payment-{{ order.payment_status }}">{{ order.get_payment_status_display }}</span>
                                                 {% if order.official_receipt_no %}<small>OR {{ order.official_receipt_no }}</small>{% endif %}
                                             </td>
-                                            <td class="col-fulfillment"><strong>{{ order.fulfillment.fulfillment_label }}</strong>{% if order.fulfillment_method == 'seller_delivery' %}<span>{{ order.fulfillment.fulfillment_progress }}</span>{% endif %}</td>
-                                            <td class="col-date">
+                                            <td class="col-fulfillment" role="cell"><span class="orders-cell-label" aria-hidden="true">Receiving Method</span><strong>{{ order.fulfillment.fulfillment_label }}</strong>{% if order.fulfillment_method == 'seller_delivery' %}<span>{{ order.fulfillment.fulfillment_progress }}</span>{% endif %}</td>
+                                            <td class="col-date" role="cell">
+                                                <span class="orders-cell-label" aria-hidden="true">Order Date</span>
                                                 <strong>{{ order.created_at|date:'M d, Y' }}</strong>
                                                 <span>{{ order.created_at|date:'g:i A' }}</span>
                                             </td>
-                                            <td class="col-action">
+                                            <td class="col-action" role="cell">
+                                                <span class="orders-cell-label" aria-hidden="true">Actions</span>
                                                 <div class="action-row">
                                                     <button type="button" class="btn-user-action view-order-action" title="View Order Details" aria-label="View Order Details for {{ order.order_code|default:'this order' }}">
                                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
@@ -233,6 +200,8 @@
         </div>
     </div>
 
+    {% endif %}
+    <!-- Shared operational modals. Fragment requests render only this canonical markup. -->
     <!-- Complete Order Modal (Cash on Pickup Confirmation) -->
     <div class="modal fade" id="completeOrderModal" tabindex="-1" aria-labelledby="completeOrderModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -298,7 +267,7 @@
     </div>
 
     <!-- Order Details Modal / Drawer -->
-    <div class="modal fade" id="orderDetailModal" tabindex="-1" aria-labelledby="orderDetailModalLabel" aria-hidden="true">
+    <div class="modal fade" id="orderDetailModal" data-can-manage-orders="{{ perms.accounts.can_manage_orders|yesno:'true,false' }}" tabindex="-1" aria-labelledby="orderDetailModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <form class="modal-content order-detail-modal" id="orderManagementForm">
                 {% csrf_token %}
@@ -377,12 +346,12 @@
                         </dl>
                     </section>
 
-                    <!-- 5. Pickup Information -->
+                    <!-- 5. Receiving Information -->
                     <section class="order-modal-section">
-                        <h6>Fulfillment Information</h6>
+                        <h6>Receiving Information</h6>
                         <dl class="order-detail-list">
-                            <div><dt>Fulfillment Method</dt><dd id="orderDetailFulfillment">&mdash;</dd></div>
-                            <div><dt>Fulfillment Progress</dt><dd id="orderDetailFulfillmentProgress">&mdash;</dd></div>
+                            <div><dt>Receiving Method</dt><dd id="orderDetailFulfillment">&mdash;</dd></div>
+                            <div><dt>Receiving Progress</dt><dd id="orderDetailFulfillmentProgress">&mdash;</dd></div>
                             <div><dt>Delivery Destination</dt><dd id="orderDetailDestination">&mdash;</dd></div>
                             <div><dt>Seller Delivery Started</dt><dd id="orderDetailDeliveryStarted">&mdash;</dd></div>
                             <div><dt>Delivered</dt><dd id="orderDetailDelivered">&mdash;</dd></div>
@@ -433,9 +402,11 @@
 
     <div class="order-action-toast" id="orderActionToast" role="status" aria-live="polite"></div>
 
+    {% if not order_modal_fragment %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'components/js/admin_notifications.js' %}?v=20260523-3"></script>
     <script src="{% static 'components/js/admin_academic_controls.js' %}?v=20261008-academic"></script>
-    <script src="{% static 'components/js/admin_orders.js' %}?v=20261025-seller-delivery"></script>
+    <script src="{% static 'components/js/admin_orders.js' %}?v=20261026-dashboard-modal"></script>
 </body>
 </html>
+{% endif %}

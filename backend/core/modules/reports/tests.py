@@ -335,6 +335,7 @@ class MarketplaceAnalyticsTests(TestCase):
 
     def test_slow_moving_products_use_documented_minimum_history_rule(self):
         start = self.today - timedelta(days=29)
+        Product.objects.filter(pk__in=[self.product.pk, self.variant_product.pk]).update(submitted_at=self._timestamp(start - timedelta(days=1)))
         for index in range(5):
             self._order(
                 code=f"2026SM{index:06d}",

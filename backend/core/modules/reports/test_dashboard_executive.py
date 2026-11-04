@@ -118,6 +118,12 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
                          'Booking Trend', 'Most-Booked Facilities', 'Facility Attention', 'facilities-reservations-table'):
                 self.assertIn(text, section)
             self.assertNotIn('Booking Revenue', section)
+            self.assertNotIn('executive-overview-body', section)
+            self.assertNotIn('aria-label="Facility management"', section)
+            self.assertNotIn('<details', section)
+            self.assertEqual(section.count('id="mostBookedFacilitiesTitle"'), 1)
+            self.assertLess(section.index('class="dash-card facilities-trend"'), section.index('id="bookingOverviewTitle"'))
+            self.assertLess(section.index('id="bookingOverviewTitle"'), section.index('id="bookingTrendTitle"'))
             self.assertEqual(section.count('data-booking-overview'), 1)
             self.assertIn('id="facilityBookingOverviewChart"', section)
             self.assertIn('data-facility-ranking-chart tabindex=', section)
@@ -131,6 +137,14 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
                 target = Path(directory); target.mkdir(parents=True, exist_ok=True)
                 (target / f'facilities-{state}.html').write_bytes(page.content)
                 (target / f'facilities-{state}.json').write_text(json.dumps(data), encoding='utf-8')
+                for period_name in ('today', 'last_7_days'):
+                    for grouping in ('daily', 'weekly', 'monthly'):
+                        with patch('django.utils.timezone.localdate', return_value=self.today):
+                            grouped = self.client.get(reverse('admin_dashboard_api'), {
+                                'period': period_name, 'booking_grouping': grouping,
+                            })
+                        self.assertEqual(grouped.status_code, 200)
+                        (target / f'{state}-{period_name}-{grouping}.json').write_bytes(grouped.content)
                 if state == 'populated':
                     analytics = self.client.get(reverse('admin_facility_analytics_page'), {'period': 'today'})
                     self.assertContains(analytics, 'Most Frequently Booked Facility')
@@ -163,6 +177,8 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
         for anchor in ('frequentlyBoughtTogether', 'crossSellSuggestions', 'bundleSuggestions', 'recommendationActivity'):
             self.assertNotContains(page, 'id="'+anchor+'"')
         self.assertLess(html.index('id="dashboardAttentionTitle"'), html.index('id="marketplaceRecommendationsTitle"'))
+        for anchor in ('frequentlyBoughtTogether', 'crossSellSuggestions', 'bundleSuggestions', 'recommendationActivity'):
+            self.assertNotContains(page, 'id="'+anchor+'"')
         self.assertContains(page, 'id="dashboardAttentionTitle"', count=1)
         self.assertNotContains(page, 'data-inline-system-status')
         self.assertNotContains(page, 'id="dashboardSystemStatus"')
@@ -197,6 +213,36 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
             self.assertEqual(self.client.get(url, {'module': module}).status_code, 403)
         self.client.logout()
         self.assertEqual(self.client.get(url, {'module': 'services'}).status_code, 302)
+
+    def test_saas_header_controls_section_order_and_saved_bundle_refresh(self):
+        with patch('django.utils.timezone.localdate', return_value=self.today), patch(
+            'modules.marketplace.services.bundle_suggestions.build_bundle_suggestions',
+            side_effect=AssertionError('Dashboard must not run Apriori')
+        ):
+            page = self.client.get(reverse('admin_dashboard_page'), {'period': 'today'})
+            data = self.payload()
+        self.assertEqual(page.status_code, 200)
+        html = page.content.decode()
+        header = html.split('<header class="dashboard-header"', 1)[1].split('</header>', 1)[0]
+        self.assertNotIn('id="dashboardPeriod"', header)
+        self.assertNotIn('id="dashboardRefresh"', header)
+        controls = html.split('<div class="executive-controls-row">', 1)[1].split('<div class="executive-toolbar">', 1)[0]
+        self.assertIn('id="dashboardPeriod"', controls)
+        self.assertIn('id="dashboardRefresh"', controls)
+        self.assertIn('aria-label="Notifications"', header)
+        self.assertEqual(html.count('id="dashboardGlobalControls"'), 1)
+        self.assertIn('class="super-admin-dashboard"', html)
+        self.assertIn('class="executive-priority-grid"', html)
+        self.assertIn('class="executive-domain-grid"', html)
+        self.assertIn('bundle_preview_html', data)
+        self.assertIn('No Bundle Suggestions Yet', data['bundle_preview_html'])
+        self.assertIn(reverse('bundle_monitor_list'), data['bundle_preview_html'])
+        self.assertNotIn('<script', data['bundle_preview_html'])
+        self.client.force_login(self.marketplace_admin)
+        self.assertEqual(self.client.get(reverse('admin_dashboard_api')).status_code, 403)
+        other = self.client.get(reverse('admin_dashboard_page')).content.decode()
+        self.assertNotIn('class="super-admin-dashboard"', other)
+        self.assertNotIn('header-dashboard-controls', other)
 
     def test_users_summary_uses_registration_dates_and_recorded_types_not_roles(self):
         from accounts.models import User
@@ -241,6 +287,7 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
             (target/'users-populated.html').write_bytes(page.content)
             (target/'users-populated.json').write_text(json.dumps(self.payload()), encoding='utf-8')
             for label, params in (('range', range_params), ('week', {'period': 'last_7_days'}),
+                                  ('month', {'period': 'last_30_days'}),
                                   ('calendar', {'period': 'custom', 'start_date': '2026-09-01', 'end_date': '2026-10-04'})):
                 with patch('django.utils.timezone.localdate', return_value=self.today):
                     page = self.client.get(reverse('admin_dashboard_page'), params)
@@ -260,21 +307,25 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.assertEqual([html.index(anchor) for anchor in anchors], sorted(html.index(anchor) for anchor in anchors))
         self.assertContains(page, 'No User Registration Data Yet')
         self.assertContains(page, 'No User Distribution Data')
-        self.assertContains(page, 'View User Analytics')
+        self.assertNotContains(page, 'View User Analytics')
+        self.assertContains(page, 'data-executive-analytics="users"')
+        self.assertContains(page, 'class="users-overview-body"', count=1)
         self.assertContains(page, 'id="userRegistrationView"', count=1)
         self.assertContains(page, 'value="daily" selected>Daily')
         self.assertContains(page, 'value="weekly">Weekly')
         self.assertContains(page, 'value="monthly">Monthly')
         self.assertNotContains(page, 'value="cumulative"')
         self.assertContains(page, 'aria-controls="userRegistrationTrendChart userRegistrationData"')
+        self.assertNotContains(page, 'View chart data')
         start = html.index('<aside class="dashboard-summary-aside executive-bundle-panel"')
         panel = html[start:html.index('</aside>', start)]
-        self.assertEqual(panel.count('<a '), 0)
-        for label in ('Suggested Product Bundles', 'Overview of marketplace product bundle recommendations.',
+        self.assertEqual(panel.count('<a '), 1)
+        self.assertIn(reverse('bundle_monitor_list'), panel)
+        for label in ('Suggested Product Bundles', 'Current saved product bundle recommendations.', 'View Recommendations',
                       'Saved product combinations will appear here when available.'):
             self.assertIn(label, panel)
         for action in ('Recommendation Activity', 'Sent to Sellers', 'Awaiting Seller Response', 'Bundles Created',
-                       'View Recommendations', 'Create Bundle', 'Send to Seller', 'Approve Recommendation',
+                       'Create Bundle', 'Send to Seller', 'Approve Recommendation',
                        'Reject Recommendation', '>Lift<', '>Support<', '>Confidence<'):
             self.assertNotIn(action, panel)
         directory = os.environ.get('EXECUTIVE_REVIEW_DIR')

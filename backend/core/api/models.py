@@ -71,10 +71,22 @@ class CampusHubUser(models.Model):
         return f"mobile:{self.pk}"
 
 
+class MobileFoodPreference(models.Model):
+    """Optional onboarding state, separate from account types and purchase analysis."""
+    user = models.OneToOneField(CampusHubUser, on_delete=models.CASCADE, related_name="food_preference")
+    category_ids = models.JSONField(default=list, blank=True)
+    onboarding_stage = models.CharField(max_length=16, default="complete", choices=(
+        ("preferences", "Preferences"), ("welcome", "Welcome"), ("complete", "Complete")))
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "campushub_food_preference"
+
+
 class ProductQuerySet(models.QuerySet):
     """Bulk quantity writes bypass Product.save and are unsafe after FIFO cutover."""
     def update(self, **kwargs):
-        if {"stock", "customization_options", "product_type"}.intersection(kwargs):
+        if {"stock", "customization_options", "product_type", "inventory_method"}.intersection(kwargs):
             from modules.marketplace.services.fifo import enabled, FIFOError
             if enabled():
                 raise FIFOError("Use audited Product.save or inventory services for FIFO stock changes.")
@@ -87,7 +99,7 @@ class ProductQuerySet(models.QuerySet):
         return super().bulk_create(objs, *args, **kwargs)
 
     def bulk_update(self, objs, fields, batch_size=None):
-        if {"stock", "customization_options", "product_type"}.intersection(fields):
+        if {"stock", "customization_options", "product_type", "inventory_method"}.intersection(fields):
             from modules.marketplace.services.fifo import enabled, FIFOError
             if enabled():
                 raise FIFOError("Use audited Product.save or inventory services for FIFO stock changes.")
@@ -127,6 +139,8 @@ class Product(models.Model):
     tags = models.JSONField(default=list, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveIntegerField(default=0)
+    inventory_method = models.CharField(max_length=10, default="simple", db_default="simple",
+        choices=(("simple", "Simple stock"), ("fifo", "FIFO batches")))
     # Null preserves the configured default on legacy/simple listings.
     # Separately tracked options keep their thresholds in customization_options.
     low_stock_threshold = models.PositiveIntegerField(null=True, blank=True)
@@ -198,12 +212,12 @@ class Product(models.Model):
 
         using = kwargs.get("using") or self._state.db or "default"
         fields = kwargs.get("update_fields")
-        track = fields is None or bool(set(fields) & {"stock", "customization_options", "product_type"})
+        track = fields is None or bool(set(fields) & {"stock", "customization_options", "product_type", "inventory_method"})
         with transaction.atomic(using=using):
             before = None
             if track and self.pk and not self._state.adding:
                 before = type(self).objects.using(using).select_for_update().filter(pk=self.pk).values(
-                    "stock", "customization_options", "product_type"
+                    "stock", "customization_options", "product_type", "inventory_method"
                 ).first()
             super().save(*args, **kwargs)
             if track:
@@ -375,6 +389,7 @@ class SellerRequest(models.Model):
     reviewed_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
     is_suspended = models.BooleanField(default=False)
+    seller_delivery_enabled = models.BooleanField(default=False, db_default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -910,7 +925,7 @@ class MarketplaceOrder(models.Model):
     picked_up_at = models.DateTimeField(null=True, blank=True)
     # Blank means a historical order did not record its fulfillment method.
     fulfillment_method = models.CharField(max_length=20, blank=True, default="",
-        choices=(("pickup", "Pickup"), ("seller_delivery", "Seller Delivery")))
+        choices=(("pickup", "Customer Pickup"), ("seller_delivery", "Seller Delivery")))
     delivery_destination = models.CharField(max_length=500, blank=True)
     delivery_started_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
@@ -1010,6 +1025,9 @@ class InventoryStockMovement(models.Model):
     available_before = models.PositiveIntegerField(null=True, blank=True)
     available_after = models.PositiveIntegerField(null=True, blank=True)
     actor = models.CharField(max_length=150, blank=True)
+    notes = models.TextField(max_length=500, blank=True, null=True)
+    reference = models.CharField(max_length=150, blank=True, null=True)
+    received_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

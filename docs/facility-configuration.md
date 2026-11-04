@@ -1,5 +1,341 @@
 # Reusable Add/Edit Facility configuration
 
+## Operating Schedule presets simplified - October 29, 2026
+
+This changes only the existing physical-facility Operating Schedule controls and the server validation required to keep their saved policy/reservations safe. It supersedes the older visible weekend-policy checkbox and preset behavior described below. Existing pricing, payment, approval, other form sections and specialized service/stay workflows retain their own behavior.
+
+### 1. Cause / reason
+
+Confirmed: `FacilityFormControls.buildSchedule()` rendered three long preset buttons and a separate **Weekend-Only Restriction (Sat–Sun)** checkbox. Selecting the old weekend preset also set `workflow_config.weekend_only=true`; selecting Weekdays/Daily cleared that policy. This mixed a convenience schedule choice with an independent booking restriction. There was no selected preset state, and the generated button class differed from the existing View Facility lock selector. Also confirmed: the facility update endpoint validated the new weekly map but did not check whether narrower hours excluded an active reservation.
+
+The requested change removes that redundant visible policy editor, keeps **Weekdays / Weekends / Daily / Custom**, preserves saved hours and enforces existing policy on the server. Facility name/category never determines whether a weekend restriction applies.
+
+### 2. Exact files changed / current lines and anchors
+
+| Folder / file | Current line / code anchor | Change and expected behavior |
+| --- | --- | --- |
+| `backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` | 53 `buildSchedule`; 138 `fillDefaultHours`; 143 `applyPreset`; 158 `syncPresets`; 175 `setReadOnly`; 181 `syncDay`; 229 `getFeatureWorkflow`; 237 `setWorkflow`; 279 `getOperatingHours` | Four accessible presets; row-derived selection; preserve configured times; store the loaded policy as configuration rather than a checkbox; respect View/Edit. |
+| `backend/core/modules/facilities/static/facilities/css/facility_form_controls.css` | 81 `.facility-schedule-preset-btn`; 102 selected; 108 focus; 117 disabled; 122 help; 128 reduced motion | Compact wrapping controls with shared navy/surface variables, selected/focus/disabled states and reduced-motion handling. Removed obsolete weekend-checkbox styling. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 14/614 versioned assets; 1409 reset; 1620 Edit; 1639 View `setReadOnly` | Load the new assets and restore/lock only the schedule controller in the existing form lifecycle. |
+| `backend/core/modules/facilities/services/facility_configuration.py` | 290 workflow merge / existing policy guard | Reject attempts to clear an existing true weekend policy; retain existing weekday/time validation. |
+| `backend/core/modules/facilities/services/operating_schedule.py` | 114 `validate_schedule_change` | Read-only validation that protects affected future pending/approved slot reservations. |
+| `backend/core/api/views.py` | 24 `Http404`; 1668 `facilities_update`; 1677 facility row lock; 1679 schedule validation; 1699 missing-record handling | Validate and update under the same facility lock used by reservation creation; reject unsafe schedule changes before saving; preserve 404 behavior. |
+| `backend/core/api/test_facility_form_controls.py` | 53 preset round trips; 66 policy preservation; 82 invalid weekday representation | Extend existing validation tests for all presets/custom times, omitted/cleared policy and repeated/incomplete day input. |
+| `backend/core/api/test_mobile_facility_booking.py` | 219 `schedule_update`; 230 active reservation protection; 253 safe changes; 266 blocks/history; 285 catalog/mobile contract; 300 policy bypass | Extend real API tests for persistence, rejected changes without writes, mobile availability and calendar-block preservation. |
+| `docs/facility-configuration.md` | 3 this report | Current behavior, functions/data flow, verification, debugging and practice exercise. |
+| `CAMPUSHUB_CONTEXT.md` | 3 current schedule note | Preserve the latest scoped implementation and active online-database caveat. |
+
+Ignored QA helpers/results are in `scratch/operating-schedule-20261029/`: `run_tests.py` uses a disposable **local** PostgreSQL database; `ui_checks.cjs` exercises the actual controller against the test-rendered form; `browser_checks.cjs` renders that form in hidden Chrome and intercepts all saves. These are verification tools, not new application features or dependencies.
+
+### 3. Changes made
+
+- **Weekdays:** Monday–Friday enabled; Saturday/Sunday closed. **Weekends:** Saturday/Sunday enabled; weekdays closed. **Daily:** all seven days enabled. **Custom:** enter manual editing mode without changing any row or saved time.
+- Defaults are **08:00–17:00 only for blank time boundaries**. Already configured values, including non-quarter-hour values such as 08:07, survive preset changes and an in-session close/reopen of a day. The helper text makes this preservation behavior explicit.
+- Preset selection is derived from the enabled rows and their common valid time range. A standard day set with identical custom hours still describes that day preset; differing per-day hours or a different day set displays Custom. Choosing Custom explicitly changes only the selected editing mode. There is no separate stored copy of the weekly schedule or a database preset field.
+- A disabled day shows Closed, hides/disables its times and serializes as `null`. Enabled rows keep their Opening Time / Closing Time controls. Existing all-closed and unparsed legacy-text schedules remain honest; untouched legacy text is retained for review.
+- An existing `weekend_only=true` remains true. Weekdays/Daily and Monday–Friday checkboxes are disabled for that facility; a short read-only policy explanation replaces the removed checkbox. Weekends/Custom remain usable. Choosing a weekend schedule for an unrestricted facility does **not** create a policy restriction.
+- Presets are native `type="button"` controls with `aria-pressed`, visible keyboard focus and a labeled group. They change only the draft until the existing Save/Update action submits it. View locks presets and rows; reopening Edit restores only policy-compatible actions.
+
+### 4. How it works: functions, inputs / outputs and data flow
+
+`setWorkflow(workflow)` receives Django's existing workflow JSON, reads the saved boolean policy, fills seven rows and exact saved times, and derives the preset state. `applyPreset(days)` receives a weekday array, changes only row enablement, fills missing boundaries with defaults, and calls `syncPresets()`. That method reads the current row values and updates `aria-pressed`/disabled buttons; it never writes to the server. Manual checkbox/time events call the same synchronization. `getOperatingHours()` returns the existing seven-key map, with `{open, close}` for enabled days and `null` for closed days. `getFeatureWorkflow()` retains the policy value independently. `setReadOnly(value)` controls schedule interaction when the shared form switches between View and Edit.
+
+```text
+Existing facility workflow JSON -> setWorkflow -> seven day rows
+Preset / manual edit -> same row values -> selected preset + local draft
+Existing Save/Update -> getOperatingHours + getFeatureWorkflow
+  -> permission-checked Django facilities_update -> locked Facility row
+  -> validate_facility_payload -> validate_schedule_change -> existing JSON field
+  -> serialize_facility -> public facility API -> Flutter details / availability
+```
+
+The unchanged `validate_weekly_hours()` requires exactly seven weekday keys, each either `null` or an `{open, close}` object with valid `HH:MM` values and opening earlier than closing. The map has one entry per weekday; list/repeated-row representations, missing days and extra keys are rejected. `validate_facility_payload()` still preserves unowned legacy data and now rejects clearing a saved true policy, including false/null/empty attempts. Existing policy validation still rejects open weekdays for a restricted facility.
+
+`validate_schedule_change(facility, workflow)` accepts the locked saved facility and proposed workflow, returns normally for a safe change, or raises a field-specific `ValidationError`. For existing slot facilities it compares the old/new schedule and policy, then reads future/current pending or approved reservations only when needed. Changed weekdays must still cover their booked start/end; missing booking times require review rather than guessing. Completed/cancelled/rejected/past reservations and unchanged weekdays do not block unrelated edits. Administrative maintenance/class/official/hold blocks are excluded using the existing calendar-block predicate and remain stored unchanged. Room/stay and specialized service behavior is not converted into slot booking behavior.
+
+The update endpoint acquires `select_for_update()` before reading current configuration and validating, inside `transaction.atomic()`. Mobile/admin reservation creation already locks the same facility row, preventing a concurrent schedule edit from racing that creation flow. Validation failures return the existing HTTP 400 field-error response before facility/audit/image writes. Missing facilities still return 404.
+
+Annotated example:
+
+```javascript
+// A normal Weekends draft; this alone does not mean weekend_only policy is true.
+{ monday: null, tuesday: null, wednesday: null, thursday: null, friday: null,
+  saturday: {open: '08:00', close: '17:00'},
+  sunday:   {open: '08:00', close: '17:00'} }
+```
+
+This approach reuses the existing JSON, validators, API serializer and mobile consumers rather than adding another schedule model, preset column or client-specific policy copy.
+
+### 5. Backend / API and Flutter behavior
+
+No endpoint or response shape changed. `serialize_facility()` continues to expose `workflow_config.operating_hours` and the existing policy to the public catalog and Flutter `FacilityItem`. Flutter's existing `FacilityDetailInformation.operatingDays` reads the same map for the seven display days; the details and booking tests passed without Flutter source edits. `configured_slots`, `slot_status`, admin reservation validation and calendar conflict queries continue to enforce real opening/closing times, closed days, policy restrictions, maintenance and overlaps. The new API test verifies a saved custom window in the catalog response and mobile availability, with no slots on the next closed day.
+
+No pricing/payment/approval rules were changed. Actual authenticated phone booking, assistive-technology use and a hosted-source deployment were not performed. The localhost backend currently uses Kamatera, so real form submissions there affect shared online records; QA did not submit such saves.
+
+### 6. Database / migration impact
+
+None: no new model/migration, schedule deletion, live facility/booking modification, seed data, database-setting change or production migration. Existing `Facility.workflow_config` remains the storage. `makemigrations --check --dry-run` reported **No changes detected**. Test fixtures were created only in a new disposable local PostgreSQL test database and that database was destroyed afterward. Browser drafts used exported isolated fixtures with saves intercepted; no Kamatera business records were changed by verification.
+
+### 7. Tests performed and troubleshooting
+
+- **120 Django tests passed in 11.352s** across `api.test_facility_form_controls`, `api.test_facility_rental_configuration`, `api.test_mobile_facility_booking`, `modules.facilities.test_admin_reservations`, and `modules.facilities.test_calendar`. The first run exposed a missing required location in the new API test helper; corrected the fixture, not the production location requirement, then reran successfully.
+- **14/14 controller scenarios passed** against the actual test-rendered form, covering preset defaults, manual synchronization, exact saved times, close/reopen, Custom without mutation, policy locks/reset, View/Edit, legacy/all-closed schedules and invalid hours.
+- **64/64 Chrome assertions passed** at 1440, 768, 390 and 320 px: actual form initialization, four labels, no checkbox, correct days, required-time states, schedule containment, Space activation/focus ring, View lock, Edit policy restoration and zero submitted saves. Desktop and 320 px actual schedule captures were inspected. No mockup or replacement UI asset was generated.
+- Existing Flutter details/booking suites: **32 tests passed** using `flutter test --no-pub test/facility_details_test.dart test/facility_booking_flow_test.dart`; no app build/install/launch/restart.
+- JavaScript syntax check passed; Django `check --database default` reported no issues; migration drift check was clean. The optional design skill's token/gate kit is absent, so no kit-wide accuracy/contrast certification is claimed. Project-specific tests/render checks above were used.
+
+If the old checkbox/buttons remain visible, hard-refresh localhost so the versioned CSS/JS reload. If presets cannot be clicked, distinguish View mode, a hidden schedule section and a saved weekend policy; these deliberately disable controls. Different per-day hours correctly select Custom even after choosing a day preset because existing hours are preserved. A booking-protection error means the proposed hours exclude the referenced active reservation: retain its hours or resolve it through the existing reservation workflow, then retry. Do not clear the policy or delete a booking to bypass this validation.
+
+### 8. Remaining limitations and safe practice exercise
+
+No full screen-reader/manual accessibility certification, authenticated physical-phone end-to-end test, or hosted Kamatera source deployment is claimed. The server guards the existing slot-reservation workflow; it does not introduce new daily/custom/service/stay booking processes. Existing unparsed legacy schedule text continues to require an administrator's explicit review.
+
+Safe exercise on localhost: open Add Facility, choose a physical category, click Weekends and confirm weekdays show Closed and weekend times show 8:00 AM–5:00 PM. Enable Monday, change its opening time to 9:00 AM and confirm Custom becomes selected. Close/reopen Monday and confirm 9:00 AM remains. Leave using Back without saving; no online record should be created. In a saved policy-restricted facility, use View to inspect the disabled weekday controls; do not submit test changes to shared online records. To rerun read-only UI regressions after exporting the isolated fixture, use `node scratch/operating-schedule-20261029/ui_checks.cjs` and `node scratch/operating-schedule-20261029/browser_checks.cjs`. The local test helper expects the private pre-switch local connection backup; inspect its strict target checks rather than changing it to the live database.
+
+---
+
+## Facility Features Renamed to Additional Requirements — 2026-10-29
+
+### 1. Cause / reason
+
+Confirmed in `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html`, `backend/core/modules/facilities/services/facility_configuration.py`, and `backend/core/api/test_facility_rental_configuration.py`:
+- The user requested renaming the physical facility section heading `#facilityAmenitiesLabel` from `Facility Features` to `Additional Requirements`.
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 487 `#facilityAmenitiesLabel`; 882 `syncFacilityFormType` | Renamed the physical facility heading from `Facility Features` to `Additional Requirements` in both the initial server-rendered template and the dynamic `syncFacilityFormType()` label assignment (while keeping `Amenities` / `config.amenities_label` for services). |
+| `backend/core/modules/facilities/services/facility_configuration.py` | 288 `errors["equipment"]` in `validate_facility_payload` | Updated the validation guidance message to reference `Additional Requirements and Optional Additional Fees`. |
+| `backend/core/api/test_facility_rental_configuration.py` | 666 `test_simple_features_fees_api_preserves_history_and_omitted_requirements` | Updated the page heading assertion to verify `Additional Requirements` is rendered and `Facility Features` is absent. |
+| `CAMPUSHUB_CONTEXT.md` | 3 latest context note | Recorded the `Additional Requirements` heading rename andView Facility summary card removal. |
+| `docs/facility-configuration.md` | 3 `Facility Features Renamed to Additional Requirements — 2026-10-29` | Documented exact anchors, functions, data flow, verification results, and safe practice exercise. |
+
+### 3. Changes made
+
+- Updated `#facilityAmenitiesLabel` in `admin_facility.html` (line 487) from `{% if service_catalog %}Amenities{% else %}Facility Features{% endif %}` to `{% if service_catalog %}Amenities{% else %}Additional Requirements{% endif %}`.
+- Updated `syncFacilityFormType()` in `admin_facility.html` (line 882) so `rentalControls.physical` sets `#facilityAmenitiesLabel.textContent = 'Additional Requirements'`.
+- Updated `validate_facility_payload()` in `facility_configuration.py` (line 288) to reference `Additional Requirements` in the `equipment` error message.
+- Updated `test_facility_rental_configuration.py` (lines 666–667) to assert `Additional Requirements` on `/admin-facility/`.
+
+### 4. Functions, inputs/outputs and data flow
+
+```text
+Admin opens Add / Edit / View Facility
+  -> syncFacilityFormType({ preservePrice })
+  -> checks rentalControls.physical
+  -> sets #facilityAmenitiesLabel.textContent =
+       rentalControls.physical ? 'Additional Requirements' : (config.amenities_label || 'Amenities')
+  -> #facilityAmenityChoices (aria-labelledby="facilityAmenitiesLabel") renders checkbox grid
+```
+
+Annotated snippet (`admin_facility.html:486–488` and `882`):
+
+```html
+<div class="facility-form-field facility-form-field-wide" data-facility-field="amenities">
+    <h3 class="facility-config-heading" id="facilityAmenitiesLabel">{% if service_catalog %}Amenities{% else %}Additional Requirements{% endif %}</h3>
+    <div id="facilityAmenityChoices" class="facility-choice-grid" role="group" aria-labelledby="facilityAmenitiesLabel"></div>
+```
+
+```javascript
+document.getElementById('facilityAmenitiesLabel').textContent = rentalControls.physical ? 'Additional Requirements' : config.amenities_label || 'Amenities';
+```
+
+**Why this approach was chosen**: Updating both the initial HTML heading (`#facilityAmenitiesLabel`) and the client-side `syncFacilityFormType()` updater ensures the heading always reads `Additional Requirements` for physical facilities across Add, Edit, and View Facility, while keeping the underlying `amenities` field and `other_feature` storage intact so existing saved facility records require no migration.
+
+### 5. Backend / API behavior
+
+- Stored `amenities` arrays and `workflow_config.other_feature` remain unchanged; only the display label and the legacy `equipment` error message text were updated.
+
+### 6. Database / migration impact
+
+- None. No models, migrations, or database records were modified.
+
+### 7. Verification results & troubleshooting
+
+- **Automated tests**: Ran `.\backend\core\venv\Scripts\python.exe backend\core\manage.py test api.test_facility_rental_configuration api.test_facility_form_controls --keepdb --noinput` → **63 tests passed in 1.438s** (`System check identified no issues`).
+- **Troubleshooting**: If an open browser tab still shows `Facility Features`, refresh the `/admin-facility/` page (`F5` or `Ctrl+F5`) so the updated HTML template is loaded from Django.
+
+### 8. Remaining limitations & safe practice exercise
+
+- **Remaining limitations**: No live browser screenshot was captured during this step; verified via the Django test client and template inspection.
+- **Safe practice exercise**:
+  1. Open `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` and inspect line 487 (`#facilityAmenitiesLabel`) and line 882 (`syncFacilityFormType`).
+  2. Run `.\backend\core\venv\Scripts\python.exe backend\core\manage.py test api.test_facility_rental_configuration.FacilityRentalAPITests.test_simple_features_fees_api_preserves_history_and_omitted_requirements --keepdb`.
+  3. Confirm the test passes and verifies that `/admin-facility/` renders `Additional Requirements`.
+
+---
+
+## View Facility Summary Card Removal — 2026-10-29
+
+### 1. Cause / reason
+
+Confirmed in `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` and `backend/core/modules/facilities/static/facilities/css/facility_form_controls.css`:
+- Opening **View Facility** (`openViewFacilityForm(row)`) rendered `#facilityDetailsSummaryCard` (`Facility Configuration & Rate Breakdown` — `Policy-aligned summary for <Facility>` with `Complete Pricing Breakdown`, `Capacity & Units`, `Client Eligibility & Schedule`, `Damage Deposit & Inspections`, `Optional Equipment / Additional Fees`, and `Authorized Client Discounts`) at the top of `.facility-form-body` immediately above the read-only facility configuration form.
+- Because `fillFacilityFormFromRow(row)` already populates every section of the read-only **View Facility** form below (`1. Facility Images`, `2. Basic Information`, `3. Capacity & Booking Rules`, `4. Pricing, Deposits & Discounts`, `5. Operating Schedule`, `6. Amenities & Policies`), the top summary card duplicated all configured values and the user explicitly requested removing it on View Facility.
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 14 stylesheet version `?v=20261029-view-facility`; 341 `.facility-form-body`; 1385 `resetFacilityForm`; 1565 `fillFacilityFormFromRow`; 1613 `openEditFacilityForm`; 1630 `openViewFacilityForm` | Removed `<div id="facilityDetailsSummaryCard" class="facility-details-summary-card" hidden></div>`, deleted `renderFacilityDetailsSummary(facility)`, and removed the `#facilityDetailsSummaryCard` DOM cleanup calls from `resetFacilityForm`, `openEditFacilityForm`, and `openViewFacilityForm` while preserving the read-only form population and disabled-field behavior on View Facility. |
+| `backend/core/modules/facilities/static/facilities/css/facility_form_controls.css` | 104 `.facility-deposit-preview`; 114 `#facilityFormSection [hidden]` | Removed the unused `.facility-details-summary-card`, `.facility-details-summary-header`, `.facility-details-summary-grid`, `.facility-details-summary-block`, `.facility-details-label`, `.facility-details-value`, `.facility-details-meta`, and `.facility-details-list` styles. |
+| `CAMPUSHUB_CONTEXT.md` | 3 latest context note | Recorded the View Facility summary card removal and verification summary. |
+| `docs/facility-configuration.md` | 3 `View Facility Summary Card Removal — 2026-10-29` | Documented exact anchors, functions, data flow, troubleshooting, verification results, and safe practice exercise. |
+
+### 3. Changes made
+
+- **Removed** `#facilityDetailsSummaryCard` from `.facility-form-body` in `admin_facility.html` (line 341).
+- **Removed** `renderFacilityDetailsSummary(facility)` and its call inside `openViewFacilityForm(row)` in `admin_facility.html` (lines 1565–1644).
+- **Removed** redundant `#facilityDetailsSummaryCard` reset blocks in `resetFacilityForm()` (line 1385) and `openEditFacilityForm(row)` (line 1613).
+- **Removed** `.facility-details-summary-*` CSS rules in `facility_form_controls.css` (after `.facility-deposit-preview` at line 104) and updated the stylesheet cache version in `admin_facility.html` (line 14) to `?v=20261029-view-facility`.
+
+### 4. Functions, inputs/outputs and data flow
+
+```text
+User clicks "View Details" in facility row action menu
+  -> openViewFacilityForm(row)
+  -> fillFacilityFormFromRow(row)
+       - reads data-* attributes via getFacilityFromRow(row)
+       - populates Basic Information, Capacity & Booking Rules, Pricing/Deposits/Discounts,
+         Operating Schedule, Amenities & Policies, and Facility Images
+  -> disables all inputs, selects, textareas, and dynamic row buttons
+  -> sets #facilityFormTitle to "View Facility" (or "View Service")
+  -> hides #saveFacilityButton and calls showFacilityForm()
+```
+
+Annotated example of `openViewFacilityForm(row)` (`admin_facility.html:1630–1644`):
+
+```javascript
+const openViewFacilityForm = (row) => {
+    editingFacilityRow = null;
+    // Populates all form sections directly from the selected table row's dataset:
+    fillFacilityFormFromRow(row);
+    // Locks all form controls into read-only view mode:
+    facilityFormSection?.querySelectorAll('input, select, textarea').forEach((field) => {
+        field.disabled = true;
+    });
+    facilityFormSection?.querySelectorAll('#facilityAddFee, #facilityAddDiscount, .facility-fee-row button, .facility-discount-row button, .facility-schedule-preset-btn').forEach(button => button.disabled = true);
+    if (facilityFormTitle) facilityFormTitle.textContent = '{% if service_catalog %}View Service{% else %}View Facility{% endif %}';
+    if (saveFacilityButton) {
+        saveFacilityButton.hidden = true;
+        saveFacilityButton.disabled = true;
+    }
+    if (serviceControls) facilityFormSection.querySelectorAll('.service-form-body button').forEach(button => button.disabled = true);
+    showFacilityForm();
+};
+```
+
+**Why this approach was chosen**: `fillFacilityFormFromRow(row)` already hydrates every actual form control (including base/hourly rates, capacity, client eligibility, schedule, deposit, additional fees, and discount rules). Removing the duplicate summary card eliminates visual clutter at the top of **View Facility** without altering any stored data, form fields, or backend logic.
+
+### 5. Backend / API behavior
+
+- No backend view, serializer, validator, permission check, or API endpoint was modified.
+
+### 6. Database / migration impact
+
+- None. No models, migrations, or database records were changed.
+
+### 7. Verification results & troubleshooting
+
+- **Automated tests**: Ran `.\backend\core\venv\Scripts\python.exe backend\core\manage.py test api.test_facility_rental_configuration api.test_facility_form_controls --keepdb --noinput` → **63 tests passed in 1.936s** (`System check identified no issues`).
+- **Troubleshooting**: If a browser tab still shows old styles after updating static files, hard-refresh (`Ctrl+F5`) so the updated `?v=20261029-view-facility` stylesheet query string loads cleanly.
+
+### 8. Remaining limitations & safe practice exercise
+
+- **Remaining limitations**: No live browser screenshot capture was run in this step; template and Django test suite checks were verified directly.
+- **Safe practice exercise**:
+  1. Open `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` and locate `openViewFacilityForm` at line 1630.
+  2. Trace how `fillFacilityFormFromRow(row)` (line 1565) passes `facility.workflowConfig` into `structuredFacilityControls.setWorkflow(...)` (line 1600) and `rentalControls.setWorkflow(...)` (line 1602).
+  3. Open **Facilities** in the web admin, click the row action menu (`...`) on **Covered Court**, and select **View Details**. Verify that the `Facility Configuration & Rate Breakdown` banner no longer appears at the top, while all read-only form sections below display the facility's saved configuration and remain disabled.
+
+---
+
+## Facilities List UI Layout & Column Overflow Fix — 2026-10-27
+
+### 1. Cause / reason
+
+Confirmed in `backend/static/components/css/admin_facility.css`, `backend/core/modules/facilities/static/facilities/css/facility_form_controls.css`, and `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html`:
+- `admin_facility.css` declared `.facility-table td { overflow: visible !important; }` (line 2240) together with `white-space: nowrap` (line 1807) and `table-layout: fixed` (line 1799). Any non-action table cell text wider than its percentage column width bled outside its cell box and overlapped adjacent columns (`Capacity / Units`, `Rate`, `Pricing Method`, `Status`, `Booking Mode`, and `Actions`).
+- Multi-line sub-labels inside `Capacity / Units`, `Rate`, `Status`, and `Booking Mode` overcrowded the compact row height, and `facility_form_controls.css` still used an older `?v=20261014-facility-footer` cache query string in `admin_facility.html:14`.
+- On physical Facilities, `#addFacilityBtn` (`Add Facility`) sat inside `.facility-table-toolbar` alongside five filter fields (`Search`, `Category`, `Status`, `Booking Mode`, `Record Status`), causing it to wrap onto a separate row and stretch full-width under `@media (max-width: 900px)` rules in `admin_facility.css:3063`.
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 14 stylesheet version `?v=20261027-facility-list-fix`; 91 `.facility-list-heading` + `#addFacilityBtn`; 242–272 `.facility-col-capacity` / `.facility-col-rate` / `.facility-col-status` / `.facility-col-bookings`; 1083 `formatBookingMode`; 1539 `renderFacilityRow`; 1581 `renderFacilityDetailsSummary` | Moved `Add Facility` to the top-right of `.facility-list-heading` on physical facilities (keeping `Add Service` in the toolbar for `service_catalog`), simplified each table cell to a single concise summary/badge, and kept the full pricing, schedule, capacity, and client-eligibility details in `#facilityDetailsSummaryCard` (View Details). |
+| `backend/core/modules/facilities/static/facilities/css/facility_form_controls.css` | 244 `.table-responsive`; 258 `td:not(.facility-col-actions)`; 264–325 `.facility-col-*` widths & badge clipping; 345 `.facility-list-heading` & `.facility-add-btn`; 388 `.facility-table-toolbar` 5-column filter grid | Overrode `overflow: visible !important` with `overflow: hidden !important; text-overflow: ellipsis;` on non-action cells, assigned balanced column widths totaling `100%` (`20% / 13% / 11% / 11% / 13% / 12% / 12% / 8%`, `min-width: 0` on desktop and `min-width: 960px` below `1100px`), styled `.facility-list-heading` with title/subtitle left and compact `#addFacilityBtn` top-right, and aligned the 5 filters in a responsive desktop grid. |
+
+### 3. Verification results
+
+- Ran `.\backend\core\venv\Scripts\python.exe backend\core\manage.py test api.test_facility_rental_configuration api.test_facility_form_controls api.test_mobile_facility_booking api.test_facilities_archive modules.facilities.test_service_navigation --keepdb --noinput` → **88 tests passed in 13.952s** (`System check identified no issues`).
+
+---
+
+## USTP Oroquieta Policy-Aligned Facilities Management Improvements — 2026-10-27
+
+### 1. Cause / reason
+
+Confirmed by inspecting `rental_configuration.py`, `facility_configuration.py`, `admin_reservations.py`, `mobile_booking.py`, `admin_facility.html`, `admin_facilities_dashboard.css`, and the live database against the uploaded **USTP Oroquieta Rental of Facilities and Spaces Policy**:
+- Facility-level client eligibility (`Internal Clients Only`, `External Clients Only`, `Both`) was not configurable in `workflow_config` and was not enforced during booking, even though the policy restricts the Mock Hotel to internal clients.
+- `base_hour` pricing supported an initial package (`base_rate` + `base_duration_hours` + `additional_hour_rate`) but could not store an optional standalone hourly rate (`hourly_rate`) on the same facility (needed by Covered Court: ₱3,500 / 8 hrs package + ₱700/hr option).
+- Duplicate active discount rules for the same `(eligible_client_type, applies_to, custom_scope)` were not rejected, and `"internal"` discount rules were not blocked for external/guest accounts in `reservation_quote()`.
+- Weekend-only booking restriction (`weekend_only`) and schedule presets were missing, and `capacity_min` was not validated during reservation booking.
+- Room-mode facilities stored `units` metadata in `workflow_config` while `Mock Hotel` had `0` actual `Room` rows in `campushub_rooms` (`available_rooms_count = 0`).
+- In the Facilities List table, `pricing_label()` placed a long multi-part sentence into the Rate column, `.facility-table-panel` had a hardcoded `min-height: 500px`, and the Facility Admin Dashboard had `Recent Activities` squeezed into a 4-column card beside `Facility Status` and `Payment Overview`.
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/facilities/services/rental_configuration.py` | 16 `ELIGIBLE_CLIENTS`; 55 `validate_discount_rules`; 120 `validate_rental_options`; 258 `eligible_clients_label`; 272 `compact_pricing_label`; 292 `pricing_sub_label`; 336 `slot_base_amount` | Added client eligibility choices, duplicate active discount prevention, `eligible_clients`/`weekend_only`/`advance_payment_days`/optional `pricing.hourly_rate` validation, compact rate helpers, and `use_hourly_rate` support in `slot_base_amount()`. |
+| `backend/core/modules/facilities/services/facility_configuration.py` | 157 `eligible_clients`; 352 `capacity_per_room` vs `capacity`; 361 `owned` keys; 373 `weekend_only` weekday guard | Published `eligible_clients` to form metadata, enforced `capacity_per_room <= capacity` in `room` mode, registered new `workflow_config` keys, and required Monday–Friday closed (`None`) when `weekend_only=True`. |
+| `backend/core/modules/facilities/services/admin_reservations.py` | 38 `_is_external_user`; 45 `client_details`; 138 `weekend_only` check; 157 `capacity_min` check; 175 `reservation_quote`; 206 internal discount guard | Enforced facility `eligible_clients`, `weekend_only`, `capacity_min`, `use_hourly_rate`, and internal-client discount verification in admin reservation creation/quoting. |
+| `backend/core/modules/facilities/services/mobile_booking.py` | 53 `slot_status`; 76 `rental_quote` | Enforced `weekend_only` in mobile slot availability and rental quotes. |
+| `backend/core/modules/facilities/mobile_views.py` | 39 `_check_mobile_eligibility`; 162 `quote`; 206 `bookings` | Enforced facility `eligible_clients` and `capacity_min` on mobile quote/booking endpoints. |
+| `backend/core/accounts/views.py` | 824 `pricing_compact_display` in `admin_facility_page` | Added `pricing_compact_display`, `pricing_sub_display`, and `eligible_clients_display` to server-rendered facility rows. |
+| `backend/core/api/views.py` | 1514 `serialize_facility`; 1564 `_sync_facility_rooms`; 1620 `facilities_create`; 1691 `facilities_update` | Serialized compact pricing and eligibility labels; added opt-in `_sync_facility_rooms(facility, data)` when `sync_rooms=True` for `room`-mode facilities. |
+| `backend/core/modules/facilities/templates/facilities/partials/rental_rules.html` | 9 `facilityEligibleClients`; 15 `facilityAdvancePaymentDays` | Added Eligible Clients dropdown and Advance Payment Requirement (days) input under Booking Configuration. |
+| `backend/core/modules/facilities/templates/facilities/partials/rental_pricing.html` | 21 `facilityHourlyRateOption`; 31 `facilityDepositPreview` | Added Optional Hourly Rate (`₱/hr`) inside `base_hour` pricing and a live Damage Deposit calculation preview banner. |
+| `backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` | 17 `buildSchedule`; 66 `syncDay`; 138 `setWorkflow`; 173 `getFeatureWorkflow` | Added Operating Schedule quick presets (`Weekdays (8 AM–5 PM)`, `Weekend Only (Sat–Sun)`, `Daily (8 AM–5 PM)`) and `Weekend-Only Booking Restriction` toggle. |
+| `backend/core/modules/facilities/static/facilities/js/rental_form_controls.js` | 15 selectors; 67 `sync`; 92 `syncDepositPreview`; 108 `setWorkflow`; 208 `getWorkflow`; 232 `validate` | Wired client eligibility, advance payment days, optional hourly rate, live deposit preview, auto-calculation of `Maximum Capacity = units × capacityPerRoom` in `room` mode, and duplicate active discount validation. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 54 `#facilityArchiveFilter`; 248 row attributes; 266 compact table cells; 412 `#facilityDetailsSummaryCard`; 1012 `renderFacilityRow`; 1538 `getFacilityFromRow`; 1711 `renderFacilityDetailsSummary`; 2060 `sync_rooms` | Enabled Record Status filter for physical facilities, rendered compact Rate + sub-labels (`Booked via Calendar` vs `Rooms Available`, client eligibility, rooms vs guest capacity), added the structured View Facility Summary Card, and improved action-menu ARIA attributes. |
+| `backend/templates/partials/facility_row_menu.html` | 1 `.action-menu-wrapper` | Added accessible `aria-label` and `role="menu"` / `role="menuitem"` attributes while keeping the eye icon for View Details. |
+| `backend/static/components/css/admin_facility.css` | 512 `.facility-table-panel` | Removed `min-height: 500px;` so the table panel wraps its rows cleanly without excessive blank space. |
+| `backend/core/modules/facilities/static/facilities/css/facility_form_controls.css` | 125 `.facility-schedule-presets`, `.facility-deposit-preview`, `.facility-details-summary-card`, `.facility-rate-primary` | Styled schedule preset buttons, deposit preview banner, View Facility summary card, and compact two-line table cells using `#1A1851` Navy and `#FCB316` Gold. |
+| `backend/core/modules/facilities/static/facilities/css/admin_facilities_dashboard.css` | 12 `.fd-page`; 352 `.fd-col-4` / `.fd-col-6` / `.fd-col-12`; 415 `.fd-empty` | Placed `Recent Activities` in its own full-width bottom row (`12 cols`), balanced `Facility Status` (`6 cols`) and `Payment Overview` (`6 cols`), compacted `.fd-empty`, and aligned colors with `#1A1851` / `#FCB316`. |
+| `backend/core/api/test_facility_rental_configuration.py` | 196 `test_duplicate_active_discount_rules_are_rejected`; 224 `test_client_eligibility_weekend_only_and_hourly_package_options_validate`; 446 `test_sync_rooms_creates_actual_room_records_when_enabled`; 865 `test_booking_enforces_client_eligibility_weekend_only_and_minimum_capacity` | Added automated unit and API tests for the new validation and booking rules. |
+
+### 3. Functions, inputs/outputs and data flow
+
+```text
+Admin Facility Form (admin_facility.html + rental_form_controls.js + facility_form_controls.js)
+  -> Save payload includes workflow_config (eligible_clients, weekend_only, advance_payment_days,
+     pricing.hourly_rate, discount_rules) + sync_rooms flag
+  -> validate_facility_payload() -> validate_rental_options() -> validate_discount_rules()
+  -> _apply_facility_payload() -> _sync_facility_rooms() (when sync_rooms=True in room mode)
+  -> serialize_facility() / admin_facility_page() -> compact_pricing_label() + pricing_sub_label()
+     + eligible_clients_label()
+  -> Reservation / Mobile Booking:
+     client_details() / _check_mobile_eligibility() checks eligible_clients
+     reservation_schedule() / slot_status() checks weekend_only & capacity_min
+     reservation_quote() / slot_base_amount() computes package or optional hourly rate
+```
+
+- `compact_pricing_label(facility)` and `pricing_sub_label(facility)` take a `Facility` instance and return a short primary rate string (e.g., `"₱3,500 / 8 hrs"`, `"₱6,000 / 4 hrs"`, `"₱800 / night"`) and a concise secondary line (e.g., `"+₱500/hr extra · ₱700/hr option"` or `"Shared ₱400 / person"`), while `pricing_label(facility)` remains intact for full descriptions and screen-reader text.
+- `_sync_facility_rooms(facility, data)` runs only when `facility.booking_mode == "room"` and `data.get("sync_rooms") is True`. It creates missing `Room` records (`Room 1`..`Room N`) and updates existing active rooms' `room_type`, `capacity`, and `price` without deleting rooms that have bookings.
+
+### 4. Verification results and safe practice exercise
+
+- **Automated tests**: Ran `venv\Scripts\python.exe backend\core\manage.py test api.test_facility_rental_configuration api.test_facility_form_controls api.test_mobile_facility_booking api.test_facilities_archive` (`80 tests in 4.660s — OK`) and `modules.facilities` (`169 tests in 46.849s — OK`, **249 total tests passing**). `manage.py check` reported `0 issues`, and `makemigrations --check --dry-run` reported `No changes detected`.
+- **Safe practice exercise**:
+  1. Open `backend/core/api/test_facility_rental_configuration.py` and inspect `test_client_eligibility_weekend_only_and_hourly_package_options_validate` (around line 224).
+  2. Temporarily change `"monday": None` to `"monday": {"open": "08:00", "close": "17:00"}` while `"weekend_only": True` is set, then run `.\backend\core\venv\Scripts\python.exe backend\core\manage.py test api.test_facility_rental_configuration.RentalConfigurationValidationTests.test_client_eligibility_weekend_only_and_hourly_package_options_validate --keepdb`.
+  3. Confirm that `validate_facility_payload()` returns an `operating_hours` error requiring Monday–Friday to be closed when `weekend_only` is enabled, then revert the temporary test edit.
+
+---
+
 Updated: 2026-10-13. Scope: the existing Facilities catalog form, its shared configuration validator, and truthful list/quote formatting. The sidebar and booking transaction workflow were not redesigned.
 
 ## 1. Cause / reason

@@ -398,6 +398,8 @@ class GlobalDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.assertNotIn('id="systemStatusTitle"', content)
         for item in current["items"]:
             self.assertContains(page, f'data-attention-key="{item["key"]}"')
+        self.assertContains(page, 'dashboard-attention--compact', count=1)
+        self.assertContains(page, 'components/css/admin_dashboard_attention.css', count=1)
         self.assertNotContains(page, 'id="pendingApprovalsSlot"')
         self.assertNotContains(page, '<h2>Pending Approvals</h2>')
         self.assertContains(page, 'id="recentActivitiesTitle" tabindex="-1">Recent System Activities</h2>')

@@ -24,11 +24,20 @@
 .dashboard-executive .executive-facilities :is(.facilities-empty, [data-facility-ranking-empty]) { display: grid; place-content: center; text-align: center; min-height: 100px; padding: 16px; margin: 0; color: var(--facility-muted); font-size: 13px; }
 .executive-facilities .facilities-trend:has([data-booking-empty]:not([hidden])) .facility-booking-chart-wrap { display: none; }
 .executive-facilities .marketplace-card-note { margin: 4px 0 12px; font-size: 13px; color: var(--facility-muted); }
-.executive-facilities .facilities-table-scroll { overflow-x: auto; max-width: 100%; }
-.executive-facilities .facilities-reservations-table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; }
-.executive-facilities .facilities-reservations-table :is(th, td) { padding: 10px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--facility-border); overflow-wrap: anywhere; }
-.executive-facilities .facilities-reservations-table th { background: #f8fafc; font-weight: 600; }
-.executive-facilities .facilities-reservations-table a { color: var(--facility-ink); font-weight: 600; text-underline-offset: 3px; }
+.executive-facilities .facilities-table-scroll { overflow: hidden; max-width: 100%; scrollbar-width: none; }
+.executive-facilities .facilities-table-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.executive-facilities .facilities-reservations-table { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; }
+.executive-facilities .facilities-reservations-table :is(th, td) { padding: 10px 8px; text-align: left; vertical-align: middle !important; border-bottom: 1px solid var(--facility-border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.executive-facilities .facilities-reservations-table th { background: #f8fafc; font-size: 12px; font-weight: 600; color: var(--facility-muted); white-space: nowrap; overflow: visible; text-overflow: clip; }
+.executive-facilities .facilities-reservations-table td { font-size: 13px; line-height: 1.5; color: var(--facility-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle !important; }
+.executive-facilities .facilities-reservations-table a { color: var(--facility-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; display: inline-block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.executive-facilities .facilities-reservations-table .upcoming-col-id { width: 25%; }
+.executive-facilities .facilities-reservations-table .upcoming-col-facility { width: 20%; }
+.executive-facilities .facilities-reservations-table .upcoming-col-client { width: 17%; }
+.executive-facilities .facilities-reservations-table .upcoming-col-when { width: 26%; }
+.executive-facilities .facilities-reservations-table .upcoming-col-status { width: 12%; }
+.executive-facilities .facilities-reservations-table :is(th, td):nth-child(5) { text-align: center; }
+.executive-facilities .upcoming-reservation-status { display: inline-block; padding: 3px 8px; font-size: 11.5px; font-weight: 500; line-height: 1.3; color: #1A1851; background: #F7F8FC; border: 1px solid #E8EAF0; border-radius: 6px; white-space: nowrap; overflow-wrap: normal; }
 .executive-facilities .facilities-attention { padding: 0; margin: 0; list-style: none; }
 .executive-facilities .facilities-attention li + li { border-top: 1px solid var(--facility-border); }
 .executive-facilities .facilities-attention a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 0; color: var(--facility-ink); font-size: 13px; text-decoration: none; }

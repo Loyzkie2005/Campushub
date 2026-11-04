@@ -1,6 +1,155 @@
 # Super Admin Facilities Overview implementation
 
-## Current update — October 22, 2026
+Latest chart-sizing follow-up: Booking Trend keeps the existing combined Summary/Trend card and vertical bars, with a 320px drawing area at screen widths 600px+ and 260px below. Only wrapper sizing and control alignment changed; existing Django counts/date/grouping inputs still feed the same responsive chart renderer. Safe check: change grouping/Refresh and compare counts, then resize without editing a booking. The [dashboard guide](dashboard-analytics-operations-update.md) contains the current eight-part report, exact files/lines, measured checks and troubleshooting for this update, Sales Trend and Users by Type.
+
+## Latest: Booking Summary inside Booking Trend — October 31, 2026
+
+The latest request moves Booking Summary and the same three KPI cards inside the Booking Trend article, above its heading/grouping/vertical bars, matching Marketplace's summary-then-trend arrangement. Most-Booked Facilities stays independent. The unchanged `#bookingOverviewCard` host and existing renderer inputs/outputs keep actual Django totals, selected dates/grouping, Refresh and retry behavior intact. Component spacing is in `admin_booking_overview.css` under the executive-only combined-card comment.
+
+Safe practice: compare `executive.booking_overview` with the displayed summary and bars before/after a grouping change, then resize without editing a booking. The full current eight-part report, exact files/lines, functions/data flow, tests and troubleshooting for this follow-up and Recent Orders are in the [dashboard guide](dashboard-analytics-operations-update.md). The independent-card report below describes the preceding arrangement; the summary's new position supersedes its outside-card placement.
+
+## Current: Independent Facilities Overview cards — October 31, 2026
+
+### 1. Cause / reason
+
+Facilities Overview still used a shared `executive-overview-body` border around all content. The extra Facility management navigation and a `<details>` wrapper around Most-Booked Facilities added another navigation/expansion layer. The latest request removes these surrounds and keeps the existing content in independent cards.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Large bordered wrapper around the section content | Transparent section with its heading outside independent cards | Remove the redundant outer boundary. |
+| Facilities / Bookings / Calendar shortcut row | Existing specific Analytics, booking and reservation actions remain | Remove only the requested shortcut row. |
+| Collapsed ranking with another summary heading | One always-visible Most-Booked Facilities card | Make the actual ranking directly available without duplicate headings. |
+| Mixed 8/12/16px internal gaps | 16px between KPI cards and independent containers | Keep consistent spacing on desktop and phones. |
+
+### 2. Exact files changed
+
+Paths are relative to the project root; named anchors remain useful if later edits move lines.
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/partials/super_facilities_overview.html:6` | Remove the shared outer wrapper and its shortcut navigation. Retain the unbordered `#bookingOverviewCard` controller host, three summary cards and the existing trend article. Line 28 includes Most-Booked Facilities directly without `<details>/<summary>`. Line 32 retains upcoming reservations/attention after the chart cards. |
+| `backend/static/components/css/admin_executive_refinement.css:295` | Give the controller host a 16px layout gap, set KPI/chart/operations gaps to 16px, and remove the metrics' redundant bottom margin. Line 299 applies the shared 16px padding, 10px radius and full subtle white-card border to trend, ranking and the existing operations cards. Selectors affect only Super Admin Facilities. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:29` | Version the refinement CSS as `20261031-facilities-independent`; executable scripts and their versions remain. |
+| `backend/core/modules/reports/test_dashboard_executive.py:121` | Update the existing facilities layout test to assert no shared outer wrapper, shortcut navigation or accordion, and exactly one ranking heading. Existing actual-data, detail-link and optional fixture exports remain. |
+| `docs/booking-overview-implementation.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:17` | Record the latest layout, implementation/data flow, real checks, troubleshooting and safe practice. |
+
+### 3. Changes made / expected behavior
+
+Facilities Overview remains an outside heading with its existing subtitle and View Analytics action. Booking Summary retains three separate real-data KPI cards. Booking Trend keeps its navy vertical bars and grouping controls in one bordered card; Most-Booked Facilities is always visible in a second bordered card. Both span the existing Facilities column and stack with a 16px gap.
+
+Upcoming Reservations and Facility Attention keep all their existing data, columns and actions, with their own card boundaries after removal of the shared surround. The existing View Calendar, View All Bookings, exact reservation-detail and status links remain. Only the redundant top shortcut row and ranking expander were removed. Other dashboard sections retain their layouts. On phones, summary cards stack naturally and the existing reservation table keeps its contained horizontal scrolling.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+This follow-up changes template structure and scoped spacing/borders; no executable JavaScript or application Python function changed. `#bookingOverviewCard` remains a **controller host**, not a bordered outer card, so existing queries for summary, trend, grouping, loading/error, retry and the JSON seed continue finding the same nodes.
+
+```text
+Facilities Overview section heading / subtitle / View Analytics
+  #bookingOverviewCard (unbordered controller host)
+    Booking Summary -> three separate KPI cards
+    Booking Trend -> existing vertical bar chart and grouping
+    Most-Booked Facilities -> existing ranking card, always visible
+  Upcoming Reservations and Facility Attention -> existing independent cards
+```
+
+The unchanged Django context supplies `executive.booking_overview`, `facility_analytics.most_booked_facilities`, upcoming reservations and facility attention. `render(overview, chartOnly)` in `admin_booking_overview.js` continues mapping request-submission buckets to bars. `draw(rows)` / `render(rows)` in `admin_most_booked_facilities.js` still maps the actual top-five facility ranking to its existing chart and accessible list. Removing `<details>` makes that same canvas visible initially; it does not introduce a second chart, ranking query or record source.
+
+Existing dashboard events retain selected periods, Daily/Weekly/Monthly, chart-only regrouping, global Refresh, Retry, empty states, keyboard announcements and no-library text fallbacks. Ranking remains based on approved/completed **scheduled usage**, while Booking Trend remains based on **request submission**. Upcoming reservations and facility attention remain their established current snapshots.
+
+Safe practice: reload Dashboard and check that the Facilities heading has no enclosing white card. Count the three KPI cards; confirm Most-Booked Facilities is visible without clicking an expander. Select Last 7 Days, change Booking Trend grouping, then Refresh. Compare trend counts and facility names/counts with the existing API fields. Open an existing reservation detail or View Calendar and return without approving or editing anything. In DevTools, temporarily change only the Facilities grid gap from 16px to 20px; resize to phone width, then reload to restore 16px. No data writes are required.
+
+### 5. Backend / API behavior
+
+Unchanged: same Django/PostgreSQL data, protected endpoints, permissions, request/response fields, filters/defaults, ranking calculations and date bases. No booking, availability, approval, payment, reporting or other domain workflow was modified. The removed top shortcuts had no backend operation; specific functional links remain.
+
+### 6. Database / migration impact
+
+None. No schema/migrations, credentials, environment, live data writes or deployment changes. Verification used disposable localhost PostgreSQL test databases and intercepted read-only browser requests. The user-controlled application process was not restarted.
+
+### 7. Tests performed
+
+- **57/57 focused Django tests passed in 23.473 seconds** across existing executive, booking-overview, most-booked-facilities and upcoming-reservations suites. Includes updated structure assertions, actual dates/counts/statuses, grouping, permissions, rankings and working reservation destinations. System checks reported no issues.
+- **2003/2003 Chromium checks passed across 11 renders/eight widths (280–1920px)** using current actual Django fixture HTML/API responses. Verified no outer border/nav/accordion; outside heading; three separate KPI cards; independent trend/ranking/operations borders, aligned widths and exact 16px gaps; one visible ranking heading; actual chart/summary/reservation/attention values; grouping/selected dates/Refresh/retry; pointer/keyboard inspection; empty/text fallback states; no page overflow or browser write requests. Desktop/phone populated and empty layouts were inspected.
+- Evidence: `scratch/facilities-independent-20261031/django.log`, `browser.log`, `browser-result.json` and full Facilities PNG captures. Scoped syntax, whitespace and current-report path/line checks are in `file-checks.log` and `whitespace.log`.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh Dashboard to load `20261031-facilities-independent`. If a user-controlled local Django process caches the old template, restart it locally and refresh. If the large border or ranking expander remains, inspect the current `super_facilities_overview.html` and confirm its shared wrapper/navigation/details are absent. Do not remove the unbordered controller host or existing chart/data IDs to remove a visual border.
+
+Full width means the existing Facilities column; the Marketplace/Facilities dashboard grid is unchanged. Long facility names keep the existing compact chart labels and full accessible names/keyboard announcements. Verification used Chromium and isolated source-rendered fixtures, not production data, other browsers or physical devices. The optional design-kit gates remain unavailable; no new accessibility certification is claimed.
+
+## Previous: Booking Trend vertical bars — October 31, 2026
+
+### 1. Cause / reason
+
+The requested Booking Trend was still explicitly configured as a line chart in executive mode. The shared executive card reset also removed its individual border, despite the existing trend `<article>` being a separate component. This update changes that presentation while preserving the existing booking calculations and date/grouping requests.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Single navy line | Single navy vertical bar series | Match the requested period-by-period booking count presentation. |
+| Trend card border flattened by shared styling | Full subtle border, white surface, 10px radius and 16px padding | Keep Booking Trend in its own container within Facilities Overview. |
+| Repeated total text in executive tooltip | Full period dates and one booking count | Make the actual reporting interval and value clear. |
+
+### 2. Exact files changed
+
+Paths are relative to the project root; use the anchors if later edits move lines.
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/static/components/js/admin_booking_overview.js:90` | `canvas.setAttribute('aria-label', ...)`: announce a vertical bar chart. Lines 109–123 remove line-only options and draw bars. Lines 129–136 format executive tooltips. Lines 104 and 151 hide the blank executive canvas wrapper when text fallback is needed. Existing validation, grouping, axes, keyboard navigation and chart reuse remain. |
+| `backend/templates/dashboard/partials/super_facilities_overview.html:22` | `facilityBookingOverviewChart`: initial accessible label names the bar chart and arrow-key inspection. Preserve the existing independent article, heading, select, period, empty/error states and View All Bookings. |
+| `backend/static/components/css/admin_executive_refinement.css:295` | `.executive-facilities .facilities-trend`: restore this card's own border, 16px padding, white surface and shared 10px radius. Other cards retain their styling. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:619` | Version the booking renderer as `20261031-booking-bars`. Preserve the current shared stylesheet cache version and other script versions. |
+| `backend/core/modules/reports/test_dashboard_executive.py:134` | Extend the existing `FACILITIES_REVIEW_DIR` export guard to save actual Today/Last 7 Days API responses in all three groupings. No new test case, application behavior or live data is added. |
+| `docs/booking-overview-implementation.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:15` | Preserve this choice, functions/data flow, measured verification, debugging and safe practice. |
+
+### 3. Changes made / expected behavior
+
+Booking Trend shows one vertical bar per returned reporting period, in chronological order, using CampusHub navy `#1A1851`. The x-axis keeps Django's date/period labels; the y-axis retains a zero baseline and whole-number tick precision. Daily, Weekly and Monthly remain available and retain the applied dashboard dates. No replacement filter, sample toggle or booking operation was introduced.
+
+The independent bordered trend card remains inside the existing Facilities Overview content area. Summary cards, Most Booked Facilities, upcoming reservations, navigation and the surrounding dashboard layout are unchanged. Empty results keep the clean No Booking Data Yet message and hide the chart footprint while retaining grouping and View All. If Chart.js is unavailable, actual text values remain visible without a blank canvas area.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The unchanged Django `executive_overview(period, metadata)` uses the physical-booking queryset, excluding schedule blocks and service resources. `build_booking_overview(period, totals, comparison, grouping=..., records=physical)` counts actual requests by **submission date (`created_at`)** inside the selected range. It returns chronological `trend` rows with `label`, integer `count`, status totals and the bucket's actual `start_date`/`end_date`. This is request activity, not scheduled utilization or availability.
+
+The existing JSON seed invokes `render(overview)`. The same function validates and maps each `trend` row to the navy dataset, now using Chart.js `type: 'bar'`. `beginAtZero: true` and `ticks.precision: 0` keep booking counts readable. Existing chart instances update rather than accumulating on Refresh. The non-executive branch remains a stacked status bar chart.
+
+```javascript
+// Each source row comes from the existing Django response.
+labels: overview.trend.map(row => row.label)  // Reporting periods on x.
+data: overview.trend.map(row => row.count)    // Actual booking counts on y.
+```
+
+The executive tooltip uses the row's full bucket dates and the hovered integer count, for example one saved request yields `1 booking`; no totals are manufactured. ArrowLeft/ArrowRight/Home/End still reveal the same values through a live announcement and tooltip. The text description remains available to assistive technology and becomes visible if the library cannot draw.
+
+The existing `load(..., bookingOnly=true)` in `admin_dashboard_filter.js` sends `booking_grouping` plus the already-applied dates to the same protected dashboard API. Its `campushub:booking-trend-data` event calls `render(overview, true)` without rebuilding unrelated sections or summary values. Global date changes and Refresh still use the ordinary dashboard response. Retry preserves the current date range.
+
+Safe practice: select Last 7 Days, then try Daily, Weekly and Monthly. In Network, compare `executive.booking_overview.trend` with the visible bars and hover/keyboard tooltips; verify the displayed start/end dates stay unchanged while grouping changes. Press Home/End on the canvas to inspect first/last periods. Refresh and confirm grouping/range persist. Use an existing empty date range to check No Booking Data Yet. These checks require no booking creation, approval or payment action.
+
+### 5. Backend / API behavior
+
+No application Python query, endpoint, response contract, permission, default selection, booking workflow or status/payment rule changed. Django/PostgreSQL remains the data source. Submission-date totals, service/schedule exclusions and grouping boundaries retain their existing rules. Historical periods need not match scheduled-usage rankings or current upcoming reservations.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, credentials, environment, live booking writes or deployment changes. The optional fixture export runs only when its explicit test environment variable is set. Verification used disposable localhost PostgreSQL databases and read-only intercepted browser requests. The user-controlled application runtime was not restarted.
+
+### 7. Tests performed
+
+- **70/70 existing Django tests passed in 36.441 seconds** across `test_dashboard_bookings`, `test_dashboard_executive` and `test_dashboard_periods`. Coverage includes real request dates/counts/statuses, zero buckets, independent grouping/global ranges, permissions, layout, service exclusions and query bounds. System checks reported no issues.
+- After adding the optional grouped-fixture export, the existing facilities layout/link test was rerun: **1/1 passed in 4.980 seconds**. This is a rerun, not an additional distinct test.
+- **830/830 Chromium checks passed across 11 renders/eight widths (280–1920px)** using actual Django-rendered HTML/API fixtures. Verified independent card borders/padding, vertical navy bars, chronological labels, exact database counts, whole-number ticks (including single-request buckets), selected ranges/grouping, pointer/keyboard tooltips, chart reuse, local error/retry, global Refresh, empty state, no-library text fallback and no page overflow. No browser write requests or page errors occurred. Desktop/phone populated, empty and fallback screenshots were inspected.
+- Evidence: `scratch/booking-trend-bars-20261031/django.log`, `fixtures.log`, `browser.log`, `browser-result.json` and PNG captures. Scoped syntax/whitespace/path-reference checks are recorded in `file-checks.log` and `whitespace.log`.
+- The optional design kit's token/gate scripts are not installed in this workspace; no kit gate, measured contrast or cross-browser accessibility certification is claimed. Project checks and actual browser checks above were used.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh Dashboard to load the versioned CSS and booking script; restart the user-controlled local Django process only if it retains old templates. If a line still appears, inspect the loaded booking script version and `Chart.getChart('facilityBookingOverviewChart').config.type`, which should be `bar`. If its border is absent, inspect the scoped `.facilities-trend` rule rather than changing all dashboard cards.
+
+If no bars appear, first distinguish a genuine zero total from an API error or missing chart library. Empty dates show the honest empty state; failures retain error/Retry or actual text fallback. Do not add sample bookings to fill the card. Long ranges still use the existing bounded bucket generation and sparse x-axis tick labels; every period remains in the data and keyboard inspection. Verification used Chromium/source-rendered fixtures, not live production records, other browsers or physical devices.
+
+## Previous update — October 22, 2026
 
 This report supersedes the historical Booking Overview/sample-mode notes below **for the Super Admin dashboard**. This update adds no sample records or sample-mode controls. Detailed Facilities Analytics and Facility Admin pages keep their existing presentations and workflows.
 

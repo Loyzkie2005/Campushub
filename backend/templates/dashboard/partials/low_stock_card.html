@@ -1,11 +1,12 @@
 <div class="dash-card dash-card-low-stock{% if not global_dashboard %} h-100{% endif %}" data-low-stock-card aria-labelledby="lowStockTitle">
-    <div class="dash-card-header">
+    <div class="dash-card-header{% if global_dashboard %} marketplace-operation-header{% endif %}">
         <div><h3 id="lowStockTitle">Inventory Alerts</h3><p>Products requiring stock attention.</p></div>
         <a href="{{ dashboard_low_stock.view_all_url }}" class="dash-view-all-link" data-low-stock-view-all>View All <span aria-hidden="true">&rarr;</span></a>
     </div>
     <div class="table-responsive low-stock-table-wrap" tabindex="0" role="region" aria-labelledby="lowStockTitle" data-low-stock-content{% if dashboard_low_stock.state == 'error' %} hidden{% endif %}>
         <table class="low-stock-table"{% if global_dashboard and not dashboard_low_stock.products %} hidden{% endif %}>
             <caption class="visually-hidden">Up to five products or variants requiring attention, out of stock first.</caption>
+            {% if global_dashboard %}<colgroup><col class="inventory-col-product"><col class="inventory-col-available"><col class="inventory-col-status"></colgroup>{% endif %}
             <thead><tr><th scope="col">Product</th><th scope="col" class="text-end">Available</th><th scope="col" class="text-end">Status</th></tr></thead>
             <tbody data-low-stock-rows>
                 {% for item in dashboard_low_stock.products %}

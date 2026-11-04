@@ -1,0 +1,8 @@
+{% with comparison=analytics.submission_comparison row=analytics.submission_comparison.rows.0 %}
+<dl class="marketplace-order-comparison" aria-label="Order submission period comparison">
+    <div><dt>Current-period orders</dt><dd>{{ row.current }}</dd></div>
+    <div><dt>Previous-period orders</dt><dd>{{ row.previous }}</dd></div>
+    <div><dt>Difference</dt><dd>{% if row.difference > 0 %}+{% endif %}{{ row.difference }}</dd></div>
+</dl>
+<p class="analytics-method-note marketplace-order-comparison-note"><strong>{{ row.change }}</strong> vs. {{ comparison.start|date:'M j, Y' }} &ndash; {{ comparison.end|date:'M j, Y' }}. Equal-length periods; all submitted orders.</p>
+{% endwith %}

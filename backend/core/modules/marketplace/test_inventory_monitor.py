@@ -113,7 +113,7 @@ class InventoryMonitorTests(TestCase):
         for key, value in params.items():
             self.assertEqual(back[key], [str(value)])
         self.assertContains(detail, 'name="seller"')
-        self.assertContains(detail, f'href="{self.url}?view=inventory">Clear Filters')
+        self.assertNotContains(detail, "Clear Filters")
 
     def test_detail_is_readonly_variant_specific_and_shows_recorded_adjustment(self):
         sku = self.product.inventory_skus.get(variant_name="Large")
@@ -151,8 +151,8 @@ class InventoryMonitorTests(TestCase):
         Product.objects.filter(pk=self.simple.pk).update(stock=18)
         MarketplaceOrder.objects.create(product=self.simple, product_name=self.simple.name, quantity=2, unit_price=100, total_price=200, inventory_deducted=True)
         item = self.page(inventory_item=sku.pk).context["inventory_detail"]
-        self.assertEqual([event["kind"] for event in item["movements"]], ["Reservation"])
-        self.assertNotIn("before", item["movements"][0])
+        self.assertEqual(item["movements"], [])  # No transaction row was recorded.
+        self.assertEqual(item["reserved"], 2)  # The real hold still affects balances.
 
     def test_bundle_sku_and_history_use_exact_components_without_fake_parent_stock(self):
         bundle = Product.objects.create(seller=self.seller, name="Meal", price=100, stock=0, product_type="bundle", approval_status="approved")
@@ -183,7 +183,7 @@ class InventoryMonitorTests(TestCase):
     def test_empty_state_and_export_actual_fixture_html(self):
         empty = self.page(search="does not exist")
         self.assertContains(empty, "No inventory records match the selected filters.")
-        self.assertContains(empty, "Clear Filters")
+        self.assertNotContains(empty, "Clear Filters")
         directory = os.environ.get("INVENTORY_MONITOR_REVIEW_DIR")
         if directory:
             root = Path(directory); root.mkdir(parents=True, exist_ok=True)
@@ -319,7 +319,7 @@ class InventoryMonitorTests(TestCase):
         self.product.save()
         retired = self.page(inventory_item=old_sku.pk).context["inventory_detail"]
         self.assertIsNone(retired["available"])
-        self.assertEqual({event["kind"] for event in retired["movements"]}, {"Reservation", "Sale"})
+        self.assertEqual(retired["movements"], [])  # Do not reconstruct legacy transactions.
         parent = self.product.inventory_skus.get(variant_name="")
         parent_detail = self.page(inventory_item=parent.pk).context["inventory_detail"]
         self.assertFalse(any(event["reference"].startswith("Order #") for event in parent_detail["movements"]))

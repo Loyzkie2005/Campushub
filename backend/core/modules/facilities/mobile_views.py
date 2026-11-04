@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -17,7 +17,7 @@ from django.views.decorators.http import require_GET, require_POST
 from accounts.models import User
 from api.models import Booking, Facility, FacilityBookingRequest
 from api.views import _mobile_user_from_bearer, serialize_facility
-from .services.mobile_booking import parse_time, rental_quote, schedule_payload
+from .services.mobile_booking import parse_time, rental_quote, day_availability
 
 
 def _payload(request):
@@ -36,8 +36,18 @@ def _error(error):
     return JsonResponse({"error": message}, status=400)
 
 
+def _check_mobile_eligibility(facility, user):
+    eligible = str((facility.workflow_config or {}).get("eligible_clients") or "both").strip().lower()
+    is_ext = str(getattr(user, "user_type", "") or "").strip().lower() in ("guest", "external", "outsider")
+    if eligible == "internal" and is_ext:
+        raise ValidationError("This facility is restricted to internal USTP clients only.")
+    if eligible == "external" and not is_ext:
+        raise ValidationError("This facility is restricted to external clients only.")
+
+
 def _serialize(booking):
     from .services.booking_workflow import cancellation_readiness, public_client_details
+    from .services.job_order import draft_eligible
     try:
         details = booking.mobile_request.details
     except FacilityBookingRequest.DoesNotExist:
@@ -60,6 +70,8 @@ def _serialize(booking):
         "booking_slip_url": f'/api/mobile/bookings/{booking.pk}/slip/' if booking.status in ('approved','completed') else '',
         "can_cancel": cancellation_readiness(booking)['eligible'],
         "can_view_slip": booking.status in (Booking.STATUS_APPROVED, Booking.STATUS_COMPLETED),
+        "can_view_job_order": booking.status in (Booking.STATUS_APPROVED, Booking.STATUS_COMPLETED)
+            and (bool(details.get('job_order')) or draft_eligible(booking, details)),
         "receipts": [{"number": p.official_receipt_no or "", "amount": str(p.paid_amount),
                       "paid_at": p.paid_at.isoformat() if p.paid_at else None} for p in payments],
     }
@@ -69,9 +81,23 @@ def _serialize(booking):
 def availability(request, facility_id):
     facility = get_object_or_404(Facility, pk=facility_id, is_archived=False)
     try:
-        day = date.fromisoformat(request.GET.get("date", ""))
-    except ValueError as error:
+        month = request.GET.get("month")
+        if month:
+            first = date.fromisoformat(month + "-01")
+            last = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+        else:
+            day = date.fromisoformat(request.GET.get("date", ""))
+    except (ValueError, OverflowError) as error:
         return _error(error)
+    eligibility_reason = None
+    if request.headers.get("Authorization"):
+        user, error = _mobile_user_from_bearer(request)
+        if error is not None:
+            return error
+        try:
+            _check_mobile_eligibility(facility, user)
+        except ValidationError as error:
+            eligibility_reason = error.messages[0]
     exclude = None
     if request.GET.get('booking_id'):
         from .services.booking_workflow import allowed_actions, has_permission
@@ -81,7 +107,15 @@ def availability(request, facility_id):
         if 'edit' not in allowed_actions(booking, request.user):
             return JsonResponse({'error':'This booking cannot be edited.'},status=403)
         exclude=booking.pk
-    return JsonResponse({"date": day.isoformat(), "slots": schedule_payload(facility, day, exclude_booking=exclude)})
+    if month:
+        result = {"month": month, "timezone": "Asia/Manila", "days": [
+            day_availability(facility, first + timedelta(days=offset), exclude_booking=exclude, eligibility_reason=eligibility_reason)
+            for offset in range((last - first).days)]}
+    else:
+        result = day_availability(facility, day, exclude_booking=exclude, eligibility_reason=eligibility_reason)
+    response = JsonResponse(result)
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @require_GET
@@ -105,7 +139,16 @@ def quote(request, facility_id):
         return error
     facility = get_object_or_404(Facility, pk=facility_id, is_archived=False)
     try:
-        return JsonResponse(rental_quote(facility, *_schedule(_payload(request))))
+        _check_mobile_eligibility(facility, user)
+        data = _payload(request)
+        day, start, end = _schedule(data)
+        if data.get("availability_only") is True:
+            # Match the web preview's schedule stage without inventing a price.
+            from .services.admin_reservations import reservation_schedule
+            reservation_schedule(facility, data, check_capacity=False)
+            return JsonResponse({"available": True, "date": day.isoformat(),
+                                 "start": start.strftime("%H:%M"), "end": end.strftime("%H:%M")})
+        return JsonResponse(rental_quote(facility, day, start, end))
     except (ValueError, ValidationError, ArithmeticError) as error:
         return _error(error)
 
@@ -164,6 +207,10 @@ def bookings(request):
                 raise ValidationError("The rental rate has changed. Go back and review the updated estimate.")
             if facility.capacity and details["attendees"] > facility.capacity:
                 raise ValidationError("The attendee count exceeds the facility capacity.")
+            _check_mobile_eligibility(facility, user)
+            capacity_min = (facility.workflow_config or {}).get("capacity_min")
+            if capacity_min not in (None, "") and int(capacity_min) > 0 and details["attendees"] < int(capacity_min):
+                raise ValidationError(f"This facility requires at least {int(capacity_min)} attendees.")
             details["quote"] = estimate
             from .services.rental_configuration import FORM_TYPES, booking_form_for_category
             form=booking_form_for_category(facility.facility_type,facility.workflow_config)

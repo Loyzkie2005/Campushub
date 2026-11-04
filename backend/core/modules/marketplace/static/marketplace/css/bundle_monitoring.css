@@ -1,3 +1,16 @@
+@font-face {
+    font-family: 'CampusHub Bundle Montserrat';
+    src: url('../../assets/fonts/Montserrat-VariableFont_wght.ttf') format('truetype');
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+.bundle-monitoring .bm-page { --ch-font-ui: 'CampusHub Bundle Montserrat', sans-serif; }
+.bundle-monitoring.bm-carousel-workspace .bm-page { --bm-bg: #FFFFFF; --bm-border: #E3E7EF; }
+.bundle-monitoring.bm-carousel-workspace .bm-title > div {min-width: 0;}
+.bundle-monitoring.bm-carousel-workspace .bm-title h1 {overflow-wrap: anywhere;}
+.bundle-monitoring.bm-carousel-workspace .bm-actions {min-width: 0; max-width: 100%; flex-wrap: wrap;}
+.bundle-monitoring.bm-carousel-workspace .bm-actions .bm-button {max-width: 100%; white-space: normal; overflow-wrap: anywhere;}
 .bm-page {
     --bm-bg:#F7F8FC;
     --bm-ink:#17172A;
@@ -438,6 +451,11 @@
 .bm-research-panel>.bm-tabs {
     margin-top:12px
 }
+.bm-research-panel>.bm-analysis-sources { margin-top:16px; margin-bottom:0; }
+.bm-analysis-unavailable { padding:16px 20px; text-align:left; }
+.bm-analysis-unavailable p+p { margin-top:10px; }
+.bm-analysis-table-title { padding:16px 20px 10px; margin:0; }
+.bm-research-panel>.bm-note { margin:0 0 12px; }
 .bm-panel>.bm-note {
     padding:0 20px
 }
@@ -591,4 +609,49 @@
     .bm-analysis-facts { grid-template-columns:minmax(0,1fr); }
     .bm-drawer-facts>div { grid-template-columns:minmax(0,1fr); gap:2px; }
     .bm-drawer-actions .bm-button { white-space:normal; }
+}
+.bundle-monitoring .bm-carousel {
+    border: 1px solid #E3E7EF;
+    border-radius: 14px;
+    background: #FFFFFF;
+    color: var(--campushub-navy);
+    padding: 24px;
+}
+.bundle-monitoring .bm-carousel-filters {margin-bottom: 16px;}
+.bundle-monitoring .bm-carousel-filters > summary {cursor: pointer; color: var(--campushub-navy); font-weight: 600; padding: 8px 0;}
+.bundle-monitoring .bm-carousel-filters .bm-filters {margin-top: 12px;}
+.bundle-monitoring .bm-carousel-slide {text-align: center; min-width: 0;}
+.bundle-monitoring .bm-carousel-products {display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); align-items: center; gap: 16px; max-width: 620px; margin: 0 auto 20px;}
+.bundle-monitoring .bm-carousel-product {display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 12px; min-width: 0;}
+.bundle-monitoring .bm-carousel-product .bundle-product-photo {width: min(112px, 100%); height: auto; aspect-ratio: 1; border-radius: 10px;}
+.bundle-monitoring .bm-carousel-product h2 {font-size: 16px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; max-width: 100%;}
+.bundle-monitoring .bm-carousel-plus {font-size: 24px;}
+.bundle-monitoring .bm-carousel-seller {font-size: 14px; overflow-wrap: anywhere;}
+.bundle-monitoring .bm-carousel .bm-status {display: inline-block; margin: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere;}
+.bundle-monitoring .bm-carousel-actions {display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 20px;}
+.bundle-monitoring .bm-carousel-pagination {display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 24px;}
+.bundle-monitoring .bm-carousel-pages {display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;}
+.bundle-monitoring .bm-carousel-pages [aria-current="page"] {border-color: var(--campushub-navy); background: var(--campushub-navy); color: #FFFFFF;}
+.bundle-monitoring .bm-carousel-pagination button:disabled {cursor: default; opacity: .5;}
+.bundle-monitoring .bm-carousel-counter {text-align: center; font-size: 12px; color: var(--bm-muted); margin: 12px 0 0;}
+.bundle-monitoring .bm-carousel .ch-dashboard-empty {display: grid; justify-items: center; gap: 8px; padding: 20px 0; text-align: center;}
+.bundle-monitoring .bm-carousel .ch-dashboard-empty > svg {width: 32px; height: 32px; color: #667085;}
+.bundle-monitoring .bm-carousel .ch-dashboard-empty :is(h4, p) {margin: 0;}
+.bundle-monitoring .bm-carousel .ch-dashboard-empty h4 {font-size: 16px;}
+.bundle-monitoring .bm-carousel .ch-dashboard-empty p {font-size: 13px; color: var(--bm-muted);}
+.bundle-monitoring .bm-send-modal {color: var(--campushub-navy);}
+.bundle-monitoring .bm-send-modal .modal-content {border: 1px solid #E3E7EF; border-radius: 14px; background: #FFFFFF;}
+.bundle-monitoring .bm-send-modal .modal-title {font-size: 18px; line-height: 1.4;}
+.bundle-monitoring .bm-send-modal .modal-body {overflow-wrap: anywhere;}
+.bundle-monitoring .bm-send-modal .modal-footer {gap: 8px; background: #FFFFFF !important;}
+.bundle-monitoring .bm-carousel .bm-button:not(.bm-primary):not([aria-current="page"]), .bundle-monitoring .bm-send-modal .bm-button:not(.bm-primary) {color: var(--campushub-navy);}
+.bundle-monitoring .bm-carousel [hidden], .bundle-monitoring .bm-send-modal [hidden] {display: none !important;}
+.bundle-monitoring .bm-carousel .bm-button, .bundle-monitoring .bm-send-modal .bm-button {white-space: normal; overflow-wrap: anywhere;}
+@media (max-width: 600px) {
+    .bundle-monitoring .bm-carousel {padding: 16px;}
+    .bundle-monitoring .bm-carousel-products {gap: 8px;}
+    .bundle-monitoring .bm-carousel-product .bundle-product-photo {width: min(80px, 100%); height: auto;}
+    .bundle-monitoring .bm-carousel-product h2 {font-size: 14px;}
+    .bundle-monitoring .bm-carousel-pages {order: 3; width: 100%;}
+    .bundle-monitoring .bm-title, .bundle-monitoring .bm-actions {flex-wrap: wrap;}
 }

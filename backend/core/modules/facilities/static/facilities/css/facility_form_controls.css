@@ -65,9 +65,78 @@
 .facility-schedule-notice {
     color: #1A1851;
     background: #f8fafc;
-    border: 1px solid #FCB315;
+    border: 1px solid #FCB316;
     padding: 12px;
     margin-bottom: 12px;
+}
+
+.facility-schedule-presets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.facility-schedule-preset-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 4px 12px;
+    border: 1px solid #E8EAF0;
+    border-radius: 8px;
+    background: var(--campushub-surface);
+    color: var(--campushub-navy);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.facility-schedule-preset-btn:hover:not(:disabled):not([aria-pressed="true"]) {
+    background: #F7F8FC;
+    border-color: #1A1851;
+}
+
+.facility-schedule-preset-btn[aria-pressed="true"] {
+    background: var(--campushub-navy);
+    border-color: var(--campushub-navy);
+    color: var(--campushub-surface);
+}
+
+.facility-schedule-preset-btn:focus-visible {
+    outline: 2px solid var(--campushub-navy);
+    outline-offset: 3px;
+}
+
+.facility-schedule-preset-btn:active:not(:disabled) {
+    border-color: currentColor;
+}
+
+.facility-schedule-preset-btn:disabled {
+    opacity: .6;
+    cursor: default;
+}
+
+.facility-schedule-help {
+    margin: 0 0 8px;
+    color: var(--campushub-muted);
+    font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .facility-schedule-preset-btn { transition: none; }
+}
+
+.facility-deposit-preview {
+    padding: 10px 14px;
+    border: 1px solid rgba(252, 179, 22, 0.45);
+    border-left: 4px solid #FCB316;
+    border-radius: 8px;
+    background: rgba(252, 179, 22, 0.08);
+    color: #1A1851;
+    font: 600 13px/1.45 'Inter', sans-serif;
 }
 
 #facilityFormSection [hidden] {
@@ -117,39 +186,98 @@
     .facility-config-page .header-right { gap: 4px; }
     .facility-config-page .admin-breadcrumb { flex-wrap: wrap; gap: 4px; }
 }
-/* Longer category/pricing summaries must stay inside their existing columns. */
-body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-type,
-body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-rate,
-body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-price-type {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    line-height: 1.4;
-}
-
 /* Override the older visible-overflow guard only for the physical list. */
 body:not(.service-catalog) #facilitiesListSection .table-responsive {
     margin: 0;
     width: 100%;
     max-width: 100%;
     overflow-x: auto !important;
-    overflow-y: auto !important;
+    overflow-y: visible !important;
 }
 
 body:not(.service-catalog) #facilitiesListSection .facility-table-container {
-    min-width: 1080px;
+    min-width: 0;
+    width: 100%;
 }
 
-body:not(.service-catalog) #facilitiesListSection .facility-col-name { width: 18%; text-align: left; }
-body:not(.service-catalog) #facilitiesListSection .facility-col-type { width: 14%; text-align: left; }
-body:not(.service-catalog) #facilitiesListSection .facility-col-capacity { width: 10%; text-align: center; }
-body:not(.service-catalog) #facilitiesListSection .facility-col-rate { width: 16%; text-align: right; }
-body:not(.service-catalog) #facilitiesListSection .facility-col-price-type { width: 11%; text-align: left; }
-body:not(.service-catalog) #facilitiesListSection .facility-col-status { width: 12%; text-align: center; }
-body:not(.service-catalog) #facilitiesListSection .facility-col-bookings { width: 9%; text-align: center; }
-body:not(.service-catalog) #facilitiesListSection .facility-col-actions { width: 10%; text-align: center; }
+@media (max-width: 1100px) {
+    body:not(.service-catalog) #facilitiesListSection .facility-table-container {
+        min-width: 960px;
+    }
+}
 
-body:not(.service-catalog) #facilitiesListSection .facility-booking-mode-label {
+body:not(.service-catalog) #facilitiesListSection .facility-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+/* Prevent non-action cell text from bleeding over adjacent columns */
+body:not(.service-catalog) #facilitiesListSection .facility-table th,
+body:not(.service-catalog) #facilitiesListSection .facility-table td:not(.facility-col-actions) {
+    overflow: hidden !important;
+    text-overflow: ellipsis;
+}
+
+body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-name {
+    width: 20%;
+    text-align: left;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-type {
+    width: 13%;
+    text-align: left;
     white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-capacity {
+    width: 11%;
+    text-align: center;
+    white-space: nowrap;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-rate {
+    width: 11%;
+    text-align: right;
+    white-space: nowrap;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-price-type {
+    width: 13%;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-status {
+    width: 12%;
+    min-width: 0;
+    max-width: none;
+    text-align: center;
+    white-space: nowrap;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-bookings {
+    width: 12%;
+    text-align: center;
+    white-space: nowrap;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-table .facility-col-actions {
+    width: 8%;
+    text-align: center;
+    overflow: visible !important;
+}
+
+body:not(.service-catalog) #facilitiesListSection .facility-status,
+body:not(.service-catalog) #facilitiesListSection .facility-booking-mode-label {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body:not(.service-catalog) #facilitiesListSection .facility-row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
 }
 
 body:not(.service-catalog) #facilitiesListSection .facility-col-capacity,
@@ -180,57 +308,100 @@ body:not(.service-catalog) #facilitiesListSection .facility-pagination {
     justify-content: flex-end;
 }
 
-/* Match the Products list heading and labeled filters on physical Facilities. */
+/* Header with title/subtitle on left and compact Add Facility button on top-right */
 body:not(.service-catalog) .facility-list-heading {
-    padding: 16px;
-    border-bottom: 1px solid rgba(26, 24, 81, .14);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 16px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    border-bottom: 1px solid #E8EAF0;
+}
+body:not(.service-catalog) .facility-list-heading-copy {
+    min-width: 0;
 }
 body:not(.service-catalog) .facility-list-heading h2 {
-    margin: 0 0 4px;
+    margin: 0 0 2px;
     color: var(--campushub-navy);
-    font: 700 18px/1.3 'Montserrat', sans-serif;
+    font: 700 18px/1.3 'Inter', sans-serif;
 }
 body:not(.service-catalog) .facility-list-heading p {
     margin: 0;
-    color: rgba(26, 24, 81, .68);
-    font-size: 12px;
-    line-height: 1.5;
+    color: #667085;
+    font: 400 12.5px/1.45 'Inter', sans-serif;
 }
+body:not(.service-catalog) #facilitiesListSection .facility-add-btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 40px;
+    padding: 0 16px;
+    margin: 0;
+    border: 1px solid #1A1851;
+    border-radius: 8px;
+    background: #1A1851;
+    color: #FFFFFF;
+    font: 600 13px/1 'Inter', sans-serif;
+    white-space: nowrap;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-add-btn:hover,
+body:not(.service-catalog) #facilitiesListSection .facility-add-btn:focus-visible {
+    border-color: #FCB316;
+    background: #FCB316;
+    color: #1A1851;
+}
+
+/* Responsive 5-column filter grid on desktop */
 body:not(.service-catalog) #facilitiesListSection .facility-table-toolbar {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto;
-    gap: 16px 12px;
+    grid-template-columns: minmax(200px, 1.5fr) repeat(4, minmax(135px, 1fr));
+    gap: 12px;
     align-items: end;
-    padding: 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid #E8EAF0;
 }
 body:not(.service-catalog) .facility-filter-field {
     display: grid;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
 }
 body:not(.service-catalog) .facility-filter-field label {
     margin: 0;
     color: var(--campushub-navy);
-    font: 600 12px/1.4 'Montserrat', sans-serif;
+    font: 600 12px/1.35 'Inter', sans-serif;
+}
+body:not(.service-catalog) #facilitiesListSection .facility-cell-primary,
+body:not(.service-catalog) #facilitiesListSection .facility-rate-primary {
+    display: block;
+    color: #17172A;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 body:not(.service-catalog) #facilitiesListSection .facility-table-filter,
 body:not(.service-catalog) #facilitiesListSection .facility-table-search {
     width: 100%;
     min-width: 0;
     max-width: none;
-    min-height: 44px;
-    font-weight: 400;
+    min-height: 40px;
+    font-weight: 500;
 }
-body:not(.service-catalog) #facilitiesListSection .facility-add-btn { min-height: 44px; }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
     body:not(.service-catalog) #facilitiesListSection .facility-table-toolbar {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    body:not(.service-catalog) .facility-filter-field:first-child,
-    body:not(.service-catalog) #facilitiesListSection .facility-add-btn { grid-column: 1 / -1; }
+    body:not(.service-catalog) .facility-filter-search {
+        grid-column: 1 / -1;
+    }
 }
 @media (max-width: 620px) {
-    body:not(.service-catalog) #facilitiesListSection .facility-table-toolbar { grid-template-columns: minmax(0, 1fr); }
+    body:not(.service-catalog) #facilitiesListSection .facility-table-toolbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    body:not(.service-catalog) .facility-list-heading {
+        align-items: flex-start;
+    }
 }
 
 /* Compact management activity summary; detailed audit information stays in Monitoring. */

@@ -1,5 +1,378 @@
 # Products List — quantity-first Inventory column
 
+## Professional minimalist Products catalog — October 31, 2026
+
+### 1. Cause / reason
+
+The current brief requests the existing Web Admin Marketplace → Products page with four real-data KPIs, a two-row filter section and a compact nine-column table. This supersedes the earlier single-row filter choice. Inspection confirmed that the previous view materialized every authorized product, then JavaScript filtered/paginated those rows and recalculated totals from the DOM. That did not provide database filtering/pagination and could not safely preserve overall totals after introducing bounded pages. Add Product was initially rendered even for read-only accounts before JavaScript hid it. The existing inventory/approval/archive/ownership services were retained.
+
+### 2. Exact files changed — current lines and anchors
+
+| File / current line | Nearby anchor | Change and purpose |
+| --- | --- | --- |
+| `backend/core/accounts/views.py:179` | `def admin_products_page(` | Paginate the authorized filtered queryset, prepare only that page, render HTML or JSON fragments with overall KPI counts; Add permission follows the existing manage capability. |
+| `backend/core/modules/marketplace/services/product_catalog.py:16` | `def catalog_selection(` | New shared read-only catalog selection: actual KPI aggregation, academic/name/SKU/category/status/listing filters, low-stock eligibility and stable ordering. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html:47` | `Overall totals for your authorized product scope` | Scope explanation, permission-gated Add, restored selected values, server-pagination marker, loading/error/retry state, actual matching counts, empty-state guidance and asset versions. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/product_rows.html:1` | `{% for product in seller_products %}` | Extracted existing nine-column rows for identical initial/AJAX rendering; real variant price range, global row numbering, package fallback icon and per-variant low-stock warning. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/product_pagination.html:1` | `<button` | New server-generated page controls with previous/next bounds and current-page semantics. |
+| `backend/static/components/css/admin_products_refinement.css:24` | `/* Six existing filters:` | Requested two-row grid, consistent 44px fields, restrained four KPIs, readable headers/statuses, contained table scrolling and 36px desktop/44px touch actions; existing scoped Montserrat stays. |
+| `backend/static/components/js/admin_products.js:2813` | `let catalogController` | Abortable sequenced server queries, explicit All listing URL, current-page retry, authoritative counts, no redundant full-catalog hydration and retained deep links. |
+| `backend/core/modules/marketplace/test_product_catalog.py:15` | `class ProductCatalogTests` | Seven real PostgreSQL tests for counts/filter/pagination/availability/scope/permissions/query bounds and isolated browser fixture export. |
+| `backend/core/modules/marketplace/tests.py:626` | `def test_marketplace_admin_can_archive_and_restore_product` | Update the archived-row expectation to request the Archived selection explicitly, matching the unchanged Active default. |
+| `docs/web-ui-ux-guidelines.md:13` | `### Professional Minimalist SaaS application` | Record the current scoped Products interpretation and supersede the prior one-row filters without restyling unrelated modules. |
+
+This guide and `CAMPUSHUB_CONTEXT.md` are updated in place. Supporting helpers live under `scratch/products-module-20261031/`: one-time `edit_template.py`, `edit_script.py`, `refine_script.py`; intercepted Chromium harness `check.cjs`; guarded read-only `verify_local.py`; `fixtures/`, actual screenshots, `result.json`, and `localhost-result.json`. These helpers are not runtime app components; do not rerun the one-time edit scripts.
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Six desktop filters on one row | Search/Approval/Listing at 50/25/25, then Program/Major/Category at equal thirds | Implements the latest brief using the same fields, options and per-field clear buttons. |
+| Every product loaded for browser pagination | Django filters and returns ten products per page | Bounds rendered rows and keeps pagination tied to the actual authorized database query. |
+| KPI values recounted from loaded DOM rows | Overall counts from Django, matching-result counts beside pagination | Prevents a filtered page or ten-row page from redefining the totals. |
+| KPI click could retain unrelated filters | Card navigates to the scope it counts | Total/Pending/Approved use the full authorized listing scope; Low Stock uses existing active-listing eligibility. |
+| Add button existed in the initial HTML for readers | Render only for existing manage-product capability | UI and Django authorization agree without granting another role any permission. |
+| Base-only price / initial-letter missing-photo placeholder | Existing server variant price display / consistent package icon | Keeps actual prices and image fallback accurate in initial and refreshed rows. |
+| Low variant could be hidden by healthy combined quantity | Explicit per-variant warning alongside available quantity | A low-stock KPI result explains which listing has an affected option. |
+| Fixed widths hid Actions on normal desktop | Table fits at 1440px; narrower views scroll inside the table | Keeps all nine columns and actions accessible without widening the page. |
+| Legacy important rules kept action buttons at 32px | Scoped 36px desktop and 44px touch targets, measured in the browser | Fixes the real cascade conflict instead of merely declaring an ineffective size. |
+
+The four KPI cards retain their names and existing count definitions, compact dimensions and functional icons. Colors are restrained navy/gold/white/neutrals; approval and listing remain distinct. Headers wrap rather than losing important words. Actual uploaded images, SKU identities, seller Program/Major, dates/timezone handling and View/Edit/Approve/Reject/Archive/Restore actions remain. No Clear Filters replacement, additional filters, generated images, new status or Flutter redesign.
+
+### 4. How it works — functions, inputs/outputs and data flow
+
+`admin_products_page(request)` first gets `admin_product_queryset(request.user)`, preserving the existing server-enforced Program/Major scope. Inventory's existing `view=inventory` branch still runs separately. For Products, `catalog_selection(queryset, request.GET)` returns three values: filtered/stably ordered queryset, overall authorized KPI dictionary and normalized filter values. `Paginator(..., 10)` selects the requested page before seller/SKU/bundle details are primed. The same `product_rows.html` partial renders initial HTML and AJAX responses; no duplicate client version of the server catalog is required.
+
+`catalog_selection()` uses actual approval/listing fields and inherited or explicit academic ownership for both Django and mobile sellers. Product/seller text search uses Django queries; actual SKU substring search streams the existing SKU identity objects and uses their existing `code` property, not invented product-ID identifiers. `low_stock_ids()` streams only needed active single-product fields and calls the canonical `iter_product_low_stock()`. Bundle warning thresholds belong to components, so a virtual bundle is not given its own fabricated low-stock threshold. Depleted-stock deep links use the existing quantity/bundle rules.
+
+The Total/Pending/Approved definitions remain all authorized records with the relevant approval state, including archived records where their existing state is retained. Low Stock counts active product listings with at least one eligible low-stock item; it is not the number of individual variants or all depleted stock. The scope explanation makes those definitions visible. The normal listing default remains **Active**. Explicit All is represented as `listing_status=all` so clearing that filter can survive refresh without silently reverting to Active.
+
+`applyInlineFilters(page)` reads the same six controls and current KPI inventory shortcut, updates the existing URL, cancels a previous read, then requests JSON from the same Products view. A sequence number prevents a late response from replacing a newer selection. Search remains debounced by 300ms; pagination/KPI activation sends one request. A bounded 15-second request timeout produces retry feedback. During a request the table is marked busy/inert. On failure, previous results remain visible with an explicit error and Retry; they are not reported as successful empty data. Retry retains the requested page.
+
+Successful responses replace escaped server-rendered rows/page controls and update KPI values from server counts. Old image-cycle timers/listeners are stopped before replacing rows; existing authorized images/gallery behavior is reinitialized. There is no initial full-catalog image hydration request for the server-rendered page. Existing mutation handlers still use their original endpoints, then refresh the selected catalog and real KPI totals. The legacy client-only path remains for an older cached template during transition; current markup explicitly selects the server path. Authorized product-detail deep links still work when the product is not on the selected page.
+
+Annotated read example:
+
+```text
+GET /admin-products/?format=json&listing_status=active&status=approved&page=2
+    -> existing authenticated/permission-scoped view
+    -> overall stats + filtered page 2
+    -> rows_html, pagination_html, stats, page/pages, total, start/end
+```
+
+`stats.approved` is the overall authorized approved count. `total` is the number matching Active + Approved. `start/end` describe the ten-row page, so those values need not equal the KPI. In the isolated regression example, 15 approved records include one archived listing: normal Active/Approved matches 14, while explicit All/Approved matches 15. These numbers are test fixtures only, never production constants.
+
+### 5. Backend / API behavior and permissions
+
+- Added a JSON **read mode to the existing Products view**, not a new business API/framework. HTML and JSON share the same authorized queryset and row template. Responses are private/no-store under the existing stricter admin cache middleware.
+- Super Admin scope stays global. Marketplace/custom-role scope and manage/review permissions remain existing Django capabilities. Facilities Admin did not receive marketplace permissions. Read-only users receive View Details without Add/Edit/Archive/approval controls; direct unauthorized mutations remain denied by Django. Student sellers retain the existing own-product API and ownership guards.
+- Existing new seller submissions stay Pending where required; legitimate authorized admin creation retains its existing auto-approval behavior. Existing permission-aware edit/status handling is unchanged. No new content-change/reapproval policy was invented. Approve/reject still validate pending active state, persist the supported rejection reason, log existing audit events and invoke the existing notification outbox hooks.
+- Public marketplace eligibility still requires approved, non-archived listings. Archive remains soft archive with confirmation and supported restore; existing orders/stock/audits are preserved. The browser test opens/cancels Archive and verifies that no write is made before confirmation.
+- Available quantities use the same canonical value already reduced by active reservations. They are not reduced a second time. Physical On Hand remains Available + Reserved in existing inventory details. Simple/FIFO reservation/completion/cancellation services and virtual bundle component calculations were not changed.
+
+### 6. Database / migration impact
+
+No schema migration, dependency upgrade, data cleanup, stock movement, role grant or live product/order write. The selected database remains localhost PostgreSQL port 5432; no environment setting, service launch/restart, APK operation or remote deployment was performed. Actual database verification used an enforced READ ONLY transaction and source rendering, rather than creating demo data or claiming a restarted running server.
+
+### 7. Tests performed
+
+- **144 affected Django tests passed** in 25.525 seconds against disposable local PostgreSQL. Suites: `modules.marketplace.test_product_catalog`, `.tests`, `.test_product_review_images`, `.test_bundles`, `.test_inventory_monitor`, `.test_order_fulfillment`, `.test_fifo_inventory`, and `api.test_mobile_seller_application`. The test database was destroyed afterward.
+- Seven new catalog tests cover all four KPI definitions, filtered-vs-overall archived approval scope, default/selected listing values, search including actual SKU and seller name, status/category/Program/Major, server pagination/global numbering, variants/bundles/reservations, Django/mobile academic inheritance, read/manage/Facilities boundaries and query growth. The archive regression now explicitly requests Archived instead of expecting hidden archived rows in the Active page's HTML.
+- A larger exploratory run of 170 tests had 168 passes and **two unrelated Roles test mismatches**: `RolesWorkflowTests.test_page_batches_role_permissions_and_admins_and_exports_browser_fixture` expects Reports while the existing role configuration says Reports & Analytics (`accounts/role_permissions.py:75`); `test_history_reads_existing_role_audit_only_with_pagination_and_no_writes` expects exactly no-store while existing middleware adds the stricter private/no-cache/must-revalidate/max-age header (`accounts/middleware.py:26`). Those files/expectations were not changed as part of Products. Do not describe that broader run as fully passing.
+- **263/263 Chromium checks passed** across 12 renders at ten widths, 1920 down to 280px, including a read-only role and a touch-device context. Checks cover the desktop two-row proportions, six 44px controls, scoped Montserrat, no page overflow, desktop action visibility, 44px touch action targets, actual image endpoint/fallback, long names, row/page counts, all KPI shortcuts, preserved default/selected filters, individual clearing, Program/Major, empty/error/retry, debounced requests, keyboard KPI operation, archive confirmation/cancel and zero writes. Actual desktop, tablet and phone screenshots were inspected; header truncation and the legacy important button-size conflict were corrected.
+- Direct SQL execution measurement: 9 calls before versus 8 after adding 20 additional catalog records; page size stays ten. This demonstrates no per-record query growth in the checked page scenario, not a full load benchmark. Low-stock JSON/SKU substring scans remain bounded-memory reads.
+- Enforced read-only source rendering against actual local PostgreSQL returned 200. Total and default Active counts matched real records, page size was bounded at ten, and an empty search kept the same overall KPI totals. `node --check backend/static/components/js/admin_products.js` and scoped whitespace checks passed. Django's test-run system checks reported no issues.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+Restart your existing Django development process when ready, then refresh Products to load the new Python/templates and `20261031-product-catalog` assets. This task did not launch/restart services or deploy Kamatera. An already cached older template keeps its legacy client behavior until it is refreshed against the updated backend. No full physical-device/assistive-technology audit or production-scale benchmark was performed.
+
+SKU substring matching streams existing generated identities; option-level low-stock eligibility streams required JSON fields. Both keep query count/memory bounded but still perform catalog-sized work. Very large catalogs may later benefit from indexed persisted search/alert projections; no stale global cache or redundant schema was introduced here. Existing reapproval rules and notification delivery configuration remain as found; live message delivery was not exercised.
+
+If a KPI exceeds visible rows, compare the overall scope explanation, listing/approval selections and pagination count before treating it as a data defect. If a table request fails, read the error and use Retry; existing rows intentionally remain until a successful response. A missing picture intentionally uses the package icon; image authorization still follows the existing tab/cookie flow. If Add/Edit is absent, check the user's actual manage-product permission and Program/Major scope rather than enabling controls in JavaScript. Earlier single-row/green-pill guide sections below are historical.
+
+Safe practice: run the isolated backend runner with `modules.marketplace.test_product_catalog`, then inspect its approved-archived test: Active/Approved shows 14 and All/Approved 15 while the KPI stays 15. Run `node scratch/products-module-20261031/check.cjs` after exporting its isolated fixtures to exercise filters, pagination and a simulated 503/retry without reaching the working application. Change only a test fixture's long product name and verify the page/actions still fit; restore it afterward. Never add sample listings or alter working stock simply to populate a screenshot.
+
+# Products List — quantity-first Inventory column
+
+## Products List Table Improvements — October 29, 2026
+
+### 1. Cause / reason
+
+The CampusHub Web Admin Products table (`#productsTable` on `/admin-products/`) needed refinement to improve typography hierarchy, column alignment, inventory presentation, status clarity, row actions, and responsive layout without redesigning the page or modifying the already-approved filter section.
+
+Key defects resolved:
+- **Thumbnail Sizing & Centering**: Fallback initial letters in `.product-table-image-empty` were offset due to generic `span` block display rules and flex sizing conflicts. Thumbnails are now strictly 40×40px with centered initials.
+- **SKU Visibility**: Product SKU labels (`.product-id-label`) were hidden via CSS and wiped out by client-side image hydration (`applyImageToRow`). SKUs are now preserved under product names with clear secondary hierarchy.
+- **Approval vs. Listing Status**: Listing status (`Active` vs. `Archived`) was previously not rendered as a badge in the table rows, making archived products look identical to active approved products. The status column now explicitly renders both Approval Status (`Approved`, `Pending`, `Rejected`) and Listing Status (`Active`, `Archived`) in a disciplined vertical stack (`.status-cell-stack`).
+- **Authorized Edit Action**: The Edit action button (`.btn-edit-product` with pencil SVG) was missing from the table's action row even though the backend already supported and permissions-gated it. The Edit button is now exposed for users with `can_manage_products` permission.
+- **Inventory Formatting**: Stock quantities are displayed prominently (e.g., `1 pc`, `12 pcs`, `6 bundles available`). Configured low stock thresholds appear as secondary text (`Threshold: 5`), with clear warning indicators for low stock and out-of-stock items, and derived component indicators for bundles, without redundant "In Stock" badges.
+- **Table Layout & Alignment**: Header and cell alignment were aligned logically (center for index `#`, left for product/seller/category/inventory/status/date, right for price and row action buttons). Fixed table layout prevents column collision across desktop and responsive viewports.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / anchor | Changes made |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/product_actions.html` | lines 1–11 | Added authorized Edit button (`.btn-edit-product` with pencil SVG, `title="Edit Product"`, `aria-label="Edit product"`) inside `{% if can_manage_products %}`. Retained View, Approve, Reject, Archive, and Restore action buttons. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html` | line 23; line 113; line 116; line 162; line 163; line 180; line 1025 | Added `class="col-category"` to Category header and cell; updated status header to `Approval & Listing`; rendered `.status-cell-stack` with `.status-pill` and `.listing-status-pill`; added hover `title` attributes on seller, program/major, and category cells; bumped cache query strings to `?v=20261029-product-list-table`. |
+| `backend/static/components/js/admin_products.js` | lines 525–550; lines 1744–1755; lines 1774–1835; lines 1850–1865; lines 2435–2445; lines 2640–2650; line 2887; lines 3980–4050 | Added `renderListingStatusPill`, `renderStatusCellContent`, and `renderSubmittedDateCell`; added Edit button in `renderProductActionsCell` when `canManageProducts` is true; set `row.dataset.isArchived` in `renderProductRow`; preserved SKU in `applyImageToRow`; updated status cell on approval/archive/restore; called `applyInlineFilters()` on save; exported helpers on `window.CampusHubAdminProducts`. |
+| `backend/static/components/css/admin_products_refinement.css` | lines 30–95 | Added exact column widths for 9 columns; defined 40×40 thumbnail sizing and initial centering; ensured `.product-id-label` visibility; left-aligned inventory summary and status badges; set tabular numeric alignment on prices; styled action buttons (29×29px outline buttons) and pagination controls. |
+| `backend/core/modules/marketplace/test_product_review_images.py` | lines 18–40; lines 80–90 | Updated tests to assert presence of `btn-edit-product` when `can_manage_products=True` and its absence when `can_manage_products=False`; asserted separate listing status badge rendering. |
+| `docs/products-list-inventory.md` | top section | Documented changes, functions, data flow, tests, troubleshooting, and safe practice exercise. |
+| `CAMPUSHUB_CONTEXT.md` | top section | Recorded completion of Product List Table improvements and updated asset versions. |
+
+### 3. Changes made
+
+1. **Table Structure & Typography**:
+   - Preserved the existing 9-column `<colgroup>` and table markup in `#productsTable`.
+   - Updated the status header to `Approval & Listing`.
+   - Added `col-category` class to Category header and cells for consistent left alignment.
+   - Sized thumbnails to strictly 40×40px with `border-radius: 8px` and centered fallback initials.
+   - Restored `.product-id-label` visibility (`color: #667085; font-size: 0.71rem;`) below the product name.
+   - Added hover `title` tooltips to product names, seller names, academic program/majors, and categories to prevent layout breaking from long strings.
+
+2. **Inventory Presentation**:
+   - Primary stock count displayed prominently (`#1A1851`, bold 0.83rem, e.g. `1 pc`, `12 pcs`, `6 bundles available`).
+   - Configured threshold displayed as secondary text (`Threshold: 5`) for simple products.
+   - Component-derived availability clearly indicated for bundles (`Derived from components`).
+   - Out of stock (`• Out of Stock`) with navy dot and low stock (`• Low Stock`) with gold dot displayed when applicable.
+   - Eliminated redundant "In Stock" badges when inventory is healthy.
+
+3. **Status Badges & Refined Indicators**:
+   - Stacked Approval Status (`Approved`, `Pending`, `Rejected`) and Listing Status (`Active`, `Archived`) in `.status-cell-stack`.
+   - **Approved Pill Redesign & Clean Text**: Replaced the solid dark navy pill with an institutional, WCAG AA compliant soft green badge (`background: #ECFDF3; color: #027A48; border: 1px solid #ABEFC6; font-weight: 600;`). Removed decorative checkmark and symbol icons from all status pills to eliminate modern UI clutter and preserve a disciplined, text-first university aesthetic. Pending remains warm gold (`#FCB316`), and Rejected remains red outline (`#B91C1C` on `#FEF2F2`).
+   - **Unboxed Listing Status**: Removed the bordered container/pill box from `Active` and `Archived` (`border: none; background: transparent; padding: 0; box-shadow: none;`). Listing status renders as a clean secondary text line with an indicator dot (6px gold dot `#FCB316` for Active, 6px muted gray dot `#98A2B3` for Archived) directly underneath the Approval status badge.
+
+4. **Action Buttons**:
+   - View Product (Eye icon, `.btn-view-product`, `title="View Product"`).
+   - Edit Product (Pencil icon, `.btn-edit-product`, `title="Edit Product"`), exposed strictly when `can_manage_products` is true.
+   - Approve / Reject buttons (Check / Cross icons) rendered for pending active products when `can_approve_products` is true.
+   - Archive / Restore button (Box icon for active, circular arrow icon for archived) rendered when `can_manage_products` is true.
+   - Action row uses small 29×29px outline icon buttons aligned in a single row without wrapping.
+
+5. **Client-Side Synchronization**:
+   - `applyImageToRow` preserves the SKU element during gallery image hydration.
+   - Product save and edit forms re-render the table row with both approval and listing statuses, update pagination via `applyInlineFilters()`, and refresh the table footer.
+   - Archiving or restoring a product immediately updates both the listing status badge (`Active` ↔ `Archived`) and the action button (`Archive` ↔ `Restore`).
+
+### 4. How it works: functions, inputs / outputs and data flow
+
+```text
+Server Template Render (Django context: seller_products, can_manage_products, can_approve_products)
+  ├── <thead>: #, Product, Seller & Program, Category, Price, Inventory, Approval & Listing, Date Added, Actions
+  └── <tbody>: <tr data-product-id="..." data-is-archived="..." data-product-status="...">
+        ├── .col-product-name: 40x40 thumbnail + <strong>name</strong> + .product-id-label (SKU)
+        ├── .col-seller: <strong>seller</strong> + <span>program_major</span>
+        ├── .col-category: category text
+        ├── .col-price: ₱ price (right-aligned tabular nums)
+        ├── .col-inventory: .inventory-summary-clean (quantity + threshold + warning / bundle notes)
+        ├── .col-status: .status-cell-stack (.status-pill + .listing-status-pill)
+        ├── .col-date: Date Added + time
+        └── .col-action: .action-row (View, Review buttons if pending, Edit if authorized, Archive/Restore)
+
+Client-Side Hydration & User Interactions (admin_products.js):
+  ├── hydrateProductImagesFromServer() -> applyImageToRow() (preserves SKU, updates image)
+  ├── Edit Button Click -> openEditProductForm(row) -> populates form with getProductFromRow(row)
+  ├── Save Product -> saveProductToServer() -> finalizeSave() -> renderProductRow() -> applyInlineFilters()
+  ├── Archive / Restore -> confirmArchive/Restore -> updates data-is-archived -> re-renders status and actions
+  └── Inline Filters -> applyInlineFilters() -> shows/hides rows -> recalculates pagination and showing text
+```
+
+### 5. Backend / API behavior
+
+- Server-side permissions enforce product operations in `backend/core/api/views.py`:
+  - `admin_save_product` (`POST /api/products/admin/save/`): Requires `can_manage_products` permission and scopes to manageable products via `manageable_products_for(request.user)`.
+  - `admin_archive_product` (`POST /api/products/admin/<id>/archive/`): Requires `can_manage_products` permission.
+  - `admin_restore_product` (`POST /api/products/admin/<id>/restore/`): Requires `can_manage_products` permission.
+  - `approve_product` / `reject_product`: Requires `can_approve_products` permission and pending active status.
+- No new database fields or API endpoints were added.
+
+### 6. Database / migration impact
+
+- Zero schema migrations. All fields (`approval_status`, `is_archived`, `stock`, `low_stock_threshold`, `product_type`, `department_id`, `major_id`) already exist on the `Product` model.
+- Live database was not modified during testing; all test executions utilized the isolated local `test_campushub` database.
+
+### 7. Tests performed and troubleshooting
+
+1. **Django Test Suite**:
+   - Ran 92 marketplace regression tests against local `test_campushub` with `--keepdb --noinput`:
+     `modules.marketplace.test_product_review_images`
+     `modules.marketplace.test_product_final_validation`
+     `modules.marketplace.test_program_inventory.ProgramInventoryTests`
+     `modules.marketplace.test_thresholds`
+     `modules.marketplace.test_variant_inventory`
+     `modules.marketplace.test_bundles`
+     `modules.marketplace.test_inventory_monitor.InventoryMonitorTests`
+     `modules.marketplace.tests.MarketplaceAdminProductAccessTests`
+   - **Result: 92 passed in 16.568s (`OK`, 0 failures, 0 errors, 0 silenced issues).**
+2. **JavaScript Syntax Verification**:
+   - `node --check backend/static/components/js/admin_products.js` passed with zero errors.
+3. **Playwright Browser Automation Verification**:
+   - Tested across viewports (1920, 1366, 1024, 768, 390px):
+     - Verified 9 headers including `Approval & Listing`.
+     - Verified prominent stock count, secondary threshold, low stock warning, out of stock warning, and bundle component-derived availability.
+     - Verified separate `Approved`/`Pending`/`Rejected` and `Active`/`Archived` status badges.
+     - Verified 40×40px thumbnail sizing and centered fallback initial.
+     - Verified SKU visibility under product names.
+     - Verified 5 action buttons on pending rows align horizontally without wrapping.
+     - Verified Edit Product button opens edit form with matching product data.
+     - Verified responsive horizontal scrolling inside `#productsTableWrap`.
+   - **Result: `ALL_TABLE_CHECKS_PASSED`.**
+4. **Visual Inspection**:
+   - Inspected high-resolution screenshots `table-1920.png` and `table-1366.png` to confirm visual balance, typography contrast, and alignment.
+
+### 8. Remaining limitations and safe practice exercise
+
+- Responsive horizontal scrolling is constrained to `#productsTableWrap` for viewports under 1224px to preserve institutional data density without squishing table columns.
+- The browser checks were verified using automated headless Chrome; native mobile app screens remain independent and untouched.
+
+**Safe Practice Exercise**:
+1. Navigate to `/admin-products/` in the web admin.
+2. Observe the Products List table: notice the 40×40px thumbnails, visible SKUs below product names, prominent stock counts with threshold text, and distinct Approval and Listing status pills.
+3. Hover over the action buttons: notice tooltips for "View Product", "Edit Product", and "Archive Product".
+4. For users with product management permissions, click the pencil (Edit) icon on any active product: verify the form switches to "Edit Product" mode with prefilled values.
+5. Filter by "All Listing Status": observe both active and archived products, where archived products show the "Archived" pill and the circular arrow "Restore Product" action.
+6. Verify this using the automated test suite:
+   ```powershell
+   .\backend\core\venv\Scripts\python.exe backend/core/manage.py test modules.marketplace.test_product_review_images --keepdb --noinput
+   ```
+
+---
+
+## Individual selected-filter clear icons - October 29, 2026
+
+Current follow-up: show a visible **×** when a Products filter has a value, and let that action clear that individual filter. The existing six-filter desktop row and responsive wrapping remain. This authorizes individual field actions after the previous removal of the global Clear Filters button; that global button remains removed.
+
+### 1. Cause / reason
+
+Confirmed: the six native controls and existing filter handlers had no individual clear action after removal of the global button. Dropdown selections therefore had to be reset by choosing their existing All option. The user requested a visible x for a selected filter. A small field-specific button now provides that action without replacing the native controls or duplicating filtering logic.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / anchor | Change and expected behavior |
+| --- | --- | --- |
+| `backend/static/components/js/admin_products.js` | 2740 field enhancement; 2769 `syncFilterClearButtons`; 2778 `applyInlineFilters`; 2800 synchronization | Wrap each existing label in a positioning container, add an accessible clear button outside the label, and derive visibility from that field's current value/disabled state. Clearing dispatches the original input/change event. |
+| `backend/static/components/css/admin_products_refinement.css` | 28 `.product-filter-field`; 29/30 selected-value padding; 31 `.product-filter-clear`; 33 hidden; 34/35 hover/focus; 36 native search cancel | Place a navy 28px clear target beside the select arrow, or at the search field's right edge; reserve space and preserve heights/corners/grid. Hide duplicate native WebKit search cancellation only in this filter bar. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html` | 23 stylesheet URL; 1025 script URL | Refresh both cache keys to `20261029-product-list-table-filter-clear`, retaining the existing table-update identifier. Filter markup/options/defaults are untouched. |
+| `docs/products-list-inventory.md` | 3 this report | Current behavior, data flow, verification and safe practice. |
+| `CAMPUSHUB_CONTEXT.md` | 3 current clear-icon note | Preserve the follow-up and verified scope. |
+
+Ignored QA tools/results: `scratch/products-filter-clear-20261029/check.cjs`, `major_check.cjs`, copied isolated HTML/JSON inputs and actual render captures. These reuse previously exported Django test fixtures and current shipped scripts/styles; every browser request is intercepted. No backend test or application dependency was added.
+
+### 3. Changes made
+
+- Search, Approval Status, Listing Status, Program, Major and Category each get a native `type="button"` clear action. The SVG is decorative; each button has a specific accessible name, such as Clear Category filter, and a tooltip.
+- The button is visible only when the control is enabled and has a nonblank value. It disappears after clearing. The default Listing Status remains **Active**, so that initially selected filter also shows its x. Empty All options and a disabled Major show no x.
+- Clearing changes only the clicked field. Clearing Program can also clear/disable an incompatible Major through the existing academic dependency handler; other filters remain selected.
+- The original input/select and its label remain intact. The button is a sibling of the label, avoiding a second interactive control inside the label. After activation, focus returns to the original field.
+- The one-row desktop allocation, existing responsive breakpoints, 44px input heights, selected values/options and other product/table work remain. The global Clear Filters button was not restored.
+
+### 4. How it works: functions, inputs / outputs and data flow
+
+The enhancement at line 2740 receives the existing field references and their current captions, creates a `.product-filter-field` around each original label, and appends one clear button. It does not clone the field or save another copy of its selected value. `syncFilterClearButtons()` reads those original controls, sets each button's `hidden` flag and toggles the wrapper's `has-filter-value` class for text padding. It runs on input/change and at the end of `applyInlineFilters()`, including URL initialization, KPI changes and programmatic updates using that existing filter function.
+
+Clicking x sets the original value to `''` and dispatches its usual event: `input` for Search or `change` for a select. Existing handlers then perform filtering, academic synchronization, URL updates, pagination and empty-state updates. Search keeps its original 300ms debounce. Selecting another dropdown value keeps the original dropdown workflow. Nothing is submitted to a product/stock write endpoint.
+
+```text
+Selected input/select -> syncFilterClearButtons -> visible field-specific x
+Click x -> original field.value = '' -> original input/change event
+  -> academic dependency rules where applicable -> applyInlineFilters
+  -> filtered rows + existing URL state -> x visibility recalculated
+```
+
+Annotated example: select Category = Clothing while Listing Status = Active. The Category x clears Category to All Categories and dispatches its existing change event; Listing Status remains Active. Clicking Listing Status's own x chooses the existing All Listing Status value. The original fresh-page Active default and URL initialization rules are unchanged; as before, a URL without a listing-status parameter returns to Active on reload.
+
+### 5. Backend / API behavior
+
+No Django view, REST endpoint, authentication/permission rule, database query or response shape changed. Clearing reuses the same authorized rows, AND filtering, query keys and Program/Major options already supplied by the application. The dedicated Inventory ledger and other components were not modified.
+
+### 6. Database / migration impact
+
+None: no migration, model, configuration, live record, stock, pricing, approval or deployment change. This step did not run a database-writing verification or submit a product action. Browser verification used intercepted isolated fixture requests; the Program/Major check used existing exported test records only.
+
+### 7. Tests performed and troubleshooting
+
+- **126/126 Chrome checks passed** across 1920, 1440, 1280, 1024, 768, 600, 390 and 320px. They cover the six original fields, individual button visibility, unchanged Active default, row counts/heights/corners/containment, existing filtering and URL restoration, click and keyboard clearing, focus return, preservation of other selections, search debounce, valid labels, narrow-screen targets and zero application writes.
+- **10/10 Program/Major checks passed** against the existing exported populated-major fixtures: selecting/clearing Major preserves Program/Active, while clearing Program clears/disables its dependent Major and hides both relevant icons.
+- Desktop selected-state and narrow actual renders were inspected. JavaScript syntax and scoped whitespace checks passed. No new Django/Flutter suite was necessary for this frontend-only change; their earlier results below belong to their respective earlier steps.
+- The first mobile hit-test checked controls outside the scrolled viewport and failed. Corrected the QA helper to scroll each button into view before measuring its hit target; no production layout change was needed for that test correction.
+
+If x does not appear, verify the field has an enabled, nonblank value, then hard-refresh to load the new asset keys. Program without configured majors intentionally leaves Major disabled. Search clearing updates through the same debounce as typing. If an active KPI changes fields programmatically, use the existing `applyInlineFilters()` path so the filtered rows and button visibility synchronize together.
+
+### 8. Remaining limitations and safe practice exercise
+
+Chrome was checked at desktop/tablet/mobile viewport sizes; no physical-device or full assistive-technology audit is claimed. Long selected native-option text may still abbreviate at constrained widths, with its full label available in the dropdown. Hosted Kamatera application source was not deployed.
+
+Safe exercise: on Products, select a category and confirm its x appears. Click that x and confirm Category becomes All Categories while Listing Status remains Active. Repeat with a program that already has majors: select a Major, clear only Major, then select it again and clear Program. Confirm only the existing dependent Major is reset. Type and clear Search, then use Tab/Enter on another visible x. These filter interactions do not submit a product or stock update; avoid Save/Archive/approval actions during this exercise. Repeat isolated verification with `node scratch/products-filter-clear-20261029/check.cjs` and `node scratch/products-filter-clear-20261029/major_check.cjs`.
+
+---
+
+## Products filters in one desktop row; Clear Filters removed - October 29, 2026
+
+Scope clarification: the user explicitly selected the **Products** filter bar containing Search, Approval Status, Listing Status, Program, Major and Category. The separate Inventory ledger has a different filter set and was not changed. The final “make one row” instruction supersedes the earlier two-row percentage layout.
+
+### 1. Cause / reason
+
+Confirmed: the Products-specific refinement stylesheet used a four-column grid and made Search span two columns. Together with six controls and Clear Filters, this produced multiple desktop rows. The request removes that button and puts the existing six filters on one desktop row, preserving their behavior and selected values.
+
+### 2. Exact files changed / current lines and anchors
+
+| File | Current line / anchor | Change and reason |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html` | 23 stylesheet URL; 86 `.product-catalog-filters`; 89 `productsArchiveFilter`; 1025 script URL | Removed only the Clear Filters button from the existing filter block; refreshed the two asset cache keys. All six labels, IDs, options, academic attributes and the Active selected attribute remain. |
+| `backend/static/components/css/admin_products_refinement.css` | 24 comment; 25 scoped grid; 26 first-label span; 84/94/101 responsive breakpoints | One wider Search column plus five equal dropdown columns on desktop. Search no longer spans two columns; existing three/two/one-column responsive rules remain. |
+| `backend/static/components/js/admin_products.js` | 2780 search timer; 2784 dashboard/URL initialization after the removed listener | Removed only the click listener for the deleted `productsClearFilters` element. Search, all change handlers, URL restoration, academic pairing and filtering functions are unchanged. |
+| `docs/products-list-inventory.md` | 3 this report | Current scope, implementation, data flow, tests, troubleshooting and practice guide. |
+| `CAMPUSHUB_CONTEXT.md` | 3 current Products filter note | Preserve the confirmed page target and current one-row direction. |
+
+Ignored verification helper: `scratch/products-filter-row-20261029/check.cjs`. Its HTML/JSON inputs were exported by the existing Django test suite into the same folder, using a disposable local test database. Browser requests are intercepted; it does not submit stock/product changes to localhost or Kamatera.
+
+### 3. Changes made
+
+Removed the Products Clear Filters button and its now-unreachable event listener. Retained shared `.catalog-clear-filters` styling because the separate Inventory ledger still uses it. No replacement button, filter, status option or unrelated component was added.
+
+The Products-only grid is now `minmax(0, 1.75fr) repeat(5, minmax(0, 1fr))`: Search gets more room and the five dropdowns share equal widths. Existing 12px gaps, 16px/20px section padding, 44px input heights, corner styles, navy/white colors, product typography and input behavior remain. At widths up to 1279px the six filters use three columns; up to 767px they use two; up to 575px they stack in one column. The scope selector prevents this change from affecting the Inventory ledger or other pages.
+
+### 4. How it works: functions, inputs / outputs and data flow
+
+No new application function was needed. CSS Grid controls presentation only. Existing `applyInlineFilters()` at `admin_products.js:2706` reads Search, Approval Status, Listing Status, Program, Major and Category, combines their predicates with AND, and shows/hides authorized product rows. Its listing fallback at line 2709 remains `active`. It updates the existing URL parameters at line 2724 and removes the obsolete page parameter so pagination can recalculate filtered rows.
+
+The existing search handler at line 2781 keeps its 300ms debounce. Select change handlers still call the same filter function. URL initialization at line 2784 restores values supplied in the query string. The unchanged `CampusHubAcademic.sync(program, major)` limits majors to the selected program, retaining the original clear/disabled behavior when a major is not valid for that program. Removing the explicit Clear button does not change those rules.
+
+```text
+Django-authorized product/master-option context -> existing Products template
+  -> same six input/select elements -> existing change/debounced search handlers
+  -> applyInlineFilters -> matching rows + existing URL/pagination/empty-state updates
+```
+
+Annotated layout example: the first grid track has weight 1.75 and the remaining five tracks each have weight 1. All tracks may shrink within the available page width because their minimum is zero. Below the existing breakpoints, equal responsive tracks replace that desktop allocation. This reuses the current stylesheet rather than introducing a new component or duplicated filter state.
+
+### 5. Backend / API behavior
+
+No Django view, REST endpoint, permission gate, query parameter, option source, product serializer or API integration changed. Listing Status still defaults to **Active**; All Listing Status and Archived remain existing choices. The dedicated Inventory ledger and its Clear Filters recovery links remain unchanged, as explicitly distinguished during clarification. Product details, stock, pricing, approvals, KPI shortcuts and academic master data retain their existing implementations.
+
+### 6. Database / migration impact
+
+None. No schema/migration, environment change, live record update, seed, new dependency or hosted deployment. Existing test fixtures were created in a new disposable **local** PostgreSQL test database and that database was destroyed afterward. All Chrome requests were fulfilled from local test HTML/JSON/assets, and no application-data writes were submitted.
+
+### 7. Tests performed and troubleshooting
+
+- Existing `modules.marketplace.test_inventory_monitor`: **19 tests passed in 7.881s**, with Django system checks reporting no issues. The isolated export uses the current template and actual test-generated product/API fixtures.
+- **103/103 Chrome checks passed** at 1920, 1440, 1280, 1024, 768, 600, 390 and 320px: all six original controls/labels, no button/replacement, original Active default, expected row counts, matching 44px heights/corners, no page/filter overflow, wider Search/five equal desktop dropdowns, debounced search, approval/listing/program/category combinations, URL restoration, tab-session preservation, no script errors and no data writes.
+- Desktop and 320px actual filter renders were inspected. The desktop shows six aligned controls; the mobile capture shows the same six stacked controls.
+- JavaScript syntax and scoped whitespace checks passed. No new application test suite was added for this reversible presentation cleanup.
+- The first browser attempt mocked the session endpoint with the wrong response and was correctly redirected to logout before the page loaded. Corrected only the test response to match the existing authenticated-session contract, then reran successfully. Authentication code was not edited or bypassed in the application.
+
+If the button or old layout remains, hard-refresh `/admin-products/` and verify `admin_products_refinement.css` and `admin_products.js` both have the `20261029-filter-row` cache key. Below 1280px, wrapping is expected. Native selects may abbreviate long selected text at constrained widths; the full original option text remains in their dropdown menus. A disabled Major control follows the existing selected-program/master-option rules rather than this layout change.
+
+### 8. Remaining limitations and safe practice exercise
+
+Verified with isolated fixtures and desktop Chrome at mobile/tablet viewport sizes; a physical-device or full screen-reader audit was not performed. The hosted Kamatera application source was not deployed. Source edits are visible through the existing localhost development workflow after refreshing.
+
+Safe exercise: open `/admin-products/` without a listing-status parameter and confirm Active is selected. Enter a known product name, wait briefly, then change an existing category/program option and confirm filtering remains combined. Reload and confirm URL-selected values return. Resize the browser below 1280, 768 and 576px to see three, two and one columns. These filter interactions do not submit a stock or product edit; leave product action/save controls untouched. To repeat the fixture-only browser verification, run `node scratch/products-filter-row-20261029/check.cjs` after exporting its isolated test fixtures.
+
+---
+
 Current October25,2026 FIFO follow-up: the existing Inventory page gains Stock Overview/Stock Movements/FIFO Batches views and a manage-permission receiving form; the eye/history/package actions and destinations remain. `fifo.receive` → Product.save/audit → `fifo.sync_change` records actual receipt batches; order/cancellation events expose original batch allocations. Runtime activation and existing-stock cutover remain blocked pending separate approval. [FIFO guide](fifo-inventory.md) contains the complete eight-part implementation/file-line map, inputs/outputs/data flow, backup, actual tests and limits. Safe exercise: use the isolated browser/test fixtures to open batch allocations and check0/25balances; do not create demonstration stock on the working database.
 
 ## Current: Inventory actions and retained pricing/variant improvements — October 24, 2026

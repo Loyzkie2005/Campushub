@@ -8,6 +8,26 @@
 - In every new or updated code-related document in `docs/`, explain the relevant functions, inputs/outputs and how data flows through the code. Include a short annotated example when useful, explain why the approach was chosen, and give a small safe practice exercise with verification steps so the user can learn to make changes independently.
 - For every code fix or change, create or update the relevant guide in `docs/`, including debugging/troubleshooting, exact files and current lines with code anchors, cause, functions and data flow, verification results, and remaining issues. Follow Section 10, distinguish confirmed causes from guesses, and do not claim tests passed unless they were run. Update an existing feature guide when appropriate rather than creating a duplicate document for every small edit.
 
+## Global Implementation Rule
+
+For all tasks, prioritize implementing actual working code instead of generating images.
+
+- Do NOT invoke ImageGen or any AI image-generation tool unless the user explicitly requests image generation.
+- Do NOT create visual mockups, AI-generated screenshots, or design illustrations as substitutes for implementation.
+- When the user requests UI/UX improvements, directly modify the existing application code.
+- Use existing project assets, components, styling, and design conventions.
+- Do not generate replacement images unless explicitly requested.
+- Preserve existing functionality, navigation, permissions, and business logic.
+- Inspect the relevant code before making changes.
+- Implement requested changes directly without unnecessary approval checkpoints.
+- Run appropriate checks and report the changes made.
+
+**Default behavior: Write and implement code, NOT generate images.**
+
+Only use image generation when the user explicitly says: "Generate an image" or "Create an AI image."
+
+This explicit user rule takes precedence over conflicting skill defaults, including automatic image concepting for UI/UX work.
+
 ## 1. Project Identification
 - **Title**: CampusHub: A Campus Marketplace & Facilities Booking System with Real-Time Availability Monitoring and Analytics Dashboard
 - **Institution**: University of Science and Technology of Southern Philippines – Oroquieta Campus (USTP Oroquieta)

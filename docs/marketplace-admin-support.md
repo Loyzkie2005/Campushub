@@ -1,5 +1,45 @@
 # Marketplace Admin: scoped account support and monitoring
 
+## Dart reset-email script: missing mailer imports — October 30, 2026
+
+### 1. Cause / reason
+
+Confirmed: the open file was the archived review copy at `scratch/github-push-review-20261026/checkout/campushub/scripts/send_reset_email.dart`, not the main Flutter app. Its standalone `scripts/pubspec.yaml` already declared `mailer`, but `scripts/.dart_tool/package_config.json` was absent. The parent Flutter package has a separate dependency map and does not declare mailer. Missing imports at lines 16–17 therefore caused the additional undefined `gmail`, `Message`, `Address`, `send` and `MailerException` diagnostics. These were dependency-resolution errors rather than seven independent implementation bugs.
+
+### 2. Exact files changed
+
+- Generated `scratch/github-push-review-20261026/checkout/campushub/scripts/.dart_tool/package_config.json` (`packages` / `mailer` entry) and `package_graph.json` using the existing standalone package manifest at `scripts/pubspec.yaml:10` (`mailer: ^6.1.2`). These are generated local dependency metadata, not files to edit manually.
+- Pub refreshed the scratch `scripts/pubspec.lock` representation; a comparison against the main script lock showed no substantive dependency/version differences. Mailer resolved to the existing locked/cached 6.6.0 version; no upgrade or Flutter-app dependency addition was needed.
+- Updated this existing guide and `CAMPUSHUB_CONTEXT.md`. No Dart source, IDE diagnostic suppression, SMTP credential, production dependency manifest, backend or database was changed.
+
+### 3. Changes made
+
+Ran `dart pub get --offline` inside the scratch copy's **scripts directory**. This restored resolution from the installed local Pub cache. No SMTP script was executed and no email was sent.
+
+### 4. How it works / functions and data flow
+
+Dart resolves `package:mailer/mailer.dart` and `package:mailer/smtp_server.dart` through the nearest standalone package's generated dependency map. Restoring that map makes the imported `gmail`, `Message`, `Address`, `send` and `MailerException` symbols available again without redefining them. For example, the existing `import 'package:mailer/mailer.dart';` supplies the mail types/send function; it is not a project-relative file path.
+
+The script's `main(args)` still accepts recipient/code arguments, reads the existing environment variables, creates an SMTP message and sends it only when explicitly run. Its behavior was not changed. Actual account recovery in the application remains Django-controlled; this standalone rubric script is a separate utility.
+
+### 5. Backend / API behavior
+
+Unchanged. No recovery endpoint, code generation/verification, authentication or mailbox delivery flow was called or modified.
+
+### 6. Database / migration impact
+
+None. No database connection or schema/data write was needed.
+
+### 7. Tests performed
+
+`dart analyze send_reset_email.dart` returned **No issues found** in both the scratch `checkout/campushub/scripts` directory and the main `campushub/scripts` directory. Dependency restoration completed successfully offline. No execution/SMTP delivery test was performed because the requested problem was analyzer diagnostics.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+If VS Code retains stale Problems entries, run **Dart: Restart Analysis Server**. Prefer opening `campushub/scripts/send_reset_email.dart` for current work; the reported `scratch/.../checkout/...` file is a historical review copy. Standalone `scripts/` and the Flutter parent are separate Dart packages, so fetching dependencies only in the parent does not restore this nested package.
+
+Safe practice: from either relevant `scripts/` directory, run `dart pub get --offline`, then `dart analyze send_reset_email.dart`; verify No issues found without running `dart run send_reset_email.dart`. Offline fetching requires those declared packages to exist in the local cache; this machine already had them. This verification does not prove SMTP credentials or recipient delivery.
+
 ## Current implementation: information-only recovery assistance (October 10, 2026)
 
 This section supersedes the earlier admin code-sending instructions below. SMTP fixes still apply to **owner self-service email delivery**. Earlier line numbers and code-sending screenshots describe historical versions, not the current modal.

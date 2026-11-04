@@ -104,7 +104,7 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
                 payload = self.api(params)
                 sales = payload["marketplace"]
                 values = {metric["key"]: metric["value"] for metric in sales["sales_overview"]["metrics"]}
-                self.assertEqual(values, {"sales": "3,900.00", "orders": "18", "average": "216.67"} if state == "populated" else {"sales": "0.00", "orders": "0", "average": "0.00"})
+                self.assertEqual(values, {"sales": "3,900.00", "orders": "18", "average": "216.67"} if state == "populated" else {"sales": "0.00", "orders": "0", "average": "N/A"})
                 self.assertEqual(sum(sales["sales_trend"]["sales"]), 3900 if state == "populated" else 0)
                 self.assertEqual(sum(sales["sales_trend"]["orders"]), 18 if state == "populated" else 0)
                 self.assertEqual(sales["sales_trend"]["grouping"], grouping)
@@ -134,7 +134,7 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
                     (path / f"{state}-{grouping}.source.html").write_bytes(page.content)
                     (path / f"{state}-{grouping}.json").write_text(json.dumps(payload), encoding="utf-8")
 
-    def test_recent_orders_are_newest_snapshot_with_separate_payment_status(self):
+    def test_recent_orders_are_bounded_to_selected_submission_period_with_separate_payment_status(self):
         MarketplaceOrder.objects.all().delete()
         orders = []
         for index in range(8):
@@ -144,7 +144,7 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
                                buyer_name=f"Customer {index}")
             MarketplaceOrder.objects.filter(pk=order.pk).update(created_at=timezone.make_aware(datetime.combine(self.today - timedelta(days=8 - index), time(12))))
             orders.append(order)
-        data = self.api({"period": "today"})
+        data = self.api({"period": "last_30_days"})
         recent = data["operations"]["recent_orders"]
         self.assertEqual(len(recent), 5)
         self.assertEqual([row["id"] for row in recent], [order.pk for order in reversed(orders[3:])])
@@ -161,11 +161,12 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
         self.assertEqual(linked.status_code, 200)
         self.assertContains(linked, f'data-order-id="{orders[-1].pk}"')
         self.assertEqual(recent, self.api({"period": "this_year", "booking_grouping": "monthly"})["operations"]["recent_orders"])
+        self.assertEqual(self.api({'period': 'today'})['operations']['recent_orders'], [])
         directory = os.environ.get("RECENT_ORDERS_REVIEW_DIR")
         if directory:
             target = Path(directory); target.mkdir(parents=True, exist_ok=True)
             with patch("django.utils.timezone.localdate", return_value=self.today):
-                page = self.client.get(reverse("admin_dashboard_page"), {"period": "today"})
+                page = self.client.get(reverse("admin_dashboard_page"), {"period": "last_30_days"})
             (target / "populated.html").write_bytes(page.content)
             (target / "populated.json").write_text(json.dumps(data), encoding="utf-8")
         MarketplaceOrder.objects.all().delete()
@@ -208,6 +209,26 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
         self.assertEqual(rows[bundle.pk]["seller_name"], "Bundle seller")
         self.assertEqual(rows[zero.pk]["item_count"], 0)
 
+    def test_recent_orders_use_manila_submission_boundaries_and_preserve_records(self):
+        from datetime import timezone as datetime_timezone
+        cases = [('2026-10-03T15:59:59+00:00', False), ('2026-10-03T16:00:00+00:00', True),
+                 ('2026-10-04T15:59:59+00:00', True), ('2026-10-04T16:00:00+00:00', False)]
+        included = []
+        for stamp, expected in cases:
+            order = self.order(status='pending', payment_status='unpaid')
+            MarketplaceOrder.objects.filter(pk=order.pk).update(created_at=datetime.fromisoformat(stamp))
+            if expected:
+                included.insert(0, order.pk)
+        stock = self.prod_approved.stock
+        with timezone.override(datetime_timezone.utc):
+            data = self.api({'period': 'today'})
+        self.assertEqual([row['id'] for row in data['operations']['recent_orders']], included)
+        self.assertEqual(data['marketplace']['completed_orders'], 0)
+        self.assertEqual(data['kpis']['total_orders']['value'], 2)
+        self.assertEqual(MarketplaceOrder.objects.count(), 4)
+        self.prod_approved.refresh_from_db()
+        self.assertEqual(self.prod_approved.stock, stock)
+
     def test_analytics_operations_layout_and_removed_chart_tables(self):
         with patch("django.utils.timezone.localdate", return_value=self.today):
             page = self.client.get(reverse("admin_dashboard_page"))
@@ -217,8 +238,8 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
         marketplace_html = page.content.decode().split('aria-labelledby="marketplaceOverviewTitle">', 1)[1].split('class="marketplace-operations-row"', 1)[0]
         self.assertEqual(marketplace_html.count('<canvas '), 2)
         self.assertContains(page, 'id="topSellingProductsChart"', count=1)
-        self.assertContains(page, '<th scope="col">Order Status</th>')
-        self.assertContains(page, '<th scope="col">Order ID</th>')
+        self.assertRegex(page.content.decode(), r'<th\b(?=[^>]*\bscope="col")[^>]*>Order Status</th>')
+        self.assertRegex(page.content.decode(), r'<th\b(?=[^>]*\bscope="col")[^>]*>Order ID</th>')
         self.assertNotIn('View chart data', marketplace_html)
         self.assertNotContains(page, 'id="categorySalesCard"')
         html = page.content.decode()

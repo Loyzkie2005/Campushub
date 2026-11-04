@@ -21,27 +21,82 @@
 .products-management [aria-invalid="true"] { border-color: #1A1851; outline: 1px solid #1A1851; }
 .products-management .product-form-error { margin: 0 0 16px; padding: 12px; background: #F7F8FC; border: 1px solid #E8EAF0; border-radius: 8px; color: #17172A; font-size: 13px; }
 .products-management .customization-option-row { align-items: start; }
-/* Existing catalog controls wrap in balanced rows inside the page content. */
-.products-management .product-catalog-filters { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 16px 20px; }
-.products-management .product-catalog-filters > label:first-child { grid-column: span 2; }
+/* Six existing filters: stack on phones; two deliberate rows on desktop. */
+.products-management .product-catalog-filters { grid-template-columns: minmax(0, 1fr); gap: 14px 16px; padding: 16px 20px; }
+.products-management .product-catalog-filters > label:first-child { grid-column: auto; }
 .products-management .product-catalog-filters > * { min-width: 0; }
+.products-management .product-filter-field { position: relative; min-width: 0; }
+.products-management .product-filter-field.has-filter-value select { padding-right: 72px; }
+.products-management .product-filter-field.has-filter-value input { padding-right: 44px; }
+.products-management .product-filter-clear { position: absolute; right: 34px; bottom: 8px; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #1A1851; cursor: pointer; }
+.products-management .product-filter-field:has(input) .product-filter-clear { right: 8px; }
+.products-management .product-filter-clear[hidden] { display: none; }
+.products-management .product-filter-clear:hover { background: #F7F8FC; }
+.products-management .product-filter-clear:focus-visible { outline: 2px solid #1A1851; outline-offset: 1px; }
+.products-management .product-filter-field input[type="search"]::-webkit-search-cancel-button { display: none; }
 .products-management #productsTableWrap { min-width: 0; max-width: 100%; overflow-x: auto; }
 .products-management #productsTableWrap:focus-visible { outline: 2px solid #1A1851; outline-offset: -2px; }
-.products-management .products-table-container { min-width: 1300px; }
-.products-management #productsTable { min-width: 1300px; }
-.products-management #productsTable col.table-col-index { width: 44px; }
-.products-management #productsTable col.table-col-name { width: 240px; }
-.products-management #productsTable col.table-col-seller { width: 170px; }
-.products-management #productsTable col.table-col-category { width: 120px; }
-.products-management #productsTable col.table-col-price { width: 104px; }
-.products-management #productsTable col.table-col-inventory { width: 160px; }
-.products-management #productsTable col.table-col-status { width: 136px; }
-.products-management #productsTable col.table-col-date { width: 150px; }
-.products-management #productsTable :is(th, td) { height: auto; padding: 10px 12px !important; }
-.products-management #productsTable th { white-space: normal; letter-spacing: 0; }
-.products-management #productsTable .col-price { text-align: right !important; white-space: nowrap; }
-.products-management #productsTable .seller-meta-cell { gap: 4px; }
-.products-management #productsTable .inventory-threshold { display: block; margin-top: 3px; }
+.products-management .products-table-container { width: 100%; min-width: 1224px; }
+.products-management #productsTable { width: 100%; min-width: 1224px; border-collapse: separate; border-spacing: 0; }
+.products-management #productsTable col.table-col-index { width: 42px !important; }
+.products-management #productsTable col.table-col-name { width: 216px !important; }
+.products-management #productsTable col.table-col-seller { width: 156px !important; }
+.products-management #productsTable col.table-col-category { width: 110px !important; }
+.products-management #productsTable col.table-col-price { width: 96px !important; }
+.products-management #productsTable col.table-col-inventory { width: 152px !important; }
+.products-management #productsTable col.table-col-status { width: 156px !important; }
+.products-management #productsTable col.table-col-date { width: 116px !important; }
+.products-management #productsTable col.table-col-action,
+.products-management #productsTable :is(th.col-action, td.col-action) { width: 176px !important; min-width: 176px !important; max-width: 176px !important; text-align: right !important; }
+.products-management #productsTable thead th { height: auto; padding: 11px 8px !important; background: #F7F8FC; color: #1A1851; font-size: 0.71rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid #E8EAF0; vertical-align: middle; }
+.products-management #productsTable tbody td { height: auto; padding: 12px 8px !important; vertical-align: middle; overflow: hidden; border-bottom: 1px solid #E8EAF0; background: #FFFFFF; transition: background-color 0.14s ease; }
+.products-management #productsTable tbody tr:hover td { background: #FAFBFD; }
+.products-management #productsTable tbody tr[data-is-archived="1"] td { background: #FCFDFE; }
+.products-management #productsTable tbody tr[data-is-archived="1"]:hover td { background: #F7F8FC; }
+.products-management #productsTable :is(th:first-child, td.col-num) { text-align: center !important; color: #667085; font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.products-management #productsTable :is(th.col-product-name, td.col-product-name, th.col-seller, td.col-seller, th.col-category, td.col-category, th.col-inventory, td.col-inventory, th.col-status, td.col-status, th.col-date, td.col-date) { text-align: left !important; }
+.products-management #productsTable .product-name-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.products-management #productsTable .product-table-image { flex: 0 0 40px !important; width: 40px !important; height: 40px !important; min-width: 40px !important; max-width: 40px !important; max-height: 40px !important; padding: 0 !important; box-sizing: border-box; border-radius: 8px !important; border: 1px solid #E8EAF0 !important; background: #F7F8FC; object-fit: cover; flex-shrink: 0; }
+.products-management #productsTable .product-table-image-empty { display: inline-flex !important; align-items: center; justify-content: center; font-size: 0.82rem; font-weight: 700; color: #1A1851; background: #F7F8FC; line-height: 1; text-transform: uppercase; }
+.products-management #productsTable .product-table-image-empty[hidden] { display: none !important; }
+.products-management #productsTable .product-name-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.products-management #productsTable .product-name-meta strong { display: block; font-size: 0.84rem; font-weight: 600; color: #1A1851; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.products-management #productsTable .product-id-label { display: block !important; font-size: 0.71rem; font-weight: 500; color: #667085; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.products-management #productsTable td.col-seller strong { display: block; font-size: 0.82rem; font-weight: 600; color: #1A1851; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.products-management #productsTable td.col-seller span { display: block; margin-top: 2px; font-size: 0.74rem; font-weight: 500; color: #667085; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.products-management #productsTable td.col-category { color: #17172A; font-size: 0.81rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.products-management #productsTable :is(th.col-price, td.col-price) { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.products-management #productsTable td.col-price { font-size: 0.84rem; font-weight: 700; color: #1A1851; }
+.products-management #productsTable .inventory-summary-clean { display: flex; flex-direction: column; align-items: flex-start !important; justify-content: center; text-align: left !important; margin: 0 !important; gap: 2px; }
+.products-management #productsTable .inventory-number { font-size: 0.83rem; font-weight: 700; color: #1A1851; line-height: 1.3; font-variant-numeric: tabular-nums; text-align: left !important; }
+.products-management #productsTable .inventory-threshold { display: block; margin-top: 1px; font-size: 0.72rem; font-weight: 500; color: #667085; line-height: 1.25; text-align: left !important; }
+.products-management #productsTable .inventory-secondary { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-start !important; gap: 3px 6px; margin-top: 2px; font-size: 0.72rem; line-height: 1.25; }
+.products-management #productsTable .inventory-variant-sub { color: #667085; font-weight: 500; }
+.products-management #productsTable .inventory-warning { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; font-weight: 600; color: #1A1851 !important; }
+.products-management #productsTable .inventory-warning-dot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; background: #FCB316; }
+.products-management #productsTable .inventory-warning.out-of-stock .inventory-warning-dot { background: #1A1851; }
+.products-management #productsTable .status-cell-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.products-management #productsTable .status-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 22px; padding: 2px 10px; margin: 0 !important; border-radius: 999px; font-size: 0.72rem; font-weight: 600; line-height: 1.2; white-space: nowrap; }
+.products-management #productsTable .status-pill.status-approved { background: #F7F8FC !important; color: #1A1851 !important; border: 1px solid #E8EAF0 !important; }
+.products-management #productsTable .listing-status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 500; line-height: 1.3; padding: 0 !important; margin: 1px 0 0 1px !important; border: none !important; background: transparent !important; border-radius: 0 !important; box-shadow: none !important; white-space: nowrap; }
+.products-management #productsTable .listing-status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+.products-management #productsTable .listing-status-pill.listing-status-active { color: #475467; background: transparent !important; }
+.products-management #productsTable .listing-status-pill.listing-status-active::before { background: #FCB316; }
+.products-management #productsTable .listing-status-pill.listing-status-archived { color: #667085; background: transparent !important; }
+.products-management #productsTable .listing-status-pill.listing-status-archived::before { background: #98A2B3; }
+.products-management #productsTable td.col-date strong { display: block; font-size: 0.8rem; font-weight: 600; color: #1A1851; line-height: 1.3; white-space: nowrap; }
+.products-management #productsTable td.col-date span { display: block; margin-top: 2px; font-size: 0.72rem; font-weight: 500; color: #667085; line-height: 1.25; white-space: nowrap; }
+.products-management #productsTable .action-row { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; flex-wrap: nowrap; width: 100%; }
+.products-management #productsTable .btn-user-action { width: 29px; height: 29px; min-width: 29px; border-radius: 7px; border: 1px solid #D7DCE8; background: #FFFFFF; color: #1A1851; display: inline-flex; align-items: center; justify-content: center; padding: 0; transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease; }
+.products-management #productsTable .btn-user-action:hover { border-color: #FCB316; background: #FFFDF7; color: #1A1851; }
+.products-management #productsTable .btn-user-action:focus-visible { outline: 2px solid #1A1851; outline-offset: 2px; }
+.products-management .products-table-footer { padding: 14px 20px; border-top: 1px solid #E8EAF0; background: #FFFFFF; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.products-management .products-showing-text { font-family: var(--ch-font-ui, Inter, sans-serif); font-size: 0.8rem; font-weight: 500; color: #667085; }
+.products-management .products-pagination { display: inline-flex; align-items: center; gap: 6px; }
+.products-management .products-pagination .page-btn { min-width: 32px; height: 32px; padding: 0 8px; border-radius: 7px; border: 1px solid #E8EAF0; background: #FFFFFF; color: #1A1851; font-family: var(--ch-font-ui, Inter, sans-serif); font-size: 0.78rem; font-weight: 600; transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease; }
+.products-management .products-pagination .page-btn.is-active { background: #1A1851; border-color: #1A1851; color: #FFFFFF; }
+.products-management .products-pagination .page-btn:hover:not(:disabled):not(.is-active) { border-color: #FCB316; background: #FFFDF7; color: #1A1851; }
+.products-management .products-pagination .page-btn:focus-visible { outline: 2px solid #1A1851; outline-offset: 2px; }
 /* Keep the form's existing sections and workflows; let their content set height. */
 .products-management .create-product-body { padding-inline: 20px; }
 .products-management .create-product-row { align-items: start; column-gap: 20px; }
@@ -82,7 +137,7 @@
 .products-management .customization-option-image-field .customization-option-image { margin: 0; }
 .products-management :is(.customization-add-group-top, .customization-add-option-btn, .customization-option-remove, .customization-group-remove):focus-visible { outline: 2px solid #1A1851; outline-offset: 2px; }
 @media (max-width: 1279px) {
-    .products-management .product-catalog-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .products-management .product-catalog-filters { gap: 12px; }
 }
 @media (max-width: 1199px) {
     .products-management .customization-option-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -92,7 +147,6 @@
     .products-management .customization-group-head { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 767px) {
-    .products-management .product-catalog-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .products-management .create-product-pricing-grid { grid-template-columns: minmax(0, 1fr); }
     .products-management .create-product-pricing-grid .form-label { min-height: 0; }
     .products-management .create-product-section-images { border-right: 0; padding-right: 0; }
@@ -106,4 +160,60 @@
 }
 @media (max-width: 399px) {
     .products-management .product-image-slots { grid-template-columns: repeat(2, minmax(0, 84px)); }
+}
+
+/* Products catalog polish, using the existing CampusHub neutral/navy/gold system. */
+.products-management .product-kpi-scope { margin: 0 0 12px; color: #667085; font-size: 13px; line-height: 1.5; }
+.products-management #productStatsGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 20px; }
+.products-management #productStatsGrid .product-stat-card { min-width: 0; min-height: 96px; height: 100%; padding: 16px; border: 1px solid #E8EAF0; border-radius: 8px; box-shadow: none; background: #FFFFFF; color: #1A1851; text-align: left; gap: 12px; transform: none; }
+.products-management #productStatsGrid .product-stat-card strong { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.products-management #productStatsGrid .product-stat-label { color: #667085; font-size: 13px; font-weight: 500; white-space: normal; text-transform: none; letter-spacing: 0; }
+.products-management #productStatsGrid .product-stat-icon { width: 38px; height: 38px; border-radius: 8px; background: #F7F8FC; color: #1A1851; box-shadow: none; flex-shrink: 0; }
+.products-management #productStatsGrid :is(#pendingStatCard,#lowStockStatCard) .product-stat-icon { background: #FFF7E5; color: #1A1851; }
+.products-management #productStatsGrid .product-stat-card:is(:hover,.is-active) { border-color: #1A1851; background: #F7F8FC; transform: none; }
+.products-management #productStatsGrid .product-stat-card:focus-visible { outline: 2px solid #1A1851; outline-offset: 3px; }
+.products-management .product-catalog-filters label { display: grid; gap: 6px; width: 100%; margin: 0; color: #1A1851; font-size: 13px; }
+.products-management .product-catalog-filters :is(input,select) { height: 44px; min-height: 44px; width: 100%; border: 1px solid #E8EAF0; border-radius: 8px; color: #17172A; box-shadow: none; }
+.products-management .product-catalog-filters :is(input,select):focus { border-color: #1A1851; outline: 2px solid #1A1851; outline-offset: 1px; box-shadow: none; }
+.products-management #productsCatalogState { margin: 0; padding: 12px 20px; background: #F7F8FC; color: #1A1851; font-size: 13px; }
+.products-management #productsCatalogState[hidden], .products-management #productsCatalogRetry[hidden] { display: none; }
+.products-management #productsCatalogRetry { min-height: 44px; margin-left: 8px; padding: 8px 12px; border: 1px solid #E8EAF0; border-radius: 8px; background: #FFFFFF; color: #1A1851; }
+.products-management #productsListSection[aria-busy="true"] #productsTableWrap { opacity: .55; }
+.products-management #productsTableWrap { overscroll-behavior-x: contain; }
+.products-management .products-table-container, .products-management #productsTable { min-width: 1080px; }
+.products-management #productsTable col.table-col-index { width: 3% !important; }
+.products-management #productsTable col.table-col-name { width: 18% !important; }
+.products-management #productsTable col.table-col-seller { width: 12% !important; }
+.products-management #productsTable col.table-col-category { width: 7% !important; }
+.products-management #productsTable col.table-col-price { width: 8% !important; }
+.products-management #productsTable col.table-col-inventory { width: 12% !important; }
+.products-management #productsTable col.table-col-status { width: 10% !important; }
+.products-management #productsTable col.table-col-date { width: 10% !important; }
+.products-management #productsTable :is(col.table-col-action,th.col-action,td.col-action) { width: 20% !important; min-width: 0 !important; max-width: none !important; }
+.products-management #productsTable .action-row { flex-wrap: wrap; }
+.products-management #productsTable thead th { text-transform: none; letter-spacing: 0; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
+.products-management #productsTable td.col-category { white-space: normal; overflow-wrap: anywhere; }
+.products-management #productsTable :is(th.col-price,td.col-price) { white-space: normal; overflow-wrap: anywhere; }
+.products-management #productsTable td.col-price { line-height: 1.5; }
+.products-management #productsTable .btn-user-action { width: 36px !important; height: 36px !important; min-width: 36px !important; min-height: 36px !important; border-color: #E8EAF0 !important; background: #FFFFFF !important; color: #1A1851 !important; box-shadow: none !important; }
+.products-management #productsTable .btn-user-action:hover { border-color: #1A1851 !important; background: #F7F8FC !important; }
+.products-management #productsTable .status-pill.status-pending { background: #FFF7E5; color: #1A1851; border: 1px solid #FCB316; }
+.products-management #productsTable .status-pill.status-rejected { background: #FFFFFF; color: #1A1851; border: 1px solid #1A1851; }
+@media (min-width: 576px) {
+    .products-management #productStatsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .products-management .product-catalog-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .products-management .product-catalog-filters > :first-child { grid-column: 1 / -1; }
+}
+@media (min-width: 1100px) {
+    .products-management #productStatsGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .products-management .product-catalog-filters { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+    .products-management .product-catalog-filters > :nth-child(1) { grid-column: span 6; }
+    .products-management .product-catalog-filters > :is(:nth-child(2),:nth-child(3)) { grid-column: span 3; }
+    .products-management .product-catalog-filters > :nth-child(n+4) { grid-column: span 4; }
+}
+@media (pointer: coarse) {
+    .products-management #productsTable .btn-user-action { width: 44px !important; height: 44px !important; min-width: 44px !important; min-height: 44px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .products-management :is(.product-stat-card,.btn-user-action) { transition: none; }
 }

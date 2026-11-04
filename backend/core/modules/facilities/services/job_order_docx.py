@@ -10,6 +10,11 @@ import subprocess
 from tempfile import TemporaryDirectory
 from threading import Lock
 from zipfile import ZipFile
+from zipfile import ZipInfo, ZIP_DEFLATED
+import base64
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from PIL import Image
 
 from django.conf import settings
 from django.core.cache import cache
@@ -19,12 +24,70 @@ from lxml import etree as ET
 from .booking_slip_pdf import BookingSlipPDFError
 
 TEMPLATE = Path(__file__).resolve().parent.parent / 'document_templates' / 'job_order_request.docx'
+PDF_CACHE_VERSION = 'job-order-docx-v2-signatures-'
 _conversion_lock = Lock()
 NS = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
       'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
       'wp': 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
       'mc': 'http://schemas.openxmlformats.org/markup-compatibility/2006',
       'v': 'urn:schemas-microsoft-com:vml'}
+NS.update(r='http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+          pic='http://schemas.openxmlformats.org/drawingml/2006/picture')
+
+
+def embed_signatures(root, source, signatures):
+    """Fill only the original four blank sign-off cells; ZIP additions are deterministic."""
+    if not signatures:
+        return {}
+    row = root.findall('w:body/w:tbl', NS)[1].findall('w:tr', NS)[1]
+    for height in row.findall('w:trPr/w:trHeight', NS):
+        height.set(tag('w:hRule'), 'atLeast')
+    relationships = ET.fromstring(source.read('word/_rels/document.xml.rels'))
+    relation_ns = 'http://schemas.openxmlformats.org/package/2006/relationships'
+    additions = {}
+    drawing_id = max([int(n.get('id')) for n in root.findall('.//wp:docPr', NS)] or [0]) + 1
+    for index, key in enumerate(('filled_out_by', 'assisted_by', 'verified_by', 'approved_by')):
+        record = signatures.get(key)
+        if not record:
+            continue
+        content = base64.b64decode(record['attachment']['data'], validate=True)
+        with Image.open(BytesIO(content)) as image:
+            # Fit both dimensions without stretching a narrow/mobile signature.
+            scale = min(1120000 / image.width, 400000 / image.height)
+            cx, cy = round(image.width * scale), round(image.height * scale)
+        filename = f'job-order-signature-{key}.png'
+        relation = 'rIdJobOrderSignature' + str(index)
+        while relationships.xpath('//*[@Id=$value]', value=relation):
+            relation += 'x'
+        ET.SubElement(relationships, '{' + relation_ns + '}Relationship',
+            Id=relation, Type=NS['r'] + '/image', Target='media/' + filename)
+        paragraph = row.findall('w:tc', NS)[index].find('w:p', NS)
+        for child in list(paragraph):
+            if child.tag != tag('w:pPr'):
+                paragraph.remove(child)
+        drawing = ET.SubElement(ET.SubElement(paragraph, tag('w:r')), tag('w:drawing'))
+        inline = ET.SubElement(drawing, tag('wp:inline'), distT='0', distB='0', distL='0', distR='0')
+        ET.SubElement(inline, tag('wp:extent'), cx=str(cx), cy=str(cy))
+        ET.SubElement(inline, tag('wp:docPr'), id=str(drawing_id + index), name='Job Order signature ' + key)
+        graphic = ET.SubElement(inline, tag('a:graphic'))
+        graphic_data = ET.SubElement(graphic, tag('a:graphicData'), uri=NS['pic'])
+        picture = ET.SubElement(graphic_data, tag('pic:pic'))
+        nonvisual = ET.SubElement(picture, tag('pic:nvPicPr'))
+        ET.SubElement(nonvisual, tag('pic:cNvPr'), id='0', name=filename)
+        ET.SubElement(nonvisual, tag('pic:cNvPicPr'))
+        fill = ET.SubElement(picture, tag('pic:blipFill'))
+        ET.SubElement(fill, tag('a:blip'), {tag('r:embed'): relation})
+        ET.SubElement(ET.SubElement(fill, tag('a:stretch')), tag('a:fillRect'))
+        properties = ET.SubElement(picture, tag('pic:spPr'))
+        transform = ET.SubElement(properties, tag('a:xfrm'))
+        ET.SubElement(transform, tag('a:off'), x='0', y='0')
+        ET.SubElement(transform, tag('a:ext'), cx=str(cx), cy=str(cy))
+        ET.SubElement(ET.SubElement(properties, tag('a:prstGeom'), prst='rect'), tag('a:avLst'))
+        stamp = datetime.fromisoformat(record['at']).astimezone(ZoneInfo('Asia/Manila')).strftime('%b %d, %Y %I:%M %p')
+        fill_paragraph(paragraph, record['name'] + '\n' + stamp, append=True)
+        additions['word/media/' + filename] = content
+    additions['word/_rels/document.xml.rels'] = ET.tostring(relationships, xml_declaration=True, encoding='UTF-8', standalone=True)
+    return additions
 
 
 def tag(name):
@@ -91,7 +154,7 @@ def check_drawing(root, identifier):
 def job_order_docx(data):
     """Saved presentation values -> DOCX bytes, preserving every other ZIP part."""
     try:
-        with ZipFile(TEMPLATE) as source:
+        with ZipFile(BytesIO(data['_template_bytes']) if data.get('_template_bytes') else TEMPLATE) as source:
             root = ET.fromstring(source.read('word/document.xml'), ET.XMLParser(resolve_entities=False, no_network=True))
             tables = root.findall('w:body/w:tbl', NS)
             rows = tables[0].findall('w:tr', NS)
@@ -169,12 +232,17 @@ def job_order_docx(data):
             for size in root.findall('.//w:sectPr/w:pgSz', NS):
                 size.set(tag('w:w'), '11906')
                 size.set(tag('w:h'), '16838')
+            additions = embed_signatures(root, source, data.get('signatures'))
             output = BytesIO()
             with ZipFile(output, 'w') as result:
                 for part in source.infolist():
                     content = ET.tostring(root, xml_declaration=True, encoding='UTF-8', standalone=True) \
-                        if part.filename == 'word/document.xml' else source.read(part.filename)
+                        if part.filename == 'word/document.xml' else additions.pop(part.filename, None) or source.read(part.filename)
                     result.writestr(part, content)
+                for name, content in additions.items():
+                    info = ZipInfo(name, date_time=source.getinfo('word/document.xml').date_time)
+                    info.compress_type = ZIP_DEFLATED
+                    result.writestr(info, content)
             return output.getvalue()
     except (OSError, ValueError, KeyError, IndexError, ET.XMLSyntaxError) as error:
         raise BookingSlipPDFError('Unable to prepare Job Order. Check the Word template on the server.') from error
@@ -228,7 +296,7 @@ def job_order_pdf(data):
     """Fill DOCX -> private local conversion -> PDF. No HTML rendering or uploads."""
     executable = office_binary()
     document = job_order_docx(data)
-    key = 'job-order-docx-v1-' + sha256(document).hexdigest()
+    key = PDF_CACHE_VERSION + sha256(document).hexdigest()
     cached = prepared_pdf(key)
     if cached:
         return cached

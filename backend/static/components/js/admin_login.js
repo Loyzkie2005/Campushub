@@ -121,8 +121,9 @@
 
         sessionStorage.removeItem("sidebar_collapsed");
         const nextUrl = data.redirect_url || redirectUrl;
-        window.location.href =
-          window.CampusHubAdminSession?.urlWithToken?.(nextUrl) || nextUrl;
+        window.location.replace(
+          window.CampusHubAdminSession?.urlWithToken?.(nextUrl) || nextUrl,
+        );
       } catch (error) {
         showError(
           `Cannot connect to login server at ${resolvedLoginUrl}. Start Django and open the login page from the Django URL.`,
@@ -132,9 +133,23 @@
       }
     }
 
+    function resetLoginFormState() {
+      window.CampusHubAdminSession?.revokeAndRedirectToLogin?.(false);
+      setLoading(false);
+      hideError();
+      passwordInput.value = "";
+      if (localStorage.getItem(REMEMBER_KEY) === "true") {
+        restoreUsername();
+      } else {
+        usernameInput.value = "";
+        if (rememberInput) rememberInput.checked = false;
+      }
+    }
+
     passwordButton?.addEventListener("click", togglePassword);
     form.addEventListener("submit", submitLogin);
-    restoreUsername();
+    window.addEventListener("pageshow", resetLoginFormState);
+    resetLoginFormState();
   }
 
   const THEME_KEY = "campushub_admin_theme";

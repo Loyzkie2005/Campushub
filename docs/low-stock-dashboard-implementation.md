@@ -1,5 +1,55 @@
 # Low Stock Products dashboard card
 
+## Current: Inventory Alerts spacing and five-row fit — October 31, 2026
+
+### 1. Cause / reason
+
+The user requested more spacing or a container adjustment that can show five alerts. Inspection confirmed that `build_low_stock_card()` already asks the shared inventory service for at most five actual entries. The presentation used 12px vertical cell padding and 16px between Recent Orders and Inventory Alerts.
+
+| Before | After | Why |
+| --- | --- | --- |
+| 16px between the two cards | 20px above Inventory Alerts | Give the card a clearer boundary. |
+| 12px vertical cell padding | 16px padding, 12px product-content gap and 40px minimum product area | Make each alert easier to scan. |
+| Existing five-item data limit | Same limit, natural card height and wrapping names | Keep every returned alert visible without artificial empty rows. |
+
+### 2. Exact files changed
+
+- `backend/static/components/css/admin_dashboard_operations.css:301`, `Super Admin Inventory Alerts`: scoped spacing rules. Line 302 gives this card 20px separation; lines 303–304 retain content-driven card/table height; lines 305–307 set row/content padding and wrapping product names.
+- `backend/templates/dashboard/pages/admin_dashboard.html:27`: stylesheet version becomes `20261031-inventory-alert-spacing`.
+- `docs/low-stock-dashboard-implementation.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:25`: record the requested behavior, functions/data flow, measured checks and practice steps. Use the named anchors if later edits move lines.
+
+### 3. Changes made
+
+Inventory Alerts keeps its title, subtitle, View All link and all three columns: Product, Available and Status. It has 20px separation from Recent Orders, roomier rows and natural height for up to five returned alerts. Long product names can wrap rather than being truncated. Empty results keep the existing compact message. The card is not padded with invented alerts when fewer than five qualify.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The unchanged shared inventory classifier feeds `build_low_stock_card()`, which serializes up to five actual product/variant entries into the existing dashboard context/API. Initial Django markup and `renderLowStock(snapshot)` use the same row/product classes. The CSS therefore applies to initial and refreshed rows without changing quantities, statuses, priority order, expiry/variant handling or destinations.
+
+The card/table use automatic height with no height cap, so five data rows can grow the container. The row's 16px top/bottom padding surrounds a product area of at least 40px; longer product/variant text can increase that height naturally. Existing narrow-screen horizontal table access remains; all preview rows stay vertically visible.
+
+Safe practice: compare the visible entries with `low_stock.products` in the dashboard API, then Refresh. If five qualify, verify the fifth row is visible and opens its actual inventory destination. Resize to phone width and scroll horizontally inside the existing table region to reach Status. Use View All for the complete authorized inventory list. In DevTools, temporarily change cell padding from 16px to 18px, inspect the row spacing, then reload to restore it. No stock or product edits are needed.
+
+### 5. Backend / API behavior
+
+Unchanged. The existing `limit=5`, actual inventory values, out-of-stock/low-stock ordering, role gates, selected-period behavior, Refresh, error/Retry and links remain. This is a scoped CSS/cache-version update.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, live writes, environment, credentials, deployment or user-controlled application restart changed. Tests used disposable localhost PostgreSQL records and read-only intercepted browser requests.
+
+### 7. Tests performed
+
+- **18/18 existing low-stock dashboard tests passed in 5.736 seconds**, including classifier/variant/expiry/ordering/limit, current values, actual markup, error handling and Super Admin permissions. System checks reported no issues.
+- **445/445 Chromium checks passed across 11 renders/nine widths (280–1920px)** using actual Django fixture HTML/API responses. Verified five real rows, exact values/statuses/URLs, all columns, 20px external spacing, 16px cell padding, 12px product gap, minimum row space, full vertical visibility, empty state, responsive access, Refresh/error/retry and no browser writes or page errors. Populated desktop and empty phone screenshots were inspected.
+- Evidence: `scratch/inventory-alert-spacing-20261031/django.log`, `browser.log`, `browser-result.json` and PNG captures. Scoped file/whitespace/reference checks are in `file-checks.log` and `whitespace.log`.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh Dashboard to load `20261031-inventory-alert-spacing`. If fewer than five entries appear, compare them with the actual qualifying API list; this remains a maximum-five preview. View All opens the full inventory destination. On narrow cards, the existing horizontal table scroll remains available while the rows stay vertically visible. Verification used Chromium/source-rendered test data, not production records, other browsers or physical devices.
+
+## Historical first implementation
+
 Implemented on 2026-10-05 for the Super Admin dashboard.
 
 The previous card displayed product-level totals, up to six unsorted rows, a blank Category column, and an unfiltered Products link. It did not refresh with the dashboard API. The replacement shows up to five actual inventory entries with Product, Available, and Threshold columns, plus real navigation and explicit loading/error states.

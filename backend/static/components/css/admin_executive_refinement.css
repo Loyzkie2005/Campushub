@@ -1,186 +1,1566 @@
-/* Super Admin only: a quiet institutional surface, with the data leading. */
-[data-global-dashboard] .dashboard-executive {
+/* Super Admin dashboard only. Other roles and management screens retain their UI. */
+@font-face {
+    font-family: Montserrat;
+    src: url('../../assets/fonts/Montserrat-VariableFont_wght.ttf') format('truetype');
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+.super-admin-dashboard {
+    --ch-font-ui: Montserrat, sans-serif;
     --executive-ink: #17172A;
     --executive-secondary: #667085;
     --executive-border: #E8EAF0;
     --executive-navy: #1A1851;
     --executive-gold: #FCB316;
-    --executive-card-padding: 16px;
-    --executive-table-padding: 8px;
+    --executive-surface: #FFFFFF;
+    --executive-subtle: #F7F8FC;
+    --executive-gap: 16px;
+    --executive-radius: 10px;
+    --executive-trend-up: #15803D;
+    --executive-trend-down: #B91C1C;
+    --executive-trend-neutral: #667085;
     color: var(--executive-ink);
-    font-family: Inter, Arial, sans-serif;
     font-variant-numeric: tabular-nums;
 }
-[data-global-dashboard] .dashboard-executive .executive-toolbar {
-    align-items: flex-start;
-    padding-block: 8px 20px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--executive-border);
-}
-[data-global-dashboard] .dashboard-executive .executive-welcome {
-    color: var(--executive-navy);
-    font-size: clamp(22px, 2vw, 28px);
-    letter-spacing: -.025em;
-    font-weight: 650;
-}
-[data-global-dashboard] .dashboard-executive .executive-welcome-copy p {
-    color: var(--executive-secondary);
-    max-width: 65ch;
-}
-[data-global-dashboard] .dashboard-executive :is(.dashboard-stat-card, .dash-card, .marketplace-chart-card, .sales-overview__metric) {
-    border-color: var(--executive-border);
-    border-radius: 12px;
-    background: #FFFFFF;
-    box-shadow: none;
-}
-[data-global-dashboard] .dashboard-executive .dashboard-stat-card {
-    align-items: flex-start;
+
+.super-admin-dashboard .dashboard-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 72px;
+    padding: 16px;
     gap: 12px;
 }
-[data-global-dashboard] .dashboard-executive .dashboard-stat-icon {
-    width: 32px;
-    height: 32px;
-    border: 0;
-    border-radius: 8px;
-    background: #F7F8FC;
-    color: var(--executive-navy);
-    flex-shrink: 0;
+
+.super-admin-dashboard .dashboard-header .header-left {
+    min-width: 0;
 }
-[data-global-dashboard] .dashboard-executive .dashboard-stat-icon svg { width: 18px; height: 18px; }
-[data-global-dashboard] .dashboard-executive :is(.dashboard-kpi-link, .dash-view-all-link) { text-decoration: none; }
-[data-global-dashboard] .dashboard-executive .dashboard-kpi-link:hover {
-    border-color: var(--executive-navy);
-    transform: none;
-    box-shadow: none;
+
+.super-admin-dashboard .dashboard-header .header-right {
+    justify-self: start;
+    max-width: 100%;
 }
-[data-global-dashboard] .dashboard-executive .executive-section-header h2 { letter-spacing: -.015em; }
-[data-global-dashboard] .dashboard-executive :is(.dash-card h3, .marketplace-chart-card h3) {
-    color: var(--executive-ink);
-    font-size: 14px;
-    line-height: 1.5;
-    font-weight: 600;
+
+.super-admin-dashboard .dashboard-header :is(.notification-menu, .chat-header-menu, .admin-profile-menu) {
+    max-width: calc(100vw - 96px);
 }
-[data-global-dashboard] .dashboard-executive table :is(th, td) {
-    border-color: var(--executive-border);
-    line-height: 1.5;
-}
-[data-global-dashboard] .dashboard-executive table th {
-    background: #F7F8FC;
-    color: var(--executive-secondary);
-    font-weight: 600;
-    text-transform: none;
-    letter-spacing: 0;
-}
-[data-global-dashboard] .dashboard-executive table tbody tr:hover { background: #F7F8FC; }
-[data-global-dashboard] .dashboard-executive :is(button, select, input) { font: inherit; font-size: 13px; }
-[data-global-dashboard] .dashboard-executive :is(a, button, select, input, summary):focus-visible {
+
+.super-admin-dashboard .header-profile:focus-visible img {
     outline: 2px solid var(--executive-navy);
     outline-offset: 3px;
 }
-[data-global-dashboard] .dashboard-executive ::selection { background: #FCB316; color: #17172A; }
-/* Operational cards follow their own content; chart and KPI rows keep their alignment. */
-[data-global-dashboard] .dashboard-executive :is(.marketplace-operations-row, .facilities-operations-grid, .services-operations) {
-    align-items: start;
+
+[data-global-dashboard] .dashboard-executive .executive-controls-row {
+    display: flex;
+    justify-content: flex-end;
+    min-width: 0;
+    margin-bottom: 16px;
 }
-[data-global-dashboard] .dashboard-executive :is(.marketplace-operations-row .dash-card, .facilities-operations-grid > .dash-card, .facilities-operations-grid > [data-upcoming-reservations], .services-operations > .dash-card) {
+
+[data-global-dashboard] .executive-controls-row .dashboard-global-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+[data-global-dashboard] .executive-controls-row #dashboardGlobalFilter {
+    order: 1;
+}
+
+[data-global-dashboard] .executive-controls-row .dashboard-global-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-controls-row :is(select, .dashboard-filter-button) {
+    min-height: 44px;
+}
+
+[data-global-dashboard] .executive-controls-row :is(#dashboardSelectedRange, #dashboardUpdatedAt) {
+    margin: 0;
+    padding: 0;
+    max-width: 100%;
+    color: var(--executive-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: normal;
+    text-align: right;
+}
+
+.super-admin-dashboard #dashboardCustomRange {
+    z-index: 120;
+    max-width: calc(100vw - 32px);
+}
+
+.super-admin-dashboard [data-global-dashboard]>.container-fluid {
+    padding: 16px !important;
+}
+
+[data-global-dashboard] .dashboard-executive {
+    color: var(--executive-ink);
+}
+
+[data-global-dashboard] .dashboard-executive .executive-toolbar {
+    margin: 0 0 16px;
+    min-height: 120px;
+    padding: 20px;
+    align-items: center;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+}
+
+[data-global-dashboard] .dashboard-executive .executive-welcome {
+    color: var(--executive-navy);
+    font-size: clamp(22px, 2vw, 28px);
+    font-weight: 650;
+    letter-spacing: -.025em;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-welcome-copy p {
+    color: var(--executive-secondary);
+    max-width: 85ch;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-section {
+    margin: 0;
+    min-width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-system-overview {
+    margin-bottom: var(--executive-gap);
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-section-heading {
+    gap: 8px 16px;
+    margin-bottom: 12px;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-section-header h2 {
+    color: var(--executive-navy);
+    letter-spacing: -.015em;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-overview-kpis.row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    margin: 0;
+    grid-auto-rows: auto;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-overview-kpis.row>div {
+    min-width: 0;
+    width: auto;
+    padding: 0;
+    margin: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-stat-card {
+    min-height: 144px;
+    padding: 14px;
+    border-radius: var(--executive-radius);
+    gap: 6px 10px;
+    grid-template-rows: auto auto auto 1fr;
+    border-color: var(--executive-border);
+    box-shadow: none;
+    background: var(--executive-surface);
+    transform: none;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-stat-icon {
+    border: 0;
+    background: var(--executive-subtle);
+    color: var(--executive-navy);
+    border-radius: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-stat-card strong {
+    grid-row: 2;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-stat-card .dashboard-kpi-basis {
+    grid-row: 3;
+    font-size: 11px !important;
+    color: var(--executive-secondary);
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-stat-card .dashboard-kpi-secondary {
+    grid-row: 4;
+    font-size: 12px !important;
+    line-height: 1.5;
+    color: var(--executive-secondary);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-kpi-link {
+    text-decoration: none;
+}
+
+/* Four inline activity trends; existing card dimensions and grid stay intact. */
+[data-global-dashboard] .dashboard-executive .dashboard-kpi-value-row {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 4px;
+    min-width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-kpi-value-row strong {
+    margin: 0;
+    min-width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-kpi-trend {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--executive-trend-neutral);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: nowrap;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-kpi-trend[data-trend-direction="up"] {
+    color: var(--executive-trend-up);
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-kpi-trend[data-trend-direction="down"] {
+    color: var(--executive-trend-down);
+}
+
+[data-global-dashboard][aria-busy="true"] .dashboard-kpi-trend {
+    visibility: hidden;
+}
+
+[data-global-dashboard] .dashboard-executive :is([data-dashboard-trend], [data-dashboard-secondary])[hidden] {
+    display: none;
+}
+[data-global-dashboard] .dashboard-executive .dashboard-kpi-link:hover {
+    border-color: var(--executive-navy);
+    box-shadow: none;
+    transform: none;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-kpi-stale {
+    border: 1px solid var(--executive-border);
+    padding: 10px;
+    border-radius: 6px;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.executive-priority-grid, .executive-domain-grid) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--executive-gap);
+    align-items: start;
+    margin-bottom: var(--executive-gap);
+}
+
+[data-global-dashboard] .dashboard-executive :is(.executive-priority-grid > .dashboard-attention, .executive-domain-grid > .executive-section) {
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    min-width: 0;
+    background: var(--executive-surface);
+    box-shadow: none;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-bundle-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+    container: executive-priority-card / inline-size;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-bundle-panel .bundle-dss {
+    margin: 0;
+    padding: 16px;
+    border-radius: var(--executive-radius);
+    border-color: var(--executive-border);
+    box-shadow: none;
+}
+
+[data-global-dashboard] .dashboard-executive .super-recommendation-preview>header,
+[data-global-dashboard] .dashboard-executive .super-recommendation-preview .bundle-card-header {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    flex-wrap: nowrap !important;
+    gap: 16px !important;
+    padding: 20px 24px 8px 24px !important;
+    border: none !important;
+    border-bottom: none !important;
+    min-height: 0 !important;
+    background: #FFFFFF !important;
+}
+
+[data-global-dashboard] .dashboard-executive .super-recommendation-preview .bundle-header-copy {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+}
+
+[data-global-dashboard] .dashboard-executive .super-recommendation-preview .bundle-header-copy h2 {
+    margin: 0 !important;
+    font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    color: #1A1851 !important;
+    letter-spacing: -0.01em !important;
+}
+
+[data-global-dashboard] .dashboard-executive .super-recommendation-preview .bundle-header-copy p,
+[data-global-dashboard] .dashboard-executive .super-recommendation-preview .super-recommendation-subtitle {
+    order: unset !important;
+    flex-basis: auto !important;
+    margin: 0 !important;
+    font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    color: #667085 !important;
+}
+
+[data-global-dashboard] .dashboard-executive .super-recommendation-preview .dash-view-all-link {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    justify-self: auto !important;
+    align-self: flex-start !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #1A1851 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    line-height: 1.35 !important;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid>.dashboard-attention {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-bundle-panel [data-bundle-preview] {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-bundle-panel .super-recommendation-preview {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 0;
+    padding: 0;
+    border: 0;
+    border-radius: inherit;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 4px 12px;
+    margin: 0;
+    padding: 16px;
+    border-bottom: 1px solid var(--executive-border);
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-header h2 {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    margin: 0;
+    color: var(--executive-navy);
+    font-size: 16px !important;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-header p {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    order: 0;
+    margin: 0;
+    color: var(--executive-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-header>.dash-view-all-link {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: start;
+    min-height: 36px;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-body {
+    flex: 1;
+    margin: 0;
+    padding: 16px;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid .super-recommendation-preview>.executive-card-body {
+    display: flex;
+    flex-direction: column;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-body .ch-dashboard-empty {
+    padding: 8px 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-priority-grid .super-recommendation-list:has(> .ch-dashboard-empty) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+@container executive-priority-card (min-width: 241px) {
+    [data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        min-height: 112px;
+    }
+
+    [data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-header>.dash-view-all-link {
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: end;
+    }
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention-body {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention {
+    container: dashboard-attention-panel executive-priority-card / inline-size;
+    min-height: 0;
+    align-self: start;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention-row {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px 12px;
+    min-height: 60px;
+    padding: 12px;
+    border: 1px solid var(--executive-border);
+    border-radius: 8px;
+    background: var(--executive-surface);
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention-row .dashboard-attention-icon {
+    grid-column: 1;
+    grid-row: 1;
+    color: var(--executive-gold);
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention-summary {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention-label {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention-count {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border: 1px solid var(--executive-border);
+    border-radius: 4px;
+    background: var(--executive-subtle);
+    color: var(--executive-navy);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-attention-action {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+    justify-content: flex-start;
+    min-height: 36px;
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+}
+
+@container dashboard-attention-panel (min-width: 241px) {
+    [data-global-dashboard] .dashboard-executive .dashboard-attention-row {
+        grid-template-columns: 20px minmax(0, 1fr) auto;
+    }
+
+    [data-global-dashboard] .dashboard-executive .dashboard-attention-action {
+        grid-column: 3;
+        grid-row: 1;
+        justify-self: end;
+        justify-content: flex-end;
+    }
+}
+
+[data-global-dashboard] .dashboard-executive :is(.dash-card, .marketplace-chart-card, .sales-overview__metric, .booking-overview__metric) {
+    border-color: var(--executive-border);
+    border-radius: 8px;
+    background: var(--executive-surface);
+    box-shadow: none;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-domain-grid :is(.dash-card, .marketplace-chart-card) {
+    padding: 12px 0;
+    border: 0;
+    border-radius: 0;
     height: auto;
     min-height: 0;
 }
-[data-global-dashboard] .dashboard-executive :is(.marketplace-chart-card, .marketplace-operations-row .dash-card, .facilities-operations-grid > .dash-card, .facilities-operations-grid > [data-upcoming-reservations], .services-operations > .dash-card) {
-    padding: var(--executive-card-padding);
-    border-radius: 12px;
+
+[data-global-dashboard] .dashboard-executive .executive-domain-grid>.executive-section:is(.dashboard-marketplace, .executive-facilities) {
+    padding: 0;
+    border: 0;
+    background: transparent;
 }
-[data-global-dashboard] .dashboard-executive :is(.recent-orders-table, .low-stock-table, .facilities-reservations-table, .services-table) :is(th, td) {
-    padding: var(--executive-table-padding);
+
+[data-global-dashboard] .dashboard-executive .executive-overview-body {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
 }
-[data-global-dashboard] .dashboard-executive .marketplace-operations-row .recent-orders-table-wrap {
-    margin-top: 0;
+
+[data-global-dashboard] .dashboard-executive #topSellingProductsCard {
+    align-self: start;
+    margin: 0;
+    padding: 0;
+    height: auto;
+    min-height: 0;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
 }
-[data-global-dashboard] .dashboard-executive .marketplace-operations-row .dash-card-header p {
+
+[data-global-dashboard] .dashboard-executive .dashboard-marketplace> :is(#topSellingProductsCard, .marketplace-operations-row) {
+    margin-top: 16px;
+}
+
+[data-global-dashboard] .dashboard-executive .dashboard-marketplace>.marketplace-operations-row {
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-operations-row :is(#recentOrdersSlot, [data-low-stock-card]) {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+    box-shadow: none;
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-operations-row .marketplace-operation-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 16px;
+    border-bottom: 1px solid var(--executive-border);
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-operation-header>div {
+    min-width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-operation-header h3 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-operation-header p {
     margin: 4px 0 0;
     color: var(--executive-secondary);
     font-size: 13px;
     line-height: 1.5;
 }
-[data-global-dashboard] .dashboard-executive :is(.marketplace-operations-row, .facilities-operations-grid, .services-operations) .ch-dashboard-empty {
-    padding: var(--executive-card-padding) 0;
-}
-/* Keep all nine fields in one table row, with a shared visible header. */
+
 [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table-wrap {
-    overflow-x: auto;
-}
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table {
-    min-width: 720px;
-    width: 100%;
-    table-layout: fixed;
-}
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table :is(th, td) {
-    padding: 8px 4px;
-    text-align: left;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    vertical-align: middle;
-}
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(1) { width: 16%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(2) { width: 11%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(3) { width: 10%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(4) { width: 10%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(5) { width: 7%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(6) { width: 10%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(7) { width: 14%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(8) { width: 9%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot thead th:nth-child(9) { width: 13%; }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table :is(th, td):nth-child(2) {
-    min-width: 0;
-    white-space: normal;
-}
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table .recent-orders-person {
-    min-width: 0;
-    max-width: none;
-    white-space: normal;
-    overflow-wrap: anywhere;
-}
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody th {
-    background: transparent;
-}
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody tr:last-child :is(th, td) {
-    border-bottom: 0;
-}
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot :is(.recent-orders-status, .recent-orders-payment) {
-    min-width: 0;
     max-width: 100%;
-    white-space: normal;
+    min-width: 0;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table-wrap::-webkit-scrollbar {
+    display: none;
+    height: 0;
+    width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-table-wrap {
+    max-width: 100%;
+    min-width: 0;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-table-wrap::-webkit-scrollbar {
+    display: block;
+    height: 8px;
+    width: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot :is([data-recent-orders-empty], [data-recent-orders-error]) {
+    margin: 0;
+    padding: 16px;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot :is([data-low-stock-empty], [data-low-stock-error]) {
+    margin: 0;
+    padding: 16px;
+}
+
+[data-global-dashboard] .dashboard-executive #topSellingProductsCard>.marketplace-products-header {
+    margin: 0;
+    padding: 12px;
+    border-bottom: 1px solid var(--executive-border);
+}
+
+[data-global-dashboard] .dashboard-executive #topSellingProductsCard>.marketplace-products-body {
+    min-width: 0;
+    padding: 12px;
+}
+
+[data-global-dashboard] .dashboard-executive #topSellingProductsCard [data-products-empty] {
+    margin: 0;
+    padding: 0;
+    min-height: 0;
+}
+
+[data-global-dashboard] .dashboard-executive #topSellingProductsCard [data-products-empty] .ch-dashboard-empty {
+    padding: 8px 0;
+    gap: 6px;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.sales-overview__metrics, .booking-overview__metrics) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.sales-overview__metric, .booking-overview__metric) {
+    padding: 12px;
+    min-height: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-sales-summary .sales-overview__metric {
+    min-height: 0;
+    padding: 12px;
+    border-radius: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-sales-summary .sales-overview__metrics {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-sales-summary .sales-overview__metric-value {
+    display: block;
+    min-height: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .marketplace-sales-summary .sales-overview__metric-content strong {
+    font-size: 23px;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.sales-overview__metric-content strong, .booking-overview__metric > strong) {
+    font-size: 23px;
     overflow-wrap: anywhere;
-    padding: 3px 7px;
-    border: 1px solid var(--executive-border);
-    border-radius: 6px;
-    background: #F7F8FC;
-    color: var(--executive-navy);
+}
+
+[data-global-dashboard] .dashboard-executive :is(.sales-overview__metric-content h3, .booking-overview__metric h3, .services-kpis h3, .users-summary-grid h3) {
     font-size: 12px;
-    font-weight: 500;
+    min-height: 0;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.sales-overview__metric-content p, .booking-overview__metric p) {
+    font-size: 12px;
     line-height: 1.5;
 }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot :is(.recent-order-link, .recent-order-details) {
-    display: inline-flex;
-    align-items: center;
+
+[data-global-dashboard] .dashboard-executive :is(.marketplace-chart-row, .marketplace-operations-row, .facilities-chart-grid, .facilities-operations-grid, .services-grid, .users-chart-grid) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.marketplace-operations-row, .facilities-operations-grid, .services-operations) {
+    margin-top: 12px;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.sales-overview__canvas, .facility-booking-chart-wrap, .services-chart, [data-user-trend-wrap]) {
+    height: 200px;
+    min-height: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .sales-overview__canvas canvas {
+    height: 100% !important;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.services-kpis, .users-summary-grid) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.services-kpis, .users-summary-grid)>.dash-card {
+    padding: 12px;
+    border: 1px solid var(--executive-border);
+    border-radius: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.services-kpis, .users-summary-grid) strong {
+    font-size: 23px;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-supplement {
+    min-width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-supplement>summary {
+    color: var(--executive-navy);
+    cursor: pointer;
+    padding: 10px 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-module-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-module-links a {
+    color: var(--executive-navy);
+    text-underline-offset: 3px;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.sales-select, .dash-select) {
     min-height: 36px;
+    border: 1px solid var(--executive-border);
+    border-radius: 6px;
+    padding: 6px 28px 6px 10px;
+    background-color: var(--executive-surface);
+    color: var(--executive-navy);
+    max-width: 100%;
+}
+
+[data-global-dashboard] .dashboard-executive table :is(th, td) {
+    border-color: var(--executive-border);
+    line-height: 1.5;
+    padding: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive table th {
+    background: var(--executive-subtle);
+    color: var(--executive-secondary);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+[data-global-dashboard] .dashboard-executive table tbody th {
+    background: transparent;
+    color: var(--executive-ink);
+}
+
+[data-global-dashboard] .dashboard-executive table tbody tr:hover {
+    background: var(--executive-subtle);
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table th {
+    padding: 10px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--executive-secondary);
+    background: var(--executive-subtle);
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    vertical-align: middle !important;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: 0;
+    border-bottom: 1px solid var(--executive-border);
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table td,
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody th {
+    padding: 12px 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: nowrap;
+    vertical-align: middle !important;
+    text-align: left;
+    border-bottom: 1px solid var(--executive-border);
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-id {
+    width: 14%;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-buyer {
+    width: 18%;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-date {
+    width: 14%;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-total {
+    width: 11%;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-status {
+    width: 14%;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-payment {
+    width: 17%;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-actions {
+    width: 12%;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table :is(th, td):nth-child(4) {
+    text-align: right;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table :is(th, td):nth-child(5) {
+    text-align: center;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table :is(th, td):nth-child(6) {
+    text-align: center;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table :is(th, td):nth-child(7) {
+    text-align: center;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-person {
+    vertical-align: middle !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table .text-end {
+    white-space: nowrap;
+    overflow-wrap: normal;
+}
+
+[data-global-dashboard] .dashboard-executive .low-stock-table {
+    min-width: 360px;
+    table-layout: auto;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-table {
+    min-width: 420px;
+    width: 100%;
+    table-layout: auto;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-table :is(th, td) {
+    padding: 12px 16px;
+    vertical-align: middle;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .inventory-col-product {
+    width: 60%;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .inventory-col-available {
+    width: 16%;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .inventory-col-status {
+    width: 24%;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-table :is(th, td):not(:first-child) {
+    white-space: nowrap;
+}
+
+[data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-product-cell>span:last-child {
+    min-width: 0;
+}
+
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot :is(.recent-orders-status, .recent-orders-payment) {
+    display: inline-block;
+    padding: 3px 8px;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--executive-navy);
+    background: var(--executive-subtle);
+    border: 1px solid var(--executive-border);
+    border-radius: 6px;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    max-width: 100%;
+}
+
+/* Upcoming Reservations: full-width card with one straight row per reservation. */
+[data-global-dashboard] .dashboard-executive .executive-facilities .facilities-operations-grid {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding-inline: 0;
+    container: upcoming-reservations / inline-size;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard > :is(.upcoming-reservations-header, .facilities-note, .upcoming-reservations-state, [data-upcoming-error]) {
+    margin-inline: 12px;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-table-scroll {
+    overflow: hidden;
+    max-height: none;
+    max-width: 100%;
+    scrollbar-width: none;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-table-scroll::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table th {
+    padding: 10px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--executive-secondary);
+    background: var(--executive-subtle);
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    vertical-align: middle !important;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: 0;
+    border-bottom: 1px solid var(--executive-border);
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table td {
+    padding: 10px 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    vertical-align: middle !important;
+    text-align: left;
+    border-bottom: 1px solid var(--executive-border);
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-col-id {
+    width: 30%;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-col-facility {
+    width: 18%;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-col-client {
+    width: 14%;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-col-when {
+    width: 21%;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-col-status {
+    width: 17%;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table :is(th, td):nth-child(5) {
+    text-align: center;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table a {
+    display: inline;
+    max-width: 100%;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    vertical-align: middle;
     color: var(--executive-navy);
     font-weight: 600;
     text-decoration: none;
+}
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table a:hover {
+    text-decoration: underline;
     text-underline-offset: 3px;
-    border-radius: 3px;
 }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot :is(.recent-order-link, .recent-order-details):hover {
-    background: #FFF7E5;
-    text-decoration: underline;
+
+[data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-reservation-status {
+    display: inline-block;
+    padding: 2px 5px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--executive-navy);
+    background: var(--executive-subtle);
+    border: 1px solid var(--executive-border);
+    border-radius: 5px;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    max-width: 100%;
 }
-[data-global-dashboard] .dashboard-executive #recentOrdersSlot :is(.recent-order-link, .recent-order-details):focus-visible {
+
+@container upcoming-reservations (min-width: 564px) {
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table {
+        table-layout: auto;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard :is(.upcoming-col-id, .upcoming-col-facility, .upcoming-col-client, .upcoming-col-when, .upcoming-col-status) {
+        width: auto;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table td {
+        padding: 12px 2px;
+        font-size: 10.25px;
+        white-space: nowrap;
+        overflow-wrap: normal;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table th {
+        padding-inline: 2px;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table :is(th, td):first-child {
+        padding-left: 6px;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table :is(th, td):last-child {
+        padding-right: 6px;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table a {
+        white-space: nowrap;
+        overflow-wrap: normal;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-reservation-status {
+        font-size: 10px;
+    }
+}
+
+@container upcoming-reservations (min-width: 585px) {
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table td,
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table a {
+        font-size: 10.5px;
+    }
+}
+
+@container upcoming-reservations (min-width: 600px) {
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table td,
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table a {
+        font-size: 11px;
+    }
+}
+
+@container upcoming-reservations (min-width: 620px) {
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table td,
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table a {
+        font-size: 11.5px;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-reservation-status {
+        font-size: 10.5px;
+    }
+}
+
+@container upcoming-reservations (min-width: 642px) {
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table td,
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table a {
+        font-size: 12px;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-reservation-status {
+        font-size: 11px;
+    }
+}
+
+@container upcoming-reservations (min-width: 700px) {
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table td,
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .facilities-reservations-table a {
+        font-size: 13px;
+    }
+
+    [data-global-dashboard] .dashboard-executive #upcomingReservationsCard .upcoming-reservation-status {
+        font-size: 12px;
+    }
+}
+
+[data-global-dashboard] .dashboard-executive :is(.audit-result-success, .audit-result-failed) {
+    background: var(--executive-subtle);
+    color: var(--executive-navy);
+}
+
+[data-global-dashboard] .dashboard-executive .dash-card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive .ch-dashboard-empty {
+    min-height: 0;
+    padding: 16px 0;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.facilities-empty, .services-empty, .marketplace-card-empty) {
+    min-height: 0;
+}
+
+[data-global-dashboard] .dashboard-executive :is(.dash-view-all-link, .executive-module-links a, summary) {
+    min-height: 36px;
+    align-content: center;
+}
+
+.super-admin-dashboard :is(a, button, select, input, summary, [tabindex]):focus-visible {
     outline: 2px solid var(--executive-navy);
-    outline-offset: 2px;
-    background: #FFF7E5;
-    text-decoration: underline;
+    outline-offset: 3px;
 }
+
+[data-global-dashboard] .executive-bundle-error {
+    display: none;
+    margin: 0;
+    padding: 16px;
+}
+
+[data-global-dashboard] [data-empty-region="bundles"][data-request-state="error"] .executive-bundle-error {
+    display: block;
+}
+
+[data-global-dashboard] [data-empty-region="bundles"][data-request-state="error"] [data-bundle-preview] {
+    flex: 0 0 auto;
+}
+
+[data-global-dashboard] [data-empty-region="bundles"][data-request-state="error"] .executive-card-body {
+    display: none;
+}
+
+/* Narrow header menus anchor to the content edge, clear of the fixed icon rail. */
 @media (max-width: 599px) {
-    [data-global-dashboard] .dashboard-executive .executive-toolbar { gap: 16px; padding-bottom: 16px; }
-    [data-global-dashboard] .dashboard-executive .dashboard-overview-controls { width: 100%; }
+    .super-admin-dashboard .header-right :is(.notification-dropdown, .chat-header-dropdown, .header-profile-dropdown) {
+        position: static;
+    }
+
+    .super-admin-dashboard .dashboard-header :is(.notification-menu, .chat-header-menu, .admin-profile-menu) {
+        inset: 100% 16px auto auto !important;
+        transform: none !important;
+        margin: 0 !important;
+    }
+}
+
+@media (min-width: 360px) {
+    .super-admin-dashboard .dashboard-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .super-admin-dashboard .dashboard-header .header-right {
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: end;
+    }
+
+    [data-global-dashboard] .dashboard-executive .dashboard-overview-kpis.row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    [data-global-dashboard] .dashboard-executive :is(.services-kpis, .users-summary-grid) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 600px) {
+    .super-admin-dashboard .dashboard-header {
+        padding-inline: 24px;
+    }
+
+    .super-admin-dashboard [data-global-dashboard]>.container-fluid {
+        padding: 24px !important;
+    }
+
+    [data-global-dashboard] .dashboard-executive :is(.sales-overview__metrics, .booking-overview__metrics) {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    [data-global-dashboard] .dashboard-executive .marketplace-sales-summary .sales-overview__metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1000px) {
+    [data-global-dashboard] .dashboard-executive .dashboard-overview-kpis.row {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    [data-global-dashboard] .dashboard-executive .executive-priority-grid:has(.executive-bundle-panel) {
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    }
+
+    [data-global-dashboard] .dashboard-executive .executive-priority-grid:has(.executive-bundle-panel) {
+        align-items: stretch;
+    }
+
+    [data-global-dashboard] .dashboard-executive .executive-priority-grid:has(.executive-bundle-panel)> :is(.dashboard-attention, .executive-bundle-panel) {
+        align-self: stretch;
+    }
+
+    [data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-header {
+        min-height: 144px;
+    }
+}
+
+@media (min-width: 1280px) {
+    [data-global-dashboard] .dashboard-executive .executive-domain-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    [data-global-dashboard] .dashboard-executive .executive-domain-grid>.executive-section {
+        padding: 20px;
+    }
+
+    [data-global-dashboard] .dashboard-executive .executive-overview-body {
+        padding: 20px;
+    }
+
+    [data-global-dashboard] .dashboard-executive .executive-priority-grid .executive-card-header {
+        min-height: 112px;
+    }
+}
+
+[data-global-dashboard] .dashboard-executive .executive-facilities .facilities-trend {
+    min-width: 0;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+}
+
+@media (pointer: coarse) {
+    [data-global-dashboard] .dashboard-executive :is(.sales-select, .dash-select) {
+        min-height: 44px;
+    }
+
+    [data-global-dashboard] .dashboard-executive :is(.dash-view-all-link, .executive-module-links a, .dashboard-attention-action, summary) {
+        min-height: 44px;
+    }
+}
+
+/* Give the two overview headings more separation from the content above. */
+[data-global-dashboard] .dashboard-executive .executive-priority-grid {
+    margin-bottom: calc(var(--executive-gap) * 2);
+}
+
+[data-global-dashboard] .dashboard-executive .executive-domain-grid>.executive-facilities {
+    margin-top: var(--executive-gap);
+}
+
+@media (min-width: 1280px) {
+    [data-global-dashboard] .dashboard-executive .executive-domain-grid>.executive-facilities {
+        margin-top: 0;
+    }
+}
+
+
+
+/* Users Overview: bordered container (header, KPI row, registration trend) with Users by Type as a separate card below it. */
+[data-global-dashboard] .dashboard-executive .executive-domain-grid>.executive-users-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    margin: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users-stack>.executive-users {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+    box-shadow: none;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users-stack>.users-by-type-card {
+    min-width: 0;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+    height: auto;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card>p:last-child {
+    margin-bottom: 0;
+}
+
+/* Users by Type: Left is pie/doughnut chart, Right is table */
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 24px;
+    margin-top: 16px;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout .users-chart {
+    flex: 0 0 190px;
+    width: 190px;
+    height: 190px;
+    margin: 0;
+    position: relative;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout .users-chart canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-table-wrap {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-data-table {
+    width: 100%;
+    table-layout: auto;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-data-table th {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--executive-secondary);
+    background: var(--executive-subtle);
+    border-bottom: 1px solid var(--executive-border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-data-table td,
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-data-table tbody th {
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--executive-border);
+    color: var(--executive-ink);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-data-table :is(th, td):nth-child(2) {
+    text-align: center;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card .users-data-table :is(th, td):nth-child(3) {
+    text-align: right;
+}
+
+[data-global-dashboard] .dashboard-executive .users-by-type-card [data-user-untyped-note] {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--executive-secondary);
+    line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+    [data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout {
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+    }
+    [data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-table-wrap {
+        width: 100%;
+    }
+}
+
+@media (min-width: 1280px) {
+    [data-global-dashboard] .dashboard-executive .executive-users-stack> :is(.executive-users, .users-by-type-card) {
+        padding: 20px;
+    }
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users>.executive-section-header {
+    margin: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users .users-summary-grid {
+    gap: 16px;
+    margin: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users .users-summary-grid>.dash-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users .users-summary-grid>.dash-card h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--executive-secondary);
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users .users-summary-grid>.dash-card>strong {
+    font-size: 24px;
+    line-height: 1.3;
+    color: var(--executive-navy);
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users .users-summary-grid>.dash-card>p {
+    margin: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users .users-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: stretch;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users .users-chart-grid>.dash-card {
+    min-width: 0;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+    height: auto;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users .users-chart-grid>.dash-card>p:last-child {
+    margin-bottom: 0;
+}
+
+[data-global-dashboard] .dashboard-executive .executive-users>[data-users-error] {
+    margin: 0;
 }

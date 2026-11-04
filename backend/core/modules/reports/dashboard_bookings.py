@@ -13,6 +13,13 @@ from django.utils import timezone
 from api.models import Booking, Facility
 
 
+def booking_request_records(*, services=False):
+    """Shared historical submission population; archived catalog records remain part of history."""
+    from modules.facilities.services.catalog import service_resources_q
+    records = Booking.objects.exclude(schedule_blocks_q())
+    return records.filter(service_resources_q('facility__')) if services else records.exclude(service_resources_q('facility__'))
+
+
 def upcoming_reservations(*, today=None, now=None):
     """Return at most five future Approved reservations, independent of reporting dates."""
     from accounts.views import _booking_display_fields

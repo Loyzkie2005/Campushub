@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const NAVY = '#1A1851';
     const superAnalytics = document.body.classList.contains('super-admin-analytics');
+    const refinedMarketplace = Boolean(document.querySelector('.marketplace-refined'));
     const GOLD = superAnalytics ? '#FCB316' : '#FCB315';
     const MUTED = '#68728A';
     const GRID = '#EDF0F5';
@@ -54,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (typeof Chart === 'undefined') return;
 
-    Chart.defaults.font.family = 'Inter, sans-serif';
+    Chart.defaults.font.family = document.querySelector('.marketplace-five-sections') ? 'Montserrat, sans-serif' : 'Inter, sans-serif';
     Chart.defaults.color = MUTED;
 
     function lineOptions({ yTitle, tooltipLabel, tooltipTitles = [] }) {
@@ -105,6 +106,26 @@ document.addEventListener('DOMContentLoaded', () => {
             orders: [],
             tooltip_labels: [],
         });
+        if (refinedMarketplace) {
+            const options = lineOptions({
+                yTitle: 'Revenue (₱)', tooltipTitles: data.tooltip_labels || [],
+                tooltipLabel: context => ` Revenue: ${formatPeso(context.raw)}`,
+            });
+            options.plugins.legend.display = false;
+            options.scales.x.title.text = 'Recognition period';
+            options.scales.x.ticks.maxTicksLimit = 6;
+            options.onResize = (chart, size) => {
+                chart.options.scales.x.ticks.maxTicksLimit = Math.max(2, Math.min(6, Math.floor(size.width / 85)));
+                chart.options.scales.x.ticks.font.size = size.width < 360 ? 10 : 12;
+            };
+            delete options.scales.y.ticks.precision;
+            options.scales.y.ticks.callback = value => formatPeso(value);
+            new Chart(salesCanvas, {type: 'line', data: {
+                labels: data.labels || [], datasets: [{label: 'Recognized revenue', data: (data.sales || []).map(Number),
+                    borderColor: NAVY, backgroundColor: NAVY, borderWidth: 2,
+                    pointRadius: (data.sales || []).length > 90 ? 0 : 2, pointHoverRadius: 4, tension: 0, fill: false}],
+            }, options});
+        } else {
         const options = lineOptions({
             yTitle: 'Sales Amount (₱)',
             tooltipTitles: data.tooltip_labels || [],
@@ -202,18 +223,40 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             options,
         });
+        }
     }
 
     const categoryCanvas = document.getElementById('marketplaceCategoryChart');
     if (categoryCanvas) {
         const data = readJson('marketplaceCategoryChartData', { labels: [], values: [] });
+        const categoryColors = refinedMarketplace ? [NAVY, GOLD, '#69717E', '#939AA5', '#BDC2CB', '#E0E3E8']
+            : [NAVY, GOLD, '#59577C', '#C9CAD5', '#8A5B00', '#E7E8EE'];
+        if (refinedMarketplace) {
+            document.querySelectorAll('[data-category-index]').forEach(row => {
+                row.querySelector('.marketplace-category-indicator').style.backgroundColor = categoryColors[Number(row.dataset.categoryIndex) % categoryColors.length];
+            });
+            const total = document.querySelector('.marketplace-category-total strong');
+            if (total) {
+                const fitTotal = () => {
+                    let size = 12;
+                    total.style.whiteSpace = 'nowrap'; total.style.fontSize = `${size}px`;
+                    while (total.scrollWidth > total.clientWidth && size > 8) {
+                        size -= 0.5; total.style.fontSize = `${size}px`;
+                    }
+                    if (total.scrollWidth > total.clientWidth) total.style.whiteSpace = 'normal';
+                };
+                fitTotal(); document.fonts?.ready.then(fitTotal);
+                if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fitTotal).observe(total.parentElement);
+                else window.addEventListener('resize', fitTotal, {passive: true});
+            }
+        }
         new Chart(categoryCanvas, {
             type: 'doughnut',
             data: {
                 labels: data.labels || [],
                 datasets: [{
                     data: (data.values || []).map(Number),
-                    backgroundColor: [NAVY, GOLD, '#59577C', '#C9CAD5', '#8A5B00', '#E7E8EE'],
+                    backgroundColor: categoryColors,
                     borderColor: '#FFFFFF',
                     borderWidth: 2,
                 }],

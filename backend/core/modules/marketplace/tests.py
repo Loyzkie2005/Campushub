@@ -633,11 +633,13 @@ class MarketplaceAdminProductAccessTests(TestCase):
         self.low_stock_product.refresh_from_db()
         self.assertTrue(self.low_stock_product.is_archived)
 
-        # On admin products page, archived product has data-is-archived="1" and Restore button
+        # Active remains the default. The Archived selection exposes Restore.
         page_response = self.client.get(reverse("admin_products_page"))
-        self.assertContains(page_response, f'data-product-id="{self.low_stock_product.id}"')
-        self.assertContains(page_response, 'data-is-archived="1"')
-        self.assertContains(page_response, 'btn-restore-product')
+        self.assertNotContains(page_response, f'data-product-id="{self.low_stock_product.id}"')
+        archived_page = self.client.get(reverse("admin_products_page"), {"listing_status": "archived"})
+        self.assertContains(archived_page, f'data-product-id="{self.low_stock_product.id}"')
+        self.assertContains(archived_page, 'data-is-archived="1"')
+        self.assertContains(archived_page, 'btn-restore-product')
 
         # On public approved products API, archived product must NOT be returned
         public_response = self.client.get(reverse("approved_products"))

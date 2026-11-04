@@ -1,3 +1,18 @@
+<div class="facility-form-field" data-rental-field="eligible_clients">
+    <label for="facilityEligibleClients" class="form-label">Client Eligibility *</label>
+    <select class="form-select" id="facilityEligibleClients">
+        <option value="both">Both (Internal &amp; External)</option>
+        <option value="internal">Internal Clients Only</option>
+        <option value="external">External Clients Only</option>
+    </select>
+    <span class="facility-form-help" id="facilityEligibleClientsHelp">Enforced during reservation creation across admin and mobile.</span>
+</div>
+<div class="facility-form-field" data-rental-field="form_type">
+    <label for="facilityBookingFormDisplay" class="form-label" id="facilityBookingFormLabel">Booking Slip</label>
+    <output class="form-control" id="facilityBookingFormDisplay" aria-live="polite">Select Facility Category first.</output>
+    <select class="form-select" id="facilityBookingFormType" hidden disabled></select>
+    <span class="facility-form-help" id="facilityBookingFormHelp">Automatically assigned based on Facility Category.</span>
+</div>
 <div class="facility-form-field facility-form-field-wide" data-rental-field="rules">
     <div class="facility-rules-grid">
         <label class="facility-check"><input type="checkbox" id="facilityRequiresApproval" checked>Requires Approval</label>
@@ -7,12 +22,11 @@
     </div>
     <span class="facility-form-help">These settings define facility rules. Inspections, deposits and approvals belong to booking transactions.</span>
 </div>
-<div class="facility-form-field" data-rental-field="form_type">
-    <label for="facilityBookingFormDisplay" class="form-label" id="facilityBookingFormLabel">Booking Slip</label>
-    <output class="form-control" id="facilityBookingFormDisplay" aria-live="polite">Select Facility Category first.</output>
-    <select class="form-select" id="facilityBookingFormType" hidden disabled></select>
-    <span class="facility-form-help" id="facilityBookingFormHelp">Automatically assigned based on Facility Category.</span>
+<div class="facility-form-field" data-rental-field="advance_payment_days">
+    <label for="facilityAdvancePaymentDays" class="form-label">Advance Payment Lead Time (days)</label>
+    <input type="number" class="form-control" id="facilityAdvancePaymentDays" min="0" max="365" step="1" placeholder="e.g. 2 days before event">
+    <span class="facility-form-help">Optional policy requirement (e.g., full payment 2 days before event).</span>
 </div>
 <div class="facility-form-field facility-form-field-wide" id="facilityRoomsNotice" hidden>
-    <p class="facility-form-help">Rooms / Units can be configured after saving this facility. No rooms are created automatically.</p>
+    <p class="facility-form-help">Enter the number of rooms, room type, and guests per room to configure bookable room inventory for this accommodation.</p>
 </div>

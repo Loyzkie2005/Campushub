@@ -4,20 +4,21 @@
         <div><h2 id="recentActivitiesTitle" tabindex="-1">Recent System Activities</h2><p class="audit-note executive-section-subtitle">Latest important actions recorded across CampusHub.</p></div>
         {% if perms.accounts.can_view_user_monitoring %}<a class="dash-view-all-link" href="{% url 'admin_user_monitoring_page' %}">View All Activities <span aria-hidden="true">&rarr;</span></a>{% endif %}
     </div>
-    <div class="dash-card audit-table-scroll" tabindex="0" role="region" aria-label="Recent system activities table" data-activities-table{% if not executive.activities %} hidden{% endif %}>
-        <table class="audit-preview-table"><caption class="visually-hidden">Latest five activities recorded in the selected reporting period, newest first.</caption>
-            <thead><tr><th scope="col">Time</th><th scope="col" class="audit-secondary">User</th><th scope="col">Action</th><th scope="col" class="audit-secondary">Module</th><th scope="col">Result</th><th scope="col">Actions</th></tr></thead>
-            <tbody data-executive-activities>{% for row in executive.activities %}
-                <tr>
-                    <td><time datetime="{{ row.time }}">{{ row.time_label }}</time></td>
-                    <td class="audit-secondary">{{ row.user }}</td>
-                    <td>{{ row.activity }}</td>
-                    <td class="audit-secondary">{{ row.module }}</td>
-                    <td><span class="audit-result{% if row.result == 'Success' %} audit-result-success{% elif row.result == 'Failed' %} audit-result-failed{% endif %}">{{ row.result|default:'Not recorded' }}</span></td>
-                    <td>{% if perms.accounts.can_view_user_monitoring %}<button type="button" class="audit-detail-button audit-icon-button" data-activity-detail-url="{{ row.details_url }}" aria-haspopup="dialog" aria-label="View details for {{ row.activity }}" title="View Details"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>{% else %}&mdash;{% endif %}</td>
-                </tr>
-            {% endfor %}</tbody>
-        </table>
+    <div data-activities-table{% if not executive.activities %} hidden{% endif %}>
+        <ol class="audit-preview-list" aria-label="Latest five activities in the selected reporting period, newest first" data-executive-activities>{% for row in executive.activities %}
+            <li class="audit-preview-item">
+                <span class="audit-event-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM9 11h6M9 15h4"/></svg></span>
+                <div class="audit-preview-content">
+                    <strong class="audit-preview-action">{{ row.activity }}</strong>
+                    <div class="audit-preview-meta"><span class="audit-preview-module">{{ row.module }}</span><time datetime="{{ row.time }}">{{ row.time_label }}</time></div>
+                    {% if row.user and row.user != 'Unknown' %}<span class="audit-preview-user">By {{ row.user }}</span>{% endif %}
+                </div>
+                <div class="audit-preview-controls">
+                    <span class="audit-result{% if row.result == 'Success' %} audit-result-success{% elif row.result == 'Failed' %} audit-result-failed{% endif %}"><span class="visually-hidden">Result: </span>{{ row.result|default:'Not recorded' }}</span>
+                    {% if perms.accounts.can_view_user_monitoring %}<button type="button" class="audit-detail-button audit-icon-button audit-view-button" data-activity-detail-url="{{ row.details_url }}" aria-haspopup="dialog" aria-label="View details for {{ row.activity }}" title="View Details"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><span>View</span></button>{% endif %}
+                </div>
+            </li>
+        {% endfor %}</ol>
     </div>
     <div class="dash-card audit-empty" data-activities-empty{% if executive.activities %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Recent System Activities' description='System activity will appear here as users and administrators interact with CampusHub.' icon='average' %}</div>
     <div class="dash-card" data-activities-error role="alert" hidden><p>Unable to load recent system activities. Use Refresh above to retry.</p></div>

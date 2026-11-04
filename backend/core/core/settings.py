@@ -276,3 +276,9 @@ CAMPUSHUB_FIFO_ENABLED = os.environ.get('CAMPUSHUB_FIFO_ENABLED', 'false').lower
 # Firebase Admin uses server-side Application Default Credentials only.
 CAMPUSHUB_FIREBASE_PROJECT_ID = os.getenv("CAMPUSHUB_FIREBASE_PROJECT_ID", "campushub-ebff5")
 CAMPUSHUB_FCM_ENABLED = os.getenv("CAMPUSHUB_FCM_ENABLED", "false").lower() in {"1", "true", "yes"}
+
+# Office designation is explicit; a Super Admin/Facilities Admin title is not a signature.
+import json as _job_order_json
+JOB_ORDER_SIGNERS = _job_order_json.loads(os.environ.get('CAMPUSHUB_JOB_ORDER_SIGNERS', '{}'))
+JOB_ORDER_SIGNATURE_SEQUENCE = True
+

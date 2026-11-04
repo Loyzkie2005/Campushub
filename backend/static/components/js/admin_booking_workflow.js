@@ -203,6 +203,12 @@
             `<header class="beu-job-panel-heading"><div><h2>Job Order</h2><p>USTP Oroquieta Business Enterprise Unit<br>JOB ORDER Request</p><p>Job Order Status: <strong>${escape(current.job_order_status)}</strong></p><p>Generated from Booking: <strong>${escape(b.id)}</strong></p></div><div class="beu-job-panel-actions">${actionButton('job_order','Edit Job Order')}<button type="button" class="bk-btn-primary" data-bk-print-job data-job-print disabled>Print</button>${jobDoc?window.CampusHubJobOrder.exportMenu(jobDoc.pdf_url,current.job_order_document.docx_url):''}</div></header><div class="beu-job-preview" data-job-preview data-pdf-url="${escape(current.job_order_document.pdf_url)}"></div>`:
             '<h2>Job Order</h2><p>Job Order is available after booking approval.</p>';
         window.CampusHubJobOrder.prepare(el('bkPanelJobOrder').querySelector('[data-job-preview]'));
+        if (current.job_order_signing && window.CampusHubJobOrderSignatures) {
+            const signatures = document.createElement('section');
+            signatures.className = 'beu-signatures'; el('bkPanelJobOrder').append(signatures);
+            window.CampusHubJobOrderSignatures.mount(signatures, current.job_order_signing,
+                async () => {await load(b.id, 'JobOrder'); el('bkPanelJobOrder').focus();});
+        }
         renderInspections();
         const labels={booking_archived:'Booking Archived',booking_restored:'Booking Restored',booking_created:'Reservation Created',booking_auto_approved:'Booking Approved (automatic)',booking_approved:'Booking Approved',
             facility_payment_recorded:'Payment Recorded',booking_reserved:'Booking Reserved / Confirmed',job_order_created:'Job Order Created',job_order_updated:'Job Order Updated',

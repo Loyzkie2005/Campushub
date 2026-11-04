@@ -20,35 +20,39 @@
 .dashboard-executive .executive-bundle-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .dashboard-executive .executive-bundle-grid :is(.bundle-dss, .bundle-activity-card) { margin: 0; padding: 16px; border-radius: 14px; box-shadow: none; }
 .dashboard-executive .executive-audit .dashboard-section-heading h2 { font-size: 18px; font-weight: 600; text-transform: none; }
-.dashboard-executive .audit-table-scroll { overflow: visible; max-height: none; border-radius: 14px; border: 1px solid var(--audit-border); padding: 0; }
-.audit-preview-table { width: 100%; table-layout: fixed; border-collapse: collapse; color: var(--audit-text); font-size: 13px; line-height: 1.5; }
-.audit-preview-table :is(th, td) { padding: 6px 8px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--audit-border); overflow-wrap: anywhere; }
-.audit-preview-table th { height: 48px; background: var(--audit-subtle); color: var(--audit-muted); font-weight: 600; }
-.audit-preview-table th:first-child { border-top-left-radius: 14px; }
-.audit-preview-table th:nth-child(5) { width: 76px; }
-.audit-preview-table th:last-child { border-top-right-radius: 14px; }
-.audit-preview-table :is(th, td):last-child { width: 64px; padding: 4px 6px; text-align: center; white-space: nowrap; overflow-wrap: normal; }
-.audit-preview-table td { height: 56px; }
-.audit-preview-table td:first-child { color: var(--audit-muted); font-variant-numeric: tabular-nums; }
-.audit-preview-table td:nth-child(2) { font-weight: 600; }
-.audit-preview-table td:nth-child(3) { font-weight: 500; }
-.audit-preview-table td:nth-child(4) { color: var(--audit-muted); }
-.audit-preview-table tbody tr:focus-within { background: var(--audit-subtle); }
-.audit-preview-table .audit-secondary { display: none; }
+.audit-preview-list { margin: 0; padding: 0; list-style: none; color: var(--audit-text); font-size: 13px; line-height: 1.5; }
+.audit-preview-item { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 8px 12px; padding-block: 13px; background: transparent; }
+.audit-preview-item + .audit-preview-item { border-top: 1px solid var(--audit-border); }
+.audit-event-icon { grid-column: 1; grid-row: 1; display: inline-flex; align-items: center; justify-content: center; align-self: start; width: 28px; height: 28px; border-radius: 6px; color: var(--audit-navy); background: var(--audit-subtle); }
+.audit-event-icon svg { flex-shrink: 0; }
+.audit-preview-content { grid-column: 2; grid-row: 1; display: grid; gap: 4px; min-width: 0; }
+.audit-preview-action { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.audit-preview-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; min-width: 0; color: var(--audit-muted); font-size: 12px; }
+.audit-preview-module { overflow-wrap: anywhere; }
+.audit-preview-meta time::before { content: '\00B7'; margin-inline-end: 8px; }
+.audit-preview-meta time { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.audit-preview-user { min-width: 0; color: var(--audit-muted); font-size: 12px; overflow-wrap: anywhere; }
+.audit-preview-controls { grid-column: 2; grid-row: 2; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-width: 0; }
+.audit-preview-item:focus-within { background: var(--audit-subtle); }
 .audit-result { display: inline-block; max-width: 100%; padding: 3px 6px; border-radius: 6px; color: var(--audit-muted); background: var(--audit-subtle); font-size: 12px; font-weight: 500; line-height: 1.5; }
-/* Requested semantic outcomes; their text remains visible on every screen size. */
-.audit-result-success { color: var(--audit-success-text); background: var(--audit-success-surface); }
-.audit-result-failed { color: var(--audit-failed-text); background: var(--audit-failed-surface); }
-.audit-preview-table tr:last-child td { border-bottom: 0; }
+/* This card's explicitly requested semantic outcomes override the shared neutral reset. */
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-audit .audit-result-success { color: var(--audit-success-text); background: var(--audit-success-surface); }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-audit .audit-result-failed { color: var(--audit-failed-text); background: var(--audit-failed-surface); }
 .audit-detail-button { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 6px 10px; border: 1px solid #d9dce7; border-radius: 8px; color: #1A1851; background: #FFFFFF; font-size: 14px; font-weight: 600; line-height: 1.4; }
 .executive-audit .dash-view-all-link { font-size: 14px; font-weight: 600; }
 .audit-detail-button:hover { background: #f8fafc; }
 .executive-audit .audit-icon-button { width: var(--audit-control-size); min-width: var(--audit-control-size); min-height: var(--audit-control-size); padding: 0; color: var(--audit-navy); background: var(--audit-surface); border-color: var(--audit-border); cursor: pointer; }
+.executive-audit .audit-view-button { width: auto; gap: 6px; padding-inline: 8px; font-size: 12px; }
 .executive-audit .audit-icon-button:active { background: var(--audit-hover); border-color: var(--audit-accent); }
 .audit-icon-button svg { flex-shrink: 0; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
-    .audit-preview-table tbody tr:hover { background: var(--audit-subtle); }
+    .audit-preview-item:hover { background: var(--audit-subtle); }
     .executive-audit .audit-icon-button:hover { background: var(--audit-hover); border-color: var(--audit-accent); }
+}
+@container activity-preview (min-width: 480px) {
+    .audit-preview-item { grid-template-columns: 28px minmax(0, 1fr) auto; }
+    .audit-event-icon { align-self: center; }
+    .audit-preview-controls { grid-column: 3; grid-row: 1; flex-wrap: nowrap; }
 }
 .dashboard-executive .audit-empty { padding: 20px; border-radius: 14px; border-color: #E8EAF0; }
 .audit-empty h3 { font-size: 15px; margin: 0 0 6px; }
@@ -86,17 +90,6 @@
     .audit-detail-fields dd { margin: 0; }
     .executive-system-status #dashboardSystemStatus .dashboard-service-item { grid-template-columns: minmax(140px, 1fr) minmax(120px, .6fr) minmax(200px, 1fr); align-items: center; }
     .executive-system-status #dashboardSystemStatus .dashboard-service-footer { grid-column: 3; text-align: right; display: block; }
-}
-/* Adapt to the actual dashboard column, including an expanded sidebar. */
-@container activity-preview (min-width: 680px) {
-    .audit-preview-table { table-layout: auto; }
-    .audit-preview-table .audit-secondary { display: table-cell; }
-    .audit-preview-table :is(th, td):not(:last-child) { padding-inline: 16px; }
-    .audit-preview-table th:first-child { width: 18%; }
-    .audit-preview-table th:nth-child(2) { width: 22%; }
-    .audit-preview-table th:nth-child(5) { width: 104px; }
-    .audit-result { padding-inline: 8px; }
-    .audit-preview-table :is(th, td):last-child { width: 80px; }
 }
 @media (min-width: 1000px) { .dashboard-executive .executive-bundle-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
@@ -272,4 +265,57 @@
     [data-global-dashboard] .dashboard-executive > .executive-system-overview { margin-top: 0; }
     [data-global-dashboard] .dashboard-executive .executive-section-header { align-items: flex-start; }
     [data-global-dashboard] .dashboard-executive .executive-section-header > div:first-child { flex: 1 1 100%; }
+}
+/* Super Admin chart sizing only: preserve intrinsic card heights and existing data/controllers. */
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive :is(.marketplace-sales-summary .sales-overview__canvas, .executive-facilities .facility-booking-chart-wrap, .executive-users [data-user-trend-wrap]) {
+    height: 260px; min-height: 0;
+}
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .facilities-trend .facilities-card-heading select,
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #salesOverviewFilters { margin-inline-start: auto; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card { container: users-distribution / inline-size; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout {
+    display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; justify-items: center;
+    gap: 16px; min-width: 0; margin-top: 12px;
+}
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout .users-chart {
+    flex: none; width: min(100%, 180px); height: auto; aspect-ratio: 1; max-width: 180px; margin: 0;
+}
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-table-wrap { width: 100%; min-width: 0; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card .users-data-table { table-layout: fixed; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card .users-data-table :is(th, td) { padding-inline: 8px; white-space: normal; overflow-wrap: anywhere; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout:has([data-user-distribution-wrap][hidden]) { grid-template-columns: minmax(0, 1fr); }
+@container users-distribution (min-width: 400px) {
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout { grid-template-columns: clamp(160px, 36cqi, 200px) minmax(0, 1fr); }
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-by-type-card .users-type-layout .users-chart { width: 100%; max-width: 200px; }
+}
+@media (min-width: 600px) {
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive :is(.marketplace-sales-summary .sales-overview__canvas, .executive-facilities .facility-booking-chart-wrap, .executive-users [data-user-trend-wrap]) { height: 320px; }
+}
+/* Super Admin Inventory Alerts: space for the existing five-row preview without a fixed-height filler. */
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .dashboard-marketplace > .marketplace-operations-row { row-gap: 20px; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #lowStockSlot [data-low-stock-card] { height: auto; min-height: 0; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-table-wrap { height: auto; max-height: none; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-table tbody :is(th, td) { padding: 16px; vertical-align: middle; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-product-cell { gap: 12px; min-height: 40px; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #lowStockSlot .low-stock-product-cell strong { display: block; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+/* Users heading sits outside its content card, matching the other overview sections. */
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-users-stack > .executive-users {
+    padding: 0; border: 0; background: transparent; box-shadow: none;
+}
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-overview-body {
+    display: grid; gap: 16px; min-width: 0; padding: 16px;
+    border: 1px solid var(--executive-border); border-radius: var(--executive-radius); background: var(--executive-surface);
+}
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-overview-body > [data-users-error] { margin: 0; }
+/* Fill the existing Users column; keep Services/Users and every sibling card 16px apart. */
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-users-stack > .executive-audit {
+    min-width: 0; margin: 0; padding: var(--executive-gap);
+    border: 1px solid var(--executive-border); border-radius: var(--executive-radius);
+    background: var(--executive-surface); box-shadow: none;
+}
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-audit > .executive-section-header { margin: 0 0 var(--executive-gap); align-items: flex-start; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-audit > :is(.audit-empty, [data-activities-error]) { margin: 0; padding: 0; border: 0; background: transparent; }
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-audit .ch-dashboard-empty { padding-block: 8px; }
+@media (min-width: 1280px) {
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive .users-overview-body { padding: 20px; }
 }

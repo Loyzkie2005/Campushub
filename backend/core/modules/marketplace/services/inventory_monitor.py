@@ -24,7 +24,7 @@ def inventory_monitor_context(request, products):
     token = get_tab_token_from_request(request)
     if token:
         params["__at"] = token
-    for key in ("search", "inventory_status", "program", "major", "department", "seller", "category", "product_id", "page", "inventory_section"):
+    for key in ("search", "inventory_status", "program", "major", "department", "seller", "category", "product_id", "page", "inventory_section", "batch"):
         value = request.GET.get(key, "").strip()
         if value:
             params[key] = value
@@ -46,14 +46,23 @@ def inventory_monitor_context(request, products):
         scoped = scoped.filter(category=params["category"])
     can_view_movements = any(request.user.has_perm("accounts." + code) for code in ("can_manage_products", "can_approve_products", "can_view_stock_movements"))
     rows = build_inventory_table(scoped.order_by("name", "pk"))
+    if params.get("batch"):
+        from api.models import InventoryBatch
+        ids = list(InventoryBatch.objects.filter(pk=params["batch"], sku_id__in=[row.get("sku_id") for row in rows]).values_list("sku_id", flat=True)) if params["batch"].isdecimal() else []
+        rows = [row for row in rows if row.get("sku_id") in ids]
     search = params.get("search", "").casefold()
     batch_search = None
+    movement_search = None
     if search:
-        from .fifo import enabled
-        if params.get("inventory_section") == "fifo" and enabled():
+        if params.get("inventory_section") == "fifo":
             from .fifo_presentation import search_batches
             batch_search = search_batches(rows, search)
             matching_skus = set(batch_search.values_list("sku_id", flat=True).distinct())
+            rows = [row for row in rows if row.get("sku_id") in matching_skus]
+        elif params.get("inventory_section") == "movements" and can_view_movements:
+            from .fifo_presentation import search_movements
+            movement_search = search_movements(rows, search)
+            matching_skus = set(movement_search.values_list("sku_id", flat=True).distinct())
             rows = [row for row in rows if row.get("sku_id") in matching_skus]
         else:
             rows = [row for row in rows if any(search in str(row[field]).casefold()
@@ -81,7 +90,7 @@ def inventory_monitor_context(request, products):
         detail["details_url"] += "&" + urlencode({"__at": token})
     programs, majors = academic_options()
     from .fifo_presentation import workspace
-    return {**workspace(request, products, rows, params, batch_search=batch_search), "inventory_rows": rows, "inventory_summary": summary, "inventory_detail": detail,
+    return {**workspace(request, products, rows, params, batch_search=batch_search, movement_search=movement_search), "inventory_rows": rows, "inventory_summary": summary, "inventory_detail": detail,
             "inventory_return_url": inventory_url(params), "page_query": urlencode(page_params),
             "inventory_tab_token": token, "inventory_reset_url": inventory_url({"view": "inventory", **({"__at": token} if token else {})}),
             "inventory_search": params.get("search", ""), "inventory_status": params.get("inventory_status", ""),
@@ -121,43 +130,15 @@ def inventory_detail(sku_id, products, *, include_movements=True):
 
 
 def inventory_movements(sku):
-    """Real audit records plus verifiable old order events; no invented restocks."""
-    from api.models import MarketplaceOrder
-    from .fifo import enabled
-    query = sku.movements.select_related("order")
-    fifo_active = enabled()
-    if fifo_active:
-        query = query.prefetch_related("fifo_allocations__batch", "order__fifo_allocations__batch", "received_batches")
+    """The same persisted ledger used by the global movements tab."""
+    query = sku.movements.select_related("order").prefetch_related(
+        "fifo_allocations__batch", "order__fifo_allocations__batch", "received_batches")
     recorded = list(query[:100])
     from .fifo_presentation import movement_allocations, movement_reference
     events = []
     for row in recorded:
-        reference = "Order #" + (row.order.order_code or str(row.order_id)) if row.order_id else "Stock record"
         events.append({"date": row.created_at, "kind": row.get_kind_display(), "quantity": row.quantity_change,
             "balance": row.get_balance_display(), "before": row.available_before, "after": row.available_after,
-            "reference": movement_reference(row) if fifo_active else reference, "actor": row.actor or "—",
-            "allocations": movement_allocations(row) if fifo_active else []})
-    if sku.product.product_type == "bundle":
-        return events  # Component links explain where stock history is recorded.
-    # Audit-covered events are excluded even when outside the 100-row window.
-    covered = set(sku.movements.exclude(order_id=None).values_list("order_id", "kind"))
-    orders = MarketplaceOrder.objects.filter(inventory_deducted=True).filter(
-        Q(product_id=sku.product_id) | Q(customization__bundle_components__contains=[{"product_id": sku.product_id}])
-    ).order_by("-created_at")[:100]
-    key = (sku.group_name, sku.variant_name)
-    inventory_keys = {(row.group_name, row.variant_name) for row in sku.product.inventory_skus.all()}
-    for order in orders:
-        quantity = order_allocations(order, sku.product, inventory_keys=inventory_keys).get(key)
-        if not quantity:
-            continue
-        source = "Order #" + (order.order_code or str(order.pk))
-        if (order.pk, "reservation") not in covered:
-            events.append({"date": order.created_at, "kind": "Reservation", "quantity": -quantity,
-                           "balance": "Available", "reference": source, "actor": "System"})
-        if order.inventory_restored and order.cancelled_at and (order.pk, "release") not in covered:
-            events.append({"date": order.cancelled_at, "kind": "Reservation released", "quantity": quantity,
-                           "balance": "Available", "reference": source, "actor": "System"})
-        if order.status == order.STATUS_COMPLETED and order.completed_at and (order.pk, "sale") not in covered:
-            events.append({"date": order.completed_at, "kind": "Sale", "quantity": -quantity,
-                           "balance": "On Hand", "reference": source, "actor": "System"})
-    return sorted(events, key=lambda item: item["date"], reverse=True)[:100]
+            "reference": movement_reference(row), "actor": row.actor or "—", "notes": row.notes,
+            "received_at": row.received_at, "allocations": movement_allocations(row)})
+    return events

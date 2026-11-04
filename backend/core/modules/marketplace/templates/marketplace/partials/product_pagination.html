@@ -1,0 +1,7 @@
+<button type="button" class="page-btn page-btn-nav" data-page="{% if products_page.has_previous %}{{ products_page.previous_page_number }}{% else %}1{% endif %}" aria-label="Previous page" {% if not products_page.has_previous %}disabled{% endif %}>&lsaquo;</button>
+{% for number in product_page_range %}
+{% if number == products_page.paginator.ELLIPSIS %}<span class="page-ellipsis">…</span>{% else %}
+<button type="button" class="page-btn{% if number == products_page.number %} is-active{% endif %}" data-page="{{ number }}" aria-label="Page {{ number }}" {% if number == products_page.number %}aria-current="page"{% endif %}>{{ number }}</button>
+{% endif %}
+{% endfor %}
+<button type="button" class="page-btn page-btn-nav" data-page="{% if products_page.has_next %}{{ products_page.next_page_number }}{% else %}1{% endif %}" aria-label="Next page" {% if not products_page.has_next %}disabled{% endif %}>&rsaquo;</button>

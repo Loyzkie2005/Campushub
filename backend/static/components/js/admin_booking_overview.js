@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         trendRows = overview.trend;
         activeBucket = -1;
         card.querySelector('[data-booking-chart-live]').textContent = '';
-        canvas.setAttribute('aria-label', `${number.format(overview.total)} booking requests submitted from ${overview.start_date} to ${overview.end_date}${executiveMode ? ', line chart' : ', stacked by status'}. Use left and right arrow keys to inspect each period.`);
+        canvas.setAttribute('aria-label', `${number.format(overview.total)} booking requests submitted from ${overview.start_date} to ${overview.end_date}${executiveMode ? ', vertical bar chart' : ', stacked by status'}. Use left and right arrow keys to inspect each period.`);
         const chartError = card.querySelector('[data-booking-chart-error]');
         const textDescription = card.querySelector('#bookingTrendDescription');
         function textFallback(visible) {
@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (typeof window.Chart === 'undefined') {
             canvas.hidden = true;
+            if (executiveMode) canvas.parentElement.hidden = true;
             chartError.hidden = false;
             textFallback(true);
             return;
@@ -110,9 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 label: item.label, data: overview.trend.map((row) => row[item.key]),
                 stack: 'bookings', backgroundColor: item.color, borderRadius: 2, maxBarThickness: 28,
                 borderColor: item.color,
-                borderWidth: executiveMode ? 2 : item.key === 'rejected_cancelled' ? 1 : 0,
-                pointRadius: executiveMode ? 2 : 0, pointHoverRadius: 5,
-                tension: 0, fill: false,
+                borderWidth: !executiveMode && item.key === 'rejected_cancelled' ? 1 : 0,
             })) };
             if (chart) {
                 chart.setActiveElements([]);
@@ -121,14 +120,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 chart.resize();
                 chart.update('none');
             } else {
-                chart = new Chart(canvas, { type: executiveMode ? 'line' : 'bar', data, options: {
+                chart = new Chart(canvas, { type: 'bar', data, options: {
                     responsive: true, maintainAspectRatio: false, animation: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: { legend: { display: false }, tooltip: {
                         backgroundColor: '#1A1851', titleColor: '#FFFFFF', bodyColor: '#FFFFFF',
                         callbacks: {
-                            beforeBody: (items) => items.length ? `Total Bookings: ${number.format(trendRows[items[0].dataIndex].count)}` : '',
-                            label: (context) => ` ${context.dataset.label}: ${number.format(context.parsed.y)}`,
+                            title: (items) => {
+                                const row = trendRows[items[0]?.dataIndex];
+                                if (!executiveMode || !row) return items[0]?.label || '';
+                                return row.start_date === row.end_date ? row.start_date : `${row.start_date} – ${row.end_date}`;
+                            },
+                            beforeBody: (items) => !executiveMode && items.length ? `Total Bookings: ${number.format(trendRows[items[0].dataIndex].count)}` : '',
+                            label: (context) => executiveMode
+                                ? ` ${number.format(context.parsed.y)} booking${context.parsed.y === 1 ? '' : 's'}`
+                                : ` ${context.dataset.label}: ${number.format(context.parsed.y)}`,
                         },
                     } },
                     scales: {
@@ -142,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             textFallback(false);
         } catch (_) {
             canvas.hidden = true;
+            if (executiveMode) canvas.parentElement.hidden = true;
             chartError.hidden = false;
             textFallback(true);
         }

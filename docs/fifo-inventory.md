@@ -1,4 +1,271 @@
-# CampusHub FIFO inventory — implementation and gated cutover
+# CampusHub hybrid inventory — Simple stock and optional FIFO
+
+## Current: Inventory Workspace Navigation — Inline Tabs Redesign (November 4, 2026)
+
+1. **Cause / reason:** The Inventory workspace tabs (`Stock Overview`, `Stock Movements`, `Stock Batches`) were previously styled as rounded pill/box buttons with solid navy background fills (`background: #1A1851; color: #fff`) and isolated borders, floating above the filters without a coherent horizontal divider. In alignment with CampusHub's global web UI/UX guidelines and modern institutional design standards, tabs were transformed into clean inline tabs featuring horizontal text links, secondary muted neutral inactive color (`#667085`), navy semibold active color (`#1A1851`), a 3px gold accent underline indicator (`#FCB316`), and a subtle baseline divider (`#E8EAF0`) running flush across the panel.
+2. **Exact files changed:**
+   - `backend/static/components/css/admin_products.css:1336` (`.inventory-page-panel .product-list-toolbar` removes redundant border-bottom and adjusts padding for seamless connection to tabs), `:4978-4986` (`.inventory-workspace-tabs` inline tab container, text-based tab links, 3px gold underline indicator, hover/focus-visible accessibility states, and isolated `.fifo-receive > summary` button styles).
+   - `backend/core/modules/marketplace/templates/marketplace/pages/admin_inventory.html:12` (updated CSS cache version query to `?v=20261104-inline-tabs`).
+3. **Changes made:**
+   - Converted `.inventory-workspace-tabs` from a floating pill container to an inline tab bar with `border-bottom: 1px solid #E8EAF0`, `gap: 24px`, and `padding: 0 20px`.
+   - Updated tab links (`.inventory-workspace-tabs a`) to transparent-background text items with `min-height: 44px` (WCAG 2.2 touch target standard), `color: #667085`, `font-weight: 500`, and `border-bottom: 3px solid transparent` with `margin-bottom: -1px` to align flush with the baseline.
+   - Styled the active tab (`[aria-current="page"]`) with `color: #1A1851`, `font-weight: 600`, and `border-bottom-color: #FCB316` (CampusHub Gold Accent).
+   - Preserved `.fifo-receive > summary` button pill styles independently.
+4. **How it works — functions, inputs, outputs, and data flow:**
+   - **Data Flow:** The Django view (`admin_products_page` in `inventory_views.py`) calls `fifo_presentation.workspace(...)`, which constructs `inventory_tabs` containing `[{"key": "overview", "label": "Stock Overview", "url": "..."}, {"key": "movements", ...}, {"key": "fifo", ...}]` and `inventory_section`.
+   - **Template Rendering:** `admin_inventory.html` renders `<nav class="inventory-workspace-tabs" aria-label="Inventory workspace">`, iterating over `inventory_tabs` and setting `aria-current="page"` on the matching tab.
+   - **CSS Execution:** The browser renders the inline tab bar seamlessly under the header toolbar. The active tab displays the gold indicator line directly on the border divider, giving clear visual hierarchy and recognition of the active workspace without visual noise.
+5. **Backend / API behavior:** Unchanged. All URLs, query parameters (`inventory_section=overview|movements|fifo`), permissions (`can_manage_products`, `can_view_products`), and tab security tokens (`__at`) operate as before.
+6. **Database / migration impact:** None. Pure UI/CSS presentation update; no models, migrations, or database queries were modified.
+7. **Tests performed:**
+   - Ran `manage.py test modules.marketplace.test_fifo_inventory` (34 tests passed in 7.3s).
+   - Ran `manage.py test modules.marketplace.test_inventory_monitor` (19 tests passed in 7.4s).
+   - System check identified 0 issues.
+8. **Remaining limitations / safe exercise:**
+   - Visual verification was conducted against template structure and CSS specifications.
+   - *Safe practice exercise:* To verify tab behavior, navigate to `/marketplace/inventory/` in the browser; click `Stock Movements` and verify the URL updates to include `?inventory_section=movements`, the gold active line transitions smoothly to `Stock Movements`, and the Stock Movements ledger displays without layout jumps.
+
+## Previous: verification for final Marketplace brief - November 2, 2026
+
+This is a verification-only inventory update. Receipt, reservation, completion, cancellation, schema and deployed stock writers were not rewritten. The actual Analytics fixes and full eight-part implementation report are in [the Analytics guide](superadmin-analytics-module.md:3).
+
+1. **Cause / reason:** The final request explicitly asked to verify working optional FIFO rather than duplicate it in Analytics. The confirmed defects were slow-product history eligibility and Analytics card arrangement, not FIFO stock reconciliation.
+2. **Exact files changed:** This guide and the Analytics guide/context record results. New integration coverage is `backend/core/modules/reports/test_marketplace_inventory_integration.py:17` (`MarketplaceInventoryIntegrationTests`), `:94` (pickup/completion), `:110` (delivery/cancellation). Runtime FIFO/inventory/checkout/fulfillment/stock-recording files matched their pre-task hashes. Existing inventory UI/routes remain unchanged.
+3. **Changes made:** Add integration tests linking the actual authenticated mobile receipt/checkout APIs, PostgreSQL stock/batch/order records, Admin inventory GETs and the shared Analytics builder. No FIFO Analytics/Stock Rotation card, receiving rewrite, artificial batch or new model was added.
+4. **How it works:** Existing `services/fifo.py:151` `receive(sku_id, quantity, reference, user, key, ...)` validates permissions and explicit product method, locks records and returns the persisted receipt result; keyed retries reuse the operation. `:67` `ordered_batches(query)` returns undated historical openings first, then actual received/recorded date and stable ID ties. `:89` `sync_change(...)` links the real stock change to FIFO batches/allocations only for configured products. `:144` `complete(order)` consumes the existing allocations. `services/inventory_records.py:159` `record_completed_sale(order, actor)` records the physical sale once without another available-stock reduction. `fifo.py:270` `reconciliation()` returns a read-only mismatch/fingerprint plan; it does not activate or repair stock by itself. Simple stock continues to use canonical quantities/movements without batch allocations.
+5. **Backend / API behavior:** Flutter receipt/checkout contracts feed these same Django records. Example in an isolated database: receive 3 old + 4 newer units -> physical 7; order 4 -> oldest allocations 3 + 1, available 3/reserved 4/on hand 7; paid completion -> available 3, physical 3, one sale movement. An uncompleted cancellation releases original allocations exactly once. Delivery does not record payment; delivered cancellation remains blocked. Existing expiry checks block expired product/variant reservations. No batch-expiry FEFO scheduling is claimed: current batches have no batch expiry field.
+6. **Database / migration impact:** None. Configured working audit used explicit READ ONLY: FIFO enabled, 14 configured FIFO products/1 Simple, 14 batches, 3 allocations and 14 inspected pools, no reconciliation/available/reserved mismatch. Simple products had no positive batch stock or batch reservations. Working data stayed unchanged (3 submitted, zero recognized revenue, 1 low-stock product for October 4-November 2). Historical opening dates remain unknown rather than fabricated.
+7. **Tests performed:** The initial 97/97 inventory/checkout/fulfillment/variant/mobile-seller tests passed, including PostgreSQL races for duplicate receipts/orders, shortage rollback, mixed bundles, optional Simple/FIFO separation, reservation/release and once-only sale recording. Final combined regression passed **247/247 in 98.161 seconds**, including the two new API-flow tests verifying the quantities above and Analytics agreement. System checks were clean and the temporary database was destroyed. Flutter checkout/fulfillment/receiving passed 11/11; authenticated desktop/phone HTTP integration passed 70 checks. Actual working Stock Batches/Movements pages returned 200 read-only. The Analytics guide records the exact reproduction command. Evidence is `scratch/final-marketplace-inventory-20261102/`; Flutter tests mock transport, while backend integration uses real PostgreSQL/API views. No physical Flutter device was connected to working orders.
+8. **Remaining limitations / troubleshooting / safe exercise:** Zero eligible working sales and incomplete earlier ledger periods legitimately leave some Analytics unavailable; do not create demonstration working transactions to fill charts. If receipt retry quantities differ, compare the original operation key and payload before retrying; do not post a new key for the same unconfirmed receipt. If available differs from on hand, inspect reservations rather than deducting twice. Safe practice: run the new integration class only through the disposable runner documented in the Analytics guide; change its test-only order quantity from 4 to 2 and adjust expected oldest-batch allocation, then restore and rerun. Expected result is a single old-batch allocation, with no newer batch consumed. Preserve permission and retry assertions. Do not run stock adjustments, initialization or reconciliation repair against the working database for this exercise.
+
+## Current implementation and Kamatera deployment — October 29, 2026
+
+This section supersedes the older global-FIFO and activation-pending reports below. The user approved deployment of the prepared backend and activation, and then clarified that FIFO must be optional per product. The deployed release is `campushub-hybrid-20261029T145640Z`. Django is active on Kamatera; the existing PC Django connection uses the same online database through its SSH tunnel.
+
+### 1. Cause / reason
+
+Confirmed: receiving previously required a globally initialized FIFO engine and would create batches for every stock increase. That would impose batches on one-item secondhand listings. Completion also obtained physical balances from batches, which cannot establish balances for Simple stock. Product History supplemented missing transaction rows from old orders, so it differed from the global movement ledger. These paths now share the existing Django stock quantities and transaction records, with an explicit product method.
+
+Confirmed deployment gap: Kamatera's old October 20 source did not contain the FIFO service. Both local and hosted Django stock writers were paused before the fresh backup, verified activation and hosted release switch. No live receipt, order or demonstration stock was submitted.
+
+### 2. Exact files changed / current lines and nearby anchors
+
+Paths below are relative to the project root. Line numbers describe this implementation; use the named anchor if later edits move them.
+
+| File and line | Nearby anchor | Change and reason |
+| --- | --- | --- |
+| `backend/core/api/models.py:142` | `Product.inventory_method` | Added `simple`/`fifo`, default Simple in Python and PostgreSQL. The existing quantity fields remain authoritative. |
+| `backend/core/api/models.py:208` | `Product.save` | Include method changes in the same locked, audited transaction as stock changes. Bulk bypass protection also covers the method. |
+| `backend/core/api/models.py:1028` | `InventoryStockMovement.reference`, `received_at` | Store a receipt reference and actual receiving date even when no batch applies. |
+| `backend/core/api/migrations/0051_hybrid_inventory.py:4` | `preserve_existing_batch_tracking` | Add the three fields; preserve FIFO for existing non-bundle products with batch records. No category/name inference or quantity rewrite. |
+| `backend/core/modules/marketplace/services/fifo.py:21` | `enabled`, `check_simple_transition`, `initialize_product` | Check product method; reconcile explicitly enabled FIFO stock as an undated opening balance; block switching back while physical FIFO stock or reservations remain. |
+| `backend/core/modules/marketplace/services/fifo.py:151` | `receive` | Share validation, authorization, locked updates, dates/notes and keyed retries between Simple and FIFO receipts. Lock an approved seller's application against concurrent revocation. |
+| `backend/core/modules/marketplace/services/fifo.py:242` | `order_request`; `initialize` at 305 | Keep keyed order retries for Simple stock too; activation creates openings only for explicitly configured FIFO products. |
+| `backend/core/modules/marketplace/services/inventory_records.py:24` | `sync_inventory_records` | Record real Simple stock movements without batches; invoke allocation only for configured FIFO. |
+| `backend/core/modules/marketplace/services/inventory_records.py:105` | `physical_points`; `record_completed_sale` at 159 | Reuse the canonical available-plus-holds snapshot for Simple stock, and actual batches for FIFO, to record completion once without another available-stock deduction. |
+| `backend/core/modules/marketplace/services/inventory.py:557` | `build_inventory_table` row | Expose method and existing receipt eligibility with the SKU identity. Existing quantities, statuses, four summary cards and twelve overview columns stay intact. |
+| `backend/core/modules/marketplace/services/inventory_monitor.py:132` | `inventory_movements` | Product History reads saved transaction rows, matching the global ledger. Missing historical transactions remain absent; genuine order holds still affect balances. |
+| `backend/core/modules/marketplace/services/fifo_presentation.py:15` | `movement_reference`, `search_movements`, `workspace` | Search/display Simple receipt references; distinguish zero batches from unavailable FIFO configuration; keep scope and pagination. |
+| `backend/core/modules/marketplace/services/admin_product_validation.py:37` | `inventory_method` validation | Reject unsupported methods before saving the product form. |
+| `backend/core/api/views.py:255` | `serialize_product`; method inputs at 844, 1080, 1291 | Return/preserve method in product data, accept explicit configuration in creation/edit/stock updates, and capture the real creating actor. A rejected switch returns an error with its transaction rolled back. |
+| `backend/core/modules/marketplace/inventory_views.py:13` | `receive_stock` | Preserve the admin permission and CSRF gate; pass the optional explicit method to the shared service. |
+| `backend/core/modules/marketplace/mobile_seller_views.py:48` | `receive_stock`; workspace fields at 96 | Add an authenticated approved-seller receipt adapter, scoped to the seller's own products. No role grants. |
+| `backend/core/core/urls.py:101` | `mobile_seller_receive_stock` | Route the mobile receipt POST into Django. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/inventory_fifo.html:4` | `fifo_receiving_unavailable`; method at 17, empty state at 34 | Keep the existing table layout, add method to receiving, show the requested honest empty/configuration messages, and expose Simple receiving without requiring FIFO readiness. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html:134` | `data-inventory-method`; selectors at 454 and 960 | Preserve method when editing and expose configuration in the existing product/stock forms. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_inventory.html:124` | `admin_inventory_fifo.js` | Refresh the asset version so browsers load the new receipt contract. |
+| `backend/static/components/js/admin_products.js:1810` | `dataset.inventoryMethod`; defaults at 2052, payload at 2315, stock payload at 3950 | Hydrate/preserve the chosen method and refresh row data after a successful stock update. Existing filters and Listing Status defaults stay unchanged. |
+| `backend/static/components/js/admin_inventory_fifo.js:42` | draft fields; payload at 54, success text at 75 | Retain method with a failed draft/key and handle a successful Simple receipt whose batch is `null`. |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart:79` | `_inventoryMethod`; field at 876 | Default a student listing to Simple and let the seller explicitly select FIFO. |
+| `campushub/lib/module_app/services/product_service.dart:191` | `inventoryMethod` | Send that selection through the existing product submission API. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart:88` | `_receiveStock`; `route.completed` at 255, action at 1148 | Add receiving to eligible inventory rows; retain quantity/reference/date/notes/method across a failed receipt. Dispose controllers after the dialog finishes its exit animation. |
+| `campushub/lib/module_app/services/seller_application_service.dart:125` | `_receiptStorageKey`, `pendingReceipt`, `receiveStock` | Persist the operation key and exact draft per logged-in seller/SKU before POSTing; reopen and retry the same unconfirmed operation safely. |
+
+Test files updated: `backend/core/modules/marketplace/test_fifo_inventory.py` (explicit FIFO fixtures), `test_fifo_concurrency.py` (two additional Simple races), `test_hybrid_inventory.py` (new hybrid cases), `test_inventory_monitor.py` (truthful legacy-history expectations), `test_order_fulfillment.py` (reuse the explicit fixture), `backend/core/api/test_mobile_seller_workspace.py` (owned receiving/revoked access), and `campushub/test/seller_stock_receiving_test.dart` (lost-response/reopen/retry). Their class/function names identify the exact scenarios.
+
+Operational helpers are in `scratch/fifo-workflow-20261029/`: `backup_hybrid.py` backed up before schema migration; `backup_current.py` takes a fresh cutover dump; `verify_restore.py` restores only into an isolated local database and removes that exact generated database afterward; `package_release.py`/`verify_release.py` checksum the source archive; `stage_hybrid.py` verifies the side-by-side release; `local_runtime.py` identifies/pauses only this checkout's Django runserver; `activate_hybrid.py` checks the verified backup/fingerprint before activation; `remote_cutover.py` switches Django and collects static files; `live_audit.py` enforces read-only page rendering and probes HTTPS. `inspect_remote.py`, `inspect_live_audit.py` and `inspect_dns.py` read deployment diagnostics. `update_hybrid_test_fixtures.py` was a one-time fixture conversion helper and must not be rerun as a deployment step.
+
+### 3. Changes made
+
+Simple stock is the default for all categories, including food: category alone never enables FIFO. Every successful receipt saves a real movement. FIFO receipts additionally save a batch; reservations allocate the oldest eligible opening/receiving stock, splitting across batches when needed. Variant and seller pools remain separate. Virtual bundles keep component-derived availability and can mix both methods atomically. The existing three tabs, six inventory filters, four summary cards, columns and action links remain; Clear Filters stays removed.
+
+### 4. How it works / functions and data flow
+
+```text
+Product form -> existing Django create/edit endpoint -> Product.save (product lock)
+Receipt form -> admin or approved-seller adapter -> fifo.receive (operation key + product lock)
+             -> Product.save -> sync_inventory_records
+                Simple: quantity + movement
+                FIFO: quantity + movement + batch/allocation
+Order reservation -> existing quantity deduction -> movement -> FIFO allocation when configured
+Cancellation -> restore recorded component/variant quantity -> release original allocations
+Paid, valid completion -> record_completed_sale -> one physical movement per component/SKU
+Stock Overview / global Movements / product History -> the same persisted stock and ledger
+```
+
+`receive(sku_id, quantity, reference, user, key, received_at=..., notes=..., inventory_method=..., source=...)` validates a positive whole quantity and supported total, the current SKU, active approved product, receiving date, text lengths, and ownership. It returns `{message, batch, quantity, inventory_method}`; `batch` is `null` for Simple stock. Omit `inventory_method` to retain the saved method. A retry with the same key/details returns the first response; changed details with that same key are rejected.
+
+`initialize_product` reads the previous available quantity and real open holds while the product is locked. Example: 5 available plus 2 reserved becomes an explicitly identified opening batch of 7, available 5 and reserved 2. It does **not** add 7 to stock or invent a received date. A receipt of 3 then makes a separate legitimate batch, available 8 and physical on hand 10. Opening allocations retain their existing order identities for cancellation/completion.
+
+`physical_points` reuses `get_product_inventory_snapshot`; it does not create a second quantity ledger. Simple stock with 1 on hand becomes available 0/reserved 1 after reservation. Completion records physical 1 -> 0, while available stays 0. Completion replay cannot create another sale movement. Unknown retired-variant physical values remain unknown rather than guessed.
+
+### 5. Backend / API behavior
+
+- Existing admin receiving route retains Manage Products permission and CSRF validation.
+- New `POST /api/mobile/seller/inventory/receive/` uses existing bearer authentication and approved, active seller access, then enforces ownership in Django. Its JSON fields match the shared receipt function above. Missing authentication or suspended access is denied; a foreign SKU cannot be updated.
+- Existing product submission, admin product save, stock update and product serialization add `inventory_method`; omitted edit values preserve the existing method. Bundles remain Simple at their virtual parent and use their component methods.
+- Existing order stages, cash confirmation, pickup/delivery separation, expiry checks and cancellation restrictions remain. Delivered does not mean Paid/Completed. No FEFO, delivery fees, new return/damage policy, or unrelated permission grants were added.
+- Simple receipts work without the FIFO readiness marker. Configured FIFO stock writes fail clearly if FIFO is genuinely unavailable, rather than silently falling back to Simple.
+
+### 6. Database / migration and deployment impact
+
+Migration `0051_hybrid_inventory` was applied after a backup. It adds method/reference/receiving-date fields. The PostgreSQL `db_default='simple'` keeps an older writer compatible during source staging. Existing non-bundle products with actual batch history retain FIFO; unbatched products stay Simple. Quantities and historical movements are not backfilled or deleted.
+
+After both stock writers were paused, the fresh 48-table dump `kamatera-hybrid-cutover-20261029T151308Z.sql` was restored into a disposable LOCAL PostgreSQL database and reconciled successfully: **14 stock pools, 344 available, 1 reserved**. SHA-256: `08a071ede48d21df5a1d66775c607fe017b3d8b0ca5d73e97dbcb04c634fb914`. The temporary restore database was removed. Dumps, verification manifests and private logs remain under restricted `backend/backups/fifo-workflow-20261029/`; do not publish this folder.
+
+The new 656-file source archive SHA-256 is `a0a1e17946d8f52ab24d486a2f49949fd336a5e04c30742420ac0fe3fd0bfe0f`. It excludes private configuration, media, environments and backups. Its files were checksum-verified locally and on the staged server, and server Django/migration checks passed before switching `/srv/campushub/current`. The existing service environment was preserved with FIFO configuration explicitly enabled; chat was not restarted and media was not replaced. Later unrelated local edits to `accounts/role_permissions.py`, the sidebar and six Reports templates were deliberately left out of this already-tested release snapshot and remain in the workspace.
+
+Activation enabled the engine with **15 Simple products, 0 batches and 0 allocations**, preserving all quantities and the existing 12 movement records. The live reconciliation fingerprint remains `3d5d8e9add658de9ff8ca6bdcb66a6cd5f3ce5fec23bde776fe5a3da8c88f60c`. A new explicitly selected FIFO product can now receive/allocate batches. Do not rerun activation, force all products to FIFO, restore a dump over live data, or roll back to a FIFO-unaware writer once real FIFO operations exist.
+
+### 7. Tests performed / beginner verification
+
+- **174 related Django tests passed**, using a unique disposable LOCAL PostgreSQL database. Coverage includes 12 hybrid cases, existing FIFO/variants/bundles/statuses/reports, mobile seller ownership and order payment/fulfillment restrictions. Six concurrent PostgreSQL cases include Simple receipt retries and competing orders. No business test wrote to Kamatera.
+- After adding the seller-application lock, the two focused mobile receipt/permission tests passed again.
+- **26 existing Flutter widget tests passed** for seller product submission/workspace. The additional receiving test passed after exposing and fixing the controller-disposal bug; it verifies lost response, dialog close/reopen, restored draft, identical submission key, and cleanup after confirmed success.
+- Flutter analysis passed for the four changed application files before the final dialog lifecycle fix; final analysis including that fix and its new test is recorded below when completed. JavaScript syntax checks passed. Django `check` reported no issues; `makemigrations --check --dry-run` reported no changes.
+- **380/380 browser checks** across 40 actual rendered fixtures at 1440/1024/768/390/320 widths passed; **10/10 receipt draft/retry browser checks** passed. Browser submissions were intercepted. Existing table widths, scoped drawers, filters, pagination, alignment and keyboard close/focus behavior were checked.
+- Post-deployment, all three tabs returned HTTP 200 when rendered with a real authorized admin in enforced **read-only database transactions**, on both Kamatera and local source. Both use the same reconciled online stock. Direct Nginx HTTPS was checked with hostname/certificate validation and a pinned server address, because public DNS currently fails. A GET to the new POST-only receiving route returns the expected 405.
+
+Safe practice exercise: use a disposable local test database, never the shared online database. Run the isolated runner for `modules.marketplace.test_hybrid_inventory`. Read `test_explicit_fifo_transition_preserves_current_available_and_original_hold`; change only its isolated receipt from 3 to 4 and update the expected available/physical totals. Verify the test first fails with the old expectations, then passes with the corrected arithmetic. Restore the fixture afterward. To inspect the live UI safely, open Inventory's three tabs without submitting any forms; Simple items should not produce a configuration error or require a batch.
+
+### 8. Remaining limitations / troubleshooting
+
+The deployed Django service and TLS endpoint are healthy, but **public DNS for `campushub-ch.duckdns.org` currently returns NXDOMAIN** (Google DNS JSON status 3; PC and server resolution fail). DuckDNS itself resolves. No existing DuckDNS update unit or root cron entry was found. The user was asked to confirm the current/renamed hostname without sharing secrets. A working authoritative DNS record pointing to the existing Kamatera server is needed for ordinary browser/mobile access through that hostname. TLS checks pinned to the server do not prove public DNS access.
+
+The Flutter source is implemented/tested; no Android release build, installation or app-store publication was performed. Historical receipt dates, actors and transactions absent from the original ledger remain absent. There is no fabricated returned/damaged stock workflow: use existing approved return/adjustment policies. Retry an unconfirmed receipt unchanged; changing any draft details deliberately starts another operation. FIFO-to-Simple conversion is intentionally blocked while any physical FIFO units or reservations remain. If balances mismatch, inspect the SKU and its original orders/batches rather than deleting records or inventing a receipt.
+
+## Historical implementation reports (superseded where they conflict above)
+
+## FIFO workflow completed in source; Kamatera activation pending - October 29, 2026
+
+**Current selected database is Kamatera, not the separate PC database.** Its read-only reconciliation reports 14 stock pools, 344 Available units and 1 Reserved unit, with no errors, batches or initialized FIFO control. All three Inventory tabs render successfully using the updated localhost source. Recorded movements remain readable; receiving stays protected until safe initialization. Older October 25 LOCAL-active statements below do not describe this selected online database.
+
+The public Django service still runs `campushub-backend-20261020T130206925430Z`, and its source has no `services/fifo.py`. Enabling only the localhost/shared control would allow that old public writer to bypass FIFO. A coherent source release and restore-tested backup are prepared; no source was uploaded and no opening balances were written. Deployment also publishes other existing unreleased backend work, so that wider rollout needs a separate decision before activation.
+
+### 1. Cause / reason
+
+Confirmed existing functionality: per-product/variant SKU identities, stock movements, batches, allocations, keyed operations, row locks, bundle snapshots, cancellation release and completion consumption. Reused these rather than building another ledger. The unavailable tabs came from missing initialization in the selected database; an early return additionally hid legitimate movement history when receiving was disabled.
+
+Confirmed gaps fixed: receiving date/notes, ordering by actual receipt date, incomplete batch/movement columns, batch-scoped history, adjustment reasons, physical movement balances, reload-safe dated drafts, and a JSON serialization error when the stock-update API returned allocation model instances. Order/payment/delivery statuses and existing role/owner permissions were preserved.
+
+### 2. Exact files changed / current lines and code anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/api/models.py` | 1025 `InventoryStockMovement.notes` | Optional nullable notes in the existing movement ledger. |
+| `backend/core/api/migrations/0050_inventory_movement_notes.py` | 4 `Migration` | One reversible nullable-column migration; no stock rewrite or activation. |
+| `backend/core/modules/marketplace/services/fifo.py` | 32 `ordered_batches`; 54 `sync_change`; 116 `receive` | Shared receipt-date ordering, stable ties, date/notes validation and compatible keyed retries. |
+| `backend/core/modules/marketplace/services/inventory_records.py` | 24 `sync_inventory_records`; 124 `record_completed_sale` | Persist notes; distinguish physical receipt/adjustment balances from Available reservation balances; capture physical completion balances under product locks. |
+| `backend/core/modules/marketplace/inventory_views.py` | 13 `receive_stock` | Pass optional receiving fields into the existing protected service. |
+| `backend/core/api/views.py` | `serialize_product` / `stock_movements` around 294; `admin_update_product_stock` / `reason` | Convert allocations to JSON-safe batch/quantity/state data; validate/store optional adjustment reason. |
+| `backend/core/modules/marketplace/services/fifo_presentation.py` | 35 `search_movements`; 48 `workspace` | Read history independently of receiving activation; scoped search/history URLs, physical remaining and dated order. |
+| `backend/core/modules/marketplace/services/inventory_monitor.py` | 16 `inventory_monitor_context`; 132 `inventory_movements` | Intersect batch/search with authorized SKU rows; include recorded notes. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/inventory_fifo.html` | 4 setup state; 15 receiving date; 17 notes; 25 batch table; 38 movement table | Real tables with 12 batch/13 movement columns, receiving fields and meaningful batch History action. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/inventory_details_drawer.html` | 2 drawer condition; Stock Balance / Related Transactions | Preserve drawer behavior; show physical remaining and link existing authorized stock management. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_inventory.html` | 12/124 assets; 25 count explanation; filter/empty-state blocks | Clarify item totals; remove both Inventory Clear Filters links; retain six filters. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html` | 956 `updateStockReason`; final script version | Optional reason in the existing stock dialog only; preceding table/filter work preserved. |
+| `backend/static/components/js/admin_inventory_fifo.js` | 38 draft restore; 52 payload; 63 pending controls | Restore dated drafts and retry key; include notes and lock textarea while pending. |
+| `backend/static/components/js/admin_products.js` | 3863 `openUpdateStockFromDetails`; 3948 stock request | Reset/send the optional adjustment reason. |
+| `backend/static/components/css/admin_products.css` | final Inventory-scoped table/filter rules | Internal ledger scrolling and responsive six-filter grid after button removal. |
+| `backend/core/modules/marketplace/test_fifo_inventory.py` | new receipt-date/tie/retry/physical/history/reason cases | Extend real PostgreSQL regression coverage and isolated render exports. |
+| `backend/core/modules/marketplace/test_inventory_monitor.py` | former Clear Filters assertions | Expect requested UI removal; preserve stock/filter assertions. |
+| `docs/fifo-inventory.md`; `CAMPUSHUB_CONTEXT.md` | current October 29 report | Verified behavior, data flow, backup, rollout boundary, tests and practice guide. |
+
+Ignored QA/support tools: `scratch/fifo-workflow-20261029/{backup.py,verify_restore.py,package_release.py,browser.cjs,receiving.cjs}` and exported test fixtures/results. No new application endpoint, worker or dependency was added.
+
+### 3. Changes made
+
+Stock Overview retains its 12 columns and four cards. The explanation states that items count product/variant entries, including derived bundle entries, rather than physical units. Filters still precede summaries. Stock Batches separates Product, Variant, SKU and Seller and shows actual receipt/starting quantity, physical remaining, reserved, available and status. View uses the existing drawer; History opens the existing movement tab with exact authorized batch scope.
+
+Stock Movements shows actual date, product, variant, SKU, batch references, type, quantity change, previous/resulting quantity, order/reference, actor, notes and actions. Unknown historical values remain Not recorded. Recorded movement history no longer disappears merely because receiving is disabled. No historical receiving date or missing transaction is fabricated.
+
+Receiving now accepts date/time in Philippine Time and optional notes; omitted date keeps the old API behavior of recording actual current time. Invalid/future dates, invalid notes, nonpositive/overflow quantities, invalid scope and incompatible reused keys are rejected atomically. Historical starting balances remain undated and first; other eligible stock uses actual received date, recording time and primary key. This is FIFO, not FEFO. Existing reservations are not reassigned when an older receipt is recorded late.
+
+Search, Inventory Status, Program, Major, Seller and Category remain. Both Inventory Clear Filters links are removed, with no replacement. Existing stock adjustment is retained with an optional reason. No role definition or automatic damaged/returned/refund transaction was added.
+
+### 4. Functions, inputs / outputs and data flow
+
+The existing storage contract is deliberately preserved: `Product.stock`, tracked variant stock and `InventoryBatch.remaining_quantity` store sellable **Available**. Physical stock is projected as **On Hand = Available + Reserved**; Available = On Hand - Reserved. Changing those stored fields to physical stock would break existing clients and double-deduct orders.
+
+`receive(sku_id, quantity, reference, user, key, received_at=..., notes=...)` validates permission/scope and fields, locks the keyed operation and Product, then increases Available once. Existing transactional `Product.save()` calls `sync_inventory_records()`, records the movement and calls `sync_change()` to create one receipt batch linked to it. Exact retries return the saved result; errors roll back product, batch, movement and operation together. Notes are cleared from temporary instance metadata after use so later unrelated saves do not inherit them.
+
+`ordered_batches(query)` annotates opening/date order without adding another database field. Allocation and display use the same order. `sync_change()` locks batches, checks their availability sum against the old product/variant Available, then allocates oldest eligible pools across multiple batches. SKU identity already isolates product, seller and variant.
+
+```text
+Authorized receipt -> Product.save -> existing movement + distinct FIFO batch
+Existing order placement -> Available reservation -> saved oldest batch allocations
+Cancellation before completion -> original allocations Released -> Available restored
+Existing authorized completion -> allocations Consumed + one physical Sale per SKU
+  -> Overview / Batches / Movements read the existing records
+```
+
+Reservation affects Available/Reserved without reducing physical On Hand. `record_completed_sale()` locks component products, measures physical stock, consumes original allocations and records physical before/after values once; it never subtracts Available again. Existing payment/fulfillment approval rules still determine completion. Delivered alone does not imply Paid or Completed. Completed sales are not blindly restocked by cancellation.
+
+Bundle orders retain their saved component/quantity recipe. Every component reserves from its own batches atomically; shortage aborts the whole order, recipe changes do not rewrite purchased allocations, and virtual bundles receive no independent physical stock. Expiry eligibility remains separate from FIFO ordering.
+
+`workspace()` paginates authorized actual batches/movements and derives physical remaining. `search_movements()` intersects actual reference/order/actor/notes matches with candidate SKUs. Foreign or invalid `batch` scope returns no movements. Global and SKU history share persisted movement records; the SKU history also retains its existing separately verifiable legacy-order context instead of deleting it. API serialization now returns primitive allocation fields rather than non-serializable model objects.
+
+Annotated isolated example exercised by tests: receive 20 and 30, reserve an order of 25 -> allocations 20/5, Available 25, Reserved 25, On Hand 50. Complete -> Reserved 0, On Hand 25, Available stays 25. These are disposable test transactions, not newly created working records.
+
+### 5. Backend / API behavior and permissions
+
+Reused receiving/order/stock-update/inventory/seller routes. Added optional `received_at`/`notes` to receiving and optional `reason` to stock adjustment; old clients may omit them. Omitted optional fields preserve the old receipt-key fingerprint. Browser session storage now restores all original dated draft fields so a reload cannot silently change the receipt timestamp and generate another key for a lost response.
+
+Existing Manage Products and academic/product scope still gate writes; movement-view/monitoring permissions do not automatically grant receiving. No Marketplace Admin, Facilities Admin, seller or Super Admin permission changed. Sellers retain their existing owned-stock flow and Product hooks; no new administrative receipt grant was made. All business logic remains Django; FastAPI remains chat-only.
+
+All three real Inventory tabs rendered 200 against Kamatera through the local backend using read-only authenticated request objects, without creating a login session. This verifies rendering/history, not activation or a completed public receiving workflow.
+
+### 6. Database / migration impact and safe initialization
+
+Applied only **`api.0050_inventory_movement_notes`**, after backup. Its nullable column preserves unknown history and allows the legacy hosted writer to insert its old column set during preparation. No stock, hold, history, role or order was rewritten; no opening balances or real receipts were created. Reversing the migration removes notes, so preserve any subsequently entered notes before an intentional rollback.
+
+Private backup: `backend/backups/fifo-workflow-20261029/kamatera-before-fifo-20261029T133040Z.sql`, **389,453 bytes**, 48 table definitions, pg_dump exit 0/completion/hash verified. SHA-256 `52d21afcf819ab5fbe412808e866470d7efa1aac53a7c72a23483d5dab1f0af8`. **Restore-tested** into a uniquely named disposable local PostgreSQL database: restored 14 pools, Available 344, Reserved 1 and fingerprint `09454d000ebae57a87931447e0610892abbb7dab4114e33522582eeff090c99a`. Removed that test database. The private `.sql.verified.json` records database identity and restore verification. Media is not part of this database dump.
+
+Post-change actual checks confirmed the same totals/fingerprint, zero batches/uninitialized FIFO and zero pending migrations. Schema preparation is not activation.
+
+Prepared source-only release: `backend/backups/fifo-workflow-20261029/campushub-fifo-review-20261029T140252Z.tar.gz`, **9,067,253 bytes / 654 files**, SHA-256 `c2167803f0e45c8dc3b26cbb7ce2e05ce579252e1591e39abcd03603febbca5b`; adjacent manifest lists file hashes. Media, private configuration/credential file types, backups and virtual environments are excluded. It contains coherent current backend source, including other existing unreleased work. **Not uploaded/deployed.**
+
+After authorization for that wider deployment: stage/validate compatible source before switching traffic; coordinate a pause of both local and public stock writers; take and restore-verify a fresh backup; rerun the dry-run under that pause; invoke the existing guarded initializer with its matching verified backup and exact fingerprint; check unchanged Available/Reserved totals; start both compatible writers with FIFO enabled. Opening batches must use `origin='opening'`, `received_at=NULL` and original Available/Reserved splits, with no stock increment or duplicate run. Do not enable localhost alone or roll back to a FIFO-unaware public writer after cutover.
+
+### 7. Tests performed / troubleshooting
+
+- **126 tests passed in 21.198s** across FIFO inventory, real PostgreSQL concurrency, inventory monitor, variants, bundles, program scope, thresholds, order fulfillment and inventory report accuracy. Earlier 125/56 runs overlap and are not extra distinct totals. No PostgreSQL concurrency case was skipped.
+- Required scenarios are covered by the existing lifecycle/rollback/ownership/report tests plus new dated/tie receipt, notes/reason, physical-balance, exact retry, scoped history and disabled-receiving history cases. Independent connections test duplicate receipt races, competing orders, keyed order retries and single-product/bundle shared-pool contention.
+- **380/380 Chrome checks across 40 renders**, five widths 1440/1024/768/390/320 and eight actual fixture states: retained filters/no Clear Filters, 12/13-column alignment, arithmetic, internal scrolling, authorized fields, history URLs, disabled/read-only states, drawer/Escape/focus behavior and no application writes. Desktop/narrow actual captures inspected.
+- **10/10 receiving browser checks passed:** date/notes payload, pending textarea/duplicate-submit guard, error preservation, cross-reload field/key restoration, changed-draft key and success cleanup. All POSTs were intercepted.
+- Django database check: no issues. Migration drift: No changes detected. `migrate --check`: no pending migration. JavaScript syntax/scoped whitespace checks passed.
+- The first run exposed the confirmed allocation JSON error and an absent QA export directory. An inactive browser assertion also used a batch fixture while expecting a movement table. Fixed the production serializer and QA setup/mapping, then reran successfully. No failing run activated FIFO.
+
+| Required coverage | Tests |
+| --- | --- |
+| Receive/multiple batches; order smaller than first or spanning batches | FIFO lifecycle plus receipt-date/tie cases |
+| Reserve without physical deduction; fulfill once; cancel unfulfilled | Physical-balance/completion and original-allocation release cases |
+| Concurrent orders; insufficient stock; retry/rollback | Four PostgreSQL contention cases and atomic failure/idempotency cases |
+| Bundle FIFO/shortage/derived availability | Component snapshot, shared-pool race and bundle/report regressions |
+| Low/out status; legacy opening; movement accuracy | Threshold, monitor/report, opening and before/after tests |
+| Seller isolation; Marketplace Admin permission | Existing scoped endpoint/drawer/owner cases; no role mutation |
+
+If receiving remains hidden now, that is the verified shared-database initialization state. Do not bypass it while the old public writer remains active. Reconciliation mismatches require inspection of the actual SKU/order, not deletion or an invented receipt. Retry a failed receipt with its original unchanged draft; editing date, quantity, notes or reference deliberately means a new operation. Unknown old values remain Not recorded.
+
+### 8. Remaining limitations and safe practice exercise
+
+**Online activation awaits coordinated deployment.** The public writer is incompatible, and publishing the complete current source also publishes other unreleased backend changes outside this patch. No deployment, write freeze or real initialization has occurred. Physical-device/full assistive-technology and public authenticated end-to-end verification remain unclaimed.
+
+Existing return/refund approval and completed-order restrictions stay intact. Damage/return-specific batch policies were not guessed: permitted corrections use Stock Adjustment plus the actual reason. Batch history shows the real SKU/order movement with its actual allocation breakdown, not a new duplicate ledger.
+
+Safe practice: run `node scratch/fifo-workflow-20261029/browser.cjs` and `receiving.cjs` on isolated fixtures to inspect receiving, 25-unit holds, consumed/released allocations and retry recovery. On real Kamatera inspect Overview/Movements and the honest empty Batches state only; do not create demo receipts/orders. Before a later authorized cutover, regenerate the backup/plan after pausing every writer and never reuse a stale fingerprint.
+
+---
 
 October 25, 2026 current status: **LOCAL development FIFO is active and inventory operations are REOPENED.** The temporary database read-only default was removed after corrected final checks. Django restarted with FIFO enabled; authenticated HTTP requests to Stock Overview, Stock Movements and Stock Batches all returned200. Admin-session timestamp updates now succeed. Available344/reserved1/opening345 across14batches and order2026BSKJHRNM remain unchanged. Production was not modified. Historical paused/inactive reports below are retained as an audit trail; this current status supersedes them.
 

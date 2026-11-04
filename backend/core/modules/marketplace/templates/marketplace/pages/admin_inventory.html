@@ -9,7 +9,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter">
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split">
-    <link rel="stylesheet" href="{% static 'components/css/admin_products.css' %}?v=20261025-batches-final">
+    <link rel="stylesheet" href="{% static 'components/css/admin_products.css' %}?v=20261104-inline-tabs">
 {% include 'partials/web_typography.html' %}
 </head>
 <body class="inventory-page">
@@ -22,7 +22,7 @@
             {% include 'marketplace/partials/inventory_kpis.html' %}
             <section class="seller-products-panel inventory-page-panel">
                 <div class="product-list-toolbar">
-                    <div class="product-list-heading"><h2>Inventory</h2><p>Available stock and warning levels for each product variant.</p></div>
+                    <div class="product-list-heading"><h2>Inventory</h2><p>Inventory items count product and variant entries, not physical units. Available stock excludes reservations.</p></div>
                     <a class="inventory-product-link" href="{% url 'admin_products_page' %}">View Products →</a>
                 </div>
                 <nav class="inventory-workspace-tabs" aria-label="Inventory workspace">
@@ -55,7 +55,6 @@
                         <option value="">All Categories</option>
                         {% for category in inventory_categories %}<option value="{{ category }}" {% if inventory_category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
                     </select></label>
-                    <a class="inventory-product-link catalog-clear-filters" href="{{ inventory_reset_url }}">Clear Filters</a>
                     <noscript><button class="primary-action" type="submit">Filter</button></noscript>
                 </form>
                 {% if inventory_section != 'overview' %}
@@ -100,7 +99,7 @@
                                     </a>{% endif %}
                                 </div></td>
                             </tr>
-                        {% empty %}<tr><td colspan="12" class="inventory-ledger-empty">No inventory records match the selected filters.<br><a class="inventory-product-link" href="{{ inventory_reset_url }}">Clear Filters →</a></td></tr>{% endfor %}
+                        {% empty %}<tr><td colspan="12" class="inventory-ledger-empty">No inventory records match the selected filters.</td></tr>{% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -122,6 +121,6 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{% static 'components/js/admin_notifications.js' %}?v=20260523-3"></script>
 <script src="{% static 'components/js/admin_inventory_filters.js' %}?v=20261008-program-major"></script>
-<script src="{% static 'components/js/admin_inventory_fifo.js' %}?v=20261025-inventory-drawer"></script>
+<script src="{% static 'components/js/admin_inventory_fifo.js' %}?v=20261029-hybrid-inventory"></script>
 </body>
 </html>

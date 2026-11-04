@@ -14,6 +14,7 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import Coalesce, TruncDate
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -507,6 +508,7 @@ def _marketplace_operational_dashboard_data(request, user):
     from modules.marketplace.services.order_access import admin_order_queryset
     from modules.marketplace.services.analytics import valid_sales_queryset
     from .dashboard_marketplace import category_sales_chart, recent_marketplace_orders, sales_by_product_category, top_selling_products
+    from .marketplace_kpi_trends import marketplace_kpi_trends
 
     today = timezone.localdate()
     grouping = (request.GET.get("grouping") or request.GET.get("sales_grouping") or "daily").strip().lower()
@@ -516,7 +518,11 @@ def _marketplace_operational_dashboard_data(request, user):
     products = scope_products(Product.objects.filter(is_archived=False), user)
     product_counts = products.aggregate(total=Count("pk"), pending=Count("pk", filter=Q(approval_status=Product.STATUS_PENDING)),
         approved=Count("pk", filter=Q(approval_status=Product.STATUS_APPROVED)),
-        rejected=Count("pk", filter=Q(approval_status=Product.STATUS_REJECTED)))
+        rejected=Count("pk", filter=Q(approval_status=Product.STATUS_REJECTED)),
+        added=Count("pk", filter=Q(submitted_at__date__range=(period.start, period.end))))
+    products_added = product_counts.pop("added")
+    if date_range_error:
+        products_added = None
     # Also retains Orders' protection against legacy multi-owner item snapshots.
     orders = admin_order_queryset(user)
     period_orders = orders.filter(created_at__date__gte=period.start, created_at__date__lte=period.end)
@@ -526,6 +532,8 @@ def _marketplace_operational_dashboard_data(request, user):
     revenue = period_revenue.aggregate(total=Sum("total_price"), count=Count("pk"))
     total_sales = revenue["total"] or Decimal("0")
     completed_count = revenue["count"]
+    kpi_trends = marketplace_kpi_trends(orders, revenue_orders, period,
+        current_orders=total_orders, current_revenue=total_sales, available=not date_range_error)
     chart = _sales_time_series(period_revenue, period, grouping)
     overview = _sales_overview_summary(revenue_orders, period, total_sales, completed_count, marketplace=True)
     overview["rows"] = [{"label": label, "sales": f"{sales:,.2f}", "orders": count}
@@ -552,10 +560,19 @@ def _marketplace_operational_dashboard_data(request, user):
             return next((variant["reserved"] for variant in snapshot["variant_thresholds"]
                          if variant["variant_key"] == row["variant_key"]), None)
         return snapshot["reserved"]
+    def resolve_product_thumb(row):
+        img = row.get("image_url")
+        if img:
+            return img
+        prod = row.get("product")
+        if prod and hasattr(prod, "get_image_list") and prod.get_image_list():
+            return reverse("product_image", args=[prod.pk])
+        return ""
     low_stock = [{"id": row["product"].pk, "name": row["product"].name,
                   "variant_name": row["variant_name"], "seller": _seller_label(alert_products[row["product"].pk].owner),
                   "reserved": reserved_quantity(row),
                   "stock": row["available"], "threshold": row["threshold"], "is_out_of_stock": row["available"] == 0,
+                  "image_url": resolve_product_thumb(row),
                   "url": inventory_url({"view": "inventory", "product_id": row["product"].pk})}
                  for row in inventory_rows]
     top_products = top_selling_products(period_revenue)
@@ -590,6 +607,17 @@ def _marketplace_operational_dashboard_data(request, user):
         today=today, products=products, pending_products=product_counts["pending"],
         pending_sellers=seller_counts["pending"], pending_orders=status_counts.get(MarketplaceOrder.STATUS_PENDING, 0),
         pending_bookings=0, booking_conflicts=0, maintenance_facilities=0, unavailable_facilities=0)
+    # Match the existing destination gates; a visible count must lead to an authorized action.
+    attention_permissions = {
+        "low_stock_products": ("can_manage_products", "can_approve_products", "can_view_inventory", "can_view_stock_movements"),
+        "out_of_stock_products": ("can_manage_products", "can_approve_products", "can_view_inventory", "can_view_stock_movements"),
+        "pending_products": ("can_manage_products", "can_approve_products", "can_view_products"),
+        "pending_sellers": ("can_manage_sellers", "can_view_sellers"),
+        "pending_orders": ("can_manage_orders", "can_view_orders"),
+    }
+    attention["items"] = [item for item in attention["items"]
+                          if any(user.has_perm("accounts." + code)
+                                 for code in attention_permissions.get(item["key"], ()))]
     status_rows = [{"key": key, "label": label, "count": status_counts.get(key, 0),
                     "percent": round(status_counts.get(key, 0) / status_total * 100) if status_total else 0}
                    for key, label in MarketplaceOrder.STATUS_CHOICES]
@@ -642,10 +670,12 @@ def _marketplace_operational_dashboard_data(request, user):
         return f"{date}, {local.strftime('%I:%M %p').lstrip('0')}"
     activities = [{"message": event.activity, "type": detail["action"],
                    "performed_by": detail["performed_by"]["name"], "date": activity_date(event.created_at),
+                   "date_iso": timezone.localtime(event.created_at).isoformat(),
                    "url": activity_link(event)}
                   for event, detail in zip(events, activity_details)]
     best = top_products[0]["product_name"] if top_products else "\u2014"
     return {"total_products": product_counts["total"], "pending_listings": product_counts["pending"],
+            "products_added": products_added, "kpi_trends": kpi_trends,
             "total_orders": total_orders, "total_sales": f"{total_sales:,.2f}",
             "sales_grouping": grouping, "sales_days": sales_days, "sales_period": period, "date_range_error": date_range_error,
             "sales_period_key": sales_period_key, "today": today,
@@ -1369,7 +1399,13 @@ def admin_dashboard_api(request):
         from .dashboard_health import build_system_status
         return JsonResponse({"system_status": build_system_status()})
     try:
-        return JsonResponse(build_dashboard_data(request.GET))
+        payload = build_dashboard_data(request.GET)
+        if can_view_bundle_suggestions(user):
+            # Reuse saved eligible pairs; a dashboard refresh never runs Apriori.
+            payload['bundle_preview_html'] = render_to_string(
+                'marketplace/partials/super_recommendation_preview.html',
+                {'bundle_analysis': dashboard_bundle_suggestions(user, limit=2)}, request=request)
+        return JsonResponse(payload)
     except ValueError as error:
         return JsonResponse({"error": str(error)}, status=400)
     except DatabaseError:
@@ -1384,15 +1420,15 @@ def admin_marketplace_analytics_page(request):
         return render_domain_analytics(request, module)
     if not request.user.has_perm('accounts.can_view_marketplace_analytics'):
         raise PermissionDenied
+    from .superadmin_analytics import is_super_analytics, enrich_marketplace
+    super_analytics = is_super_analytics(request.user)
     try:
-        analytics = build_marketplace_analytics(request.GET, user=request.user)
+        analytics = build_marketplace_analytics(request.GET, user=request.user, refined=super_analytics)
     except ValueError as error:
         return HttpResponseBadRequest(str(error))
     from .analytics_sections import module_links
-    from .superadmin_analytics import is_super_analytics, enrich_marketplace
-    super_analytics = is_super_analytics(request.user)
     if super_analytics:
-        enrich_marketplace(analytics, request.user)
+        enrich_marketplace(analytics, request.user, order_grouping=request.GET.get('order_grouping'))
     return render(
         request,
         "reports/pages/admin_marketplace_analytics.html",

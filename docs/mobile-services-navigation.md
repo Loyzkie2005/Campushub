@@ -1,5 +1,1465 @@
 # Flutter mobile Services tab and live catalog
 
+## Current Facility Details: pure white, gray controls and labeled Chat - October 29, 2026
+
+This is the current direction. Older blur and frosted-control reports below are historical.
+
+### 1. Cause / reason
+
+Confirmed in the screen: _FacilityInformationBackdrop painted blurred gold/navy circles behind the information, and _FrostedPhotoSurface added blur and a gold border to photo controls. The user requested pure white, gray or transparent arrow/heart containers, and Chat text to the right of its icon. Solid light gray keeps controls readable over uploaded photos.
+
+### 2. Exact files changed
+
+| File | Current line / code anchor | Change |
+|---|---|---|
+| campushub/lib/module_app/screens/facility_details_screen.dart | 424 `final chat`; 523 `_FacilityInformationSurface`; 694 `_PhotoControlSurface`; 715 `_GalleryButton` | Labeled Chat, opaque white information, neutral gray photo controls; removed blur implementations and unused ImageFilter import |
+| campushub/test/facility_details_test.dart | 168 continuous-page test; 1018 white/gray test; 1179 capture folder | Updated existing expectations for Chat placement, no filters, white surface and gray controls; new capture folder |
+| docs/mobile-services-navigation.md | 3 current report | Explanation, verification, troubleshooting and exercise |
+| CAMPUSHUB_CONTEXT.md | 3 latest record | Current steering supersedes blur guidance |
+| campushub/DESIGN.md | Facility Details current direction | Current surface/control/action specification |
+| campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md | Scope and mode | Updated direction |
+| .impeccable/review/facility-details/surface-brief-body.md | Scope and mode | Matching direction |
+
+### 3. Changes made
+
+Replaced the decorative background stack with a white ColoredBox. Removed the frosted-control filter and gold edge. Back, Favorite, photo arrows and counter share opaque #F5F6FA backing. Chat uses TextButton.icon: chat icon followed by Chat text, keeping the tooltip, minimum48dp target and native feedback. Existing large-text layout puts Chat on its own row. Original saved-photo carousel, sections, pale cards, navy text and gold booking action remain.
+
+### 4. How it works
+
+Data flow: Django catalog -> FacilityItem -> FacilityDetailInformation -> existing saved image/rate/text widgets. No additional data is fetched for styling.
+
+_FacilityInformationSurface accepts a child widget and returns an opaque white surface behind it. _PhotoControlSurface accepts child and optional corner radius (default24dp) and returns a clipped gray backing. _GalleryButton passes existing icon/selected state/callback into that surface. Favorites still use _toggleFavorite and the original facility-specific SharedPreferences key.
+
+_overview passes the same callback to TextButton.icon: messageFacilitiesAdmin(context, facility.id). Example: tapping Chat passes the currently displayed facility's ID to the existing contact helper. Displaying the label sends no message. This button keeps icon and label together with normal button semantics and feedback.
+
+### 5. Backend / API behavior
+
+No edits. Existing contact helper, status guard, slot/non-slot route, quotes, conflicts, authentication and permissions remain intact.
+
+### 6. Database / migration impact
+
+None. No models, records, packages or image assets changed. Favorite remains a local preference keyed by facility ID.
+
+### 7. Tests performed
+
+Final focused Facility Details + booking suite: 32/32 tests passed (14 seconds), including 20 actual widget captures. Two-file Flutter analysis: No issues found (5.2 seconds). Formatting and scoped whitespace checks passed. Inspected top-390.0-1.0.png and top-320.0-2.0.png in scratch/facility-details-plain-white-20261029: white background, neutral controls, visible Chat on the right of its icon, and large-text fallback. Initial sandboxed runners stalled without output and were interrupted; the completed run outside the sandbox passed. No failed/stalled run is counted as a pass.
+
+Commands from campushub:
+
+    flutter test --no-pub --reporter expanded test/facility_details_test.dart test/facility_booking_flow_test.dart --dart-define=CAPTURE_FACILITY_DETAILS=true
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+No app build, install, launch or restart; user retains Ctrl+F5. No physical-device or TalkBack verification is claimed. Actual uploaded photos retain their original colors; the removed color was decorative background.
+
+If an old blur remains visible, use the existing development refresh workflow and confirm this screen is the opened route. Search the screen for ImageFiltered/BackdropFilter: neither should remain. Chat below the name at large text size is the intentional accessibility layout.
+
+Safe exercise: inspect _PhotoControlSurface's default radius and the counter's radius:8 override. Switch highContrast in the isolated white/gray test and run that named test. Both settings should show white information, gray controls and no filters. Restore the fixture; no live records or bookings are needed.
+
+## Current Facility Details: white with navy/gold blur behind the carousel — October 29, 2026
+
+Latest request: change to white, with the blurred navy/gold overlay behind the photo while keeping the carousel visible. This supersedes the intermediate navy page and the prior edge-to-edge gallery. It keeps the original facility photos sharp and the selected content/booking hierarchy.
+
+Plan, reviewed against the request: white #FFFFFF page/footer, navy #1A1851 text, pale #F5F6FA cards, muted #667085 secondary text, #E3E5ED borders and mobile gold #FCB315. Retain Montserrat, 620 dp content measure, 20 dp gutters, rate accordion, circular amenities and gold booking action. Confine decorative blur to the background behind a large rounded gallery; a white wash softens the color. The photo itself never receives that blur or overlay.
+
+    navy/gold background blur -> white wash -> sharp rounded photo carousel
+    white information -> pale saved-rate accordion -> circular saved amenities
+    About -> operating schedule -> guidelines -> terms -> reviews
+    white safe footer: [local bookmark] [gold Request Booking]
+
+### 1. Cause / reason
+
+Confirmed: the intermediate navy design put blurred accents behind the information. The latest request asks for white again and places the colored effect behind the photo. Moving the effect into its own gallery frame makes it visible around the photo without hiding the actual image or putting a navy tint over it.
+
+### 2. Exact files changed
+
+All paths are repository-relative. Lines are current; anchors identify the component if future edits move them.
+
+| File | Current line / nearby anchor | Change |
+|---|---|---|
+| campushub/lib/module_app/screens/facility_details_screen.dart | 17 local tokens; 87 build; 281 _rentalRates; 375 _overview | White theme, navy copy, pale surfaces, #FCB315 action/selection; original data/handlers |
+| same screen | 506 _FacilityGalleryBackdrop; 582 _FacilityHeroGallery | Blurred navy/gold shapes and white wash behind a sharp framed PageView |
+| same screen | 741 _FrostedPhotoSurface; 770 _GalleryButton; 1226 _FacilityBookingBar | Clipped white blur controls/gold edge, same native actions, white safe footer |
+| campushub/test/facility_details_test.dart | 505 responsive loop; 777 actual images; 956 rate/bookmark; 1007 frosted controls; 1126 captures | Frame geometry, clear image/swipe/count, current colors, high-contrast fallback and captures |
+| docs/mobile-services-navigation.md | 3 current report | Eight-part guide, data flow, checks, troubleshooting and exercise |
+| CAMPUSHUB_CONTEXT.md | 3 latest carousel-background record | Current request replaces earlier white/navy records |
+| campushub/DESIGN.md | Colors / Layout / Facility Details component | Current white layout and behind-photo material |
+| campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md | 8 Scope and mode | Matching current surface brief |
+| .impeccable/review/facility-details/surface-brief-body.md | 1 Scope and mode | Matching review brief |
+
+No other runtime screen, shared navbar or notification-product test was modified. The existing booking-flow test is run without further edits.
+
+### 3. Changes made
+
+Restored white page/footer and navy text/icons with muted supporting copy and pale gray rates/amenities. Gold is now exactly #FCB315, as requested, including the booking button and active carousel pill. Original section order, disclosures, pricing and navigation remain.
+
+The new gallery frame reserves the existing responsive overall height. Photos are inset 12 dp horizontally, begin 8 dp below the safe top inset and end 20 dp above the frame bottom, with 24 dp rounded corners. The colored background therefore shows around the frame. Native controls remain at least 48 dp, fully inside the photo and clear of safe insets. Centered BoxFit.cover preserves proportions; no stretching, replacement photography or thumbnail strip.
+
+Behind the photo are two decorative 240 dp circles: navy at 42% alpha and #FCB315 at 45%, each blurred with sigma 40, then softened by a 55% white wash. They are clipped to the gallery region, excluded from semantics and cannot receive pointer events. PageView sits above this wash and is not inside either ImageFiltered layer.
+
+Small photo-control/counter backgrounds retain their own clipped sigma-10 BackdropFilter and 82% white backing with a subtle gold edge. This intentionally blurs only their backing. High contrast removes both decorative background filters and the control filters, and uses solid white controls.
+
+### 4. How it works: functions, inputs/outputs and data flow
+
+    existing Django catalog -> FacilityItem -> FacilityDetailInformation
+      -> saved images/rates/amenities/hours/text -> existing screen components
+      -> original _requestAction -> existing booking form or category contact path
+
+build creates the route-scoped light theme and places the gallery before the separate information column. It does not change any app-wide theme or navbar.
+
+_FacilityHeroGallery takes real allImageUrls, PageController/current index, favorite state and original callbacks. It passes its clear PageView/controls to _FacilityGalleryBackdrop with a height based on viewport width and the current safe top inset. The frame reserves space before image loading finishes, so decoding does not move the content.
+
+_FacilityGalleryBackdrop takes child, height and topInset. It paints the decorative background first, then the white wash, then the padded/rounded child. ImageFiltered applies only to the colored circles; ProductImage remains outside every image/backdrop filter. The visible original image is therefore sharp. _FrostedPhotoSurface remains a separate helper for the small controls only.
+
+Annotated example: topInset=24 puts the photo at y=32. On a 390 dp viewport it is 366 dp wide, preserving the full-sized swipe target while exposing a 12 dp colored frame on each side. The source photo uses BoxFit.cover, so its ratio is preserved rather than stretched.
+
+_rentalRates toggles only local _ratesExpanded and renders original FacilityDetailInformation fields. The heart/bookmark still share facility_favorite_ID in SharedPreferences. _requestAction retains its existing facility-status guard and original slot versus non-slot destination. No styling interaction submits or confirms a booking.
+
+### 5. Backend / API behavior
+
+Unchanged. No endpoints, serializers, authentication, RBAC, quote/conflict, approval, chat, form validation or request-submission edits. Only real saved information is displayed. No reviews, amenities, rates or location are fabricated. Unsupported Share is not added.
+
+### 6. Database / migration impact
+
+None. No models, schema, migrations, working records, packages or image assets changed. Tests use isolated fixtures/preferences. The only user-triggered favorite behavior remains the original local preference.
+
+### 7. Tests performed
+
+Final focused Facility Details + booking suite: **32/32 tests passed** in 26 seconds, including 20 actual widget captures. Two-file Flutter analysis: **No issues found**, 29.9 seconds. Final formatting: 2 files, 0 changes, 0.28 seconds. Scoped whitespace check passed.
+
+Focused coverage includes 320/375/390 dp phones, 844 dp wide/landscape, 2x text, surrounding light/dark themes, reduced motion, high contrast, safe footer clearance, saved billing methods and original conflict/form/submission flows. Gallery checks verify actual image decoding, cover sizing, swipe/count/selection, no image tint/gradient/filter, frame bounds and information below the complete frame. Blur checks verify the nearest control clip is 48x48 dp, decorative filters never descend into the photo, and high contrast disables filtering.
+
+Actual RepaintBoundary fixture captures are saved in ignored scratch/facility-details-white-blur-20261029. These are real widget renders with isolated content and an existing campus asset, not generated mockups or live facility records. The 390 dp and 320 dp 2x top captures were inspected: colored blur is behind the clear rounded photo, with white content below.
+
+Commands from campushub:
+
+    flutter test --no-pub test/facility_details_test.dart test/facility_booking_flow_test.dart --dart-define=CAPTURE_FACILITY_DETAILS=true
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+
+Confirmed test-only corrections: the action is an existing FilledButton, so its color check uses the shared ButtonStyleButton type. The rounded gallery adds a second clip ancestor; the blur test now checks the nearest 48x48 control clip rather than assuming only one clip exists. Neither correction changes app behavior.
+
+Commands from campushub:
+
+    flutter test --no-pub --reporter expanded test/facility_details_test.dart test/facility_booking_flow_test.dart --dart-define=CAPTURE_FACILITY_DETAILS=true
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+No separate new reference image was visible; this follows the latest written direction without claiming exact pixel matching. No application build, install, launch, restart, physical performance measurement or TalkBack session was performed. User retains Ctrl+F5 control. Cover fitting can crop an image but does not distort it.
+
+If the photo looks blurred, confirm that PageView/ProductImage is a sibling above the background shapes, never a child of ImageFiltered or BackdropFilter. If blur is absent, inspect highContrast: disabling it is intentional there. If a control seems opaque, high contrast uses solid white for readability. Keep background color alpha separate from the actual uploaded-image widget.
+
+Safe exercise: change highContrast only in the isolated frosted-controls fixture and run that named test. Verify false retains the behind-photo color filters and true removes them; in both cases the clear carousel, count, favorite and booking button remain. Restore the fixture afterward. No live facility record or booking submission is needed.
+
+## Dark navy Facility Details from the attached brief — October 29, 2026
+
+Historical dark implementation: the current white/frosted report above supersedes its colors, image overlay, information placement and gold active-dot directions. Its saved-data, accordion and booking behavior remain relevant.
+
+Reference limitation: the supplied attachment directory contains only Pasted text.txt, with the detailed dark-layout instructions. No separate dark reference image was available. Implemented its stated hierarchy/colors/components directly; exact image/pixel matching is unverified. No alternative design or generated image was created. The instruction not to rebuild the application was preserved.
+
+Design plan: an Operate screen for campus users reading saved facility conditions and opening the existing request flow. Use Montserrat, navy #1A1851 page, lighter navy #24225F cards/controls, white #FFFFFF primary text, muted blue-gray #C6CADF, border #454574 and gold #FCB316. The requested navy photo gradient is functional text contrast and an image-to-page blend, rather than unrelated decoration. Keep one 620 dp reading measure and 20 dp gutters; large text wraps without clipping.
+
+    actual photo + navy overlay/fade + saved-image PageView
+    category pill -> white title + existing Chat -> location -> rating/capacity
+    expandable saved rate card
+    circular saved amenities -> About / Read More
+    schedule/status -> booking rules -> terms -> reviews
+    [saved bookmark]                     [Request Booking]
+
+### 1. Cause / reason
+
+Confirmed: the prior screen used a white panel, plain rates, a two-column amenity grid and footer price. The new brief explicitly requires an immersive dark layout, expandable rate card, circular amenities before About, and bookmark-plus-booking footer. These are UI changes; existing facility and booking data do not need an integration change.
+
+### 2. Exact files changed
+
+Repository-relative paths and current lines; anchors identify functions if lines move.
+
+| Folder / file | Current line / anchor | Change |
+|---|---|---|
+| campushub/lib/module_app/screens/facility_details_screen.dart |15–18 local colors;85 build;278 _rentalRates;345 _rateDetails;372 _overview | Scoped dark theme, new order, rate accordion, saved summary hierarchy |
+| same screen |502 _FacilityHeroGallery;920 _RentalPrice;1026 _ExpandableDetailText;1098 _Amenities;1157 _FacilityBookingBar | Blended real-photo hero, price/unit hierarchy, wrapping disclosure, horizontal circles, shared saved bookmark/footer |
+| campushub/test/facility_details_test.dart |166 continuous order;497 responsive loop;686 pricing methods;889 bookmark/accordion;940 normal motion;966 amenities;988 captures | Adapt prior light-layout expectations; cover new interactions, data boundaries and motion modes |
+| campushub/test/facility_booking_flow_test.dart |157 FacilityDetailsScreen renders image-first sections | Update capacity presentation assertion; keep original form/conflict/submission tests |
+| docs/mobile-services-navigation.md |3 current dark report | Eight-part report, functions/inputs/outputs, debugging and exercise |
+| CAMPUSHUB_CONTEXT.md |3 latest dark-layout record | New accepted scope and checks |
+| campushub/DESIGN.md | Facility Details / Layout / Colors | Current dark route specification; other surfaces unchanged |
+| campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md | Direction / hierarchy | Current route brief |
+| .impeccable/review/facility-details/surface-brief-body.md | Scope and mode | Matching direction and verification limits |
+
+### 3. Changes made
+
+Removed the white photo-sheet edge and white page/footer surfaces. The actual image PageView now has a navy overlay fading into the page; category/name/location/review/capacity occupy its lower region. A minimum header measure plus a naturally growing column prevents long/scaled titles from colliding with following sections. Chat stays beside the normal title and moves below it at large text sizes so a word is not split unnecessarily.
+
+Back, local Favorite, real counter and previous/next retain their existing actions. Multiple images use an elongated gold indicator and translucent inactive dots, bounded to five. No thumbnails or unsupported Share action. Missing photos retain the real fallback state.
+
+The16 dp outlined lighter-navy rate card initially shows the actual amount and billing basis with a right chevron. Expanding reveals the same primary rate, configured extra-hour charge, actual alternatives/custom notes and existing pricing explanation. Normal expansion uses 200 ms ease-out size/chevron feedback; reduced motion updates the details directly. No quote calculation occurs here.
+
+Saved amenities appear in 52 dp dark circles with white outline icons and labels. Up to four fit across at normal text size; more than four, or large text, scroll horizontally. No features are invented. About follows amenities, previews four lines and uses Read More with an arrow; original text expands/collapses. Terms retain their original wording and disclosure.
+
+Schedule, status badge, booking requirements/restrictions, terms and honest reviews remain below on navy. No tabs, Details calendar, Check Availability, discount section or mandatory admin-message section. Existing Chat remains a compact supported action.
+
+Footer now has a bookmark and a large gold Request Booking. The bookmark uses the exact same local favorite preference as the hero heart, including synchronized selection. The primary price is now in the rate card instead of duplicated in the footer, as required by the attached footer specification. Scaffold reserves footer height; SafeArea protects its controls.
+
+### 4. How it works: functions, inputs/outputs and data flow
+
+Unchanged backend/catalog flow:
+
+    saved Django facility -> existing catalog service -> FacilityItem
+      -> FacilityDetailInformation -> dark screen widgets
+      -> original _requestAction -> existing booking form or category contact flow
+
+- build takes the existing FacilityItem/service and creates a scoped dark Theme. It passes _overview into the gallery, then renders rates, amenities, About and the saved lower sections. The app-wide theme/navbar remain separate.
+- _FacilityHeroGallery takes resolved actual URLs, page controller/index, favorite callbacks and a header widget. Its background PageView sits behind an IgnorePointer navy gradient. The growing content column places the saved summary over the lower image and continues into the same navy page.
+- _overview takes FacilityDetailInformation and renders the existing category, name, location, valid reviewSummary or No reviews yet, and saved capacity. It does not invent a campus location or rating.
+- _rentalRates takes the read-only information formatter and toggles local _ratesExpanded. _rateDetails returns only formatted saved primary/options/custom notes. _RentalPrice renders the amount and billing basis separately while preserving one full spoken price.
+- _Amenities takes nonblank saved names; LayoutBuilder chooses fit-four widths or a horizontal scrolling width that grows with text scale.
+- _ExpandableDetailText measures four lines with the actual TextScaler, then changes only local preview state. Flexible labels allow lengthy Read Full Terms to wrap at 2 x.
+- _toggleFavorite writes the existing facility_favorite_ID SharedPreferences key. Both heart and footer bookmark call it; no new remote saved-facility API exists.
+- _FacilityBookingBar takes favorite state/toggle and the original request handler. Unavailable facilities retain a null booking handler. Supported slot categories still open FacilityBookingScreen; non-slot categories retain the original contact path.
+
+Annotated isolated example: price_type=base_hour, saved rate 3000, base_duration4 and additional_hour_rate500 produce the spoken summary ₱3,000 / first 4 hours. Expansion adds Additional hour:₱500 / hour; an alternative only appears if configured. These are test fixture inputs, not runtime constants. All other existing formatter methods remain supported without adding billing logic.
+
+### 5. Backend / API behavior
+
+No backend, endpoint, authentication, RBAC, quote, conflict, payment or approval changes. The original form still loads slots/retries failures, obtains server quotes, validates and submits the original request. Opening/toggling the card or bookmark never confirms a reservation or submits a booking. Current facility serialization does not supply review totals or individual feedback, so real records honestly show No reviews yet.
+
+### 6. Database / migration impact
+
+None. No models, schema, migrations, working records, dependencies or image assets changed. Only the original local favorite preference changes on an explicit favorite/bookmark tap.
+
+### 7. Tests performed
+
+Final focused suite: **31/31 tests passed** in 8 s. Analysis reported **No issues found** for 3 files in 2.3 s. Final formatting checked3 files with 0 changes in 0.10 s. The final render-only test passed in 9 s and refreshed 20 captures. Scoped whitespace verification also passed. Tests retain all earlier data/booking regressions and add collapsed/expanded prices,200 ms normal expansion, direct reduced-motion expansion, footer/heart preference synchronization and more-than-four amenities scrolling.
+
+Responsive coverage includes320/375/390 dp phones,844 dp widths/landscape,2 x text, surrounding light/dark themes,48 dp+ photo actions,56 dp+ booking action and safe footer/body clearance. Actual RepaintBoundary captures are in ignored scratch/facility-details-dark-20261029, using clearly isolated fixtures and an existing campus asset to exercise image decoding. These are actual widget renders, not a mockup or evidence of live facility records.
+
+Confirmed/fixed during checks: zero-duration AnimatedSize triggered a layout mutation assertion, so reduced motion now bypasses that layout animation. Enlarged disclosure labels required Flexible inside their action row. Tests now scroll back before inspecting the lazily disposed hero heart, and count only mounted review text after scrolling. These fixes did not alter booking rules.
+
+The local skill's accordion search returned no match. A narrowed Flutter responsive-layout query returned applicable LayoutBuilder/Row/Column guidance; native Flutter animation/state primitives implement the accordion. No external UI package was added.
+
+Commands from campushub:
+
+    flutter test --no-pub test/facility_details_test.dart test/facility_booking_flow_test.dart
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart test/facility_booking_flow_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart test/facility_booking_flow_test.dart
+
+Commands from campushub:
+
+    flutter test --no-pub --reporter expanded test/facility_details_test.dart test/facility_booking_flow_test.dart --dart-define=CAPTURE_FACILITY_DETAILS=true
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+No separate dark reference screenshot was supplied, so exact image alignment/pixel comparison is unverified. The previous light screenshot is not a dark-reference substitute. No application rebuild, install, launch, restart or native device commands were performed. OS bars, physical touch performance and TalkBack are not certified by widget tests.
+
+If extra charges/options appear absent, expand the card first, then inspect saved pricing configuration. If a feature is missing, inspect the actual saved amenity list rather than adding example items. For an unavailable booking button, inspect the stored facility status and preserve _requestAction. The footer bookmark is a local favorite, not a newly created database record. Review feedback/monthly billing remain limited to existing backend support.
+
+Safe exercise: in detailFixture only, remove pricing.hourly_rate and run the accordion test with its corresponding expected-option assertion updated. Verify the base summary/additional-hour rate remain while the alternative row disappears. Restore the fixture/assertion afterward. Never practice on live facility rates or submit a booking to verify this presentation change.
+
+## Facility Details gray arrow and heart containers with review header — October 29, 2026
+
+This refinement supersedes the earlier white photo buttons, stemmed Back arrow, labeled Chat, wrapped unlimited dots and horizontal-divider instructions below. Latest request: keep arrow controls gray, restore the gray Favorite container, and show the existing star/review summary above the facility name. This supersedes the transparent Favorite override; the star/review summary stays above the name. The no-tabs layout and original data/booking workflow remain current.
+
+Design plan: campus facility guide, calm and minimal. Keep navy #1A1851, white #FFFFFF, gold #FCB316, supporting text #66687A and existing borders #E2E4EC; introduce one route-local control surface #EEF0F3. Retain bundled Montserrat and the existing type/spacing scale. Left-aligned facts and text follow the actual image; gray controls recede into the photo. No added entrances, gradients, shadows, assets or unrelated screens.
+
+    photo: [<]                           [favorite]
+           [previous]   swipe photo      [next]    (multiple photos only)
+                                           count
+                        at most five dots
+    star + honest review summary
+    name/category                        [chat icon]
+    actual information and sections, separated by spacing
+    configured price                     Request Booking
+
+| Before | After | Why |
+|---|---|---|
+| Stemmed Back arrow / white circle | Simple chevron / soft gray circle | Match the requested shape and quieter surface |
+| Transparent Favorite background | Same gray container as Back | Restore the requested heart container while retaining48dp target |
+| No empty review row above name | Star + No reviews yet above name, or genuine supplied totals | Make review status visible without invented ratings |
+| Chat icon above its label | One labeled-for-accessibility chat icon | Remove label/spacer height while preserving contact |
+| One dot per photo, wrapping | Five-dot moving window, real count and previous/next | Keep large uploaded galleries compact |
+| Rates/schedule rules and footer top line | Spacing, without divider widgets/footer line | Match the requested line-free treatment |
+
+### 1. Cause / reason
+
+Confirmed in source: Back used arrow_back_rounded, Chat was a Column with label/spacer, dots grew with image count, and explicit horizontal lines appeared in rates, schedule and footer. Back/Favorite already belonged to the scrolling gallery; that behavior is preserved and also applies to previous/next controls. Confirmed for the latest request: Favorite inherited the same gray background, and _overview omitted No reviews yet while placing valid ratings below the title. The subsequent transparent-heart revision added an explicit override. The current correction removes the override and now-unused optional surface parameter, restoring the shared gray surface; the existing review formatter still renders above the name.
+
+### 2. Exact files changed
+
+Repository-relative paths, current lines and stable anchors:
+
+| Folder / file | Line / anchor | Change |
+|---|---|---|
+| campushub/lib/module_app/screens/facility_details_screen.dart | 16 _facilityControlSurface; 273 _rentalRates; 317 _overview | Matching pale gray arrow / Favorite containers; review row above name; existing icon-only Chat |
+| same screen | 412 _FacilityHeroGallery; 600 _GalleryButton | Chevron Back, gray photo controls/counter, bounded dots, previous/next |
+| same screen | 706 _OperatingScheduleCard; 1012 _FacilityBookingBar | Remove schedule divider/footer top rule; safe booking action retained |
+| campushub/test/facility_details_test.dart | 94 iconButton; 149 continuous page; 225 supplied reviews; 782 large galleries; 869 optional captures | Correct native-control finder, assert icon/no dividers, 23-photo window/navigation/scroll-away coverage |
+| docs/mobile-services-navigation.md | 3 current refinement | Eight-part report, functions/data flow, debugging and exercise |
+| CAMPUSHUB_CONTEXT.md | 3 latest record | Current control decisions and measured checks |
+| campushub/DESIGN.md | Facility Details / latest control refinement | Current gray/icon/carousel specification |
+| campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md | Direction / latest refinement | Scoped current behavior |
+| .impeccable/review/facility-details/surface-brief-body.md | Direction / latest refinement | Matching review direction |
+
+### 3. Changes made
+
+Back is a simple less-than-shaped Material chevron. Back, photo counter and carousel controls use the opaque pale gray token; Favorite now uses that same default gray surface; it stays readable over different photos without a blur/glass treatment. Every photo button retains a48dp minimum native target, tooltip and native press/focus feedback, including Favorite in both saved states. _overview now starts with facility-header-review: an outline star and FacilityDetailInformation.reviewSummary, with8dp below it before the name/Chat row. Invalid or absent rating/count displays No reviews yet; genuine valid totals display unchanged. The separate Reviews section stays intact.
+
+Chat is one chat_outlined IconButton, with Chat with Facilities Admin as its accessible tooltip. It calls the exact original contact handler. The visible label, internal spacer, outline and taller layout were removed.
+
+Two or more uploaded photos show previous/next controls; endpoints disable the unavailable direction. Swiping remains supported. At most five dots surround the current image, while the real counter communicates the full gallery size. Empty/single-photo fallbacks stay honest. All photo controls scroll out with the gallery; only the original booking bar stays fixed.
+
+Removed Divider widgets from rates/hours and the footer's top border. Existing operating-card outline and section spacing remain. No photo thumbnails or tabs were added.
+
+### 4. How it works
+
+Data flow remains Django catalog -> FacilityItem.allImageUrls -> _FacilityHeroGallery. Its inputs are actual resolved URLs, currentIndex, PageController and original favorite/page-change callbacks. A swipe or controller.jumpToPage changes the existing index, which redraws count/dots; it never writes facility data.
+
+dotCount=min(imageCount,5). firstDot clamps currentIndex-2 into0..imageCount-dotCount. Example:23 isolated fixture photos with currentIndex11 display12/23 and the five indicators with indices9..13. At the first/last page the window clamps to remain within actual URLs. Previous/next buttons call jumpToPage directly, with no keyboard-triggered animation or auto-rotation. Existing160ms ease-out dot feedback becomes zero under reduced motion.
+
+_GalleryButton takes tooltip/icon/nullable onPressed/selected and applies the same shared gray background to Back and Favorite. After the override was removed, analysis confirmed the optional backgroundColor parameter had no callers; removed that now-unused parameter/field too. Only the surface changes; _toggleFavorite still reads/writes the existing local preference. A null callback exposes a disabled endpoint. _overview takes FacilityDetailInformation, reads its existing reviewSummary and renders that text plus a star above the same saved name/category/facts and48dp chat action. It moves the former valid-rating row rather than duplicating it below the name. Example: missing rating/count produces No reviews yet in the header and Reviews section; the isolated4.8/count12 fixture produces4.8 (12 reviews) in both. No runtime rating is hardcoded. _rentalRates and _OperatingScheduleCard still render the same formatter outputs; only separators changed. _FacilityBookingBar still takes the existing configured price and request handler, with Scaffold/SafeArea clearance.
+
+### 5. Backend / API behavior
+
+Unchanged. Saved images, prices, hours, status and restrictions still come from existing data. Contact, favorite, unavailable-state disabling, request navigation, quotes, conflicts and approval flow are preserved. No messages or bookings were submitted for this refinement.
+
+### 6. Database / migration impact
+
+None. No models, endpoints, migrations, records, dependencies or image assets changed. Favorite remains the existing local preference.
+
+### 7. Tests performed
+
+Final correction checks:28/28 tests passed9s; two-file analysis No issues found4.5s; formatting2files0changes. The initial correction passed28 tests; analysis then reported unused_element_parameter for backgroundColor, so the unused optional parameter/field was removed; the latest additions assert review text above the name for empty and valid supplied reviews, and the matching gray Favorite/arrow surfaces. Scoped git whitespace check passed. Initial new test assertions incorrectly cast a Tooltip to IconButton; the iconButton helper now finds the native control by its tooltip property. No production code was changed to accommodate that test error.
+
+The preceding review-header revision rendered20 actual fixture captures to ignored scratch/facility-details-review-header-20261029. Prior render inspection:390dp normal and320dp2x header show transparent heart, gray chevron and star/review text above the name. The existing capture harness also rendered375dp/landscape and lower sections. The first position assertions measured the outer Padding bottom (which equals the next row top); corrected the tests to measure the review Text bottom, verifying the8dp gap. Production layout was unchanged for that test fix. The23-photo regression verifies five dots, actual count, moving window, previous/next, disabled endpoints, gray surfaces,48dp targets, scroll-away controls and retained visible booking action. Existing tests retain swipe/favorite/back behavior, saved data boundaries and original booking checks.
+
+Commands from campushub:
+
+    flutter test --no-pub test/facility_details_test.dart test/facility_booking_flow_test.dart
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+
+Latest gray-heart correction is a surface-only edit verified by the existing color assertion and facility regressions; no fresh emulator build/installation, native gestures or live-chat check was performed for this small change. The previous gray-control Android17 check is historical evidence only. No message or booking was submitted.
+
+### 8. Remaining limitations / troubleshooting
+
+This keeps the inherited white details surface in surrounding dark mode. Current API still lacks genuine review aggregates/feedback. No full TalkBack, performance or physical-device pass is claimed. Native large-gallery coverage requires a live facility with multiple saved photos; fixture tests cover that state without modifying records.
+
+If arrows/dots are absent, inspect allImageUrls:zero/one photo intentionally has no carousel navigation. Gray previous/next endpoints are disabled at their bounds. If Chat has no label, that is intentional; its tooltip/semantics name remains. If a photo button appears fixed, verify it belongs to _FacilityHeroGallery rather than placing it in a Scaffold overlay. If the heart still looks transparent after a reload, check that its _GalleryButton call has no transparent backgroundColor override and uses the default gray surface. If No reviews yet is absent above the title, inspect _overview/facility-header-review and the current screen build rather than adding fabricated data.
+
+Safe exercise: inspect detailFixture without changing live data. Run the continuous-page and supplied-review tests: the empty record must show No reviews yet above the name; the existing4.8/count12 fixture must show4.8 (12 reviews) there. Temporarily remove the supplied count from that isolated fixture and confirm the formatter safely falls back to No reviews yet, then restore it. Verify the arrow surface is #EEF0F3 and Favorite also resolves to #EEF0F3 with the existing gallery test.
+
+## Continuous Facility Details without tabs — October 29, 2026
+
+This is the current specification. It supersedes the tab, split Overview, above-name status, hidden photo counter, facts/rates cards and terms-chevron instructions in historical records below.
+
+Design plan: an Operate surface for campus users reading a venue and requesting it. Calm, compact and photo-led, with one left-aligned column and a persistent booking action. Palette: navy #1A1851, brief-specific gold #FCB316, white #FFFFFF, secondary #66687A, border #E2E4EC and fallback #F8FAFC. Keep bundled Montserrat, 23sp venue title, 16sp headings, 14sp body and 24dp section rhythm. The reading column and footer use the existing 620dp measure; enlarged text wraps and the footer stacks. Gallery dots retain reduced-motion support.
+
+    uploaded photos + counter/dots
+    name/category + existing Chat
+    location/capacity + genuine rating, if supplied
+    rates -> about -> features -> schedule + status
+    booking guidelines -> terms -> reviews
+    [configured price] [Request Booking]  (safe fixed footer)
+
+Brief review: flatten the facts/rates instead of making every section a card. Retain the saved-hours card and rounded gallery edge from the incumbent design. No decorative entrances, generated assets or unrelated changes. UI/UX Pro Max's local Flutter search returned relevant LayoutBuilder, Row/Column and SizedBox guidance. Impeccable's source detector returned no findings, but cannot verify native layout. The generic HTML accuracy kit is absent; no HTML-gate or accessibility certification is claimed.
+
+### 1. Cause / reason
+
+Confirmed: TabController and conditional content prevented reading all details in one scroll. Wide Overview also reordered About/Terms before Rates. The new attached brief explicitly requires no tabs and one consistent section order.
+
+Confirmed in render review: the shared amenity matcher searches for "air", so "Chairs" showed an air-conditioning icon. This screen checks chairs first, retaining the shared matcher for other features.
+
+### 2. Exact files changed
+
+Paths are relative to the repository root; anchors remain useful as lines move.
+
+| Folder / file | Current line and anchor | Change |
+|---|---|---|
+| campushub/lib/module_app/screens/facility_details_screen.dart | 15 _facilityDetailGold; 28 state; 81 build; 272 _rentalRates; 316 _overview | Continuous sections, plain facts/rates, scoped gold; remove tab and inline slot-preview state |
+| same screen | 424 _FacilityHeroGallery; 602 _DetailSection; 897 _ExpandableDetailText; 951 _Amenities; 983 _FacilityBookingBar | Counter/dots, status badge, named disclosures, chair icon and safe footer |
+| campushub/test/facility_details_test.dart | 145 continuous page; 441 responsive cases; 512 disclosures; 557 deferred slots; 629 billing methods | Section order/data, footer clearance, loading/retry, rate units and captures |
+| campushub/test/facility_booking_flow_test.dart | 156 FacilityDetailsScreen renders image-first sections | Continuous-scroll expectations and original request navigation |
+| docs/mobile-services-navigation.md | 3 Continuous Facility Details without tabs | Current eight-part report and learning guide |
+| CAMPUSHUB_CONTEXT.md | 3 latest record | Current decision and checks |
+| campushub/DESIGN.md | Facility Details / Layout / Elevation / Shapes | Replace superseded specifications |
+| campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md | Confirmed hierarchy / Direction | Current surface specification |
+| .impeccable/review/facility-details/surface-brief-body.md | Scope and mode | Matching review direction and limits |
+
+### 3. Changes made
+
+Removed TabBar, TabController, selected-tab state and the wide Overview split. Applicable saved sections now coexist in the requested order. Blank description/features/terms are omitted. Missing operating hours remain explicitly unconfigured.
+
+Restored a counter only for supplied photo URLs, including a single image. Kept PageView, navy/gray animated dots, loading/error fallback, Back and local Favorite; dots wrap for long image lists. No thumbnails or generated images.
+
+Status appears once as a neutral badge beside Operating Schedule, wrapping when needed. Saved seven-day hours and weekend restrictions remain. Name/category, location, capacity and a genuine supplied rating appear directly on white. Reviews shows No reviews yet or valid supplied totals, without sample feedback.
+
+Four-line descriptions/terms expand with Read More / Read Less or Read Full Terms. Original wording stays unchanged. Booking Guidelines contains only saved requirements and existing formatted mode/restrictions/minimum duration/advance-payment/client-eligibility rows. Check-in/out and operating hours remain in Schedule. Removed the inline today-slot preview/prefetch; date and slot selection belong to Request Booking.
+
+### 4. How it works
+
+    Django Facility -> serialize_facility -> existing catalog service
+      -> FacilityItem -> FacilityDetailInformation -> ordered screen Column
+      -> _requestAction -> FacilityBookingScreen or existing admin contact
+
+Inspected backend/core/api/views.py:1488, serialize_facility: it already supplies the required photos, rates, workflow configuration, hours, features, requirements and terms. It supplies no ratings/counts or individual feedback. No serializer change was needed.
+
+Functions and inputs/outputs:
+
+- build takes widget.facility and returns the gallery, ordered saved sections and a separate Scaffold bottomNavigationBar.
+- _rentalRates takes FacilityDetailInformation and renders primaryRate, actual extra-hour/alternative rates and custom notes; it never calculates quotes.
+- _overview takes the same formatter and renders actual name/category/Chat, location, capacity and optional valid rating.
+- _FacilityHeroGallery takes uploaded URLs, index and PageController. Swiping updates only the counter/dots; ProductImage retains progress/error fallbacks.
+- _DetailSection takes heading, content and optional status. Its Wrap prevents enlarged headings/badges from overflowing; decorative icons do not repeat spoken text.
+- _ExpandableDetailText takes saved text and optional terms label. TextPainter measures four lines at actual width/text scale. Local expanded state changes the preview and native button semantics only.
+- _Amenities takes nonblank saved strings and returns two columns or a single narrow/large-text column.
+- _requestAction returns null for unavailable status, _book for supported slots, or the original admin-contact action. _book passes the same FacilityItem and service to FacilityBookingScreen.
+- _FacilityBookingBar takes primaryRate and that handler. Scaffold reserves footer height outside the scroll; SafeArea clears navigation insets. The footer stacks below 330dp content width or above 1.3x text scale.
+
+Annotated isolated example: price_type=base_hour, rate=3000, pricing.base_duration=4 and additional_hour_rate=500. The existing formatter produces "₱3,000 / first 4 hours" in both rate locations, plus a separate "Additional hour: ₱500 / hour". These are test fixture inputs; runtime always uses the supplied catalog record.
+
+### 5. Backend / API behavior
+
+No backend, endpoint or authorization changes. Details no longer prefetches today's slots. Request Booking opens the original form, which loads/retries slots, checks conflicts, gets server quotes and submits the original request. Non-slot categories retain contact routing. Django retains eligibility, availability, payment and approval enforcement.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, live rates, fees, reviews or bookings were changed. Favorite retains its existing local SharedPreferences storage. Test fixtures never enter the application/database.
+
+### 7. Tests performed
+
+Final result: **27/27 focused tests passed (7 seconds)**. Analysis reported **No issues found (4 seconds)**. Final formatting checked **3 files with 0 changes**; the scoped git whitespace check reported no errors. Commands run from campushub:
+
+    flutter test --no-pub test/facility_details_test.dart test/facility_booking_flow_test.dart
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart test/facility_booking_flow_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart test/facility_booking_flow_test.dart
+
+CAPTURE_FACILITY_DETAILS=true writes actual RepaintBoundary captures to ignored scratch/facility-details-continuous-20261029 at repository root. A clearly named fixture uses an existing campus asset to exercise image decoding. These are widget captures, not fabricated live facilities or Android screenshots.
+
+Rendered20 fixture captures covering375/390dp phones,320dp at2x text and844x500 landscape. Inspected top/rates, schedule, terms/reviews, enlarged-text wrapping and landscape. The first capture run had a test-only lazy-list assertion failure; final suite is green after fixing scrolling in that test. The final UI code was included in the second capture run; no extra visual polish cycle was added.
+
+Built and installed the debug APK on the connected Android17/API37 emulator, opened the actual saved Covered Court from Facilities and scrolled through the continuous page. Native screenshots android-details-top.png and android-details-bottom.png in the same ignored scratch folder show the actual uploaded1/1 photo, saved base/extra/alternative rates, weekend hours, booking restrictions, terms preview and genuine empty reviews state. The sticky price/action remains visible above system navigation at both ends. No booking was submitted. The debug session was detached, leaving the app open. Native landscape, large text and TalkBack were not separately exercised; those responsive cases were checked by widget tests/captures.
+
+### 8. Remaining limitations / troubleshooting
+
+Current API supplies neither review totals nor individual feedback, so live records show No reviews yet. Existing conditional month display does not introduce monthly billing/quote support. The inherited white Details surface remains white in surrounding dark mode. No full screen-reader, performance or physical-device certification.
+
+If hours say Not configured, inspect saved operating_hours: missing days are never invented as open/closed. Invalid ranges stay Schedule needs review. For Contact Admin / Pricing needs review, inspect saved rate/type/base-duration instead of hardcoding. Missing optional sections mean blank saved fields. Disabled Request Booking reflects saved status; never bypass _requestAction.
+
+The first adapted loading/retry checks looked for lazy booking-list items before scrolling to them. The tests now scroll to each item; booking-screen logic was unchanged. Removed one obsolete test import reported by analysis.
+
+Safe practice: change base_duration from 4 to 3 in detailFixture only and update its expected primary label. Run both focused test files. Verify both primary-rate locations say first 3 hours while the extra-hour charge stays separate. Restore the fixture/expectation afterward. Never practice on live rates or booking records.
+
+## Internet-inspired booking sheet layout - October 29, 2026
+
+Design brief before implementation: replace the previous venue-guide composition with a photo-led booking sheet for the same campus audience and existing Flutter route. Considered a floating sheet, a magazine-like split view and a compact booking ticket; selected the sheet on phones plus a description/rates split on wide screens. Keep navy `#1A1851`, gold `#FCB315`, white `#FFFFFF`, pale surface `#F8FAFC`, secondary `#66687A` and border `#E2E4EC`; bundled Montserrat and native controls remain. Use one rounded sheet edge at the photo, one pale facts group, one light rate card and existing flat sections. No new booking steps, thumbnails, images, reviews or example records.
+
+Internet references: [Airbnb's listing guidance](https://www.airbnb.com/resources/hosting-homes/a/how-to-set-up-an-effective-listing-page-12) supports photos plus clear title/description/amenities/rules; [Poula Adel's booking concept description](https://dribbble.com/shots/26620197-Hotel-Booking-App-UI-Reimagining-the-Way-You-Book-Your-Stay) emphasizes clear prices/actions and balanced minimal layout. These inspire principles; this is not a pixel reproduction or a claim to have inspected a current Airbnb app. Pallo's booking-concept result was found but its page fetch failed, so it is not used as primary evidence. Dribbble's extracted image link pointed to an advertisement, which was not used as a design reference or asset.
+
+```text
+phone: photo -> rounded white sheet edge -> status/name/Chat
+       pale facts -> four tabs -> light rates -> about -> terms
+wide:  photo -> bounded sheet/facts -> four tabs
+       about + terms                 light rates
+both:  sticky configured price + existing Request Booking
+```
+
+Brief review: preserve the latest status/name/category4dp, reviews directly above Location, one Capacity row, gold underlined four tabs, saved-days Schedule, centered Reviews empty state, removed fee UI and scrolling Back/Favorite. UI/UX Pro Max's initial booking query returned irrelevant mobile-browser/keyboard advice; a narrowed Flutter adaptive-layout search returned applicable LayoutBuilder and Row/Column guidance. Followed the latter. Emil motion decision: no new entrance/tab/scroll animation; preserve direct native interactions and reduced-motion-aware gallery dots. Make the layout change visible through grouping and responsive placement instead of decorative motion.
+
+### 1. Cause / reason
+
+The user requested a different modern booking layout researched across the internet and then asked to continue. The preceding change mainly adjusted typography/colors; this revision changes grouping and responsive placement in the existing screen. All source data and handlers remain the same.
+
+### 2. Exact files changed
+
+| File | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facility_details_screen.dart` | 162 max width; 336 `_overviewContent`; 408/418 split/stack keys; 426 `_overview`; 508 facts panel; 691 gallery IgnorePointer sheet edge; 795 `_DetailSection` | Wider adaptive reading region, description/rates split, grouped metadata and light rate card |
+| `campushub/test/facility_details_test.dart` | 486 wide2× case; 515 split/stack geometry assertions; 808 render harness Overview capture | Verify wide/stacked layouts, add wide2× fallback case and full Overview previews |
+| `docs/mobile-services-navigation.md` | 3 this section | Sources, design brief, implementation report, functions/data flow and safe practice |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Latest layout scope and actual verification |
+| `campushub/DESIGN.md` | Facility Details / Facts Before Rates / rates panel | Current sheet, facts and adaptive Overview specifications |
+| `campushub/.impeccable/design.json` | `extensions.facilityDetails.reading`, `type`, `gallery`, `verification` | Keep existing companion consistent |
+| `campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md` | Direction | Persist latest layout and data/interaction boundaries |
+
+Seven project files: one runtime Dart file, one existing test file and five existing guides/design records. No unrelated changes were reset.
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Straight photo/content boundary | 24dp rounded white sheet edge over the last20dp of the gallery | Visually connects the photo to the reading surface without pinning controls |
+| Separate fact rows | One pale16dp-padded facts panel | Groups actual reviews, location and capacity while preserving order |
+| Navy rate block with a scoped inverse theme | White outlined rate card with a gold title accent | Gives the main photo more visual emphasis and simplifies rate text roles |
+| Single620dp reading column everywhere | Up to960dp content; at720dp content width and <=1.3× text, description/terms left and320dp rates right with28dp gap | Uses tablet space while keeping readable lines and the current phone ordering |
+| Same layout at large text | Single-column fallback above1.3× text | Gives labels and long configuration values room to wrap |
+
+Phone order remains rates, About This Facility, then Terms & Guidelines. In wide Overview, About/Terms stay together and the rates card aligns with their top. Empty description/terms keep rates in a single column. The footer remains independently bounded at620dp, with the existing gold Request Booking action. No rates, reviews, schedules, facilities or actions were added. Exactly four gold-underlined tabs and all recent status/Chat/metadata/Schedule/Reviews choices remain.
+
+### 4. How it works: functions, inputs/outputs and data flow
+
+```text
+Existing API -> FacilityItem -> FacilityDetailInformation
+  -> _overview: status/name/category/Chat + grouped real metadata
+  -> _overviewContent(information)
+       rates = original configured-price/options widgets
+       description = original saved About + Terms widgets
+       LayoutBuilder constraints + TextScaler
+         wide: description | 28dp | 320dp rates
+         narrow/large text: rates -> description
+  -> same sticky price and original request handler
+```
+
+`_overviewContent(information)` returns one Row or Column; it never requests or calculates data. Its local widgets reuse the former Overview branches, including saved Additional hour immediately below the primary rate and its divider. The old inverse rate-panel theme and two obsolete navy-panel constants were removed; semantic text roles now read the screen's navy/muted-on-white scheme.
+
+The sheet edge is an IgnorePointer decoration within the existing gallery Stack, so it cannot capture swipes or Back/Favorite presses. It is visual only, not a draggable bottom sheet. The PageView's actual image list and controls still scroll together. No new controller or animation was needed.
+
+Annotated example: if usable content width is804dp and text scale1, `_overviewContent` places the rates card in the right column. With the same width at2× text, it returns the stacked layout. Missing descriptions do not create an empty left column. This constraint-based approach avoids device-name checks and preserves the native user's text settings.
+
+### 5. Backend / API behavior
+
+Unchanged. Facility loading, uploaded images, original booking/contact navigation, live slot checks, review validation, configured prices, eligibility, approvals and payment behavior retain their existing implementation. No endpoint or permission was added. Internet references supply layout ideas only; their content/booking rules are not copied into CampusHub.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, working records, rates, dependencies, font assets or images changed. The capture photo remains the pre-existing isolated test fixture. No device launch/install/reload or deployment was performed.
+
+### 7. Tests performed and visual review
+
+Final commands from `campushub/`:
+
+```powershell
+flutter test --no-pub --dart-define=CAPTURE_FACILITY_DETAILS=true test/facility_details_test.dart test/facility_booking_flow_test.dart
+flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+dart format --output=none --set-exit-if-changed lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+```
+
+**25 tests passed (12 seconds)**; analysis found no issues (2 seconds); final formatting verified two files with zero changes. Existing tests retain tabs/content isolation, Back/Favorite scrolling/navigation, saved data boundaries, Schedule errors/Retry, terms expansion and actual request/conflict behavior. Updated responsive checks verify the split key and equal top/right-side geometry on normal wide layouts; the new844dp/2× case verifies a stacked fallback without overflow.
+
+Refreshed20 actual Flutter fixture captures in ignored `scratch/facility-details-tabs-20261029`: top/overview/schedule/amenities/reviews at375/390dp,320dp2× and844×500 landscape. Inspected390dp top/Overview/Reviews,844dp top/Overview and320dp2× Overview. Checks covered rounded photo edge, name/category/Chat alignment, facts order, rate text and divider legibility, side-by-side column position, enlarged-text wrapping, tabs and sticky action. No generated images, current live-app screenshot, physical-device or full accessibility pass is claimed. The unchanged text pairs remain navy/white16.24:1, navy/gold8.97:1 and muted/white5.49:1; the pale facts surface uses the existing functional neutral.
+
+Commands from campushub:
+
+    flutter test --no-pub --reporter expanded test/facility_details_test.dart test/facility_booking_flow_test.dart --dart-define=CAPTURE_FACILITY_DETAILS=true
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+No live authenticated chat, browser or physical-device run. Native widget rendering supplies visual evidence; the user's running app workflow remains under their control. The sheet edge is intentionally not draggable and adds no new interaction. Existing review/backend/monthly-pricing limitations remain. Earlier screenshots and navy-panel specs below are historical.
+
+Reload through your normal workflow, then inspect Overview on a phone and a wider device. The latter should show About/Terms beside rates; enlarged text should restore the vertical flow. If columns do not appear, inspect content width (not physical display width), text scale and whether description/terms exist. As a safe exercise, trace the existing844dp responsive fixture into LayoutBuilder and change only its test scale from1 to2; verify the split key is replaced by the stacked key and rerun both existing test files without changing real facility records.
+
+## Modern venue-guide visual direction - October 29, 2026
+
+Design brief before implementation: Facility Details helps campus users judge an actual venue and enter its existing request flow. Compared a venue guide (photo and clear facts), a booking ticket (denser transaction emphasis) and soft hospitality (more cards/curves). Chose the venue guide for the campus audience. Its single strong visual focus after the photo is the configured rate on navy, complemented by a gold booking action. Kept the user's current information architecture and actual data.
+
+Local palette: navy `#1A1851`, Flutter gold `#FCB315`, white `#FFFFFF`, existing quiet surface `#F8FAFC`, secondary ink `#66687A`, outline `#E2E4EC`. Two named navy-panel tones support readable secondary copy/dividers. Typography remains bundled Montserrat: compact strong venue title, 16sp section headings, 13–14sp data, native scaled controls. Layout remains left-aligned, bounded at 620dp independently of the viewport-wide photo; 4/8dp details and 24dp section rhythm. Existing interaction-driven dots/disclosures remain; no entrance effects or generated assets.
+
+```text
+saved photo + Back/Favorite (scroll with photo)
+saved status
+venue name / category                 Chat
+review summary / location / capacity
+Overview   Amenities   Schedule   Reviews
+navy rates panel -> description -> terms
+sticky configured price       gold Request Booking
+```
+
+Brief review: retained white, fonts, exactly four gold-underlined tabs, status above name, 4dp category gap, review above Location, saved-days schedule, centered review empty state and removed fee UI. Avoided a new font, generic gradients, repeated card grids or fictional venue content. Local UI/UX Pro Max search returned Flat Design and Material 3 Expressive; adopted flat/no-shadow structure and native LayoutBuilder/Semantics guidance while preserving CampusHub's palette rather than the search's unrelated expressive colors. Native Flutter widget renders and interaction tests are the appropriate evidence here; the user's device workflow remains under their control.
+
+### 1. Cause / reason
+
+The user invoked ui-ux-pro-max, frontend-design and frontend-design-codex and requested modern design inspiration. Applied one coherent visual treatment directly to the existing Flutter Facility Details screen. This visual refinement keeps the user's recent content placement and existing functionality rather than creating another route or prototype.
+
+### 2. Exact files changed
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facility_details_screen.dart` | 14–15 named navy tones; 166 content gutters; 184 underline; 415 `_overview`; 752 `_DetailSection`; 936 `_RentalPrice`; 997 `_DetailLine`; 1045 `_ExpandableDetailText`; 1140 `_FacilityBookingBar` | Venue-guide palette, typography, density, navy rates surface and gold primary action |
+| `docs/mobile-services-navigation.md` | 3 this section | Design alternatives/brief, local system, implementation report and verification |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Persist latest visual direction and actual results |
+| `campushub/DESIGN.md` | Facility Details / Facts Before Rates / rate panel | Current component treatment and existing font/content boundaries |
+| `campushub/.impeccable/design.json` | `extensions.facilityDetails.reading`, `type`, `verification`; Facts Before Rates narrative | Existing design companion updated to current treatment |
+| `campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md` | Direction | Persist the native visual direction in the existing surface record |
+
+Six project files: one runtime Dart file and five existing documentation/design records. Models, tests, assets, dependencies and unrelated screens were not changed.
+
+### 3. Changes made
+
+The page stays white with the full-width uploaded-photo carousel. Tighter photo-to-content spacing and a 23sp/700 venue title give the saved facts a clearer hierarchy. The status text remains above the name with a small decorative gold rule; it does not encode a new availability state. Name/category retain the 4dp gap beside the now outlined, lightly surfaced icon-over-Chat control. Metadata is 14sp, and section rhythm is 24dp. Native tabs retain exactly four labels with a slightly stronger 3dp gold underline.
+
+Rental Rates becomes the one navy content panel, with white primary amounts and `#DEDEEB` secondary copy. Additional hour remains directly below the main rate with its divider, now `#6E6C94` for contrast against navy; remaining configured options/notes retain their order. The sticky action becomes `#FCB315` gold with navy text. Disabled behavior, actual rate text and the original booking/contact callback remain. Schedule, Amenities and centered Reviews empty-state structures remain as requested.
+
+### 4. How it works: functions, inputs/outputs and data flow
+
+`FacilityItem` and `FacilityDetailInformation` still supply the same saved strings. `_overview(information)` only changes typography, spacing and Chat styling. `_DetailSection(panel: true)` now paints navy and scopes a native Theme to its child, so `_RentalPrice`, `_DetailLine` and `_ExpandableDetailText` read `ColorScheme.onSurface` and `onSurfaceVariant`. Outside that panel, those roles remain navy/muted on white. This avoids copied pricing logic and keeps the panel theme from recoloring the rest of the page.
+
+```dart
+// Only the existing rates panel supplies this local surface treatment.
+colorScheme.copyWith(
+  surface: bookingNavy,
+  onSurface: Colors.white,                 // amounts and values
+  onSurfaceVariant: _detailOnNavySecondary, // labels and billing basis
+);
+// _RentalPrice still renders the same saved `price` and spoken semanticsLabel.
+```
+
+`_FacilityBookingBar(price, label, onPressed)` returns the same safe-area footer and responsive row/column layout; only its enabled button colors change. Example: changing tabs still shows the identical configured rental amount and original Request Booking action, now with the gold treatment. No rate, review, schedule or status is generated by the design.
+
+### 5. Backend / API behavior
+
+Unchanged: existing facility loading, saved photos/hours/reviews, slot checks, contact routing and booking form remain. No endpoint, serializer, permissions, quote calculation, approval, fee, discount, deposit or payment logic was changed. No message was sent.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, records, rate configuration, assets or dependencies changed. No app launch, installation, device reload or deployment was performed.
+
+### 7. Tests performed and visual review
+
+Final run:
+
+```powershell
+flutter test --no-pub --dart-define=CAPTURE_FACILITY_DETAILS=true test/facility_details_test.dart test/facility_booking_flow_test.dart
+flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart
+dart format --output=none --set-exit-if-changed lib/module_app/screens/facility_details_screen.dart
+```
+
+**24 tests passed (9 seconds)**; analysis found no issues (1.2 seconds); formatting verified one file with zero changes. Existing tests cover four-tab navigation, content isolation, gallery swipe/Back/Favorite, reduced motion, enlarged text, Schedule saved data/loading/Retry and the original request/validation/conflict flow. No new test that merely mirrors the visual implementation was added.
+
+Refreshed 16 native Flutter fixture renders in ignored `scratch/facility-details-tabs-20261029`. Inspected 390dp Overview, 375dp Reviews, 844×500 landscape Overview and 320dp/2× Schedule, then the final 390dp Overview after improving the divider. Visual checks included photo crop, name/category/Chat alignment, metadata order, active tab, white/navy rate legibility, sticky footer safe area and enlarged-text wrapping. These are actual widget renders using the existing bundled photo only in test fixtures. No browser URL applies to this native Flutter verification; no browser/device screenshot is claimed.
+
+Calculated opaque-color contrast: white/navy **16.24:1**, panel secondary/navy **12.18:1**, navy/gold **8.97:1**, secondary/white **5.49:1**, panel divider/navy **3.27:1**. The initial divider was 2.91:1; lightened its named tone, rerendered and reran the focused suite. These calculations verify the listed pairs, not every state or a full accessibility audit.
+
+Ten design checks applied: preserved white background; preserved the bundled font; no gradients; no shadows/glows; no unrelated colors; no repeated decorative card grid; no invented content; native working controls; readable measured text pairs; responsive/reduced-motion behavior retained. Motion remains limited to the existing interaction feedback and carousel/disclosure behavior.
+
+Commands from campushub:
+
+    flutter test --no-pub --reporter expanded test/facility_details_test.dart test/facility_booking_flow_test.dart --dart-define=CAPTURE_FACILITY_DETAILS=true
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+No physical-device, TalkBack/VoiceOver, live authenticated chat or browser run. The page intentionally remains a light surface even under a dark surrounding theme. Existing review/API and monthly billing limitations remain. Long names can wrap beside Chat at large text sizes; no clipping or shrinking was introduced.
+
+Reload through your own normal workflow. Verify status/name/category/reviews/location order, switch all four tabs, expand/collapse terms and open the original Request Booking flow. If panel text appears dark, inspect whether that widget reads the scoped `ColorScheme.onSurface` rather than a fixed navy color. If the footer price becomes white, check that the panel Theme still wraps only its child. As a safe exercise, trace one existing rate fixture through `primaryRate` into both `_RentalPrice` instances, compare their inherited surfaces, and rerun the two existing test files without changing real prices or records.
+
+## Saved status above name and small category gap - October 29, 2026
+
+1. **Cause / reason:** The user requested a little spacing between name/category and the facility status above the name.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:418` (`_overview`, saved status Text and 6dp gap; name/category Column with 4dp gap); this guide at line 3; `CAMPUSHUB_CONTEXT.md:3`; and existing header specifications in `campushub/DESIGN.md` (Facts Before Rates), `campushub/.impeccable/design.json` (reading) and the Facility Details surface brief (Direction).
+3. **Changes made:** Added the existing nonempty `facility.status` as plain navy text above the name/Chat row, with 6dp separation. Added 4dp between the name and its saved category inside their shared column, keeping spacing independent of Chat's height.
+4. **How it works:** Existing API status is already normalized by `FacilityItem.fromJson`; `_overview(information)` displays that same `facility.status`, without inventing availability. For example, the existing available status displays Open for Booking; maintenance displays Under Maintenance. Empty status omits this label. The same value still controls the original booking action and remains in Schedule.
+5. **Backend / API behavior:** Unchanged; presentation only, with original status validation, booking, favorite and chat callbacks.
+6. **Database / migration impact:** None; no records, migrations or schema changes.
+7. **Tests performed:** All 24 existing Facility Details/booking tests passed (4 seconds), including responsive text layouts and unavailable booking behavior. Scoped screen analysis found no issues (1.2 seconds); formatting verified one file with zero changes. No new tests were added for these presentation changes.
+8. **Remaining limitations:** No fresh rendered screenshot or physical-device check. Long status/name/category text retains natural wrapping. Earlier captures show the previous spacing/status revision.
+
+**Troubleshooting / safe exercise:** Reload through your normal workflow. Confirm the saved status appears above the name and the category has a small gap beneath the name. If the status looks wrong, trace the actual API status through `FacilityItem.fromJson` before changing presentation; do not hardcode Open for Booking. Safely read the existing available/maintenance test fixtures and their model mapping, then rerun the two existing test files without changing real records.
+
+## Compact facility name and category - October 29, 2026
+
+1. **Cause / reason:** The user requested removal of the extra space between the facility name and its Court/Sports category. The category previously followed the entire name/Chat Row, so the taller icon-over-Chat button added empty height beneath a short name, plus an explicit 6dp gap.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:422`, anchor `_overview` / Expanded name-and-category Column; this guide at line 3; `CAMPUSHUB_CONTEXT.md:3`; and existing header specifications in `campushub/DESIGN.md` (Facts Before Rates), `campushub/.impeccable/design.json` (`extensions.facilityDetails.reading`) and the Facility Details surface brief (Direction).
+3. **Changes made:** Moved the existing category Text into the same left-aligned Column as the name, inside the Row's Expanded child. Removed the explicit 6dp spacer. Chat stays beside that column with its existing touch area.
+4. **How it works:** `_overview(information)` reads the same `facility.name` and nonempty `facility.facilityTypeLabel`. The name and category now determine their own vertical flow rather than waiting for Chat's full height. Example: a one-line Covered Court name is immediately followed by its saved Sports Facility category; long names still wrap before the category. Reviews remain directly above Location.
+5. **Backend / API behavior:** Unchanged; display-only widget nesting, with existing chat, booking and data-loading handlers retained.
+6. **Database / migration impact:** None; no records, migrations or schema changes.
+7. **Tests performed:** Existing two-file Facility Details/booking run with local captures passed all 24 tests (11 seconds). Scoped screen analysis found no issues (1.5 seconds); formatting reported one file with zero changes. Inspected refreshed 390dp normal and 320dp/2× header renders in `scratch/facility-details-tabs-20261029`. No new test was added for this spacing change.
+8. **Remaining limitations:** No physical-device run. Enlarged text and long saved names retain natural wrapping; this change does not shrink or truncate text.
+
+**Troubleshooting / safe exercise:** Reload through your normal app workflow and confirm the category follows the name closely while Chat stays at the right. If a gap remains in an older build, inspect whether the category Text is inside the Expanded Column at this anchor. As a safe exercise, compare that nesting with the previous category-after-Row arrangement in this explanation, then run the two existing test files; do not alter real facility names/categories to practice.
+
+## Operating-days card, Reviews empty state and gallery scrolling - October 29, 2026
+
+### 1. Cause / reason
+
+The user requested review metadata immediately above Location, a Schedule card matching their reference, removal of Additional Fees, and a centered Reviews empty state with an icon above the message. They confirmed that Back/Favorite should scroll away with the photo. Source inspection found these controls already inside the scrolling gallery, so their existing implementation was retained and directly regression-tested rather than adding pinned controls.
+
+### 2. Exact files changed
+
+| File | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facility_details_screen.dart` | 111 `operatingDayLabels`; 283 Operating Schedule; 342 `facility-reviews-empty`; 411 `_overview`; 723 `_DetailSection`; 776 `_OperatingScheduleCard` | Saved-days card, weekday grouping, review placement/container, remove the entire Additional Fees & Discounts display and its unused expansion state |
+| `campushub/lib/module_app/models/facility_detail_information.dart` | 68 `operatingDays` | Read-only seven-day display states derived from existing validated schedule/configuration |
+| `campushub/test/facility_details_test.dart` | 163 tab/header/empty-state test; 280 gallery route/scroll/toggle test; 323 weekend card; 355 missing/invalid days; 720 render harness | Verify layout, real configuration boundaries, scroll-away controls, Back route and favorite toggle; capture Schedule instead of removed charges section |
+| `docs/mobile-services-navigation.md` | 3 this section | Eight-part report, data flow, debugging and safe practice |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Persist the user's latest choices and actual verification |
+| `campushub/DESIGN.md` | Facility Details / Facts Before Rates | Update current metadata order, schedule, removed fee display, empty state and scrolling behavior |
+| `campushub/.impeccable/design.json` | `extensions.facilityDetails.gallery`, `tabs`, `verification`; Facts Before Rates narrative | Keep the existing companion record consistent |
+| `campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md` | Direction | Current layout and real-data boundaries |
+
+Eight project files: two runtime Dart files, one existing test file and five existing documentation/design records. No unrelated source was reset or changed.
+
+### 3. Changes made
+
+- Header order: name with labeled Chat, category, actual review summary, saved Location, inline Capacity. No duplicate location, summary divider or photo counter was added.
+- Schedule: calendar icon/title, outlined Operating Days container, Monday–Sunday initials, navy active days, optional Weekend Only label from the saved flag, divider and saved hours. Consecutive weekdays with the same displayed value share one row; Saturday/Sunday stay separate. Rules/status/eligibility/requirements, live slots and their existing Retry/request behavior remain beneath it.
+- The Additional Fees & Discounts section is removed from Facility Details, including the former deposit/discount rows in that section. The formatter and actual backend fee/discount/deposit rules remain intact; booking financial behavior is not changed.
+- Reviews without validated aggregates show an outlined container with a centered star icon above No reviews yet. Supplied valid aggregates retain their existing actual summary and honest feedback-unavailable text.
+- Back/Favorite remain inside the gallery and scroll offscreen with it. Existing Back navigation and local favorite persistence/toggling remain.
+
+### 4. How it works: functions, inputs/outputs and data flow
+
+```text
+Existing API workflow_config.operating_hours + weekend_only
+  -> FacilityItem.workflowConfig
+  -> FacilityDetailInformation.schedule (existing time validation/formatting)
+  -> operatingDays: seven label/value/isOpen records
+  -> _OperatingScheduleCard: day markers + grouped weekday/time rows
+
+Existing rating/reviews -> reviewSummary
+  -> metadata above Location
+  -> Reviews aggregate summary OR centered empty container
+
+Existing ListView -> gallery Stack -> Back/Favorite
+  -> original Navigator.maybePop / SharedPreferences callbacks
+```
+
+`operatingDays` returns no day records if hours are not a structured map; the existing free-text Operating hours row remains available in the rules list. For a map, configured valid hours yield `isOpen: true`, explicit closed days yield false, missing days yield `Not configured`/null, and invalid ranges yield `Schedule needs review`/null. Saved weekend-only restrictions make weekdays `Unavailable`/false; weekend hours still need actual configuration. The screen filters weekday rows out of the old flat list to avoid repeating them below the card.
+
+Example using only the isolated test fixture: saved Saturday/Sunday 08:00–17:00 plus `weekend_only: true` produces inactive weekdays, active S/S, Monday–Friday Unavailable and the two actual weekend-hour rows. Those values are never hardcoded into the application. A missing Wednesday remains Not configured rather than inventing closure/open hours. The card is presentation, not availability/conflict validation.
+
+### 5. Backend / API behavior
+
+Unchanged. No endpoint, serializer, permission, quote, fee, discount, deposit, approval or payment logic was modified. Existing booking requests still use server schedule/conflict checks. No review records or hours were created; current API limitations around review data remain.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, working records, rates, assets or dependencies changed. Back/Favorite use their existing route/local-preference behavior; test preferences are isolated. No app installation, launch or device reload was performed.
+
+### 7. Tests performed
+
+From `campushub/`, ran:
+
+```powershell
+flutter test --no-pub --dart-define=CAPTURE_FACILITY_DETAILS=true test/facility_details_test.dart test/facility_booking_flow_test.dart
+```
+
+**24 tests passed (10 seconds).** Three-file analysis found no issues (1.5 seconds); final formatting verified three files with zero changes. Tests cover saved weekend restrictions/hours, unknown/invalid states, removed fee UI, review metadata order, centered icon/message, Back closing a pushed route, both favorite states, controls scrolling out of the hit area and returning, existing booking/conflict behavior, responsive widths, enlarged text and reduced motion.
+
+The existing isolated render harness refreshed captures in ignored `scratch/facility-details-tabs-20261029`; Schedule now uses `schedule-*` filenames. Visually inspected 390dp Schedule and Reviews plus 320dp/2× Schedule. These are real Flutter widget-fixture renders, not native screenshots or generated images. Older `charges-*` files are historical and do not depict the current UI.
+
+Commands from campushub:
+
+    flutter test --no-pub --reporter expanded test/facility_details_test.dart test/facility_booking_flow_test.dart --dart-define=CAPTURE_FACILITY_DETAILS=true
+    flutter analyze --no-pub lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+    dart format lib/module_app/screens/facility_details_screen.dart test/facility_details_test.dart
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+No physical-device, live authenticated chat or full screen-reader audit was performed. Day markers describe saved operating hours; they do not assert that a bookable slot is free. Unknown configuration stays explicit. The financial section's removal does not waive charges calculated in the existing booking workflow.
+
+Reload in your normal workflow. Verify reviews appear above Location; open Schedule to compare each row against Facilities Admin's saved hours. If no days highlight, inspect missing/invalid hours rather than adding defaults. Open Reviews without aggregate data to check the centered empty state. Scroll the photo offscreen and return; Back should close a pushed detail route and Favorite should toggle normally. As a safe exercise, inspect the existing weekend fixture, change one test-only weekend to null, and verify its open marker disappears while the displayed closed state remains accurate. Run the two test files; do not edit real facility schedules to practice.
+
+## Additional hour directly below the rental price - October 29, 2026
+
+1. **Cause / reason:** The user requested Additional hour immediately below the Rental Rates price with a horizontal line beneath it.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:198` (`_RentalPrice`, followed by Additional hour at 200, Divider at 207 and remaining options at 219); this guide at line 3; `CAMPUSHUB_CONTEXT.md:3`; and `campushub/DESIGN.md` (Facility Details rate-panel specification). Companion Home/filter changes and exact file inventory are in `docs/mobile-seller-application.md` top.
+3. **Changes made:** Render the configured Additional hour option first after the main rate, then a neutral Divider with 24dp total height. Custom notes and alternative/shared-room options follow. Exclude Additional hour from the later option loop so it appears once. No divider is added when Additional hour is not configured.
+4. **How it works:** Existing `FacilityDetailInformation.rateOptions` formats Admin configuration into label/value records. The widget selects the existing `Additional hour` record for the first position; remaining records keep their original relative order. For example, an existing base-duration package with a configured additional-hour amount displays the primary price, that saved extra-hour rate, divider, then the saved alternative rate. Inputs, formatting and outputs retain the same actual amounts; no rate or quote is computed here.
+5. **Backend / API behavior:** Unchanged; Django remains responsible for configured pricing, quotes, eligibility and approvals. The sticky primary rate and Request Booking use the original handlers.
+6. **Database / migration impact:** None; no rates, records, migrations or dependencies changed.
+7. **Tests performed:** The combined Home/seller/facility run passed 74 tests (15 seconds), including existing configured-rate, responsive-details and booking tests. Seven changed Dart files passed analysis (2.1 seconds) and formatting (zero changes). The companion guide records the test-only gesture correction discovered in that run.
+8. **Remaining limitations:** No fresh screenshot/device run. This remains a conditional saved rate; facilities without Additional hour do not receive an invented amount or empty divider.
+
+**Troubleshooting / safe exercise:** Reload through your normal workflow and inspect an existing facility with Additional hour configured. Confirm it appears once immediately below the primary price, with the divider beneath it. If missing, trace `workflow_config.pricing.additional_hour_rate` through `FacilityDetailInformation.rateOptions` before inspecting the widget. Use the existing isolated rate fixture to compare configured/missing options safely, then run the two facility test files without editing production rates.
+
+## Review-first header, labeled chat and Overview guidelines - October 29, 2026
+
+1. **Cause / reason:** The user requested reviews above the facility name, removal of the duplicate location, a Chat label below the icon, and Terms & Guidelines below About This Facility with a chevron instead of Read Full Terms.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:243` (Overview Terms & Guidelines), 384 (`_overview`, review at 393, chat at 416), 835 (`_ExpandableDetailText`, optional `disclosureLabel`, chevron at 866); `campushub/test/facility_details_test.dart:169` (review/header/single location), 434 (terms expansion/collapse and request route); `campushub/test/facility_booking_flow_test.dart:206` (single location and Overview-only terms); this guide at line 3; `CAMPUSHUB_CONTEXT.md:3`; and existing current specs in `campushub/DESIGN.md` (Facts Before Rates/Overview), `campushub/.impeccable/design.json` (tabs/reading/narrative) and its Facility Details surface brief at line 18.
+3. **Changes made:** Order is now review summary, name with icon-over-Chat button at right, category, saved location and inline capacity. Removed only the second Location section from Overview. Moved saved terms from Schedule to Overview immediately after About This Facility and titled them Terms & Guidelines. Removed Read Full Terms; long terms show a centered down-chevron control underneath, changing to an up chevron while expanded. Schedule retains saved operating rules, requirements and charges.
+4. **How it works:** `_overview(information)` still receives existing saved data; the chat TextButton calls the same `messageFacilitiesAdmin(context, facility.id)`. `_ExpandableDetailText(text, disclosureLabel)` measures saved text against four lines. With `disclosureLabel: 'terms and guidelines'`, overflowing text gets a 48dp IconButton with Expand/Collapse tooltip and expanded semantics. Tapping changes only local `expanded` state and `Text.maxLines` between 4 and unlimited. Short terms need no expansion control. Other existing description/requirements/pricing text retains Read more/Show less. Example: a long saved terms record initially displays four lines plus a down chevron; tapping reveals the rest and changes the chevron upward.
+5. **Backend / API behavior:** Unchanged; saved reviews, location and terms use existing fields. Chat retains its original contact/conversation flow; no message is automatically sent. No approval/payment/rate change.
+6. **Database / migration impact:** None; no records, migrations or schema changes.
+7. **Tests performed:** Final focused details/booking run passed all 21 tests (3 seconds). Checks include review above name, labeled 48dp chat, one location, Overview-only terms, expanded and collapsed text, responsive cases and booking actions. Three-file analysis found no issues (1.6 seconds) after removing the unused legacy expansion-label parameter. Dart formatting applied to the final source. No new screenshot or physical-device run.
+8. **Remaining limitations:** Live authenticated chat and native accessibility behavior were not exercised. Missing saved terms still omit the section; no example guidelines were invented. Earlier captures/layout sections are historical.
+
+**Troubleshooting / safe exercise:** Reload in your normal app workflow. Confirm the new header order and one location, then open Overview and expand/collapse a long saved terms record through the chevrons. If no chevron appears, check whether the configured text already fits within four lines. Safely trace the existing test fixture's `terms_conditions` input through `FacilityItem` to the new Overview section and local disclosure state; rerun both existing test files rather than editing production records.
+
+## Facility name, review summary and header chat - October 29, 2026
+
+1. **Cause / reason:** The user requested removal of the summary line, moving the review summary beneath the facility name, and placing chat to the right of that name.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:392` (`_overview`; name/chat Row, chat key at 416, review summary at 430, capacity at 453); `campushub/test/facility_details_test.dart:169` (header geometry/order, no divider, 48dp target and relocated tooltip); `campushub/test/facility_booking_flow_test.dart:264` and 268 (existing chat locator); this guide at line 3; `CAMPUSHUB_CONTEXT.md:3`; current facts specs in `campushub/DESIGN.md:277`, `campushub/.impeccable/design.json:332`, and `campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md:18`.
+3. **Changes made:** Removed the divider and its extra 20dp spacing. Placed the name in an Expanded child beside a 48dp navy outlined chat IconButton. Moved the existing Message Admin action from the bottom of the content into that button, avoiding duplicate chat controls. Display order is name/chat, actual review summary, category, location and inline capacity.
+4. **How it works:** `_overview(information)` renders the same saved `facility.name` and validated `information.reviewSummary`. The icon's `onPressed` calls the unchanged `messageFacilitiesAdmin(context, facility.id)`. Its tooltip supplies the accessible name `Message Admin`; long names wrap in the remaining row width. No new review data or destinations are introduced.
+5. **Backend / API behavior:** No backend changes. The existing helper in `booking_widgets.dart:663` reads the existing Facilities contact endpoint, initializes the signed-in chat service and opens the existing facility-context conversation. Its sign-in/error feedback remains. Tapping the chat icon intentionally opens that existing flow; no message is sent automatically.
+6. **Database / migration impact:** None; no records or schema were changed during implementation.
+7. **Tests performed:** Final 21 Facility Details/booking tests passed (4 seconds), including header geometry/order, no summary divider, 48dp target, narrow screens, enlarged text, carousel and booking regressions. Three-file analysis found no issues (1.7 seconds); final format check reported three files, zero changes. Initial runs caught two old text-button locators in the booking test; both now find the relocated button through its tooltip, and the final run passed.
+8. **Remaining limitations:** No fresh screenshot, physical-device run or live authenticated chat request was performed. Chat still requires the existing backend contact and signed-in chat configuration. Earlier captures and layout reports are historical.
+
+**Troubleshooting / safe exercise:** In your normal running app, reload and confirm name/chat share a row, the review summary sits directly below and no divider remains beneath Capacity. For a safe code exercise, trace the icon callback to `messageFacilitiesAdmin` and read its existing contact/conversation inputs and error handling without contacting a real admin. Run the two existing test files to verify layout locally. To manually verify navigation when appropriate, use your normal signed-in test environment and open chat without sending a message.
+
+## Carousel without a counter and summary divider - October 29, 2026
+
+1. **Cause / reason:** The user requested removal of the numeric photo count (including `1 / 1`) and a horizontal line beneath Capacity.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:452` (`_overview`, Divider below Capacity), line 549 (`_FacilityHeroGallery`, removed counter overlay; dots at 634); `campushub/test/facility_details_test.dart:523` and 547 (existing two-photo swipe assertions); this guide at line 3; `CAMPUSHUB_CONTEXT.md:3`; `campushub/DESIGN.md:277` and 279; `campushub/.impeccable/design.json:239` and 332; and `campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md:18`.
+3. **Changes made:** Removed the numeric overlay for every gallery size. Retained uploaded images, PageView swiping, Back/Favorite and animated dots for multiple images. Added a 1dp neutral Divider with 20dp spacing below the final summary row, before the four tabs.
+4. **How it works:** `_FacilityHeroGallery` receives the existing image list and current index. PageView updates that index, which still selects the active dot; the index no longer renders as a numeric badge. Photo accessibility labels retain their contextual position. `_overview(information)` renders the saved capacity followed by the divider; if capacity is absent, the divider still separates the summary from tabs. No new inputs or records are introduced.
+5. **Backend / API behavior:** Unchanged; uploaded-photo and booking data still use existing paths.
+6. **Database / migration impact:** None; no records or schema changes.
+7. **Tests performed:** All 21 existing Facility Details/booking tests passed (3 seconds), including the two-photo swipe, active dots, responsive layouts and booking actions. Two-file Flutter analysis found no issues (1.9 seconds); formatting verified two files with zero changes. Numeric count expectations now assert absence.
+8. **Remaining limitations:** No fresh screenshot or physical-device run; older captures below show previous revisions.
+
+**Troubleshooting / safe exercise:** Reload through your normal app workflow. Open a facility with one saved photo, then one with multiple photos: neither should show a numeric counter. Swipe the latter and confirm the active dot changes. Confirm the horizontal line appears below Capacity and above the tabs. To learn the flow safely, trace `PageView.onPageChanged` to `_currentImageIndex` and the dot color/width without editing saved photo data. The existing two-photo test provides an isolated fixture for verification.
+
+## Facility Details capacity row - October 29, 2026
+
+1. **Cause / reason:** The user requested removal of the separate Facility type fact and a single Capacity row. Previously `_FacilityFacts` put the capacity label above its value beside a type column.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:404` (`_overview`, capacity text at 448, retained `_IconDetail` at 781); `campushub/test/facility_details_test.dart:214` (saved custom type assertion); `campushub/test/facility_booking_flow_test.dart:209` (capacity assertion); this guide at line 3; `CAMPUSHUB_CONTEXT.md:3`; and the current facts specifications in `campushub/DESIGN.md`, `campushub/.impeccable/design.json` and `campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md`.
+3. **Changes made:** Removed the separate type fact and now-unused `_FacilityFacts` grid. Reused `_IconDetail` for the people icon and inline `Capacity: [saved value]` text. Updated existing assertions and current design records.
+4. **How it works:** `_overview(information)` receives the existing `FacilityDetailInformation`; its `capacity` getter formats the configured capacity/range. A nonempty value renders one full-width icon/text row. For example, saved bounds 300 and 500 yield `Capacity: 300–500 persons`. Missing capacity omits the row. `_IconDetail` uses an Expanded text child so unusually large text can wrap safely instead of clipping. Category beneath the name remains a separate existing label.
+5. **Backend / API behavior:** Unchanged; the type field remains in the model/API for existing workflow decisions. This removes only its separate summary display.
+6. **Database / migration impact:** None; no records, schema or migrations changed.
+7. **Tests performed:** Existing Facility Details and booking test files passed all 21 tests (4 seconds), including narrow screens, 2× text, landscape, request flow and removed type assertions. Three-file Flutter analysis found no issues (2.3 seconds). Dart format verified three files with zero changes.
+8. **Remaining limitations:** No fresh screenshot or physical-device run. Capacity is one metadata row with inline label/value; enlarged text may wrap naturally for readability.
+
+**Troubleshooting / safe exercise:** In your normal app workflow, reload and open a facility with a saved capacity. Confirm the people icon and `Capacity: value` share a row, with no separate Facility type fact. If capacity is missing, inspect the actual Admin capacity settings and the existing `FacilityDetailInformation.capacity` getter; do not substitute sample values. As a safe exercise, inspect the existing test fixture's minimum/maximum capacity and trace those inputs through the getter to `_overview`, then run the two test files above. Earlier sections describe historical revisions.
+
+## Facility Details gold tab underline - October 29, 2026
+
+1. **Cause / reason:** The user requested the selected tab accent shown in their reference to use `#FCB315`, superseding the earlier navy underline.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:178`, anchor `TabBar.indicatorColor`; this guide at line 3; `CAMPUSHUB_CONTEXT.md:3`; and the existing tab specifications in `campushub/DESIGN.md` (Facts Before Rates) and `campushub/.impeccable/design.json` (`extensions.facilityDetails.tabs` and Facts Before Rates narrative).
+3. **Changes made:** Replaced only `indicatorColor: bookingNavy` with `indicatorColor: bookingGold`. The existing shared constant in `campushub/lib/module_app/widgets/facilities/booking_widgets.dart:9` already equals `Color(0xFFFCB315)`; that file was not edited. Labels retain navy/muted colors and existing weights. Updated the current design records to match.
+4. **How it works:** `build(context)` returns the existing screen. The native `TabController` supplies the selected index to `TabBar`; `indicatorColor: bookingGold` paints the underline beneath that selected tab. It does not change any inputs, data loading, layout or navigation. Example: selecting Amenities moves the same gold underline from Overview to Amenities.
+5. **Backend / API behavior:** Unchanged; this is a presentation property only.
+6. **Database / migration impact:** None; no records or schema changed.
+7. **Tests performed:** Scoped Flutter analysis passed with no issues (1.1 seconds). Dart formatting verified one file with zero changes. No new tests were added or widget tests rerun for this single color property.
+8. **Remaining limitations:** No fresh rendered or physical-device check. The user controls app reload. This change does not claim a full accessibility audit.
+
+**Troubleshooting and safe practice:** In your normal running app, reload, open Facility Details and tap all four tabs. Verify the gold underline follows selection, navy text stays readable and Request Booking stays visible. If the underline remains navy, confirm the running build includes `indicatorColor: bookingGold` at the anchor above. For a safe learning exercise, inspect the shared color constant and trace its reference to this property without editing any rate, API or booking handler. Earlier verification totals below belong to the prior layout revision.
+
+## Four-tab Facility Details and carousel pagination - October 29, 2026
+
+### 1. Cause / reason
+
+The user explicitly requested the existing Airbnb-inspired Facility Details design with exactly **Overview / Amenities / Schedule / Reviews**, a swipeable carousel with animated dots/counter, a persistent configured price and Request Booking, and removal of Check Availability. Source inspection confirmed that the current gallery already used`PageView` and had no thumbnail strip, but lacked pagination dots; its information was one continuous document and included Check Availability. This update reorganizes that screen without changing the broader app design or backend.
+
+Applied the explicitly invoked frontend-design and ui-ux-pro-max skills. Kept the existing Montserrat, navy/white, typography hierarchy, single rates panel, spacing and native controls; this screen's gold accent is the requested`#FCB316`. Local skill searches returned no applicable tab-navigation recommendation (the retry found a performance-tab entry), so native Flutter TabBar behavior and the skill's general touch/responsive guidance were used as the fallback. No new visual direction, image-generation step or approval checkpoint was introduced.
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facility_details_screen.dart` | 29 ticker mixin; 34 `_tabIndex`; 47 controller listener; 76 `_loadSlots`; 85 `_tabChanged`; 166 `TabBar`; 190/249/260/353 selected content; 396 Request Booking; 404 `_overview`; 562 `_FacilityHeroGallery`; 671 pagination `AnimatedContainer`; 989 booking bar | Four tabs, content placement, pagination, removed availability action, saved facility type and stable request action |
+| `campushub/lib/module_app/models/facility_item.dart` | 35 optional `customFacilityType`; 105 JSON parsing; 142 field | Preserve the existing serializer's`custom_facility_type` for display, with backward-compatible empty default |
+| `campushub/test/facility_details_test.dart` | 150 `selectTab`; 164 tab-isolation regression; 201 real aggregate/empty amenities; 335 responsive cases; 502 swipe/dots; 555 captures; 597 settled capture helper | Verify exactly four tabs, isolated content, persistent action, custom type, real-data boundaries, responsive selection and carousel indicators |
+| `campushub/test/facility_booking_flow_test.dart` | 157 existing details/booking regression | Select Amenities and Schedule to inspect relocated content; expect removed action and retained existing booking flow |
+| `docs/mobile-services-navigation.md` | 3 this section | Current eight-part report, data flow, troubleshooting and safe exercise |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Preserve this explicit structure and actual verification |
+| `campushub/DESIGN.md` | `Facility Details — October 29, 2026` / Facts Before Rates rule | Update the existing component spec to the four tabs, dots/counter and removed action |
+| `campushub/.impeccable/design.json` | `extensions.facilityDetails.gallery`, new`tabs`, `verification`, Facts Before Rates narrative rule | Keep the existing design companion consistent; no new preview asset |
+| `campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md` | Confirmed hierarchy / Direction / data boundaries | Record the user's latest exact structure in the existing scoped record |
+
+Nine project files: two runtime Dart files, two existing test files and five documentation/context/design records. Unrelated screens and working changes remain intact. Previous implementation sections are historical; their continuous-section layout, multiple-image-only counter and Check Availability behavior are superseded here. Previous independent-review verdicts do not certify this new tabbed revision.
+
+### 3. Changes made
+
+| Area | Implemented behavior |
+| --- | --- |
+| Carousel | Existing viewport-width PageView and uploaded-image URL/loading/error handling retained. Nonempty galleries show the real counter, including`1 / 1`. Multiple images add an18×6dp navy active indicator and6×6dp gray circles, with160ms ease-out transitions after a swipe and zero duration under reduced motion. No thumbnails, automatic rotation or generated/replacement photos. |
+| Information | Saved name, category, location and validated rating/review summary, then capacity and facility type. A nonempty saved custom type takes precedence; otherwise use the actual type code's existing display label. No fabricated purpose or new booking-mode fact is added. |
+| Overview | Saved primary rental rate/billing basis, configured additional-hour/alternative/shared-room options, custom pricing notes, description and location information. |
+| Amenities | Existing enabled`amenities` list rendered by the current responsive icon grid. This list already contains configured equipment/features and normalized Other Feature text. Empty list:`No amenities listed.` No separate equipment configuration is introduced. |
+| Schedule | Saved operating days/hours, booking mode/status/restrictions, eligibility and advance-payment conditions; existing date-specific live slot/error/Retry output; active fees/discounts, applicable deposits, requirements and terms. The Check Availability button/key is removed. Existing slot selection still uses the original request handler. |
+| Reviews | The existing validated summary or`No reviews yet`. If supplied aggregate data is valid but no individual comments exist in the response, show`Customer feedback is not available.` No sample comments, review distribution, View All action or new review endpoint. |
+| Sticky bar | Remains outside the scrolling/tabbed body and repeats the same configured price on every tab. The visible label is always`Request Booking`. Existing status disabling and category-specific booking-form/admin-contact handler remain unchanged. |
+
+Native TabBar has exactly four horizontally arranged labels, a navy active underline, scalable text and native focus/selection behavior. It scrolls horizontally when the device width or enlarged text requires it. Only the active content is mounted; tabs do not create another booking or quote calculation. The controller has zero transition duration; user-requested carousel dot motion remains independently enabled unless reduced motion is set.
+
+### 4. How it works: functions, inputs/outputs and data flow
+
+```text
+Existing Django serialize_facility -> existing API/facility loader
+  -> FacilityItem.fromJson
+       existing rate, price_type, workflow_config, images, amenities and terms
+       additionally retain existing custom_facility_type
+  -> existing FacilityDetailInformation: display labels only
+  -> FacilityDetailsScreen
+       PageView.onPageChanged -> current image index -> counter/dot appearance
+       native TabController.index -> _tabChanged -> _tabIndex
+         0 Overview | 1 Amenities | 2 Schedule | 3 Reviews
+       unchanged sticky formatted primary rate + _requestAction
+  -> original FacilityBookingScreen / admin-message route
+```
+
+`_tabChanged()` has no inputs and updates only the selected index from the four-entry controller; it never touches a record. Its listener and controller are removed/disposed with the existing page controller. `customFacilityType` is an optional string whose parser reads an already-existing API response field; old constructors still work without supplying it.
+
+`_FacilityHeroGallery(images, currentIndex, ...)` renders only the saved list and existing fallback. Its AnimatedContainer dots change size/color in response to the index. `_overview(information)` reads saved values; `_RentalPrice` still styles the same primary rate for body/footer. No billing calculation was moved out of Django.
+
+The existing `_slots` request can finish while Schedule is not mounted. `_loadSlots()` attaches`Future.ignore()` to prevent an unhandled asynchronous error in that interval; this does **not** replace the Future or turn failure into an empty/successful schedule. The Schedule FutureBuilder reads that same Future and presents its existing error/Retry state, including a failure before the tab is opened. Returning from the existing booking form still refreshes these slot results.
+
+Annotated selection example:
+
+```dart
+// Native controller is constructed with length: 4.
+if (_tabIndex == 0) ...[/* configured rates, description, location */];
+if (_tabIndex == 1) /* saved amenities or honest empty state */;
+if (_tabIndex == 2) ...[/* saved rules, schedule, charges and terms */];
+if (_tabIndex == 3) /* actual supplied review summary or empty state */;
+// The sticky booking bar is outside these branches, so its price/action persist.
+```
+
+The actual runtime branches are ordinary widget lists; the example comments explain the data grouping rather than supplying application records. This approach preserves natural content height without an unbounded TabBarView or an additional horizontal swipe competing with the photo carousel.
+
+### 5. Backend / API behavior
+
+Unchanged: no endpoint, serializer, permission, request/response schema, pricing formula, discount verification, payment or approval workflow was edited. The model now retains the serializer's existing custom type. The original saved rate/method formatter supports the same hourly/base-duration/day/night/person/person-night/fixed/custom values and conditional monthly text as before; this task does not enable monthly admin billing. Non-slot facilities keep their original admin-contact request process under the unified Request Booking label. The booking form retains backend schedule rechecks and quote/create behavior.
+
+### 6. Database / migration impact
+
+None. No schema/migration/model/table/working-record/rate configuration/dependency/image asset change. The local favorite key is unchanged. No install, app launch, device reload, permission reset or deployment was performed.
+
+### 7. Tests performed
+
+From`campushub/`, ran:
+
+```powershell
+flutter test --no-pub --reporter expanded --dart-define=CAPTURE_FACILITY_DETAILS=true test/facility_details_test.dart test/facility_booking_flow_test.dart test/resource_catalog_cards_test.dart test/services_screen_test.dart test/service_catalog_test.dart test/home_page_test.dart test/seller_home_layout_test.dart
+```
+
+**72 tests passed; Flutter reported10seconds.** Final four-file static analysis reported **No issues found** in1.5seconds; formatting verification reported **4 files, 0 changed**. Tests cover exact tab count/order/selection, isolated content, persistent price/action, empty amenities, supplied/invalid review values, custom type, removed Check Availability, slot loading/Retry and failure before tab visibility, existing favorite/booking validation/conflicts, photo fill/swipe/counter/dot sizes, reduced motion,320/375/390/844dp,2× text and landscape. Existing Home/service/card regressions remain in the run.
+
+The first focused run had one test-helper failure:`pumpAndSettle` could never finish while a deliberately pending Schedule spinner remained active. Replaced the tab helper's unbounded animation wait with bounded frame advancement; the subsequent21-test focused run passed. This does not disable loading or hide runtime failures.
+
+Current actual Flutter widget captures are under ignored`scratch/facility-details-tabs-20261029/`: top/Overview, Amenities, Schedule/charges and Reviews at375/390dp,320dp/2× and844dp landscape (16 PNGs). Initial capture inspection found image-decoding/tap-ripple timing artifacts after tab selection; the harness now allows real fixture-photo decoding and native feedback to settle. The final capture-only test passed(7seconds), with representative refreshed phone, enlarged-text and landscape images inspected. The two-photo fixture repeats an existing bundled image solely for pagination/layout verification; it is never used by runtime as a facility-photo replacement or seeded as a record. No AI images or visual mockup substitutes were created. No native-device/full-accessibility pass is claimed.
+
+### 8. Remaining limitations, troubleshooting and safe exercise
+
+The current facility serializer has no individual customer-feedback rows, review aggregates or separate facility-purpose field. Optional rating/count fields already supported by the model are validated if supplied, but live responses normally produce`No reviews yet`. No review comments or purpose are inferred from names, booking purpose, description, other records or the design example. Adding missing backend fields/endpoints remains outside this UI-only request. Existing monthly/custom-price limitations remain honest.
+
+If a custom type is missing, inspect`custom_facility_type` in the existing response. Missing amenities require saved enabled features; additional fees do not prove equipment is provided. If Schedule errors after reopening its tab, use its existing Retry and inspect the actual availability response. On small screens/large text, swipe the tab row horizontally to reach all four labels; there are still exactly four tabs. Images must come from saved Facilities Admin uploads. Use the normal user-controlled Flutter reload/rebuild workflow to see the saved changes.
+
+Safe practice: modify only`detailFixture()` to supply a custom type and empty amenities, run`flutter test --no-pub test/facility_details_test.dart`, and check the saved type/empty state. Switch each tab and confirm the footer rate is identical. In the image fixture, swipe from the first to second photo and verify the counter and elongated dot move together. Restore the fixture; do not change working rates, comments or bookings to test presentation.
+
+## Professional minimalist Facility Details refinement - October 29, 2026
+
+### 1. Cause / reason
+
+The user requested another modern, professional, minimalist treatment using impeccable and other inspiration beyond the supplied example image. In the preference check, the user chose **facility name and key facts first, rental rates next**. The existing identity, full-width photo, titleless Back/Heart header, saved information and real booking flow remain the foundation. This is a scoped refinement, not a replacement app design.
+
+The direction draws on a quiet hospitality information sheet and native task-oriented details: measured typography, aligned facts and a distinct rate decision area. No named external product is being reproduced, no new image was generated, and the reference's sample map, prices, reviews, thumbnails and approval-preview controls are not application data.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Category above the name | Facility name leads; category follows as secondary information | Match the user's selected priority |
+| Capacity as another metadata row | Capacity and the existing booking mode share a plain responsive fact grid | Make key facts easier to scan without decorative tiles |
+| Entire price uses the same large text | Amount is prominent; the billing basis is smaller but readable | Distinguish the rental amount from its charging condition |
+| Rates flow like every other section | One light, fully outlined rates panel; remaining sections stay flat | Give the rate decision a clear boundary without nesting cards |
+| Every label/value uses equal left alignment | Values align to the right on normal widths and stack for long content/large text | Keep compact numbers aligned and preserve long conditions |
+| Gold outline star even when no rating exists | Muted outline star with the honest empty summary | Avoid giving absent feedback a rated appearance |
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facility_details_screen.dart` | 11 direction contract; 130 viewport-width scroll/gallery; 149 content gutter; 157 `panel: true`; 338 `_overview`; 630 `_DetailSection`; 668 `_FacilityFacts`; 721 `_RentalPrice`; 778 `_DetailLine`; 893 `_FacilityBookingBar` | Scoped hierarchy, facts, rate typography/panel and responsive alignment; existing state and handlers retained |
+| `campushub/test/facility_details_test.dart` | 104 `height`; 106 `reducedMotion`; 260 viewport cases; 457 optional captures; 505 capture directory | Add375dp and landscape coverage, reduced-motion inputs and current fixture captures |
+| `docs/mobile-services-navigation.md` | 3 this section | Current report, source/data map, checks, troubleshooting and practice exercise |
+| `CAMPUSHUB_CONTEXT.md` | newest entry | Preserve the accepted direction and results |
+| `campushub/DESIGN.md` | 50 scoped Montserrat roles; 190 overview; 249 independent gallery/reading widths; 275 component; 283 functions; 287 evidence | Additive record of the built Facility Details component; unrelated rules retained |
+| `campushub/.impeccable/design.json` | 235 scoped extension; 330 narrative rule | Required machine-readable companion for the same built spec; no new preview asset |
+| `campushub/.impeccable/surfaces/ib-module-app-screens-facility-details-screen-dart.md` | 1 target mapping; 8 Scope and mode | Persist the confirmed Operate-mode hierarchy and route-specific constraints |
+
+Seven project files: one runtime Dart file, one existing test file and five documentation/context/design records. The shipped impeccable documenter merged the scoped design record without replacing the existing design system. Temporary review fixtures/captures are not shipping assets. Historical sections remain implementation history; this section supersedes their ordering, rate typography, gallery width and content-spacing descriptions only.
+
+### 3. Changes made
+
+The photo/gallery behavior and48dp Back/Heart controls remain. The gallery now sits outside the620dp reading-width constraint and fills the viewport even in landscape; dossier content and footer retain their bounded measure. Below the photo, the name has a deliberate24sp/600 leading role, followed by category, review summary and saved location. Capacity and booking mode appear as two unboxed facts, stacking when width or text scaling requires it. No purpose, capacity, location or rating is inferred from the reference image.
+
+The content uses20dp side gutters,28dp section separation and16sp/600 section headings. Rental Rates is the only tonal panel, with16dp inset/radius and the existing subtle outline/light-surface tokens. The amount uses26sp/700 and the billing basis13sp; the sticky footer uses19sp/700 and12sp. The text remains one complete rate label for assistive technology. Amounts use tabular figures; whole/cents formatting, custom pricing and the saved charging method remain supplied by the existing presentation helper. Additional-hour, alternative-hourly and shared-room conditions remain separate.
+
+Long fee/deposit/discount values and enlarged text stack label over value instead of forcing narrow columns. Ordinary rows align values to the right. The footer keeps its native navy Request Booking button and bottom safe area, stacking at the existing narrow/large-text threshold. Description/terms expansion, active charges, amenities, schedule loading/error/Retry/empty states, disabled unavailable facilities, Message Admin and non-slot contact guidance remain.
+
+### 4. How it works: functions, inputs/outputs and data flow
+
+```text
+Existing API -> unchanged FacilityItem / FacilityDetailInformation
+  -> _overview: saved name, category, reviews, location, capacity and booking mode
+       _FacilityFacts(facts) -> responsive plain icon/label/value rows
+  -> _DetailSection(panel: true) -> one rates panel
+       _RentalPrice(price, compact) -> one Text.rich label with amount/basis styles
+  -> _DetailLine(label, value) -> right-aligned row or stacked readable pair
+  -> existing gallery, information, availability, terms and contact sections
+  -> _FacilityBookingBar -> compact _RentalPrice + original request handler
+```
+
+`_FacilityFacts` receives existing typed display records and returns layout only. It never reads the database or changes booking modes. `_RentalPrice` receives the existing formatted label, splits the first` / ` only for a numeric peso label, and styles the amount separately; unfamiliar/custom labels remain complete text. It supplies the unchanged full string as its semantics label. It never parses a price into a booking charge. `_DetailSection` adds a surface only when its new optional`panel` flag is true. `_DetailLine` uses width, text scaling and long value length to select a stacked or horizontal composition. The original `_requestAction`, `_book`, `_loadSlots`, favorite storage and service calls are unchanged.
+
+Annotated layout example:
+
+```dart
+// Existing configured label; no price calculation or new request occurs.
+_RentalPrice(price: information.primaryRate);
+// For '₱3,000 / first 4 hours': emphasize ₱3,000, retain the full billing basis.
+// The footer reads the same input with compact: true.
+```
+
+This keeps presentation choices separate from Django calculations and avoids a second price source. The new fact grid joins existing data to the selected hierarchy rather than adding a new feature or category.
+
+### 5. Backend / API behavior
+
+Unchanged. No endpoint, request, response field, authentication, permission, quote, payment, approval, eligibility rule or business calculation changed. Review aggregates remain unavailable in the current serializer, with the existing honest empty summary. The actual booking form still rechecks availability and quotes through Django; custom/monthly/non-slot limitations from the preceding sections remain.
+
+### 6. Database / migration impact
+
+None. No model, schema, migration, production record, stored rate, dependency or asset changed. Existing favorites still use the same local preference. No device app was launched, installed or reloaded; the user's selected-device workflow remains theirs to control.
+
+### 7. Tests performed
+
+Ran the same seven test files as the preceding implementation, with`--no-pub --reporter expanded --dart-define=CAPTURE_FACILITY_DETAILS=true`. **70 tests passed**, first in9seconds and again in8seconds after the finish review's photo-width correction. Corrected-source analysis of the two changed Dart files reported **No issues found** in1.6seconds. Final post-correction formatting verification reported **2 files, 0 changed**. Tracked source whitespace check found no errors, only the existing LF/CRLF conversion notice. New/updated guide, harness and surface brief have no trailing whitespace; the documenter verified its JSON parsing and single Markdown frontmatter structure.
+
+The updated cases cover320/375/390/844dp,320dp at2× text,844×500 landscape, reduced-motion/accessibility-navigation inputs, top image/control geometry, footer safe area and52dp minimum action, favorite persistence, real navigation, price/data preservation, valid/invalid images, expansion and live-schedule states. Existing card/service/Home/booking regression cases remain in the run.
+
+One batched render inspection covered all eight fixture PNGs under ignored`.impeccable/review/facility-details/`: top/charges at375dp,390dp,320dp/2× and844dp landscape. The finish reviewer identified that the landscape gallery still shared the620dp text constraint; the correction moved it outside that constraint and refreshed the same eight captures for a bounded second review. The harness loads actual bundled Montserrat/icons; photos, fees and names are isolated test fixtures and never seed application records or replace facility images. A node calculation of the actual sRGB tokens measured navy/white16.24:1, muted/white5.49:1, muted/light-panel5.25:1 and white/navy16.24:1. These measure these pairs only, not a full accessibility audit or system-bar contrast over arbitrary photos.
+
+### 8. Remaining limitations, troubleshooting and safe exercise
+
+The independent impeccable finish reviewer returned **ship at the two-fix verdict scope**: the viewport-wide photo and design persistence were both scored resolved. All eight refreshed captures were rechecked with no fix-induced visual regressions observed. This is not a whole-app or physical-device approval.
+
+Review and captures are scoped to source, automated behavior and Flutter widget renders. They are not native device/emulator or live-record screenshots. OS bars, TalkBack/VoiceOver, physical gestures, actual device text rendering and full dark-mode behavior have not been certified. The established white details surface remains white in a dark surrounding theme; this task does not add an app-wide theme. No web detector ran because it does not analyze native Dart widgets. The impeccable native screenshot gate cannot be claimed from these fixture captures.
+
+If a fact is missing, inspect its saved API value or supported booking mode before adding labels. If a long rate wraps, check the complete billing basis at the actual text size; do not clip it or substitute the screenshot's example value. The full-width gallery still needs real uploaded photos; its missing/error fallback is unchanged. Use the user's normal Flutter refresh/rebuild workflow to see source changes; no preview-state switch is needed.
+
+Safe practice: change only the long facility name or additional-fee condition in`detailFixture()` and rerun`flutter test --no-pub test/facility_details_test.dart`. Check that text wraps, the original rate string remains complete and the sticky action stays above the bottom inset. Compare375dp normal text with320dp/2× and landscape; restore the fixture afterward. Do not edit production rates or create bookings to practice layout work.
+
+## Image-first Facility Details - October 29, 2026
+
+### 1. Cause / reason
+
+The user supplied a Facility Details brief and demonstration screenshots, then clarified that the image should fill the top, only back/heart controls should appear there, the `Facility Details` title should disappear and preview-state buttons should not be implemented. The existing application had a separate title bar, an inset gallery, repeated bordered/shadowed cards, a raw `per base_hour` pricing basis and a two-button footer. No `Preview Submitted Screen` or `Preview Approved State` buttons existed in the Flutter application; the screenshots are references, not an instruction to simulate approval.
+
+Applied the explicitly invoked `emil-design-eng` skill to the existing implementation. The screen uses deliberate spacing, native interaction feedback and the existing swipe behavior; no decorative entrance, stagger, scale or spring animation was added.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Separate Facility Details app bar above an inset image | Full-width top gallery with back/heart overlays and no title bar | Give the actual facility image the top of the screen |
+| Category overlay, gradient and decorative indicators | Category below the photo; a counter only for multiple saved images | Keep the photo clear and avoid redundant chrome |
+| Multiple nested bordered/shadowed cards and amenity tiles | Flat sections and simple icon/text amenities | Improve hierarchy with spacing rather than containers |
+| Raw rate plus `per price_type` | Saved primary pricing, distinct additional-hour/alternative/shared-room conditions | Explain configured pricing without adding mutually exclusive options |
+| Message Admin and Book Now equally prominent in the footer | Sticky rate and Request Booking; admin contact remains inline | Keep the next action clear and retain existing contact access |
+| Poppins in this screen | Scoped bundled Montserrat, as specified by this brief | Apply the requested typography without changing the app-wide font |
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facility_details_screen.dart` | 13 `FacilityDetailsScreen`; 47 `_loadFavorite`; 57 `_toggleFavorite`; 63 `_loadSlots`; 69 `_book`; 79 `_requestAction`; 321 `_overview`; 359 `_availability`; 450 `_FacilityHeroGallery`; 665 `_ExpandableDetailText`; 736 `_FacilityBookingBar` | Replace the details presentation, retain favorite/navigation/contact behavior, and render configured information |
+| `campushub/lib/module_app/models/facility_item.dart` | 34 optional `workflowConfig`; 99 `fromJson` mapping; 138 `workflowConfig` | Retain the existing API workflow object for read-only display; existing constructors and raw fields remain compatible |
+| `campushub/lib/module_app/models/facility_detail_information.dart` | 4 `FacilityDetailInformation`; 11 `primaryRate`; 15 `capacity`; 25 `reviewSummary`; 39 `rateOptions`; 67 `schedule`; 145 `charges`; 243 `money`; 254 `_time` | New presentation helper for structured saved rates, schedule and charge conditions |
+| `campushub/test/facility_booking_flow_test.dart` | 156 image-first details test | Update old title/footer expectations and assert the existing favorite preference and retained sections/contact |
+| `campushub/test/facility_details_test.dart` | 146 saved configuration; 187 invalid/shared configuration; 262 responsive cases; 307 expansion/route; 331 loading/Retry; 355 unavailable/non-slot; 397 immediate error; 409 image fill/swipe; 444 optional captures | Isolated information, layout and interaction verification |
+| `docs/mobile-services-navigation.md` | 3 this section | Current report, data flow, troubleshooting and safe exercise |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Save accepted behavior and measured verification |
+
+Seven project files: three runtime Dart files, two test files and two existing documentation/context files. Other workspace changes remain intact. This section supersedes the preceding card-pricing section's statement that Facility Details still uses its old rate presentation; card pricing behavior itself is retained.
+
+### 3. Changes made / expected behavior
+
+- The gallery fills its content width, starting at the top. The photo area is220–260 logical pixels plus the status-bar inset, within the existing620dp maximum content width on wider screens. `ProductImage` uses `BoxFit.cover`, existing uploaded-image URL resolution, bounded decoding, loading and failure/missing-image fallback. Back and heart have48dp targets and tooltips, positioned below the status-bar inset. Only multiple actual saved images produce a counter, such as`1 / 2`; no photo count is invented for an empty gallery.
+- Category, prominent facility name, validated review summary, saved location and saved capacity follow the gallery. `capacity_label` takes precedence; otherwise the helper uses a valid configured minimum/maximum or positive maximum. It no longer adds an assumed campus location when the saved location is missing. Status is plain information in the schedule section.
+- Rental Rates uses the existing card pricing mapping with `hours` expanded for this details view. Base duration, additional-hour and optional alternative hourly rates remain separate. Shared-room pricing includes the configured required guest count in one room. Custom notes appear only for saved custom pricing. No rental total, discount amount or deposit amount is calculated locally.
+- Saved description, requirements and terms preview four rendered lines. `TextPainter` checks the actual width and text scaling before offering Read more / Read Full Terms; Show less collapses the text. Amenity rows use only saved amenities, with two columns where practical and one at large text sizes.
+- Operating information displays saved hours/closed days, booking mode, minimum duration, weekend restriction, check-in/out, advance payment days and eligible-client configuration when present. Missing weekdays are not inferred to be closed or open. Invalid structured time ranges say`Schedule needs review`. Existing backend availability provides today's actual slot statuses, with distinct loading/error/Retry/empty output. Check Availability and available slot rows reuse the existing booking destination and honor the facility status.
+- Active configured fees display their charging basis. Applicable saved deposits remain separate, including fixed/percentage basis and conditional refund wording. Active discount rules include client type, amount/percentage and scope, with eligibility verification required. More than three charge entries can expand. Inactive/malformed entries do not become invented charges.
+- The sticky white footer has the primary rate and navy Request Booking action, with a safe bottom inset. It stacks at narrow widths or enlarged text. Request Booking opens the existing slot request form; non-slot facility categories retain Contact to Request and their existing admin-message path. Unavailable facilities cannot activate booking/schedule actions. Message Admin remains an inline action. No preview-state buttons, duplicate booking flow, immediate approval, new rate editor or new review-submission/list route was added.
+
+### 4. How it works: functions, inputs/outputs and data flow
+
+```text
+Existing Django serialize_facility(facility)
+  -> saved rate/method, capacity, description, images, amenities, terms
+  -> existing workflow_config pricing / hours / fees / deposit / discounts
+  -> FacilityItem.fromJson(json) retains workflowConfig, existing fields/labels
+  -> FacilityDetailInformation(facility)
+       primaryRate/reviewSummary/capacity -> display strings
+       rateOptions/schedule/charges -> lists of (label, value) records
+  -> FacilityDetailsScreen -> top gallery / flat sections / sticky booking bar
+
+Existing FacilityBookingService.slots(id, today's date)
+  -> protected Django availability endpoint -> loading/error/empty/slot rows
+Request Booking -> existing FacilityBookingScreen -> unchanged quote/create flow
+Heart -> existing SharedPreferences key facility_favorite_<id>
+Message Admin / non-slot request -> existing messageFacilitiesAdmin helper
+```
+
+`workflowConfig` is an optional map whose top-level parsed mapping is unmodifiable; widgets read it without editing saved data. The helper deliberately handles formatted presentation separately from backend financial calculations. `money(raw)` returns a peso string only for a finite nonnegative supported amount, or null for invalid input. `_time(raw)` formats valid24-hour clock strings without interpreting an operating day as availability. `rateOptions` and `charges` return conditions, not an itemized booking quote. `_loadSlots()` issues the existing request only for supported slot/assessment categories; non-slot categories now avoid the unnecessary hidden availability request. `_book()` returns from the existing form and reloads the details availability. `_requestAction` keeps the existing status/category-based destination selection.
+
+Annotated example using **isolated test values**, not production defaults:
+
+```dart
+final facility = FacilityItem.fromJson({
+  'rate': '3000.00', 'price_type': 'base_hour',
+  'workflow_config': {
+    'pricing': {
+      'base_duration': '4',
+      'additional_hour_rate': '500',
+      'hourly_rate': '700',
+    },
+  },
+});
+final information = FacilityDetailInformation(facility);
+// primaryRate: '₱3,000 / first 4 hours'
+// rateOptions: 'Additional hour' -> '₱500 / hour',
+//              'Alternative hourly rate' -> '₱700 / hour'.
+// These values are not added; Django still determines the actual quote.
+```
+
+### 5. Backend / API behavior
+
+No server, endpoint, serializer, request schema, authentication, permission, quote, approval or payment calculation changed. All fields used were already supplied by the existing facility API. The existing mobile schedule/quote/create workflow remains authoritative. Facility Details itself does not submit a booking. An available slot remains date-specific and is rechecked by the existing form/backend. Hostel, laboratory and lease workflows retain contact guidance rather than becoming generic slot bookings. Main navigation and Marketplace/Service screens are unchanged.
+
+The facility API still does not supply review aggregates in the current serializer. The summary validates any supplied rating/count, otherwise showing`No reviews yet`. No review rows, ratings, View All Reviews or review-posting route are fabricated; there is no separate duplicate empty reviews panel.
+
+### 6. Database / migration impact
+
+None. No Django model, schema, migration, working record, price setting, permission, dependency or image asset changed. The existing local favorite key/storage behavior remains. No app installation, device restart, reload or deployment was performed.
+
+### 7. Tests performed
+
+Final resumed run from `campushub/`:
+
+```powershell
+flutter test --no-pub --reporter expanded --dart-define=CAPTURE_FACILITY_DETAILS=true test/facility_details_test.dart test/facility_booking_flow_test.dart test/resource_catalog_cards_test.dart test/services_screen_test.dart test/service_catalog_test.dart test/home_page_test.dart test/seller_home_layout_test.dart
+```
+
+**68 tests passed; Flutter reported12seconds.** Focused analysis of the five changed Dart files reported **No issues found** in4.2seconds. Final formatting verification reported **5 files, 0 changed**. Scoped tracked-file whitespace checking found no errors; Git noted only future LF/CRLF conversion. The earlier interrupted final command is not used as passing evidence.
+
+Coverage includes320/390/844dp and320dp at2× text with a dark surrounding theme; top gallery width/position;48dp overlay controls;52dp minimum action and bottom safe area; local heart persistence; saved pricing/fee/discount/deposit separation; missing/malformed configuration; shared-room conditions; expandable description/terms; schedule loading/error/Retry and immediate failure before scrolling; status-disabled actions; non-slot contact path; actual image decoding/fill/swipe with invalid-image fallback; existing booking conflict/validation/submission and Home/service/card regressions. Initial analyzer brace-style findings were fixed before the final clean analysis.
+
+Actual Flutter-rendered PNGs were refreshed in ignored `scratch/facility-details-20261029/`: `top-390.0-1.0.png`, `top-320.0-2.0.png`, `charges-390.0-1.0.png` and `charges-320.0-2.0.png`. Final390dp top and320dp/2× charge captures were inspected; earlier top/charge renders were also inspected. The harness loads the actual bundled Montserrat/icons and disables its debug banner. Its campus-entrance asset is explicitly an isolated photo fixture for decoding/layout, not a runtime replacement for a facility photo. No AI images were created. Web design-kit scripts are absent; no web-kit, full accessibility, live-database or physical-device pass is claimed.
+
+### 8. Remaining limitations, troubleshooting and safe exercise
+
+Facilities need saved uploaded photos to show a real image. Empty/failed images retain the existing icon fallback; the app never substitutes the fixture entrance photo. This screen displays the fetched facility snapshot; admin configuration changes require the normal catalog refresh/reopen workflow. The existing authenticated slot endpoint supplies today's schedule; a network failure shows Retry and a selected booking date is checked in the original form. Review listing/submission and server-supplied aggregate integration remain unavailable. Favorites remain local to the device. Conditional monthly label support does not add a Django monthly billing method. Large text makes the page longer and deliberately stacks the footer/metadata instead of truncating essential text. Native system-bar contrast over different real photos, physical gestures and screen-reader behavior still need device verification.
+
+For an unexpected rate, inspect`rate`, `price_type` and `workflow_config.pricing` in the existing API response before changing widgets. For missing fees, verify their saved active flags, amounts and units. For missing/incorrect hours, inspect the structured operating-hours configuration rather than assuming availability. For missing photos, verify the saved URLs and existing media hosting. If the old title remains, use normal hot reload/rebuild; no separate preview screen needs enabling.
+
+Safe practice: edit only`detailFixture()` in `test/facility_details_test.dart` to change the optional hourly rate, then run the focused test and verify that the primary base package stays unchanged while the alternative row updates. Set one fee inactive and verify it disappears without changing the base rate. Add a second fixture image, swipe and check the actual counter. Restore the fixture and rerun the tests; never change working rates or create real bookings for this exercise.
+
+## Mobile facility pricing labels - October 29, 2026
+
+### 1. Cause / reason
+
+Confirmed in the existing source: `FacilityPreviewCard` displayed `FacilityItem.priceLabel`, which preferred the API's admin-oriented `price_compact_label`. That could show `pax / night`, `fixed`, a base package without `first`, or custom notes instead of the user's supplied mobile wording. This update changes facility card text on Home and Facilities. It preserves the wider vertical card arrangement documented below.
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / nearby code anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/models/facility_item.dart` | 33 `this.baseDurationHours`; 95 JSON parsing; 129 `baseDurationHours`; 138 `cardPriceLabel` | Retain the saved package duration and provide a separate mobile card label |
+| `campushub/lib/module_app/widgets/home/home_preview_cards.dart` | 373 `price: facility.cardPriceLabel` | Both existing facility card destinations use the new display getter |
+| `campushub/test/resource_catalog_cards_test.dart` | 50 `pricingExamples`; 63 `pricingFixture`; 304 mobile pricing; 317 incomplete configuration; 378 responsive pricing | Verify each method, saved values, fallback behavior and actual widget wiring; render fixture hostel with a person/night rate |
+| `docs/mobile-services-navigation.md` | 3 this section | Current implementation report, debugging and safe exercise |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Preserve scope and verification results |
+
+Five project files: two runtime Dart files, one existing test file and two existing documentation/context files. No other working changes were reverted.
+
+### 3. Changes made
+
+The following are **isolated examples**, not new records or default prices. Each actual amount comes from the saved `rate`.
+
+| Admin method / API key | Mobile card example |
+| --- | --- |
+| Per Hour / `hour` | `₱700 / hour` |
+| Base Duration + Additional Hour / `base_hour` | `₱3,000 / first 4 hrs` |
+| Per Day / `day` | `₱1,500 / day` |
+| Per Person / `person` | `₱125.50 / person` |
+| Per Person / Per Night / `person_night` | `₱800 / person / night` |
+| Per Night / `night` | `₱1,200 / night` |
+| Fixed Rate / `session` | `₱2,500 / booking` |
+| Custom / `custom` | `Price varies / See Rates` |
+| Conditional monthly input / `month` or legacy `monthly` | `₱1,500 / month` |
+
+Whole amounts omit `.00`; cents remain visible and thousands use commas. A one-hour package uses `first 1 hr`; fractional saved durations remain visible. Custom text has no numeric rate assumption. `See Rates` is display wording; the existing View Details button remains the action, with no new rate link or editor.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+```text
+Existing Django serialize_facility(facility)
+  -> rate, price_type, workflow_config.pricing.base_duration, existing labels
+  -> existing FacilityService.fetchFacilities() / Home catalog fetch
+  -> FacilityItem.fromJson(json)
+       retain optional baseDurationHours from the existing workflow JSON
+       preserve raw rate, priceType and catalogPriceLabel
+  -> FacilityPreviewCard reads facility.cardPriceLabel
+  -> existing ResourceCatalogCard renders the label
+  -> existing View Details callback and booking flow
+```
+
+`FacilityItem.fromJson(Map<String, dynamic>)` returns a model and safely handles absent/non-map workflow or pricing containers for the new field. The constructor's optional `double? baseDurationHours` preserves existing direct constructor calls. `cardPriceLabel` takes the model's saved rate/method/duration and returns presentation text; it performs no rental, additional-hour, discount, deposit or payment calculation. `catalogPriceLabel` and the existing `priceLabel` getter remain unchanged for their existing consumers, including service-specific labels.
+
+Annotated input/output example:
+
+```dart
+// Existing API fields; no extra request is needed.
+final facility = FacilityItem.fromJson({
+  'rate': '3000.00',
+  'price_type': 'base_hour',
+  'workflow_config': {
+    'pricing': {'base_duration': '4', 'additional_hour_rate': '500'},
+  },
+});
+// facility.cardPriceLabel returns '₱3,000 / first 4 hrs'.
+// It does not multiply hours or add the additional-hour charge.
+```
+
+A separate card getter keeps mobile wording consistent without rewriting Django's admin labels or service prices. The package duration is read from structured data rather than guessed from a formatted string.
+
+### 5. Backend / API behavior
+
+Unchanged. Existing `backend/core/api/views.py` `serialize_facility` already sends all required fields; `workflow_for_display` retains saved pricing JSON. No endpoint, request, permission, validation, quotation, approval, payment or booking behavior changed. Django remains responsible for actual charges. The backend's physical rental method choices currently exclude monthly; recognizing monthly text on the client does **not** add an admin choice or enable a new booking calculation. Laboratory and other service card pricing are unchanged.
+
+### 6. Database / migration impact
+
+None. No models, schema, migrations, working records, configured rates, dependencies, assets, deployment or device installation changed.
+
+### 7. Tests performed
+
+Formatted the three changed Dart files; final format verification reported **3 files, 0 changed**. Scoped Git whitespace checks found no whitespace errors (only an LF/CRLF conversion notice); the updated guide and card test have no trailing whitespace. Focused static analysis reported **No issues found** (3.4 seconds). Ran from `campushub/`:
+
+```powershell
+flutter test --no-pub --reporter expanded --dart-define=CAPTURE_RESOURCE_CARDS=true test/resource_catalog_cards_test.dart test/services_screen_test.dart test/service_catalog_test.dart test/home_page_test.dart test/seller_home_layout_test.dart test/facility_booking_flow_test.dart
+```
+
+**56 tests passed** (Flutter reported 6 seconds). The run covers every pricing mapping, preserved raw/server fields, malformed/missing package duration, fractional/singular duration, invalid/nonfinite/nonpositive rates, unknown-method fallback, card text at390dp/light and320dp/dark with2× text, restored vertical layout, overlays, routes, service prices, Home and booking regressions. The initial sandbox run produced no output and was stopped; these results come from the successful SDK-access rerun.
+
+Actual Flutter fixture captures were refreshed under ignored `scratch/facility-service-cards-20261029/`. Visually inspected `cards-414.0-1.0.png`: whole-amount hourly and person/night wording is readable, the image remains above content, and location/review overlays and View Details remain in place. These are isolated fixture captures, not live-record or physical-device evidence. This successful run also verifies the corrected vertical card arrangement that the preceding section had left pending. Web design-kit scripts are absent and no web-kit pass is claimed.
+
+### 8. Remaining limitations, troubleshooting and safe exercise
+
+For known numeric methods, invalid/nonfinite/nonpositive rates display `Contact Admin`, retaining the prior unpriced-card behavior. Base pricing requires a finite duration greater than0 and at most24 hours, consistent with Django's existing duration validation; missing/invalid duration displays `Pricing needs review` instead of inventing4 hours. Unknown/service-specific methods retain the configured server label, or `Contact Admin` if none exists. Custom and unknown methods can therefore display text without a positive numeric rate.
+
+If a base card says `Pricing needs review`, inspect the saved `workflow_config.pricing.base_duration` in the existing API response and correct the configuration through the existing admin workflow. A formatted `price_label` alone is not a source for reconstructing duration. If the app shows old wording, use the normal Flutter hot reload/rebuild workflow; no reload or installation was performed here. Facility Details still has its existing rate presentation; this request only changes cards. Shared-room conditions, additional charges and client-specific eligibility remain outside the short primary card label.
+
+Safe practice: edit only `pricingFixture` in the isolated test to use a base duration of`2.5` and expect `first 2.5 hrs`; run the focused card test. Remove the duration and expect `Pricing needs review`. Restore the fixture and rerun. Verify `record.rate` and `catalogPriceLabel` are unchanged, and use the existing action test to confirm View Details still works. Do not change production rates or booking records to try the formatter.
+
+## Restore card arrangement and retain wider sizing - October 29, 2026
+
+The user's latest correction is interpreted as restoring the **card** arrangement, not modifying a shopping-cart action. The image is again above the content. Reviews remain at the image's top-left and saved location at its bottom-left. This supersedes the interrupted side-by-side image/details experiment; only wider sizing is retained. The user explicitly limited scope to cards, so the long attachment's admin form, pricing preview and booking-flow changes were not implemented.
+
+1. **Cause / reason:** the previous step turned the card into an image-left/details-right row; the user asked to revert positioning and only add width.
+2. **Exact files / anchors:** `campushub/lib/module_app/widgets/facilities/resource_catalog_card.dart:42` (`Column`/`AspectRatio`) restores the image-above-body layout; `ResourceCardGrid` retains the732dp content breakpoint for two columns with360dp minimum width. `campushub/lib/module_app/widgets/home/home_preview_cards.dart:359` and`:391` retain320dp defaults; `campushub/lib/module_app/screens/home_page.dart:285` and`:298` allocate320dp Home previews before existing scaling/clamping. `campushub/test/resource_catalog_cards_test.dart:107` and the service-card assertions check the restored vertical geometry. `docs/mobile-services-navigation.md:3`, `campushub/DESIGN.md` (`resource-catalog-card`) and `CAMPUSHUB_CONTEXT.md:3` record the final decision. These are seven project files across the interrupted change and correction; scratch helpers/logs are not production files.
+3. **Changes made:** restored4:3 image above category/name/information, then price and View Details. Preserved the image overlays, existing callbacks and320dp Home preview sizing. Listings remain full-width on phones, with two columns only at732dp content width or more. No new card controls or images were added.
+4. **How it works:** existing API record -> unchanged `FacilityItem`/`ServiceItem` -> existing preview wrapper -> `ResourceCatalogCard`'s vertical `Column`. The `AspectRatio` bounds the existing `ProductImage` and overlay `Stack`. `ResourceCardGrid(children)` uses available width to choose one/two intrinsic-height rows; its finite height supports each card's footer spacer. Price/review helpers and all navigation callbacks are unchanged. Example: a390dp viewport with16dp page insets displays a358dp-wide card; the image uses that full width at4:3, while the body's name is below the image rather than beside it.
+5. **Backend / API behavior:** unchanged. No requests, authentication, permissions, approval, quotation, payment, service guidance or shopping-cart behavior was modified. The previously documented missing review aggregates remain a limitation.
+6. **Database / migration impact:** none. No model/schema/migration/record/configuration/dependency/asset change, deployment, device installation or reload.
+7. **Checks performed:** read the saved widget and updated geometry assertions; checked that the image uses4:3, the body is below it, both overlays remain, the732dp breakpoint and320dp preview sizes remain, and the guide/design links agree. **The corrected layout's Dart formatting, static analysis, Flutter tests and fresh renders are pending.** The command was not executed because automatic approval review hit an account usage limit. Earlier52-test results and horizontal-layout screenshots belong to earlier revisions and are not evidence that this corrected revision passed. Source inspection is not a substitute for running Flutter.
+8. **Remaining limitations:** runtime verification needs to resume when command approval is available. No physical-device verification was performed. At large text sizes the cards can be tall; names and billing text remain readable rather than being forced into short fixed heights. Long location previews remain two lines with the full tooltip/accessibility text.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Image beside the body | Image above the body | Restore the user's intended card arrangement |
+| Earlier260dp Home previews | Retained320dp previews, clamped by existing Home layout | Add width without moving card content |
+
+Safe practice and pending verification: run the existing card tests with isolated fixtures at320/390/600/844dp and320dp/2× text. Verify the image fills card width at4:3, category/name start below it, reviews and location remain inside opposite image corners, View Details still invokes the existing callback, and no overflow is raised. Use the four-file format/analyze and six-test-file commands from the sections below, optionally adding `--dart-define=CAPTURE_RESOURCE_CARDS=true` for actual widget captures. Do not treat the old side-by-side captures in scratch as current output or change working records to verify layout.
+
+## Wider cards and bottom-left image location - October 29, 2026
+
+This follow-up implements the user's request to make Facilities/Services cards wider and move the saved location to the image's bottom-left. It supersedes the earlier two-columns-on-every-phone layout and body location row. The review badge stays at the top-left; the 4:3 image, existing data, prices, actions and detail destinations are retained.
+
+### 1. Cause / reason
+
+Confirmed in the shared card source: two columns left only 138dp per card at a 320dp viewport with the existing page padding and gap. Location appeared below the name/information rather than over the image. Home previews used 204dp facility / 196dp service widths. The latest request explicitly asks for more width and a different location position.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Two narrow columns on all phone widths | Full content width on small screens; two columns only when each card can have at least 240dp | Give text and images meaningful additional width |
+| Location in the card body | Saved location at the image's bottom-left, inset 8dp | Put location where the user requested without duplicating it |
+| Different narrow Home preview widths | Both facility and service previews start at 260dp, with existing text scaling/viewport clamping | Keep the shared design wider and consistent |
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / code anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/resource_catalog_card.dart` | 10 `ResourceCatalogCard`; 155 `ResourceLocationLabel`; 255 `ResourceCardGrid`, 262 column selection | Move location into the image Stack; add its readable label; choose one/two columns from available width |
+| `campushub/lib/module_app/widgets/home/home_preview_cards.dart` | 355 `FacilityPreviewCard`, 359 width; 386 `ServicePreviewCard`, 391 width | Default preview widths are now 260dp |
+| `campushub/lib/module_app/screens/home_page.dart` | 285 facility strip; 298 service strip | Existing Home strips now allocate 260dp before scaling/clamping |
+| `campushub/test/resource_catalog_cards_test.dart` | 107 responsive cases; 177 missing/long location test | Verify actual wider geometry, location coordinates, nonoverlap, missing locations, full tooltip value and original action/image behavior |
+| `docs/mobile-services-navigation.md` | 3 this section | Updated explanation, source anchors, checks and exercise |
+| `campushub/DESIGN.md` | `resource-catalog-card.content`, `.layout`, `.location` | Record the latest placement and width behavior |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Save the accepted follow-up and verification |
+
+Seven project files: three runtime Dart files, one test file and three existing documentation/context files. The earlier review/price helpers remain in the same shared file at current lines197 (`ResourceReviewBadge`),289 (`facilityCardInformation`) and298 (`serviceCardPrice`). Earlier section line references below are historical snapshots.
+
+### 3. Changes made
+
+The listings now use one full-width card when content width is below492dp. At492dp or above, they use two columns with a12dp gap: `(492 - 12) / 2 = 240dp` minimum per card. With the existing16dp page insets, the viewport breakpoint is approximately524dp. This intentionally updates the previous always-two-column phone layout in response to the latest request. Two-column rows retain equal content-driven height and aligned View Details actions.
+
+Home keeps its horizontal previews and original navigation. Both preview types are now260dp wide before the existing text-scale adjustment and viewport clamp, so narrow screens do not overflow. Marketplace preview widths are unchanged.
+
+The location is shown only for a nonempty saved value. A bottom-left `Positioned` label uses an existing Material location icon, readable white text on a nearly opaque navy surface, and an8dp image inset. It is constrained inside the image, previews up to two lines and preserves the complete text in its tooltip and accessible label. It does not resize the image or duplicate location below it. Names, capacity/service information, rate and View Details continue in the body. No new motion, favorites, assets, styles for unrelated screens or data was introduced.
+
+### 4. How it works: inputs outputs and data flow
+
+```text
+Existing API -> existing FacilityItem.location / ServiceItem.facility.location
+  -> ResourceCatalogCard
+  -> existing image Stack
+       top-left: unchanged ResourceReviewBadge
+       bottom-left: ResourceLocationLabel(saved location), if nonempty
+  -> unchanged card body price and View Details callback
+
+Listing's available width -> ResourceCardGrid LayoutBuilder -> one/two columns
+Home preview -> existing horizontal strip -> scaled/clamped 260dp card
+```
+
+`ResourceLocationLabel(location)` receives a string and renders a non-editing location overlay; it does not resolve a new campus address, infer a location or call an API. `ResourceCardGrid(children)` now measures its available width before building intrinsic-height rows. The existing row measurement still gives the cards finite height for their footer spacers.
+
+Annotated example from the image Stack:
+
+```dart
+Positioned(
+  bottom: 8, left: 8, right: 8, // Inset and constrain within the existing image.
+  child: Align(
+    alignment: Alignment.bottomLeft,
+    child: ResourceLocationLabel(location: resource.location), // Saved text only.
+  ),
+)
+```
+
+### 5. Backend / API behavior
+
+Unchanged. No new query, endpoint, request, permission or approval/payment behavior is added. Existing price labels, review validation, real image loading/fallback, detail screens and main navigation remain. The previously documented absence of API review aggregates is unchanged; the card still uses the honest `No reviews yet` fallback rather than fabricated values.
+
+### 6. Database / migration impact
+
+None. This follow-up does not change models, schema, migrations, records, configurations, dependencies or assets. It changes widget placement and sizing only.
+
+### 7. Tests performed
+
+From `campushub/`, formatted and analyzed `resource_catalog_card.dart`, `home_preview_cards.dart`, `home_page.dart` and `resource_catalog_cards_test.dart`. **All four files pass static analysis; final formatting requires no changes.** Ran:
+
+```powershell
+flutter test --no-pub --reporter expanded --dart-define=CAPTURE_RESOURCE_CARDS=true test/resource_catalog_cards_test.dart test/services_screen_test.dart test/service_catalog_test.dart test/home_page_test.dart test/seller_home_layout_test.dart test/facility_booking_flow_test.dart
+```
+
+**52 tests passed; Flutter reported7seconds.** Responsive cases cover320/390/600/844dp plus320dp at2× text. They assert full-width phone cards, aligned wider-screen rows, preserved4:3 images and top-left reviews, bottom-left location coordinates, separation between overlays, one location occurrence, missing/long location handling,48dp actions and existing detail callbacks. Prior service/catalog/Home/seller/booking regressions remain in the run. Each fixture render starts with a fresh widget tree so retained scroll position does not distort the capture.
+
+Actual widget viewport captures at320dp/1×,414dp/1× and320dp/2× and the log are under ignored `scratch/facility-service-cards-20261029/`; the latest run is `wider-location-tests.log`. These are Flutter-rendered isolated test fixtures, not live-record screenshots or generated illustrations. The414dp render was visually inspected for full width, location placement/readability, review placement, image ratio, body hierarchy and footer spacing. Native device/emulator testing was not performed.
+
+### 8. Remaining limitations troubleshooting and safe exercise
+
+Long locations intentionally preview at most two lines over the image; the complete saved value remains in the tooltip, screen-reader label and existing Details view. An empty/whitespace location produces no overlay or invented campus fallback. Long descriptions/names and large text can make a scrollable card taller. No application reload, installation, deployment or device action was performed.
+
+If a listing still looks narrow, inspect the available content width and use the existing Flutter reload/rebuild workflow. A phone should now have one card per row; wider layouts use two. On Home, verify the existing horizontal strip rather than expecting a full listing. If location is missing, inspect the actual record's `location` field before changing the widget.
+
+Safe practice: in the isolated card test, compare320dp and600dp widths, then set a fixture location to whitespace and verify the overlay disappears. Restore a long fixture location, verify the two-line preview stays above the image's bottom inset and does not touch the rating, and inspect the tooltip's full text. Run the targeted tests without writing records, changing API fields or replacing photos.
+
+## Facilities and Services cards with image review overlays - October 29, 2026
+
+This section supersedes the earlier single-column service tiles, horizontal facility list cards and status rows on Home preview cards. It changes the existing Flutter application directly. No AI images, replacement photos or static mockups were created. The user's attached reference supplies the card hierarchy; its example names, ratings and prices are not application records.
+
+### 1. Cause / reason
+
+Confirmed by source inspection: Facilities used horizontal cards with a colored status pill and an inline rating. Services used icon/text tiles without the shared image treatment. Home had separate preview layouts, including a facility status row. `FacilityItem` discarded the API's already-formatted `price_label` / `price_compact_label`, which could lose base-duration or per-person/night wording when it rebuilt a label from the raw rate.
+
+The user requested matching compact cards, a rating/review badge at the image's top-left, actual content and correct billing labels, two-column listings and existing detail navigation. No approval, billing calculation, request workflow or data ownership changes were requested.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Different facility, service and Home card layouts | One `ResourceCatalogCard` with thin border, white surface and existing bundled Inter | Keep the information hierarchy consistent |
+| Inline/missing reviews | Small navy badge, gold star and readable white text, 8dp from the image's top-left | Review information stays attached to the image |
+| Fixed image height or icon-only tile | Existing `ProductImage` inside a 4:3 `AspectRatio` and `Stack` | Preserve loading/fallback behavior without displacing the image |
+| Single-column listing and status-heavy card | Two columns with natural, equal row height; category/name/information/location/rate/action | Support scanning without guessed heights or internal dividers |
+| Client reconstructed all rental price labels | Prefer the existing server-formatted label; retain the legacy fallback | Preserve the configured billing basis |
+
+### 2. Exact files changed and current anchors
+
+| File | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/resource_catalog_card.dart` | 10 `ResourceCatalogCard`; 149 `ResourceReviewBadge`; 207 `ResourceCardGrid`; 235 `facilityCardInformation`; 244 `serviceCardPrice` | New shared image/body/footer, validated review display, equal-height rows and read-only presentation helpers |
+| `campushub/lib/module_app/models/facility_item.dart` | 32 constructor default; 89 JSON parsing; 120 `catalogPriceLabel`; 128 `priceLabel` | Backward-compatible optional display label from existing response fields; existing IDs, rates, booking fields and constructor arguments remain |
+| `campushub/lib/module_app/widgets/home/home_preview_cards.dart` | 355 `FacilityPreviewCard`; 386 `ServicePreviewCard` | Existing wrappers now render the shared card and retain their detail destinations; optional callback lets listings retain their exact routing |
+| `campushub/lib/module_app/screens/facility_screen.dart` | 10 `FacilitiesPage`; 16 `loadFacilities`; 39 loader call; 106 `ResourceCardGrid` | Two-column list; default loader remains `FacilityService.fetchFacilities`; optional injected loader supports isolated verification; My Bookings and detail callback remain |
+| `campushub/lib/module_app/screens/services_screen.dart` | 122 `ResourceCardGrid`; 128 `onDetails` | Two-column cards retain the existing detail route name, selected ID, catalog and destination |
+| `campushub/test/resource_catalog_cards_test.dart` | 104 responsive cases; 160 review validation; 190 pricing-label test; 213 service prices; 271 facility route; 305/321 images; 345 optional captures | Isolated fixtures verify geometry, data boundaries, semantics, image decoding/fallback and route selection |
+| `campushub/test/services_screen_test.dart` | 75/84/106 visible-action handling; 110 existing back arrow | Scroll and settle before tapping taller cards/sheets; use the actual custom booking-header back control instead of the outdated generic BackButton finder |
+| `docs/mobile-services-navigation.md` | 3 this section | Current explanation, checks, troubleshooting and practice exercise |
+| `campushub/DESIGN.md` | `components.resource-catalog-card` and current card scope | Record the shared card specification and scoped star color |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Preserve accepted behavior and verification record |
+
+Ten project files: five runtime Dart files, two test files and three existing documentation/context files. Temporary backups, logs and actual widget render captures are under ignored `scratch/facility-service-cards-20261029/`. Marketplace product card code, bottom navigation, assets, manifests and dependencies were not changed.
+
+### 3. Changes made / expected UI
+
+- Both listing pages render two cards per row. Each pair measures its content before layout; titles, capacity, location and billing labels wrap rather than overflowing a fixed-height tile. Cards in the same row have equal height, with View Details aligned at the bottom. An odd final card retains half-row width.
+- The image remains 4:3. A `Stack` positions the compact badge over the image instead of inserting another row or changing its size. Existing resolved URLs, actual image decoding and icon fallbacks use `ProductImage`.
+- Facility content is category, name, configured capacity label (or positive capacity in pax), optional saved location, configured rate and View Details. Service content uses its category, name, saved description, optional location, configured price and the same action. Card-level availability/status pills are removed; detail-screen status and booking validation remain unchanged.
+- The badge displays a one-decimal average and count only when both existing fields contain a finite rating in 1–5 and a positive integer review count. Missing counts, zero/invalid scores and booking counts cannot produce a rated badge. The empty label is `No reviews yet`. Screen readers receive the full rating/count explanation.
+- Cards use navy `#1A1851`, white, the existing border/secondary text and scoped Inter. The star uses the explicitly requested `#FCB316`; the app-wide mobile gold `#FCB315` is unchanged. There are no internal divider lines, gradients, animated entrances or heavy shadows. View Details has at least a 48dp target and native pressed/focus behavior.
+- No new favorite feature was added. The old listing/preview cards had no favorite action to preserve; the existing local favorite behavior inside Facility Details is untouched.
+- Home's existing horizontal preview strips keep their placement, scrolling and See All actions. They now use the same card design. The listings use the requested two-column layout; Home was not converted into another full listing. Marketplace, seller KPIs/bundles, main navigation and unrelated screens keep their existing design and behavior.
+
+### 4. Functions inputs outputs and data flow
+
+```text
+Existing Django facility serializer / public services catalog
+  -> existing FacilityService or ServiceCatalog GET
+  -> existing FacilityItem / ServiceItem
+       FacilityItem additionally retains the supplied formatted price label
+  -> FacilityPreviewCard / ServicePreviewCard
+       category, capacity or saved description, location, price and detail callback
+  -> ResourceCardGrid (listing) / existing intrinsic Home preview row
+  -> ResourceCatalogCard
+       4:3 ProductImage + ResourceReviewBadge + text + bottom View Details
+  -> original FacilityDetailsScreen / ServiceDetailsScreen
+```
+
+`ResourceCatalogCard` receives a resource, category, optional information, formatted price and callback. It outputs presentation only; it cannot create a booking, charge a client or approve a request. `ResourceReviewBadge` reads `resource.rating` and `resource.reviews`; it does not query or reinterpret booking totals. `ResourceCardGrid` measures each pair with `IntrinsicHeight` and stretches its `Row`; that finite height lets each card's spacer keep actions aligned. Use the grid or the existing bounded Home preview row rather than putting a flex card directly into an unbounded vertical list.
+
+`facilityCardInformation` prefers the actual backend capacity label, including configured rooms/occupancy wording. `serviceCardPrice` reads existing catalog information. For laboratory prices, it compares only numeric configured analysis entries using the same `sample` or `analysis` billing unit. It displays `From` only when compatible amounts differ. A single/equal price has no `From`; mixed units retain the configured Pricing label rather than being compared. Non-laboratory services keep their actual configured Pricing/display label. Missing prices say to contact the office; the helper invents no fee, discount, eligibility or analysis type.
+
+Annotated read-only example:
+
+```dart
+final facility = FacilityItem.fromJson(responseRow); // Existing API record.
+final label = facility.priceLabel; // Supplied compact/full label, else legacy fallback.
+// The card displays label; raw rate and booking calculations are not rewritten.
+```
+
+### 5. Backend / API behavior and review integration gap
+
+No endpoint, serializer, permission, aggregation or booking/payment rule changed. The default Facilities loader still reads `/api/facilities/?resource_type=facility`; Services still uses the existing public catalog/detail endpoints and active-service filtering. Service cards open the existing information/guidance flow, not a new online submission or physical reservation workflow.
+
+Confirmed limitation: `backend/core/api/views.py:1488` (`serialize_facility`) supplies rental labels but no rating/review aggregate. `backend/core/modules/facilities/mobile_services.py:20` (`serialize_service`) also does not publish review aggregates in its allowlist. An existing unmanaged `FacilityFeedback` model is not proof of a complete mobile review-submission, completed-booking verification or service-review integration. The UI therefore normally receives no aggregates and displays `No reviews yet`; that fallback is not an assertion that the database has been audited and contains zero feedback. Numeric review display is verified with isolated fixtures only. Supplying verified real aggregates requires a separate backend integration; no fake aggregate or model was created here.
+
+### 6. Database / migration impact
+
+None. No Django model/table, migration, working record, price configuration, permission or stored review was changed. The existing Flutter model retains all old fields and constructor behavior while optionally carrying a display string the API already sends. No live database connection, booking, review submission, deployment, app installation or device operation was needed.
+
+### 7. Tests performed and visual evidence
+
+Final commands, run from `campushub/`:
+
+```powershell
+dart format --output=none --set-exit-if-changed lib/module_app/widgets/facilities/resource_catalog_card.dart lib/module_app/models/facility_item.dart lib/module_app/widgets/home/home_preview_cards.dart lib/module_app/screens/facility_screen.dart lib/module_app/screens/services_screen.dart test/resource_catalog_cards_test.dart test/services_screen_test.dart
+dart analyze lib/module_app/widgets/facilities/resource_catalog_card.dart lib/module_app/models/facility_item.dart lib/module_app/widgets/home/home_preview_cards.dart lib/module_app/screens/facility_screen.dart lib/module_app/screens/services_screen.dart test/resource_catalog_cards_test.dart test/services_screen_test.dart
+flutter test --no-pub --reporter expanded test/resource_catalog_cards_test.dart test/services_screen_test.dart test/service_catalog_test.dart test/home_page_test.dart test/seller_home_layout_test.dart test/facility_booking_flow_test.dart
+```
+
+Results: **7 Dart files formatted, 0 changes required; static analysis: No issues found; 50 tests passed in the final run (5 seconds reported by Flutter).** Tests cover two columns at 320/390/844dp, 2× text at 320dp, equal row/action alignment, 4:3 images, overlay position, valid/missing/invalid reviews, booking-count rejection, semantic rating text, compatible/mixed-unit service prices, canonical rental labels, image failure fallback and actual image decoding from an existing bundled asset. Existing Home/search/tab state, service detail/guidance and booking conflict/form regressions also pass.
+
+Actual `RenderRepaintBoundary` captures were produced by the new optional test with `--dart-define=CAPTURE_RESOURCE_CARDS=true`, at 320dp/1×, 414dp/1× and 320dp/2×. They are Flutter widget output with isolated fixtures, not generated mockups or screenshots of working records. Load Inter and MaterialIcons for the capture so test-font boxes are not mistaken for app icons. Source/layout inspection and representative rendered views check badge placement, glyphs, information order, wrapping, borders/spacing and footer alignment. A viewport capture may show only part of a long scrollable page; scrolling is tested separately. These captures are not a physical-device or emulator acceptance test.
+
+Early failures are retained in scratch logs: off-screen taps needed a layout frame after `ensureVisible`, the generic back finder did not match the existing custom arrow, the semantics check needed to inspect the merged accessible label, and a route-only fixture initially mounted the authenticated slot loader. The final tests fix their harness/targets without bypassing runtime permissions, removing flow assertions or changing the booking implementation. The facility route test inspects the real selected destination before mounting its network loader; booking flow tests retain their isolated service fixtures.
+
+### 8. Remaining limitations troubleshooting and safe practice
+
+- Review aggregation/verified review submission is the missing integration described above. Do not substitute booking counts or hardcoded scores to make the badge look populated.
+- Native device/emulator behavior and live records were not exercised. Use the user's ordinary Flutter workflow to inspect the real account and catalogs; no automatic hot reload, restart or device installation was performed.
+- Full saved names/locations wrap, so unusually long content or large text can make a pair taller. This preserves readable content rather than truncating it into a guessed height. Each row shares its maximum height; an absent description/location can leave natural alignment space.
+- When the price looks wrong, compare the API's existing compact/full label and service `information` first. Mixed billing units and absent rates must not be collapsed into an invented cheapest fee. The legacy rate fallback remains for older payloads without formatted labels.
+- If the badge is empty despite stored feedback, inspect what the API actually returns. Missing mobile aggregates are not fixed by adding default values in a widget. Image failures retain the existing icon fallback and badge placement.
+
+Safe exercise: change only an isolated fixture in `test/resource_catalog_cards_test.dart`. First remove `reviews` while retaining `rating` and `booking_count`; run the review test and verify `No reviews yet`. Then supply both valid fixture fields and verify the rating/count and semantic label. Finally run the 320dp/2× case and verify equal action alignment and no rendering exception. Do not edit a live rating, seed records, change an API, apply migrations or replace production image assets for this exercise.
+
 Updated October19,2026. Regular-user navigation remains Home | Marketplace | Services | Facilities | Profile. Approved sellers retain their existing Add Product center action.
 
 ## Banner swipe, centered dots and compact gradient action - October 19, 2026

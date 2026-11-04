@@ -24,7 +24,7 @@
         const state={controller:new AbortController(),errorMessage:'Unable to display Job Order. Retry, or use Export.'};
         states.set(host,state);
         const file=async()=>{
-            const response=await fetch(host.dataset.pdfUrl,{credentials:'same-origin',signal:state.controller.signal});
+            const response=await fetch(host.dataset.pdfUrl,{credentials:'same-origin',cache:'no-store',signal:state.controller.signal});
             if(!response.ok) {
                 const result=await response.json().catch(()=>({}));
                 state.errorMessage=result.error || 'Unable to load Job Order. Please retry.';

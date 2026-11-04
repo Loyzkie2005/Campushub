@@ -1,5 +1,382 @@
 # Suggested Product Bundles - monitoring and research
 
+## Current: saved recommendation carousel workspace - November 4, 2026
+
+This entry replaces the earlier stacked saved-list workspace presentation. The Dashboard Suggested Product Bundles card, existing dataset/research/activity/detail pages, algorithm and seller-mobile workflow remain separate and are preserved.
+
+### 1. Cause / reason
+
+The user requested a clean **Suggested Product Bundle** workspace showing one saved two-product suggestion at a time, with server pagination, existing details and an authorized send-confirmation modal. The previous live list combined four KPIs, analysis/explanation/export sections and a20-row table. Its existing send endpoint accepted a CSRF-protected POST and redirected to details, so the modal needed an optional JSON response from that same endpoint to confirm success without navigating away. No new route, page, model or send service is needed.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/bundle_monitoring_views.py` |36 `can_send_suggestion`;79 `suggestion_list`;151 `Paginator(rows, 1)`;163 slide presentation;168 elided pages;192 detail action gate;209 `suggestion_highlight` | Reuse existing visibility rules, paginate saved records one at a time, supply numbered navigation and optional same-route JSON confirmation/errors. Existing HTML POST redirect remains. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/bundle_monitoring.html` |10 CSS version;12 scoped body class;18 shared header;20 title/no list description;21 existing analysis/activity links;40 carousel include;60 JS version | Replace only the live list body, keep source separation and other page modes, and load `20261103-carousel` assets. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/bundle_carousel.html` |1 existing filters;13 carousel;15 one saved slide;29 pagination;36 modal;49 empty state;52 existing drawer shell | New supporting partial inside the existing page, not a duplicate workspace/route. Reuse product-photo, empty-state, details and CSRF components. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_monitoring.css` |1 bundled font;9 list-scoped surface/wrapping;613 carousel;625 thumbnail tracks;632 pagination;642 modal;650 responsive rules | Existing asset supplies Montserrat, white/navy/subtle-border cards, contained side-by-side thumbnails, responsive navigation and centered modal. |
+| `backend/core/modules/marketplace/static/marketplace/js/bundle_monitoring.js` |39 confirmation initializer;57 submit handler;69 timeout;102 existing details initializer | Bootstrap confirmation, busy/duplicate locks, same-origin CSRF POST, confirmed-only status updates, errors/retry, focus restoration and30-second timeout. Existing details/photo/filter/normal-form behavior remains. |
+| `backend/core/modules/marketplace/test_bundle_monitoring.py` |54 carousel/page regression;96 actual JSON send/idempotency;113 errors/permissions/CSRF/empty; existing list/navigation/date/scope assertions | Three new meaningful regressions plus current UI expectations. Preserve actual saved counts, scope, original analysis data and no-mining assertions. Compare cache directives independently of header order; keep the invalid per-tab token's existing302 behavior. |
+| `docs/suggested-product-bundles.md`; `CAMPUSHUB_CONTEXT.md` |Newest carousel entries | Record implementation, verification, data flow and safe learning exercise. |
+
+### 3. Changes made
+
+The live workspace has the exact singular heading, no subtitle/description/four KPI cards, and one saved pair per slide. Each shows the two actual product thumbnails or existing missing-photo fallbacks, names with a plus between them, actual seller, saved response/delivery status and View Details. Previous/Next and numbered links use the existing URL's `page` parameter; a counter shows Suggestion1of3. First/last controls are disabled. Long page ranges use Django's elided numbering instead of rendering thousands of links.
+
+Existing filters remain in a collapsed Filter suggestions disclosure; applying them starts at the first matching suggestion. Dataset-Based Recommendations remains a separate source and cannot send synthetic pairs. Existing View Dataset & Analysis and Recommendation Activity links retain access to the original features. Technical analysis sections are removed from the live carousel presentation; original saved-analysis context and research/detail functionality remain. Support/Confidence/Lift are not displayed in the carousel.
+
+Only an eligible, unsent mobile-seller suggestion for a permitted Marketplace Admin receives Send to Seller. Super Admin receives no sending control or modal. The centered Bootstrap modal uses the exact requested title/description and escaped real product/seller names. Cancel/Escape make no request. Confirm Send locks duplicate submission/cancellation while the request is pending, shows Sending, and only hides the action/updates status after the backend confirms the matching record was sent. Errors remain in the modal, retain the unsent UI and permit retry.
+
+Genuinely empty saved scope shows the bag and exact requested empty text, without slides, pagination, send actions or a modal. Existing saved records excluded by active filters show No Matching Suggestions. Database failures remain errors. Natural server navigation replaces the document, resetting loaded/expanded drawer details on slide changes.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`suggestion_list(request)` still checks `can_view_bundle_suggestions` and reads the existing `status_records_for(user)`/authorized both-product scope. Existing source/search/Program/Major/seller/response/Manila-date filters are applied before `Paginator(rows, 1)`. Output remains `rows`, `current`, saved `summary`, source/filter URLs and existing analysis context; new `carousel_pages` supplies a bounded numbered range. `current.number` is the position in the matching saved result set, not a fabricated recommendation ID.
+
+`can_send_suggestion(user, item)` receives the existing `presentation(row)` dictionary and returns the original detail-page visibility condition: not Super Admin, existing manage-sellers permission, mobile owner, eligible pair and no `sent_at`. List and detail now share that condition. Visibility does not authorize a write; the original service independently rechecks access, scope, ownership and eligibility on every POST.
+
+Example: `/admin-bundle-suggestions/?view=live&q=Coffee&page=2` reads only the second matching saved pair. Its Previous/Next/number links preserve the active filters. View Details uses the original protected detail route and existing lazy drawer, with full-page fallback. Navigating to page3 creates a fresh closed drawer rather than retaining page2's content.
+
+The modal POSTs FormData, including the real CSRF field, to the original `bundle_monitor_highlight` URL with `Accept: application/json`. `suggestion_highlight` calls the same `highlight(request, pk)` service. On success it derives the actual status through `presentation(row)` and returns `{id, sent, status}`; JSON validation/scope/permission/database errors use409/404/403/503. Normal HTML submissions still receive their original redirect and message. Session-token forwarding uses the existing `admin_session.js` fetch wrapper.
+
+The unchanged `highlight` service retains its transaction, row lock, current live qualification check, `sent_at`/`sent_by` writes and single audit event. Repeated successful submissions do not duplicate that event. Client code validates the record ID, `sent === true` and status before updating text, and uses `textContent` rather than injecting response HTML. A network failure, unconfirmed200 response or timeout does not claim success; retry remains safe through the existing idempotent writer.
+
+### 5. Backend / API behavior
+
+One existing view gains opt-in JSON responses; no endpoint or permission is added. Live-list page size intentionally changes from20 to1. Existing scope/filter/query definitions, analysis services, Apriori formulas, datasets, research execution restrictions and normal detail/send routes remain. Dashboard GETs and workspace GETs do not trigger analysis or save recommendations. The original send service can revalidate qualification on an explicit send POST, as before.
+
+**Sending retains the existing workspace-highlight behavior.** It records/prioritizes the suggestion for the seller mobile workspace; it does not claim email or push delivery. Notifications, audit identity, seller dismissal/bundle linkage and Super Admin read-only restrictions were not broadened or replaced. The modal states this distinction explicitly.
+
+### 6. Database / migration impact
+
+None. No model, migration, URL definition, source dataset, working-record update, deployment or new dependency. New fixture products, saved pairs and send/audit mutations are confined to disposable local PostgreSQL test databases. No working suggestion was sent or analyzed for verification.
+
+### 7. Tests performed
+
+- Both existing bundle suites completed **128/128 tests in31.856 seconds**, with no system-check issues. Covers original monitoring/suggestions, algorithm/source separation, scopes/permissions, metadata, research restrictions, sender/audit/idempotency, mobile choices, dashboard read-only behavior, details and new carousel/JSON behavior. Observed summary: `scratch/bundle-carousel-20261103/full-regression-result.json`.
+- Final **8/8 affected checks passed in6.903 seconds**, after extra archived-pair/missing-manage-permission UI checks. Includes both-role one-pair pagination, actual send/replay, invalid state/CSRF/scope/permission/database errors, empty state, navigation, recorded details,22-result filtered server pagination and unchanged dashboard entry points. Final log: `tests.log` in the same directory.
+- The existing seller-mobile workspace suite also passed **20/20 tests in4.389 seconds**, including owner-scoped recommendations, save/dismiss/remove idempotency, invalid-pair denial, seller access and stock/bundle integration. Log: `mobile-tests.log` in the same directory. These confirm the preserved mobile workflow independently of the browser's simulated send responses.
+- **286 Chromium checks passed**, including28 role/state/width renders at280/320/390/768/1024/1440/1920px and additional pagination/drawer/modal interactions. Verified exactly one pair/two thumbnails, actual names/seller/status, bundled Montserrat/white borders, no overflow/KPIs/subtitle, first/last controls, numbered/server navigation, reset details, read-only Super Admin and empty controls. Checked dimmed centered modal, Cancel/Escape with no send, busy/duplicate locks, backend409, network failure, unconfirmed200 and confirmed-success updates. Mobile modal containment, both product names, keyboard focus and white footer passed at390/280px. Explicit computed colors verify a readable white active page number on navy. No JavaScript errors or missing assets.
+- Browser transport uses current Django-rendered fixtures/local assets, with clearly simulated send responses for UI failure/loading tests; real handler/service/CSRF/persistence behavior is checked separately by Django tests. No browser request touched working records. Actual desktop/phone/empty/modal captures were inspected. JS syntax and tracked-change whitespace checks passed.
+- Initial broader failures exposed obsolete table/title/KPI/page-size assertions and three older dashboard/cache/token assumptions. Assertions were updated for current UI or semantic cache/security behavior while retaining count/scope/no-write coverage; no permission or algorithm was weakened. The280px render caught intrinsic thumbnail track overflow, fixed with bounded tracks and square thumbnails. The details harness was corrected to wait for Bootstrap's opening transition. Final visual review caught the active pagination number inheriting navy text on navy during button-color cleanup; excluded the active item and added computed-color checks before the passing286-check run.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+This carousel navigates server-rendered pages rather than downloading all suggestions or auto-advancing. That deliberately provides bounded loading, shareable/filter-preserving URLs and fresh detail state. Filters paginate the matching saved set; archived/ineligible records can still be reviewed but cannot be sent. Missing real product photos use the existing fallback, not fabricated product images. At very narrow widths long text can wrap within words.
+
+There was no physical-device, deployed signed-in acceptance or full-project-suite run. The30-second timeout branch was reviewed but its elapsed timing was not separately browser-tested. A send can commit before a connection fails; the UI therefore reports uncertainty and retries through the idempotent service rather than inventing success. Current live basket/qualification limitations remain and may legitimately reject an outdated saved suggestion.
+
+Safe exercise: as each authorized role, open Dashboard → View Recommendations and navigate Previous/Next/numbered suggestions. Expand existing details, close them, change the page and confirm a fresh drawer. As Marketplace Admin, open Send to Seller, verify actual names, then Cancel or press Escape; do not confirm a working send merely to test the modal. Use `test_carousel_json_send_reuses_authorization_and_idempotent_workflow` in the disposable test database for confirmation/replay, and the error regression for stale eligibility, missing permission, CSRF and cross-scope denial. If old UI persists, verify `20261103-carousel` assets. If sending is rejected, inspect the original eligibility/qualification and role scope; do not bypass the service or substitute synthetic recommendations.
+
+## Current: shared dashboard empty state - November 3, 2026
+
+This entry supersedes the earlier hidden Marketplace subtitle and older dashboard-card descriptions. It affects only the existing Suggested Product Bundles card shared by Super Admin and Marketplace Admin.
+
+### 1. Cause / reason
+
+The user requested the same clear, compact empty-state presentation on both dashboards, with the exact description and retained top-right View Recommendations link. Marketplace's wrapper previously suppressed the description. The shared preview also treated every empty eligible-preview list as no saved suggestions, even when the existing saved count was positive. A failed count query could likewise reach the preview loop's empty branch. These are confirmed presentation conditions, not missing Apriori results to manufacture.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html` |5 description;7 workspace link;32 count-error guard;34 saved-count guard;37 genuine empty state | Exact shared description, retained existing link and populated loop, distinct error/no-eligible-preview/genuine-empty output. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_summary.html` |1 shared include | Remove the obsolete `hide_bundle_description` argument so Marketplace renders the same description. Existing wrapper labels remain. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css` |184 header grid;185 column sizing;195 copy wrapper;207 title;223 description;240 action;302 empty-body spacing;315 empty group;332 icon margin | Keep title/action on the first row and description directly below, with contained wrapping. Balance the empty body's padding and compact icon/text spacing; preserve white surface, subtle border,14px radius, populated content and existing mobile padding. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` |23 bundle CSS URL | Load `20261103-bundle-empty`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` |18 bundle CSS URL | Load the same updated shared asset. |
+| `backend/core/modules/marketplace/test_bundle_monitoring.py` |800 exact-copy expectation;922 `test_shared_dashboard_empty_state_requires_no_saved_records` | Test both roles against real saved, ineligible, database-error and genuinely empty fixtures, read-only GETs, existing navigation and absent operational controls/placeholders. Also test unavailable saved-count output. |
+| `backend/core/modules/reports/test_marketplace_admin_dashboard.py` |94 exact description | Replace the old expectation that Marketplace hides the description. |
+| `backend/core/modules/reports/test_dashboard_executive.py` |322 current description/action | Align existing empty-card assertions with the approved current copy and retained View Recommendations action. |
+| `docs/suggested-product-bundles.md`; `CAMPUSHUB_CONTEXT.md` |Newest empty-card entries | Record scope, behavior, data flow, checks and safe practice. |
+
+### 3. Changes made
+
+Both cards show **Suggested Product Bundles** at the top-left, **View Recommendations** at the top-right, and **Current saved product bundle recommendations.** directly below. The existing pure-white surface, `#E3E7EF` border and14px corners remain. The actual empty state has a muted outline bag, **No Bundle Suggestions Yet**, and **Saved product combinations will appear here when available.** Centered content uses equal top/bottom body padding and compact gaps. There are no product placeholders, sample records, technical metrics, Send to Seller controls or confirmation modals inside this card.
+
+The header uses the existing copy wrapper with `display: contents` and a two-column grid. The action's column is bounded to45% of the available width and can wrap; the description occupies the next full row. This keeps the action at the top-right on phones without changing either dashboard's outer layout. Populated product pairs, images/fallbacks, seller/status display, ordering and two-preview limit remain.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No runtime service or view function changed. Existing `dashboard_bundle_suggestions(user)` reads the authorized scope's current saved recommendations, supplies eligible `monitor_rows`, `monitor_error`, the saved `dashboard_summary.suggested` count and its existing `error` flag. The dashboard and refresh still render the same partial. The template now distinguishes:
+
+| Existing input | Output |
+| --- | --- |
+| `monitor_error=True` | Existing reload/error message; no empty-success claim. |
+| Eligible `monitor_rows` exist | Existing populated previews, capped at two. |
+| No preview rows and saved-count `error=True` | Error message; an unavailable count is not zero. |
+| No preview rows and `dashboard_summary.suggested > 0` | Existing project wording No Eligible Preview, directing review to the workspace. |
+| No preview rows and a successful saved count of0 | Exact requested No Bundle Suggestions Yet state. |
+
+For example, archiving a product can make an existing saved pair ineligible for a preview while its scoped current saved record still exists. That now displays No Eligible Preview instead of falsely claiming no saved suggestions. No historical/all-campus count is inferred. The count and preview retain their existing scope and `is_current` semantics.
+
+CSS centers only the existing empty-state component and reuses the existing bag SVG. The link still resolves Django's `bundle_monitor_list` to `/admin-bundle-suggestions/`. No function calculates associations, creates records or sends a seller message from a dashboard GET.
+
+### 5. Backend / API behavior
+
+No view, service, API, URL, permission, Apriori algorithm, query, notification, seller-response or recommendation-management change. Errors remain separate from empty results. Both role gates, current-saved/academic scope, no-mining/no-write loading and original populated preview behavior remain. Existing workspace actions and role restrictions are preserved.
+
+### 6. Database / migration impact
+
+None. No models, migrations, working recommendation records, source data or analysis executions changed. Fixture creation, archiving and deletion in the new regression occur exclusively in Django's disposable local PostgreSQL test database. Browser write requests were blocked.
+
+### 7. Tests performed
+
+- **10/10 final targeted Django tests passed in7.571 seconds**, with no system-check issues. Coverage includes the new both-role real-state/read-only regression, error-versus-empty separation, unavailable count, product images/status lifecycle, two-preview limit, saved-only dashboard/API refresh, authorized navigation, analytics-only/denied permissions, retained Marketplace summary/workspace, Super Admin section order and empty presentation. Log: `scratch/bundle-empty-card-20261103/tests.log`.
+- **661 Chromium checks across64 renders passed**, covering both roles and empty/populated/error/no-eligible-preview states at280/320/414/768/1024/1280/1440/1920px. Measured white/background/border/radius, top-left title/top-right link, exact description below, contained header wrapping, balanced/centered empty content, muted icon and original navigation. Confirmed no empty product placeholders, technical metrics or operational buttons/forms/modals; populated previews and distinct errors remain. No JavaScript errors, missing assets, page overflow or write requests were observed.
+- Inspected actual Super Admin and Marketplace desktop empty cards, Marketplace414px and Super Admin280px captures. Evidence, fixtures, measurements and screenshots: `scratch/bundle-empty-card-20261103/`. Tracked-change whitespace check passed with only the existing Git line-ending conversion notice.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Browser verification uses current Django-rendered local fixtures and assets, not a live signed-in deployment or physical device. At extreme280px widths, keeping the action top-right requires titles/link text to wrap within words. Existing neighboring-card stretching can still determine the outer card height; only the empty content's internal spacing was adjusted. No unrelated dashboard layout or full-suite result is claimed.
+
+Safe exercise: open both authorized dashboards and inspect the exact description and View Recommendations destination. With genuinely no current saved records, confirm the bag/title/explanation and absence of Send to Seller or a modal. Use the disposable regression to inspect populated, archived/ineligible and database-error cases; do not archive working products or delete recommendations merely to test an empty state. At390px confirm the link remains top-right and text stays within the card. If old copy/layout persists, check the shared partial and `20261103-bundle-empty` stylesheet URL. An unavailable count or query failure should be investigated as an error, not replaced with zero or synthetic recommendations.
+
+## Current: remove sidebar entry, retain dashboard access - November 3, 2026
+
+### 1. Cause / reason
+
+The user requested removing Bundle Recommendations from both admin sidebars while preserving the feature. The shared sidebar currently called the entry Bundle Suggestions and used `active_page='bundle_suggestions'` to select it and expand Marketplace. Both dashboards already had a saved-summary action targeting the correct existing route, but its visible label was View All.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/templates/partials/admin_sidebar.html` |33 Marketplace visibility;34 group;35 toggle;67 last retained Marketplace label | Remove the bundle anchor/icon/permission wrapper, its group-open/expanded conditions and the analytics-only outer-group condition. Products, Inventory, Orders and Seller Applications retain their own gates, order and active states; analytics-only admins avoid an empty Marketplace group. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/bundle_monitoring.html` |16 sidebar include | Stop passing the removed `bundle_suggestions` sidebar active-page key. Keep the existing page, detail/activity/research views and breadcrumbs. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html` |7 `dash-view-all-link` | Label the one existing dashboard action View Recommendations; retain `bundle_monitor_list` as its target. Both roles already reuse this partial. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css` |252 action wrapping;253 maximum width | Allow the longer action label to wrap within narrow cards. No card or sidebar redesign. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` |23 bundle stylesheet version | Refresh the existing asset URL to `20261103-dashboard-access`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` |18 bundle stylesheet version | Load the same updated bundle asset. |
+| `backend/core/modules/marketplace/test_bundle_monitoring.py` |803/903 action-label expectations;932 navigation regression;981 Marketplace dashboard checks;988 permission/analytics-only navigation;1020 fixture exporter | Update existing expectations for sidebar absence, no removed active state, retained dashboard action and authorized page access. Check analytics-only accounts retain Analytics/direct access without an empty Marketplace group. Export both existing dashboards as well as recommendation pages for browser checks. |
+| `docs/suggested-product-bundles.md`; `CAMPUSHUB_CONTEXT.md` |Newest sidebar-removal entries | Record implementation, unchanged feature data flow, checks and safe exercise. |
+
+### 3. Changes made
+
+The sidebar no longer lists Bundle Suggestions/Bundle Recommendations in either role. No replacement item was introduced. Marketplace's remaining menu entries, typography, icons, spacing, accordion persistence and mobile behavior use the existing code. The recommendation workspace no longer supplies an orphaned sidebar active state. Suggested Product Bundles remains on both dashboards, with one View Recommendations action leading to `/admin-bundle-suggestions/`.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No runtime Python or JavaScript function changed. The shared sidebar renders the authenticated user's existing permitted navigation items, without the bundle-only anchor/condition. Removing a menu entry does not unregister a Django URL or change authorization. The existing dashboard preview still receives `bundle_analysis.monitor_rows` and `monitor_error`, shows saved pairs or the existing empty/error state, and resolves `{% url 'bundle_monitor_list' %}` through Django's existing URL configuration.
+
+For example, clicking View Recommendations performs a GET to `/admin-bundle-suggestions/`. Existing server permission and academic-scope checks decide access; the original workspace loads its saved recommendations, Recommendation Activity, Seller Response Rate, Bundle Creation Rate and Analysis Summary. Its existing detail/activity/breadcrumb links remain. Review/send/notification/seller-response flows still use their original services and role gates. Existing Super Admin read-only restrictions remain; removal of navigation never grants a send permission. Product Association Analytics stays under the existing Reports & Analytics route, with its original Apriori implementation and real transaction scope.
+
+The shared partial's existing action was relabelled instead of adding another link or page. The small wrapping rule supports the requested longer label on phones while preserving the card structure.
+
+### 5. Backend / API behavior
+
+No changes to views, URL definitions, APIs, Apriori, recommendation generation, notifications, send idempotency, seller responses, audit handling, permissions or analytics calculations. Dashboard GETs remain read-only and do not mine or write recommendations. Existing authorized page access remains; unauthorized requests are still rejected.
+
+### 6. Database / migration impact
+
+None. No migrations, schema changes, recommendation deletions or working-record updates. Tests exercised creation/send/response assertions exclusively in disposable local PostgreSQL databases; browser write requests were blocked.
+
+### 7. Tests performed
+
+- **13/13 targeted existing Django tests passed in 4.765 seconds**, with no system-check issues. They cover both-role navigation/page access, missing-permission/regular-account denial, dashboard previews/refresh without mining or writes, error/empty distinctions, Marketplace send scope/revalidation/idempotency, seller dismissal/audit, distinct recorded rates, workspace sections, Super Admin send denial, CSRF and retained summary/workspace access. Initial measured result: `initial-tests.json` in the verification directory. After removing the analytics-only empty-group condition, **3/3 final navigation/permission/fixture checks passed in 1.963 seconds**, including analytics-only direct access, retained Analytics and no empty Marketplace group. Final log: `tests.log`.
+- The existing **Product Association Analytics regression passed separately, 1/1 in 0.610 seconds**, confirming the original analysis section and pending-volume/recognized-sales distinction remain. Log: `scratch/bundle-sidebar-removal-20261103/analytics-tests.log`. The first shell capture treated routine Python stderr as a PowerShell error despite test OK; a structured subprocess rerun returned exit0.
+- **85 Chromium checks across16 renders** passed for both roles at1440/1024/390/280px: absent bundle sidebar entries, unchanged permission-scoped Marketplace menu order, retained summary/action, exact destination, successful dashboard navigation to the existing page, contained wrapping label, no page overflow and working sidebar accordion. No JavaScript errors, missing assets or writes. Initial harness selectors were corrected for the page's existing two h1 elements and the manager fixture's legitimately restricted menu; no application permission was changed to satisfy those expectations.
+- Actual desktop sidebar and narrow dashboard-card captures were inspected. Evidence and browser results are in the same verification directory. Tracked-file whitespace check passed, with only the existing Git line-ending conversion notice.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Browser transport used current Django-rendered local fixtures, not a live signed-in deployment or physical device. No full application suite or deployment is claimed. At extreme narrow widths the existing paired product names can still wrap within words; this navigation task does not redesign that content.
+
+Safe exercise: sign in with an authorized admin, expand Marketplace and confirm the bundle entry is absent while the user's other permitted entries remain. Open Dashboard → Suggested Product Bundles → View Recommendations; confirm the URL is `/admin-bundle-suggestions/` and existing activity/analysis information loads. Use read-only navigation; do not send a recommendation merely to test this UI change. Check Product Association Analytics through Reports & Analytics. If access fails, inspect the original account role, permission and academic scope; do not bypass backend checks or add a replacement sidebar link. If the longer label overflows, confirm the bundle stylesheet version is `20261103-dashboard-access`.
+
+## Current: Suggested Product Bundles Dashboard Card Minimalist UI Alignment, November 3, 2026
+
+### 1. Cause / Reason
+On both the Super Admin (`/admin/dashboard/`) and Marketplace Admin (`/admin/marketplace/dashboard/`) dashboards, the Suggested Product Bundles card had visual alignment and layout issues:
+1. The header title "Suggested Product Bundles" and "View All" link were not placed on the same top horizontal row. In the Super Admin executive layout, CSS container queries and grid placements in `admin_executive_refinement.css` were wrapping the subtitle and forcing `.dash-view-all-link` into row 3 on the far left.
+2. The supporting description "Current saved recommendations. View evidence and details in Bundle Suggestions." was not cleanly positioned directly under the title.
+3. The empty-state content (icon, heading "No Bundle Suggestions Yet", and description) had uneven vertical spacing and excess whitespace.
+4. The card required pure white (`#FFFFFF`) presentation across both admin dashboards with a subtle `#E3E7EF` outer border, no light-gray inner backgrounds, no dividing line between header and content, and balanced compact padding matching the institutional minimalist design standard.
+
+### 2. Exact Files Changed, Current Lines, and Code Anchors
+
+| File | Current Lines / Anchor | What Changed and Why |
+|---|---|---|
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html` | Lines 2-8, `<header class="executive-card-header bundle-card-header">` | Wrapped title `<h2>` and subtitle `<p>` in `<div class="bundle-header-copy">`. Kept `dash-view-all-link` with `View All <span aria-hidden="true">&rsaquo;</span>` as a direct sibling on the right. Added `bundle-card-body` to the content wrapper. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css` | Lines 137-400 | Defined pure white card (`#FFFFFF`), outer border (`1px solid #E3E7EF`), radius (`14px`), flexbox row header (`justify-content: space-between; align-items: flex-start; gap: 16px`), title/subtitle column grouping, compact right-aligned View All link, and vertically centered empty state with shopping bag icon. |
+| `backend/static/components/css/admin_executive_refinement.css` | Lines 305-360 | Overrode priority-grid container rules that were forcing `dash-view-all-link` onto row 3 and wrapping `p` with `order: 3`. Ensured the header stays a clean flex row in Super Admin. |
+| `docs/suggested-product-bundles.md` | Top section | Documented cause, exact files, data flow, verification, limitations, and safe learning exercise. |
+
+### 3. Changes Made
+- **Header Alignment**: Structured the header as a two-item flex container:
+  - Left item (`.bundle-header-copy`): Title `Suggested Product Bundles` (`#1A1851`, 16px, font-weight 700) and subtitle `Current saved recommendations. View evidence and details in Bundle Suggestions.` (`#667085`, 13px, font-weight 400) directly below it.
+  - Right item (`.dash-view-all-link`): `View All ›` (`#1A1851`, 13px, font-weight 600, no wrap) aligned at the top-right on the exact same row as the title.
+- **Card Surface & Border**:
+  - Entire card surface is pure white (`#FFFFFF`).
+  - Outer border is subtle `#E3E7EF` with `14px` border-radius.
+  - Removed dividing border line between header and body.
+  - Removed all inner gray/tinted background fills.
+- **Empty State**:
+  - Outline shopping bag icon (`24px` grid, rendered at `32px` with `#626781`).
+  - Heading: `No Bundle Suggestions Yet` (`#1A1851`, 15px, font-weight 600).
+  - Supporting text: `Saved product combinations will appear here when available.` (`#667085`, 13px).
+  - Perfectly centered with compact, balanced vertical padding (`16px 12px`).
+- **Real Recommendations Presentation**:
+  - When saved recommendations exist, up to 2 items are rendered on pure white backgrounds with product thumbnails, seller name, and response status badges separated by subtle `#E3E7EF` dividers.
+
+### 4. How It Works: Inputs, Outputs, and Data Flow
+
+Data flows from the backend analytics and recommendation service into the partial:
+1. **Context Input**: The view (Super Admin `executive_dashboard` or Marketplace Admin `admin_marketplace_dashboard`) calls `dashboard_bundle_suggestions(user, limit=2)`.
+2. **Service Output**: Returns a dictionary `bundle_analysis` containing:
+   - `monitor_rows`: Up to 2 saved recommendations (`row.id`, `row.products`, `row.seller`, `row.response`, `row.delivery`).
+   - `monitor_error`: Boolean flag if a database error occurred.
+3. **Template Rendering (`super_recommendation_preview.html`)**:
+   - Header renders title and subtitle grouped in `.bundle-header-copy` on the left, and `dash-view-all-link` to `reverse('bundle_monitor_list')` on the right.
+   - Body checks `bundle_analysis.monitor_error`; if false, iterates through `monitor_rows|slice:':2'`.
+   - If empty, includes `dashboard/partials/empty_state.html` with title `No Bundle Suggestions Yet` and description `Saved product combinations will appear here when available.`.
+4. **CSS Presentation**: Flexbox layout ensures that even when container queries evaluate in executive dashboards, `.bundle-card-header` prevents column wrapping and maintains top-row alignment.
+
+Annotated example of the header HTML:
+```html
+<header class="executive-card-header bundle-card-header">
+    <div class="bundle-header-copy">
+        <h2 id="marketplaceRecommendationsTitle">Suggested Product Bundles</h2>
+        <p class="super-recommendation-subtitle">Current saved recommendations. View evidence and details in Bundle Suggestions.</p>
+    </div>
+    <a class="dash-view-all-link" href="{% url 'bundle_monitor_list' %}">View All <span aria-hidden="true">&rsaquo;</span></a>
+</header>
+```
+
+### 5. Backend / API Behavior
+- No changes were made to backend calculation services, Apriori algorithms, or database models.
+- Navigation link continues to route to `{% url 'bundle_monitor_list' %}` (`/admin-bundle-suggestions/`).
+- RBAC permissions remain strictly enforced: only authorized Super Admins and Marketplace Admins can access the dashboard card and destination views.
+
+### 6. Database / Migration Impact
+- **0 migrations** and **0 schema changes**.
+- No database records were altered or deleted.
+
+### 7. Tests Performed
+1. **Bundle Monitoring Preview & Empty State Tests**:
+   - Executed: `backend/core/manage.py test modules.marketplace.test_bundle_monitoring.BundleMonitoringTests.test_super_preview_uses_product_images_placeholder_and_saved_response modules.marketplace.test_bundle_monitoring.BundleMonitoringTests.test_super_preview_distinguishes_errors_from_empty_records modules.marketplace.test_bundle_monitoring.BundleMonitoringTests.test_super_template_limits_saved_previews_to_two_without_mutating_context modules.reports.test_dashboard_empty_states`
+   - Result: **11/11 tests passed in 5.477s** (`OK`).
+2. **Marketplace Core Regressions**:
+   - Executed: `backend/core/manage.py test modules.marketplace.tests`
+   - Result: **29/29 tests passed in 21.616s** (`OK`).
+3. **Visual & Structural Inspection**:
+   - Verified pure white `#FFFFFF` card background and `#E3E7EF` subtle border.
+   - Verified `Suggested Product Bundles` on top-left and `View All ›` on top-right on the exact same row.
+   - Verified subtitle placed directly under title.
+   - Verified shopping bag icon, title, and description centered with compact padding.
+
+### 8. Remaining Limitations, Troubleshooting, and Safe Practice
+- **Browser Cache**: If the dashboard still displays the old multi-row header after code deployment, perform a hard refresh (`Ctrl + F5` or `Shift + Reload`) to ensure updated CSS files are loaded by the browser.
+- **Empty States vs. Live Data**: The card displays the empty state when no saved bundle recommendations are present in `BundleRecommendation`. In order to see recommendation items, valid recommendations must be mined or saved in the Bundle Suggestions workspace.
+- **Safe Practice Exercise**: To verify the presentation independently:
+  1. Open the Django shell or create a disposable test user.
+  2. Navigate to `/admin/dashboard/` (Super Admin) and `/admin/marketplace/dashboard/` (Marketplace Admin).
+  3. Inspect the DOM element `.bundle-card-header`: confirm `display: flex`, `justify-content: space-between`, and that `.bundle-header-copy` and `.dash-view-all-link` sit side-by-side on the top row.
+  4. Test responsive width at 400px (mobile): verify that the header wraps cleanly on small screens without text overflow or horizontal scrolling.
+
+---
+
+
+## Current: unified Dataset & Apriori Analysis, October 26, 2026
+
+This approved Phase 2 supersedes earlier role-specific analysis layouts and the old calculate-on-GET research behavior. It does not change Bundle Recommendations management, the dashboards, source separation or administrator permissions.
+
+### 1. Cause / reason
+
+Super Admin's `research()` rendered synthetic CSV/research results, while Marketplace Admin's `readonly_analysis()` rendered a different title, source tabs and saved recommendation table. The Super Admin GET called a calculate-on-miss LRU helper; Run cleared that cache and redirected to another GET. These were confirmed differences, not missing CSS alone. A second saved-recommendation management table was inappropriate in the technical analysis page. Full historical live basket/rule snapshots are not stored, so that missing evidence must remain unavailable.
+
+### 2. Exact files changed, current lines and anchors
+
+All paths are relative to the project root. Eleven existing feature/test/documentation files were changed; no new runtime module or route was introduced.
+
+| File | Current lines / anchor | What changed and why |
+|---|---|---|
+| `backend/core/modules/marketplace/bundle_monitoring_views.py` | 210 `_analysis_selection`; 221 `_analysis_args`; 231 `_matching_records`; 236 `_render_analysis`; 287 `research`; 294 compatibility wrapper; 301 `run_research`; 312 redirect | One role-aware read-only GET renderer, separate source/result parameters, preserved legacy defaults/links and an explicit authorized POST executor. Marketplace Admin never reads synthetic CSV/cache. |
+| `backend/core/modules/marketplace/services/bundle_suggestions.py` | 246 `read_synthetic_dataset`; 294 `analyze_synthetic`; 298 snapshot analyzer; 328 dataset wrapper; 333 access guard; 339 cache key; 344 saved lookup; 362 explicit execution | Extract existing CSV validation without mining, bind results to actual bytes and configured thresholds, reuse unchanged association calculations, and publish only completed synthetic output to the existing Django cache. |
+| `backend/core/modules/marketplace/services/analytics.py` | 496 `calculate_market_basket`; 498 opt-in argument; 520 insufficient-data metadata; 558 itemset projection | Optional singleton/pair counter output. Existing normalization, counting and association-rule loops/formulas are unchanged; default callers retain their original response shape. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/bundle_monitoring.html` | 10 CSS version; 20 research description; 90 shared research include | Replace only the two role-specific analysis branches with the same existing partial. Shared header/breadcrumb, recommendation source tabs and all other page modes remain intact. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/bundle_analysis_readonly.html` | 1 shared panel; 2 source tabs; 7 statistics; 8 inner tabs; 9 authorized POST form; 10-15 errors/restrictions/history; 17 search; 19 preview; 22 itemsets; 24 rules | Reuse the existing file as the common body for both roles. Actual data/actions differ by authorization, not page structure. No duplicate recommendation-management rows. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/bundle_monitor_pagination.html` | 1-5 existing pagination links | Optional `page_key`, defaulting to the original `page`, allows independent itemset pages while reusing the same server-side component. Other callers keep their URLs. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_monitoring.css` | 441 source spacing; 442 compact unavailable state; 444 table headings | Small research-only spacing/alignment refinements. Reuse existing cards, typography, navy/white controls, statistic grid, focus indicators and local table scrolling. |
+| `backend/core/modules/marketplace/test_bundle_monitoring.py` | New unified-view/GET/POST/search/CSRF/cache/timestamp regressions near the class start; updated existing research/scope/empty/error expectations | Verify the new approved contract while retaining recommendation, dashboard, scope, management and permission coverage. Optional fixture export supports independent layout review. |
+| `backend/core/modules/marketplace/test_bundle_suggestions.py` | New itemset/cache/CSV/access/failure regressions in `AprioriDemonstrationTests` | Verify unchanged formulas, accurate supporting counts, same-size/same-time file invalidation, threshold changes and no calculate/write behavior on reads. |
+| `docs/suggested-product-bundles.md` | This report | Exact scope, data flow, tests, limitations, troubleshooting and safe exercise. |
+| `CAMPUSHUB_CONTEXT.md` | Latest unified-analysis entry | Preserve the finalized role boundaries and explicit execution requirement. |
+
+### 3. Changes made
+
+Both roles now use **Dataset & Apriori Analysis**, the same shared breadcrumb and Back to Suggestions action, **Marketplace Orders / Synthetic Dataset** source navigation and **Dataset Preview / Apriori Results** inner navigation. The existing white panel contains the source heading/description, three available-or-unknown statistics and applicable controls/content. Synthetic identification remains explicit; Demo Only and Dataset Details are not reintroduced.
+
+Marketplace Orders uses only validated existing completion metadata for the reader's exact scope, or global metadata for Super Admin. Missing historical preview data displays **Historical transaction dataset unavailable.** Missing complete saved rule/itemset snapshots display a distinct unavailable explanation. A saved recommendation pair cannot reconstruct an analysis run. There are no buyer records, inferred baskets or recommendation-management actions in this view.
+
+Super Admin's Synthetic Dataset preview keeps actual validated CSV rows, 20-record pagination and search. Apriori Results contains actual single-product/pair itemsets and directional association rules with supporting transaction counts. Qualified synthetic seller/product references appear beneath names to distinguish products sharing names across sellers; these are actual source identities, never live Product references. Marketplace Admin sees the same layout with unavailable statistics and a clear restriction message, without reading CSV records, executing analysis, or touching the synthetic result cache.
+
+### 4. How it works: inputs, outputs and data flow
+
+- `research(request)` accepts the existing authenticated GET only, checks the existing role/permission boundary, and calls `_render_analysis`. `readonly_analysis` remains a compatibility wrapper through the same checks. Neither executes a calculator.
+- `_analysis_selection` separates `source=marketplace|synthetic` from `tab=dataset|results`; `source=live` remains an alias. Legacy `tab=marketplace` and `tab=synthetic` links still select their prior sources. Existing default links preserve Super Admin's synthetic preview and Marketplace Admin's marketplace preview, while both render the identical component. This preserves bookmarks without granting new data access.
+- `_analysis_args` copies existing GET parameters, updates the selected source/tab and resets page positions for source/tab changes. Search submits existing `q`, source and tab. Rules/preview keep `page`; itemsets use `itemsets_page`. Each pagination component preserves the other page and active filters. No new date filter is added.
+- `read_synthetic_dataset(path)` reads one immutable byte snapshot, then applies the original required-column, identity, source, date, price, quantity, catalog and basket-bound checks. Output includes validated CSV records/columns, actual transaction/item/product counts, verified synthetic baskets/catalog and a SHA-256 digest. It does not compute pair associations or write a cache.
+- `execute_synthetic_research(user)` is called by the existing Super Admin POST after role and CSRF checks. It independently checks Super Admin access, reads the snapshot and thresholds, runs the existing snapshot analyzer, and writes only the complete successful result with its completion timestamp. Failures do not publish completed results and do not create audit/database records.
+- `saved_synthetic_research(user, snapshot, limits)` is a read-only lookup. The key binds format version, resolved file path, complete file-byte SHA-256 and analysis thresholds. Payload format/source/version/thresholds/counts/timestamp/result structure are checked. Changed file bytes invalidate results even when file size and modified time are unchanged. A miss, expiry or mismatch returns unavailable; it never calculates as a fallback.
+- `calculate_market_basket(..., include_itemsets=True)` projects the existing `product_counts`/`pair_counts` counters after the unchanged rule calculation. Itemset support uses the same unrounded support threshold and actual analyzed-basket denominator; confidence and lift still qualify association rules. Only one- and two-product itemsets are returned. The default argument is False, preserving existing caller output and algorithms. The existing detailed `together_count` supplies rule supporting transactions.
+
+Annotated example, not a fabricated marketplace result:
+
+```python
+# Ordinary authorized synthetic GET: validated CSV metadata and cached output only.
+snapshot = research_dataset()
+saved = saved_synthetic_research(user, snapshot, thresholds())
+# saved is None after a restart, threshold/file change or expiry: show unavailable.
+# Only the existing authorized POST calls execute_synthetic_research(user).
+```
+
+This approach keeps one presentation, preserves access boundaries, and avoids a model/schema or historical-data reconstruction change.
+
+### 5. Backend / API behavior
+
+Existing `/admin-bundle-suggestions/research/` and `/admin-bundle-suggestions/research/run/` routes are preserved. GET never invokes Apriori or creates synthetic cache entries. Only the existing authorized Super Admin POST executes synthetic analysis; CSRF protection remains enforced. Marketplace Admin POST is denied, and GET on the POST endpoint remains 405. Facilities, anonymous and missing-permission users remain denied. Program/Major metadata filtering stays in the unchanged saved-summary service; query parameters cannot widen it. Normal preview/results GET responses retain private/no-store HTTP caching, independently of the internal server result cache.
+
+The existing recommendation list/detail/highlight/activity view functions, live refresh logic, dashboards, order/seller/payment/FIFO workflows and sidebar/header components are unchanged. Internal legacy analysis helpers remain available to their existing non-page callers; the page no longer invokes their calculate-on-miss path. No new API endpoint or broader research permission was added.
+
+### 6. Database / migration impact
+
+No new models, migrations, persistent analysis snapshots, source CSV edits, working-data writes or activation. Results use the existing Django cache for **one hour**; the current configured backend is **LocMemCache**, which is process-local and can be cleared/restarted/evicted. This cache is not durable analysis history. Permission/scoping tests create fixture users/audit metadata only in Django's disposable test database. Nine protected source/CSV fingerprints and all 13 protected working-table row fingerprints match before/after verification.
+
+### 7. Verification: actual results
+
+- **326 broader Django regressions passed in 78.055s**: recommendation monitoring/suggestions, mobile seller workspace, bundles, FIFO, orders, Marketplace dashboard, executive dashboard, Sales Overview, Super Admin Analytics and role permissions. No Django system-check issues.
+- **124 final targeted tests passed in 21.617s**, including an additional explicit UTC-to-Manila synthetic completion-time regression. They cover GET execution/write denial, Super POST/CSRF, Marketplace execution/cache denial, exact Program/Major isolation, historical unknown states, current CSV metadata, supporting counts, opt-in output compatibility, changed bytes with identical size/mtime, changed thresholds, failed runs, successful zero-rule runs, search, independent pagination and legacy links.
+- Authenticated Django HTTP/Chromium acceptance passed **1,068 assertions across 72 navigations at 320, 390, 768, 1024, 1280, 1440 and 1920px**. Both roles used the same layout/style; dataset/rule/itemset tables remained responsive, source/inner tabs and actual search/pagination worked, independent itemset pagination preserved rules, real missing-CSRF and valid-CSRF unauthorized POSTs were denied, and only one authorized browser POST executed the calculator. No JavaScript errors, missing app assets or horizontal page overflow. No HTML/API response bodies were mocked; only external Bootstrap assets were cached locally.
+- The HTTP test patches the real calculator with a counting wrapper and requires exactly **one call**, corresponding to the authorized POST. The legacy calculation LRU remains unchanged. Marketplace/audit/product/recommendation record counts remain unchanged by analysis viewing/execution; authentication logs in the disposable database are expected separately.
+- **12 actual working-data GET scenarios passed under PostgreSQL READ ONLY**, across Super Admin, BSIT and BFPT Marketplace Admin, both sources and both inner tabs. Mining/execution were patched to fail if called; synthetic cache writes were zero. Working saved recommendations/live completion events remain **0/0**, so historical states are genuinely unrecorded, not proof analysis never happened. No working synthetic POST was run.
+- Original calculator normalization/counting/rule loops and recommendation-management view ASTs match their before-copies. Protected source and database fingerprints match. Desktop/mobile screenshots were visually inspected, duplicate-name ambiguity and excessive empty-state padding were corrected, and a Windows-pipe timestamp separator encoding issue was corrected and tested.
+- Initial regression failures exposed a template-splice error affecting unrelated markup; that markup was restored before the passing runs. One obsolete test expectation was changed to distinguish preview-unavailable from result-unavailable. Failed attempts are not counted as passing verification.
+
+Evidence: `scratch/unified-analysis-20261026/` contains originals, scoped diffs, source/data fingerprints, logs, optional rendered fixtures, real HTTP browser driver/test, measurements and screenshots. Final logs are `regression-tests.txt`, `final-targeted-tests.txt`, `http-tests.txt` and `http-browser-results.json`.
+
+Reproduce from the project root, using disposable test databases only:
+
+```powershell
+backend/core/venv/Scripts/python.exe -B scratch/unified-analysis-20261026/run-logged.py final-targeted-tests.txt modules.marketplace.test_bundle_monitoring modules.marketplace.test_bundle_suggestions
+backend/core/venv/Scripts/python.exe -B scratch/unified-analysis-20261026/run-logged.py http-tests.txt analysis_http_acceptance
+backend/core/venv/Scripts/python.exe -B scratch/unified-analysis-20261026/working-data-check.py
+backend/core/venv/Scripts/python.exe -B scratch/unified-analysis-20261026/preservation-check.py
+```
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+Historical marketplace basket membership, full raw rules and item/product counts are not stored, so they remain unavailable. Saved pairs remain on Bundle Recommendations/details rather than being passed off as a full historical analysis. Marketplace Admin cannot view restricted synthetic CSV/results; no permission or persistence approval was inferred.
+
+Synthetic results require an explicit Super Admin Run Demo Analysis action. They are unavailable on a cold/expired/mismatched cache and can disappear after restart. With multiple application processes, process-local cache availability can differ between workers; a shared cache or durable history would require a separately scoped infrastructure/persistence change. No silent GET recalculation compensates for this. Higher-order frequent itemsets are not supported and are explicitly not claimed. Existing thresholds/formulas and the dataset remain unchanged.
+
+If results disappear after a file/threshold update or restart, that is cache invalidation, not evidence that analysis never ran. Use the authorized POST to recompute; never add a GET fallback. If a Marketplace Admin sees restricted synthetic content, do not remove the guard to match Super Admin's records. Use the visible Marketplace Orders source and authorized saved metadata. A successful zero-rule run remains a completed cached run and is distinct from missing results. The stylesheet version is `20261026-unified-analysis`.
+
+Safe practice: in a disposable installation, use a scoped Marketplace Admin to switch both source and result tabs and confirm no Run action or restricted records appear. As Super Admin, view a cold synthetic results tab, verify the unavailable state, submit the existing CSRF-protected Run action, then compare a supporting count with the verified transaction sets. Search and paginate itemsets independently from rules. Change a synthetic fixture's contents while preserving its size/time, or change a threshold, and verify results become unavailable until another explicit POST. Do not alter the working CSV, create live baskets or modify orders/inventory for this exercise.
+
+---
+
 ## Current: source-separated Bundle Recommendations tabs, October 26, 2026
 
 ### 1. Cause / reason
@@ -2393,3 +2770,76 @@ Verify the printed values using the formulas above, then `exit()` the shell. The
 - Cached analysis is process-local, up to four entries, invalidated by file revision/size/settings. Workers may each compute their own first load; there is no shared scheduled cache. CSV limits deliberately bound the supported demonstration input.
 - Current browser evidence uses rendered test fixtures/mocked GET responses on desktop Chrome. Physical phones, deployed authentication/asset delivery, real authorized sessions, other browsers, and assistive-technology testing remain manual. The detector was limited to regex-based checks; no complete contrast/accessibility or whole-dashboard audit is claimed.
 - Existing unrelated dashboard overflow and other pre-existing workspace changes remain outside this local extension. Real sales/revenue/order data and seller-controlled manual bundle creation retain their existing behavior.
+
+
+---
+
+## Suggested Product Bundles Card UI Modernization (Super Admin & Marketplace Admin)
+
+### 1. Cause / Reason
+- The **Suggested Product Bundles** dashboard card on both the Super Admin and Marketplace Admin dashboards previously contained mixed background colors, gray header/empty-state surfaces, horizontal divider borders between header and body, and disparate markup between the two dashboards (`super_recommendation_preview.html` on Super Admin vs. older `dashboard_bundle_summary.html` on Marketplace Admin).
+- To create a unified, clean, professional Minimalist SaaS card design, the card presentation was modernized: pure white background (`#FFFFFF`), subtle outer border (`#E3E7EF`), divider removal, centered empty-state presentation, and unified rendering across both dashboards.
+
+### 2. Exact Files Changed
+- [backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html](file:///C:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html#L156):
+  - Line 157: Changed included partial from `dashboard_bundle_summary.html` to `marketplace/partials/super_recommendation_preview.html` so both dashboards render identical markup.
+- [backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_summary.html](file:///C:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_summary.html#L1):
+  - Updated legacy summary partial to delegate to `super_recommendation_preview.html` for backward compatibility.
+- [backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css](file:///C:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css#L130):
+  - Added scoped CSS rules for `.super-recommendation-preview` establishing the pure white `#FFFFFF` surface, `#E3E7EF` outer border, divider line removal, Montserrat typography, navy `#1A1851` titles, muted gray `#667085` descriptions, and centered empty state.
+
+### 3. Changes Made
+1. **Pure White Background**: Set entire card container, header, and content body to `#FFFFFF` with `background-image: none`.
+2. **Removed Header Background & Divider Line**: Removed light-gray header fill and eliminated `border-bottom` on `.executive-card-header`.
+3. **Removed Inner Empty-State Background**: Removed inner gray background on `.ch-dashboard-empty`, setting it to `transparent`.
+4. **Subtle Outer Border**: Styled outer perimeter with `border: 1px solid #E3E7EF` and `border-radius: 12px`.
+5. **No Shadows or Gradients**: Stripped all `box-shadow` and gradient overlays.
+6. **Preserved Layout Structure**:
+   - Top-left: `Suggested Product Bundles` (`h2`)
+   - Below title: Short supporting description (`p.super-recommendation-subtitle`)
+   - Top-right: `View All` navigation link (`a.dash-view-all-link`)
+   - Center: Empty-state bag icon (`svg`)
+   - Below icon: `No Bundle Suggestions Yet` (`h4`)
+   - Supporting text: `"Saved product combinations will appear here when available."` (`p`)
+7. **Centered Empty-State**: Balanced vertical padding (`padding: 24px 16px`) and centered content alignment (`align-items: center; justify-content: center; text-align: center`).
+8. **Unified Cross-Dashboard Experience**: Applied identical presentation and markup to both Super Admin and Marketplace Admin dashboards.
+
+### 4. How It Works & Data Flow
+```mermaid
+flowchart TD
+    A["User visits Admin Dashboard"] --> B{"Role Scope"}
+    B -->|"Super Admin"| C["executive_dashboard.html"]
+    B -->|"Marketplace Admin"| D["admin_marketplace_dashboard.html"]
+    C --> E["super_recommendation_preview.html"]
+    D --> E
+    E --> F{"bundle_analysis.monitor_rows"}
+    F -->|"Empty"| G["empty_state.html: No Bundle Suggestions Yet"]
+    F -->|"Has Suggestions"| H["Render 2 Suggested Pairs with Photos & Status"]
+    E --> I["View All -> bundle_monitor_list"]
+```
+- When `bundle_analysis.monitor_rows` contains records, the card shows up to two paired products with images, seller identity, and status badge against the pure white background.
+- When no recommendations exist, the bag icon, title (`No Bundle Suggestions Yet`), and helper note (`Saved product combinations will appear here when available.`) render cleanly centered.
+- The `View All` action links directly to `/admin/marketplace/bundles/` (`bundle_monitor_list`).
+
+### 5. Backend / API Behavior
+- Unchanged. Recommendation algorithms (Apriori), database records, monitoring counts, and background services remain untouched.
+
+### 6. Database / Migration Impact
+- None.
+
+### 7. Tests Performed
+- `python backend/core/manage.py test modules.marketplace.test_bundle_monitoring.BundleMonitoringTests.test_super_preview_uses_product_images_placeholder_and_saved_response modules.marketplace.test_bundle_monitoring.BundleMonitoringTests.test_super_preview_distinguishes_errors_from_empty_records modules.marketplace.test_bundle_monitoring.BundleMonitoringTests.test_super_template_limits_saved_previews_to_two_without_mutating_context modules.reports.test_dashboard_empty_states`: Passed (11/11 tests).
+- `python backend/core/manage.py test modules.marketplace.tests`: Passed (29/29 tests in 17.8s).
+
+### 8. Remaining Limitations
+- Up to 2 pairs are previewed on the dashboard cards by design; complete recommendations and filtering remain accessible via **View All**.
+
+### 9. Safe Practice Exercise
+1. Open [super_recommendation_preview.html](file:///C:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html#L1-L10).
+2. Inspect the card structure: `<header class="executive-card-header">` holding the title, subtitle, and `View All` link, followed by `<div class="executive-card-body">`.
+3. Open [bundle_suggestions.css](file:///C:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css#L130-L200) and verify that the outer border `#E3E7EF` and background `#FFFFFF` are defined.
+4. Run the preview test suite command:
+   ```powershell
+   & "backend/core/venv/Scripts/python.exe" backend/core/manage.py test modules.marketplace.test_bundle_monitoring.BundleMonitoringTests.test_super_preview_distinguishes_errors_from_empty_records
+   ```
+5. Confirm that 1 test passes in under 1 second.

@@ -1,5 +1,8 @@
 """Live, read-only recommendations; explicit CSV analysis is research-only."""
 import csv
+import hashlib
+import io
+import json
 import re
 from collections import defaultdict
 from copy import deepcopy
@@ -9,6 +12,9 @@ from functools import lru_cache
 from pathlib import Path
 
 from django.conf import settings
+from django.core.cache import cache
+from django.core.exceptions import PermissionDenied
+from django.utils import timezone
 from django.db import DatabaseError
 from django.db.models import Q
 from django.urls import reverse
@@ -237,10 +243,12 @@ def analyze_live(user, limits, *, mobile_seller=None):
             'qualifying_pair_count': len(rows), 'preview_rows': rows[:5]}
 
 
-def analyze_synthetic(path, limits):
-    """Validate genuine transaction IDs and mine seller-qualified product identities."""
+def read_synthetic_dataset(path):
+    """Validate and describe one CSV snapshot without calculating associations."""
     baskets, sellers, dates, catalog = defaultdict(set), {}, {}, {}
-    with Path(path).open(encoding='utf-8-sig', newline='') as stream:
+    raw = Path(path).read_bytes()
+    records = []
+    with io.StringIO(raw.decode('utf-8-sig'), newline='') as stream:
         reader = csv.DictReader(stream)
         required = {'transaction_id', 'date', 'seller_id', 'product_id', 'product_name',
                     'category', 'quantity', 'unit_price_php', 'data_origin'}
@@ -276,15 +284,30 @@ def analyze_synthetic(path, limits):
             baskets[txn].add(key)  # Repeated lines/quantity never duplicate a basket item.
             if len(baskets[txn]) > 100:
                 raise ValueError('A synthetic transaction has too many distinct products.')
+            records.append(dict(row))
+    return {'baskets': baskets, 'catalog': catalog, 'dates': dates, 'records': records,
+            'columns': reader.fieldnames, 'transaction_count': len(baskets),
+            'item_count': count, 'unique_product_count': len(catalog),
+            'version': hashlib.sha256(raw).hexdigest(), 'path': str(Path(path).resolve())}
+
+
+def analyze_synthetic(path, limits):
+    return _analyze_synthetic_snapshot(read_synthetic_dataset(path), limits)
+
+
+def _analyze_synthetic_snapshot(snapshot, limits):
+    baskets, catalog, dates = snapshot['baskets'], snapshot['catalog'], snapshot['dates']
+    count = snapshot['item_count']
     mined = calculate_market_basket(
         [[(key, catalog[key]['name']) for key in basket] for basket in baskets.values()],
         minimum_support=limits[0], minimum_confidence=limits[1], minimum_lift=limits[2],
-        detailed=True, limit=None,
+        detailed=True, limit=None, include_itemsets=True,
     )
     rows = _recommendation_rows(mined, catalog, source='synthetic')
     directional_rows = _recommendation_rows(mined, catalog, source='synthetic', directional=True)
     top_rules = rows[:5]  # Presentation limit only; never limit the qualifying count.
-    return {'rows': rows, 'directional_rows': directional_rows, 'transaction_count': len(baskets), 'item_count': count,
+    return {'frequent_itemsets': mined['frequent_itemsets'],
+            'rows': rows, 'directional_rows': directional_rows, 'transaction_count': len(baskets), 'item_count': count,
             'qualifying_pair_count': len(rows), 'preview_rows': top_rules,
             'chart': {'labels': [row['bundle'] for row in top_rules],
                       'values': [row['lift'] for row in top_rules],
@@ -300,6 +323,53 @@ def analyze_synthetic(path, limits):
 def _cached_synthetic(path, modified_ns, size, limits):
     # The file revision and thresholds invalidate cached analysis; no dashboard writes.
     return analyze_synthetic(path, limits)
+
+
+def research_dataset():
+    path = Path(getattr(settings, 'CAMPUSHUB_SYNTHETIC_ORDER_ITEMS_PATH', '') or DATASET)
+    return read_synthetic_dataset(path)
+
+
+def _research_access(user):
+    from .bundle_monitoring import is_super_monitor
+    if not is_super_monitor(user):
+        raise PermissionDenied
+
+
+def _research_cache_key(snapshot, limits):
+    identity = json.dumps([1, snapshot['path'], snapshot['version'], limits], separators=(',', ':'))
+    return 'campushub:synthetic-research:' + hashlib.sha256(identity.encode()).hexdigest()
+
+
+def saved_synthetic_research(user, snapshot, limits):
+    """Read only: a miss, changed CSV or changed thresholds never triggers mining."""
+    _research_access(user)
+    saved = cache.get(_research_cache_key(snapshot, limits))
+    if (not isinstance(saved, dict) or type(saved.get('format')) is not int or saved['format'] != 1
+            or saved.get('version') != snapshot['version'] or saved.get('limits') != list(limits)):
+        return None
+    result = saved.get('result')
+    if (not isinstance(result, dict) or result.get('source') != 'synthetic' or result.get('error') is not False
+            or not isinstance(saved.get('completed_at'), datetime) or timezone.is_naive(saved['completed_at'])
+            or result.get('transaction_count') != snapshot['transaction_count']
+            or result.get('item_count') != snapshot['item_count']
+            or not isinstance(result.get('directional_rows'), list)
+            or not isinstance(result.get('frequent_itemsets'), list)):
+        return None
+    return saved
+
+
+def execute_synthetic_research(user):
+    """Existing authorized POST calls this explicitly; publish only complete results."""
+    _research_access(user)
+    snapshot, limits = research_dataset(), thresholds()
+    result = _analyze_synthetic_snapshot(snapshot, limits)
+    result.update(source='synthetic', error=False,
+                  thresholds={'support': limits[0] * 100, 'confidence': limits[1] * 100, 'lift': limits[2]})
+    saved = {'format': 1, 'version': snapshot['version'], 'limits': list(limits),
+             'completed_at': timezone.now(), 'result': result}
+    cache.set(_research_cache_key(snapshot, limits), saved, timeout=3600)
+    return saved
 
 
 def build_bundle_suggestions(user, source='live', *, mobile_seller=None):

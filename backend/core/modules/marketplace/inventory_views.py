@@ -15,7 +15,8 @@ def receive_stock(request):
         payload = json.loads(request.body)
         if not isinstance(payload, dict):
             raise ValueError("Send a receiving form object.")
-        data = receive(payload.get("sku"), payload.get("quantity"), payload.get("reference"), request.user, payload.get("key"))
+        data = receive(payload.get("sku"), payload.get("quantity"), payload.get("reference"), request.user, payload.get("key"),
+            received_at=payload.get("received_at"), notes=payload.get("notes", ""), inventory_method=payload.get("inventory_method"))
         return JsonResponse(data)
     except (FIFOError, ValueError, TypeError) as exc:
         return JsonResponse({"error": str(exc)}, status=409)

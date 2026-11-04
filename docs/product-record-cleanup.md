@@ -1,5 +1,63 @@
 # Requested product record cleanup
 
+## Ten screenshot products archived - November 4, 2026
+
+### 1. Cause / reason
+
+User requested removing the ten products visible in the supplied Products-table screenshot. Read-only inspection matched all ten by exact name, owner, price and stock. Their displayed codes are fallback UI labels; stored `product_code` values are null. Permanent deletion would affect existing history: Hot Coffee has one order and Fyfyfu has two. The existing Products workflow disables permanent deletion and supports Archive/Restore, so this request was completed by archiving exactly those ten listings.
+
+### 2. Exact files and records changed
+
+No application source, model, migration, route or permission changed. Updated this guide and `CAMPUSHUB_CONTEXT.md`. One-off evidence/scripts are under `scratch/product-cleanup-20261104/`: `read_products.py` (read-only identity/dependency inspection), `archive_requested.py` (`transaction.atomic`, exact identity assertions and existing `Product.archive()` calls), and `verify_archive.py` (independent read-only verification).
+
+| Product ID | Exact saved name | Result |
+| --- | --- | --- |
+|49|Hhahhh|Archived|
+|50|Ggg|Archived|
+|51|G hchc|Archived|
+|52|Hhhh|Archived|
+|53|Fyfyfu|Archived; two orders preserved|
+|54|Hot Coffee|Archived; one order preserved|
+|55|Dgxxg|Archived|
+|56|Hugg|Archived|
+|57|jkbjbnkj|Archived|
+|58|hbgkghjb|Archived|
+
+### 3. Changes made
+
+All ten products now have `is_archived=True` and updated timestamps. They are absent from the default Active Products list and remain accessible through Archived. Their names, prices, stock, approval states and ownership were retained. The newer product ID59, Cjcjjc, and all other product rows were left unchanged. Eight active products remain; twenty product records remain in the database, including previously archived records.
+
+Ten normal `PRODUCT_ARCHIVED` audit events were appended using the existing marketplace logging helper. Metadata identifies a user-requested local maintenance operation; no signed-in administrator was impersonated. Existing audit rows were preserved. No stock was removed, order cancelled, recommendation generated or file deleted.
+
+### 4. How it works / inputs, outputs and data flow
+
+Input was the exact ten saved identities from the screenshot, resolved to IDs49–58. The write script locked those product rows, rechecked name/owner/price/stock/approval/archive state against inspection, and called the existing `Product.archive()` method. That method saves only `is_archived` and `updated_at`; stock synchronization is not invoked for this field-limited save. Existing `log_marketplace_event` records each actual archive against the owner with explicit local-maintenance provenance.
+
+All changes occurred in one PostgreSQL transaction. Before commit, assertions required unchanged unrelated products, unchanged prior audit rows, exactly ten new archive events and unchanged fingerprints for fifteen account/order/inventory/bundle/interaction/push tables. Unexpected changes would roll back the transaction. A second read-only process then invoked the real `catalog_selection(Product.objects.all(), {})`: its default `listing_status=active` returned none of the ten targets. Selecting Archived returned all ten.
+
+Annotated read-only example:
+
+```python
+# Confirm archive state without modifying stock, orders or products.
+Product.objects.filter(pk__in=range(49, 59), is_archived=True).count()  # 10
+```
+
+### 5. Backend / API behavior
+
+No backend code changed. Existing active-catalog filtering now excludes these archived listings. Original permissions, Archive/Restore behavior and historical-order access remain. Archive is database state, not permanent deletion; historical and archived views can still show the records.
+
+### 6. Database / migration impact
+
+The configured working PostgreSQL database was updated: ten product archive flags/timestamps and ten appended audit rows. No schema/migration changes. All three existing orders, account rows and recorded inventory/bundle dependencies were preserved. Fifteen protected table fingerprints matched before/after and in the independent post-commit verification. Product count remains20.
+
+### 7. Verification performed
+
+The operation committed successfully. Independent read-only verification confirmed ten archived matches, zero targets in default Active Products, Cjcjjc still active, ten matching audit events, eight active products and twenty total product rows. Protected fingerprints still match. Evidence: `inspection.json`, `archive-result.json`, `verification.json` in the same scratch folder. No automated application tests were run because application code was unchanged; this was a verified working-data operation.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+This was archive removal, not irreversible erasure. Refresh Products with Listing Status set to Active; Archived or an unfiltered All view intentionally retains these records. Existing in-memory mobile catalogs may need refresh. No uploaded image files or history were purged. To inspect safely, filter Archived and search an exact listed name; use the read-only count above for database verification. Restore through the existing authorized UI only if the user later requests it. Do not rerun the archive script as a general cleanup tool: it is fixed to these identities and rejects changed/already-archived targets.
+
 ## Chenchen deletion — October 18, 2026
 
 ### 1. Cause / reason

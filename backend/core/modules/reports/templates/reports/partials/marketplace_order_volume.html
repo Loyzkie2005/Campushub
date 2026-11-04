@@ -1,0 +1,26 @@
+<article class="analytics-panel marketplace-order-volume">
+    <header class="analytics-panel-header">
+        <div><h3>Order Volume Trend</h3><p>Submitted orders across all statuses, including unpaid orders.</p></div>
+        <form method="get" class="analytics-inline-form" data-order-grouping-form>
+            <input type="hidden" name="module" value="marketplace" />
+            <input type="hidden" name="period" value="{{ analytics.period.key }}" />
+            <input type="hidden" name="grouping" value="{{ analytics.grouping }}" />
+            <input type="hidden" name="forecast_product" value="{{ analytics.forecast.product_id|default:'' }}" />
+            <input type="hidden" name="forecast_horizon" value="{{ analytics.forecast.horizon }}" />
+            {% if analytics.period.key == 'custom' %}<input type="hidden" name="date_from" value="{{ analytics.period.start|date:'Y-m-d' }}" /><input type="hidden" name="date_to" value="{{ analytics.period.end|date:'Y-m-d' }}" />{% endif %}
+            <label for="orderGrouping" class="visually-hidden">Group submitted orders by</label>
+            <select name="order_grouping" id="orderGrouping" class="analytics-select analytics-select-compact">
+                <option value="daily"{% if analytics.order_volume.grouping == 'daily' %} selected{% endif %}>Daily</option>
+                <option value="weekly"{% if analytics.order_volume.grouping == 'weekly' %} selected{% endif %}>Weekly</option>
+                <option value="monthly"{% if analytics.order_volume.grouping == 'monthly' %} selected{% endif %}>Monthly</option>
+            </select>
+            <button type="submit" class="analytics-apply-button" data-order-grouping-apply>Apply</button>
+        </form>
+    </header>
+    {% include 'reports/partials/marketplace_order_comparison.html' %}
+    {% if analytics.operations.total %}
+    <div class="analytics-chart analytics-chart-medium"><canvas id="marketplaceOrderVolumeChart" role="img" aria-label="Submitted orders by {{ analytics.order_volume.unit|lower }}" aria-describedby="marketplaceOrderVolumeDescription"></canvas></div>
+    <p class="visually-hidden" id="marketplaceOrderVolumeDescription">All submitted orders in the selected dates, including zero-activity periods. Exact counts are in View order volume data.</p>
+    <details class="marketplace-order-data"><summary>View order volume data</summary>{% include 'reports/partials/analytics_chart_data.html' with chart_table=analytics.order_volume.table caption='Submitted orders in selected dates' %}</details>
+    {% else %}<p class="marketplace-compact-empty">No orders submitted in selected dates.</p>{% endif %}
+</article>

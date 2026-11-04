@@ -35,6 +35,10 @@ def money(value):
     return amount
 
 
+def _is_external_user(user):
+    return bool(user and str(user.user_type or "").strip().lower() in ("guest", "external", "outsider"))
+
+
 def client_details(data, facility=None):
     client_type = data.get("client_type")
     if client_type is not None and client_type not in ("existing", "walkin"):
@@ -51,6 +55,13 @@ def client_details(data, facility=None):
         name = f"{user.first_name} {user.last_name}".strip() or user.username
     else:
         name = str(data.get("full_name") or "").strip()
+    if facility is not None:
+        eligible = str((facility.workflow_config or {}).get("eligible_clients") or "both").strip().lower()
+        affiliation = str(data.get("client_affiliation") or "").strip().lower()
+        if eligible == "internal" and (_is_external_user(user) or affiliation == "external"):
+            raise ValidationError("This facility is restricted to internal USTP clients only.")
+        if eligible == "external" and ((user is not None and not _is_external_user(user)) or affiliation == "internal"):
+            raise ValidationError("This facility is restricted to external clients only.")
     if not name or len(name) > 200:
         raise ValidationError("Select a client or enter the walk-in client's full name.")
     contact = str(data.get("contact_number") or (user.contact_number if user else "")).strip()
@@ -124,11 +135,13 @@ def reservation_schedule(facility, data, *, check_capacity=True, exclude_booking
         closed_message = closed_operating_day_messages(facility).get(WEEKDAYS[day.weekday()])
         if closed_message:
             raise ReservationUnavailable(closed_message)
+        if workflow.get("weekend_only") and day.weekday() < 5:
+            raise ReservationUnavailable(f"{facility.facility_name} is available only on weekends (Saturday and Sunday).")
         if facility.slots and (start, end) not in configured_slots(facility, day):
             raise ReservationUnavailable("Select one of the configured time slots.")
         state = slot_status(facility, day, start, end, exclude_booking=exclude_booking)
         if state != "available":
-            if state in ("class", "maintenance", "reserved"):
+            if state in ("class", "maintenance", "reserved", "blocked"):
                 conflict = conflicting_bookings(facility, day, start, end, exclude_booking=exclude_booking).first()
                 if conflict:
                     raise ReservationUnavailable(conflict_description(conflict))
@@ -141,6 +154,10 @@ def reservation_schedule(facility, data, *, check_capacity=True, exclude_booking
         raise ReservationUnavailable("This booking mode needs an approved request process before reservations can be created.")
     if check_capacity and facility.capacity and guests > facility.capacity:
         raise ReservationUnavailable("The participant / guest count exceeds the facility capacity.")
+    if check_capacity and facility.booking_mode == "slot":
+        capacity_min = workflow.get("capacity_min")
+        if capacity_min not in (None, "") and int(capacity_min) > 0 and guests < int(capacity_min):
+            raise ReservationUnavailable(f"This facility requires at least {int(capacity_min)} participants.")
     return fields, {"guests": guests, "adults": adults, "children": children, "nights": nights, "hours": hours, "room": room, "form": form}
 
 
@@ -155,7 +172,7 @@ def reservation_quote(facility, data, *, exclude_booking=None):
     if method in ("hour", "base_hour", "session"):
         if not hours and method != "session":
             raise ValidationError("Hourly pricing cannot be used for a stay without configured billing times.")
-        base = slot_base_amount(facility, hours, include_configured_adjustments=True)
+        base = slot_base_amount(facility, hours, include_configured_adjustments=True, use_hourly_rate=bool(data.get("use_hourly_rate")))
     elif method in ("night", "person_night", "day", "person"):
         if method in ("night", "person_night") and not nights:
             raise ValidationError("This pricing method requires a date-range booking.")
@@ -186,6 +203,11 @@ def reservation_quote(facility, data, *, exclude_booking=None):
         if index >= len(rules) or not rules[index].get("active") or not reason or len(reason) > (700 if 'verification_method' in data else 500):
             raise ValidationError("Select an active discount and record verified eligibility.")
         rule = rules[index]
+        if rule.get("eligible_client_type") == "internal":
+            if data.get("client_id") and _is_external_user(CampusHubUser.objects.filter(pk=data["client_id"]).first()):
+                raise ValidationError("Internal client discounts cannot be applied to external or guest accounts.")
+            if str(data.get("client_affiliation") or "").strip().lower() == "external":
+                raise ValidationError("Internal client discounts cannot be applied to external clients.")
         scope = rule["applies_to"]
         basis = base
         if scope == "base_rate":

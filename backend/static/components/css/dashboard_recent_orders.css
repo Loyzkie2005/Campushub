@@ -1,0 +1,191 @@
+/* Only the Recent Orders interaction changes. Other dashboard tables retain their styles. */
+#recentOrdersSlot .recent-orders-table tbody tr:hover { background-color: #F7F8FC; }
+[data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody tr:hover > :is(td, th),
+.marketplace-dashboard .marketplace-orders-table tbody tr:hover > :is(td, th) {
+    background-color: #F7F8FC;
+    --bs-table-bg-state: #F7F8FC;
+}
+.dashboard-order-eye {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    color: #1A1851;
+    text-decoration: none;
+}
+.dashboard-order-eye:hover { color: #1A1851; background: #E8EAF0; text-decoration: none; }
+.dashboard-order-eye:focus-visible { outline: 2px solid #1A1851; outline-offset: 2px; }
+.dashboard-order-tooltip {
+    display: none;
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 4px);
+    z-index: 10;
+    width: max-content;
+    padding: 6px 9px;
+    border-radius: 4px;
+    background: #1A1851;
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    pointer-events: none;
+}
+.dashboard-order-eye:is(:hover, :focus-visible) .dashboard-order-tooltip { display: block; }
+.dashboard-order-eye[aria-busy="true"] { opacity: .65; }
+.dashboard-order-feedback {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1100;
+    max-width: min(420px, calc(100vw - 48px));
+    padding: 14px 18px;
+    border: 1px solid #E8EAF0;
+    border-radius: 6px;
+    background: #FFFFFF;
+    color: #17172A;
+    font-size: 13px;
+}
+.dashboard-order-feedback[hidden] { display: none; }
+
+/* Super Admin: all seven fields remain visible without horizontal scrolling. */
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot {
+    container: recent-orders / inline-size;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table thead th {
+    padding-inline: 6px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody :is(th, td) {
+    padding: 12px 6px;
+    font-size: 12px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody th {
+    color: var(--executive-ink);
+    background: transparent;
+    font-weight: 500;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-id {
+    width: 20%;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-buyer {
+    width: 17%;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-date {
+    width: 15%;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-total {
+    width: 11%;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-status {
+    width: 15%;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-payment {
+    width: 13%;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .orders-col-actions {
+    width: 9%;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-person {
+    display: table-cell;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table .text-end {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table :is(th, td):nth-child(7) {
+    padding-inline: 2px;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot :is(.recent-orders-status, .recent-orders-payment) {
+    padding-inline: 4px;
+    white-space: normal;
+    overflow-wrap: normal;
+}
+
+@container recent-orders (max-width: 680px) {
+
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table,
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot colgroup {
+        display: none;
+    }
+
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 16px;
+        padding: 16px;
+        border-bottom: 1px solid var(--executive-border);
+    }
+
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody :is(th, td) {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        text-align: left !important;
+    }
+
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody :is(th, td)::before {
+        content: attr(data-label);
+        color: var(--executive-secondary);
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody td:last-child {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+@container recent-orders (min-width: 520px) and (max-width: 680px) {
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot tbody tr { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot tbody th:first-child { grid-column: span 2; }
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot .recent-orders-table tbody td:last-child { grid-column: auto; }
+}
+@container recent-orders (max-width: 260px) {
+    .super-admin-dashboard [data-global-dashboard] .dashboard-executive #recentOrdersSlot tbody tr { grid-template-columns: minmax(0, 1fr); }
+}

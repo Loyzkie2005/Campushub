@@ -104,6 +104,7 @@ def _monthly_buckets(start_date: date, end_date: date) -> list[tuple[date, date,
 
 def build_facility_tab_analytics(period: AnalyticsPeriod, params: dict, user=None) -> dict:
     """Build data-driven facilities analytics using database-defined physical facilities."""
+    from .dashboard_bookings import booking_request_records
     today = timezone.localdate()
     super_view = is_super_analytics(user)
     operating_hours = 8  # Standard university facility operating hours per day
@@ -126,8 +127,7 @@ def build_facility_tab_analytics(period: AnalyticsPeriod, params: dict, user=Non
         **({"check_out_date__gt": period.start} if super_view else {"check_out_date__gte": period.start}),
     )
     all_period_bookings = list(
-        Booking.objects.exclude(schedule_blocks_q())
-        .exclude(service_resources_q("facility__"))
+        booking_request_records()
         .filter(period_filter, facility_id__in=facility_ids)
         .select_related("facility")
         .order_by("booking_date", "start_time")
@@ -258,7 +258,7 @@ def build_facility_tab_analytics(period: AnalyticsPeriod, params: dict, user=Non
     ranked_facilities.sort(key=lambda x: (-x["bookings"], -(x["booked_hours"] or 0), x["name"]))
     most_frequent = ranked_facilities[0] if ranked_facilities and ranked_facilities[0]["bookings"] > 0 else None
 
-    return {
+    result = {
         "kpis": {
             "total_bookings": total_bookings,
             "approved_bookings": approved_count,
@@ -284,6 +284,10 @@ def build_facility_tab_analytics(period: AnalyticsPeriod, params: dict, user=Non
         "most_frequent": most_frequent,
         "facility_table": ranked_facilities,
     }
+    if super_view:
+        from .superadmin_analytics import enrich_facilities
+        enrich_facilities(result, period)
+    return result
 
 
 def service_request_breakdown(requests_qs, *, limit=None, by_id=False):
@@ -332,9 +336,8 @@ def build_services_tab_analytics(period: AnalyticsPeriod, params: dict, user=Non
         })
 
     # Service requests in period
-    requests_qs = Booking.objects.filter(
-        service_resources_q("facility__")
-    ).exclude(schedule_blocks_q()).filter(
+    from .dashboard_bookings import booking_request_records
+    requests_qs = booking_request_records(services=True).filter(
         created_at__date__range=(period.start, period.end)
     )
 
@@ -349,7 +352,7 @@ def build_services_tab_analytics(period: AnalyticsPeriod, params: dict, user=Non
     # Breakdown by service
     breakdown_rows = service_request_breakdown(requests_qs)
 
-    return {
+    result = {
         "services": services_list,
         "kpis": {
             "registered_services": len(services_list),
@@ -371,6 +374,10 @@ def build_services_tab_analytics(period: AnalyticsPeriod, params: dict, user=Non
             "feedback_form": "FM-USTP-Oro-BEU-Survey",
         },
     }
+    if is_super_analytics(user):
+        from .superadmin_analytics import enrich_services
+        enrich_services(result, period)
+    return result
 
 
 def build_users_tab_analytics(period: AnalyticsPeriod, params: dict, user=None) -> dict:
@@ -382,18 +389,26 @@ def build_users_tab_analytics(period: AnalyticsPeriod, params: dict, user=None) 
     mobile_qs = CampusHubUser.objects.all()
     admin_qs = User.objects.all()
 
-    total_mobile = mobile_qs.count()
-    total_admin = admin_qs.count()
+    if super_view:
+        # Batch the existing definitions; additional insights must not add account-by-account queries.
+        from .account_metrics import account_population
+        population = account_population(period)
+        mobile_counts, admin_counts = population['mobile'], population['web']
+        total_mobile, total_admin = mobile_counts['total'], admin_counts['total']
+        new_mobile, new_admin = mobile_counts['new'], admin_counts['new']
+        active_mobile, active_admin = mobile_counts['active'], admin_counts['active']
+    else:
+        total_mobile, total_admin = mobile_qs.count(), admin_qs.count()
+        new_mobile = mobile_qs.filter(created_at__date__range=(period.start, period.end)).count()
+        new_admin = admin_qs.filter(date_joined__date__range=(period.start, period.end)).count()
+        active_mobile = mobile_qs.filter(is_active=True, is_suspended=False).count()
+        active_admin = admin_qs.filter(is_active=True).count()
     total_users = total_mobile + total_admin
 
     # New registrations in period
-    new_mobile = mobile_qs.filter(created_at__date__range=(period.start, period.end)).count()
-    new_admin = admin_qs.filter(date_joined__date__range=(period.start, period.end)).count()
     new_registrations = new_mobile + new_admin
 
     # Active accounts (is_active=True, not suspended)
-    active_mobile = mobile_qs.filter(is_active=True, is_suspended=False).count()
-    active_admin = admin_qs.filter(is_active=True).count()
     active_users = active_mobile + active_admin
 
     # 2. Approved Sellers
@@ -411,26 +426,22 @@ def build_users_tab_analytics(period: AnalyticsPeriod, params: dict, user=None) 
 
     monthly_labels = []
     monthly_values = []
-    mobile_months, admin_months = {}, {}
+    registration_months = {}
     if super_view:
-        from django.db.models.functions import TruncMonth
-        mobile_months = {row['month'].date(): row['count'] for row in mobile_qs.filter(
-            created_at__date__range=(period.start, period.end)).annotate(month=TruncMonth('created_at'))
-            .values('month').annotate(count=Count('pk'))}
-        admin_months = {row['month'].date(): row['count'] for row in admin_qs.filter(
-            date_joined__date__range=(period.start, period.end)).annotate(month=TruncMonth('date_joined'))
-            .values('month').annotate(count=Count('pk'))}
+        from .dashboard_executive import registration_daily_counts
+        for day, count in registration_daily_counts(period).items():
+            month = day.replace(day=1)
+            registration_months[month] = registration_months.get(month, 0) + count
     for m_start, m_end, m_label in monthly_buckets:
-        m_mobile = mobile_months.get(m_start, 0) if super_view else mobile_qs.filter(created_at__date__range=(m_start, m_end)).count()
-        m_admin = admin_months.get(m_start, 0) if super_view else admin_qs.filter(date_joined__date__range=(m_start, m_end)).count()
         monthly_labels.append(m_label)
-        monthly_values.append(m_mobile + m_admin)
+        monthly_values.append(registration_months.get(m_start, 0) if super_view else
+            mobile_qs.filter(created_at__date__range=(m_start, m_end)).count() + admin_qs.filter(date_joined__date__range=(m_start, m_end)).count())
 
     # 4. User Distribution Breakdown
     # Mutually exclusive account roles (seller is a privilege/status, NOT an account type)
-    student_count = mobile_qs.filter(user_type=CampusHubUser.USER_TYPE_STUDENT).count()
-    faculty_count = mobile_qs.filter(user_type=CampusHubUser.USER_TYPE_FACULTY).count()
-    guest_count = mobile_qs.filter(user_type=CampusHubUser.USER_TYPE_GUEST).count()
+    student_count = mobile_counts['students'] if super_view else mobile_qs.filter(user_type=CampusHubUser.USER_TYPE_STUDENT).count()
+    faculty_count = mobile_counts['faculty'] if super_view else mobile_qs.filter(user_type=CampusHubUser.USER_TYPE_FACULTY).count()
+    guest_count = mobile_counts['guests'] if super_view else mobile_qs.filter(user_type=CampusHubUser.USER_TYPE_GUEST).count()
     other_mobile = total_mobile - (student_count + faculty_count + guest_count)
     if other_mobile > 0 and not super_view:
         student_count += other_mobile  # default fallback to student if empty
@@ -493,7 +504,7 @@ def build_users_tab_analytics(period: AnalyticsPeriod, params: dict, user=None) 
                 status__in=(SellerRequest.STATUS_APPROVED, SellerRequest.STATUS_REJECTED),
                 reviewed_at__date__range=(period.start, period.end)))))
 
-    return {
+    result = {
         "kpis": {
             "total_users": total_users,
             "new_registrations": new_registrations,
@@ -510,6 +521,10 @@ def build_users_tab_analytics(period: AnalyticsPeriod, params: dict, user=None) 
         "distribution": distribution,
         "seller_stats": seller_stats,
     }
+    if super_view:
+        from .superadmin_analytics import enrich_users
+        enrich_users(result, period)
+    return result
 
 
 def render_facility_analytics(request):

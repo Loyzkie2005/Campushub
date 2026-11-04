@@ -49,6 +49,118 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
             account_ref=f"admin:{self.seller.pk}", activity_type=code, module=module,
             activity=code + " recorded", result="success", metadata={"actor_admin_id": self.marketplace_admin.pk, **metadata})
 
+    def kpi_cards(self, response):
+        html = response.content.decode()
+        start = html.index('<section class="marketplace-overview"')
+        return html[start:html.index('</section>', start)]
+
+    def test_kpi_trends_use_real_scoped_orders_revenue_and_catalog_dates(self):
+        from datetime import date, timezone as utc_timezone
+        MarketplaceOrder.objects.all().delete()
+        Product.objects.filter(pk__in=[self.prod_approved.pk, self.prod_low.pk]).update(
+            submitted_at=datetime(2026, 1, 1, tzinfo=utc_timezone.utc))
+        added = Product.objects.create(seller=self.seller, name='New scoped review', price=10,
+            stock=10, approval_status='pending')
+        archived = Product.objects.create(seller=self.seller, name='Archived addition', price=10, is_archived=True)
+        boundary = datetime(2026, 2, 28, 16, 30, tzinfo=utc_timezone.utc)  # March1 in Manila.
+        Product.objects.filter(pk__in=[added.pk, archived.pk, self.outside_product.pk]).update(submitted_at=boundary)
+        def order(product, stamp, amount, status='pending', payment='unpaid', customization=None):
+            row = MarketplaceOrder.objects.create(product=product, product_name=product.name, quantity=1,
+                total_price=amount, status=status, payment_status=payment, completed_at=stamp if status=='completed' else None,
+                customization=customization or {})
+            MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=stamp)
+        current = datetime(2026, 3, 15, tzinfo=utc_timezone.utc)
+        previous = datetime(2026, 2, 15, tzinfo=utc_timezone.utc)
+        order(self.prod_approved, current, 300, 'completed', 'paid')
+        order(self.prod_approved, boundary, 900)
+        order(self.prod_approved, current, 900, 'completed', 'unpaid')
+        order(self.prod_approved, previous, 100, 'completed', 'paid')
+        order(self.prod_approved, previous, 900)
+        for stamp in (current, previous):
+            order(self.outside_product, stamp, 9000, 'completed', 'paid')
+            order(self.prod_approved, stamp, 9000, 'completed', 'paid',
+                {'items': [{'product_id': self.prod_approved.pk}, {'product_id': self.outside_product.pk}]})
+        params = {'period': 'custom', 'date_from': '2026-03-01', 'date_to': '2026-03-31'}
+        with timezone.override('UTC'):
+            page = self.dashboard(params)
+        data = page.context['marketplace']; cards = self.kpi_cards(page)
+        self.assertEqual((data['total_products'], data['products_added'], data['pending_listings']), (3, 1, 1))
+        self.assertEqual((data['total_orders'], data['total_sales']), (3, '300.00'))
+        self.assertEqual(data['kpi_trends']['orders']['previous_value'], 2)
+        self.assertEqual(data['kpi_trends']['revenue']['previous_value'], 100)
+        self.assertEqual(data['kpi_trends']['orders']['label'], '+50%')
+        self.assertEqual(data['kpi_trends']['revenue']['label'], '+200%')
+        self.assertEqual(data['kpi_trends']['orders']['previous_start_date'], '2026-01-29')
+        self.assertEqual(data['kpi_trends']['orders']['previous_end_date'], '2026-02-28')
+        self.assertEqual(data['kpi_trends']['orders']['days'], 31)
+        self.assertIn('+1 added in selected period', cards)
+        self.assertEqual(cards.count('class="marketplace-kpi-pending-indicator"'), 1)
+        self.assertEqual(cards.count('vs. previous period</small>'), 2)
+        destination = os.environ.get('MARKETPLACE_KPI_REVIEW_DIR')
+        if destination:
+            target = Path(destination); target.mkdir(parents=True, exist_ok=True)
+            (target / 'pending.html').write_bytes(page.content)
+        # Catalog/pending remain current snapshots when the selected dates change.
+        prior = self.dashboard({'period': 'custom', 'date_from': '2026-01-29', 'date_to': '2026-02-28'}).context['marketplace']
+        self.assertEqual((prior['total_products'], prior['pending_listings'], prior['products_added']), (3, 1, 0))
+
+    def test_kpi_trend_states_and_inline_copy_with_actual_period_records(self):
+        from datetime import timezone as utc_timezone
+        params = {'period': 'custom', 'date_from': '2026-03-01', 'date_to': '2026-03-31'}
+        cases = [('positive', 3, 2, 300, 100, '+50%', '+200%'),
+                 ('negative', 1, 2, 50, 100, '\u221250%', '\u221250%'),
+                 ('equal', 2, 2, 100, 100, '', ''), ('zero', 0, 0, 0, 0, '', ''),
+                 ('new', 1, 0, 100, 0, '\u2197 New Orders', ''),
+                 ('zero-current', 0, 1, 0, 100, '\u2212100%', '\u2212100%')]
+        for name, count, old_count, amount, old_amount, order_label, revenue_label in cases:
+            with self.subTest(name=name):
+                MarketplaceOrder.objects.all().delete()
+                for size, total, month in [(count, amount, 3), (old_count, old_amount, 2)]:
+                    stamp = datetime(2026, month, 15, 12, tzinfo=utc_timezone.utc)
+                    for number in range(size):
+                        paid = number == 0 and total > 0
+                        row = MarketplaceOrder.objects.create(product=self.prod_approved, product_name=self.prod_approved.name,
+                            quantity=1, total_price=total if paid else 10, status='completed' if paid else 'pending',
+                            payment_status='paid' if paid else 'unpaid', completed_at=stamp if paid else None)
+                        MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=stamp)
+                page = self.dashboard(params); data = page.context['marketplace']; cards = self.kpi_cards(page)
+                self.assertEqual(data['total_orders'], count)
+                for key, expected in [('orders', order_label), ('revenue', revenue_label)]:
+                    trend = data['kpi_trends'][key]
+                    self.assertEqual(trend['label'] if trend and trend['visible'] else '', expected)
+                    self.assertEqual(f'data-kpi-trend="{key}"' in cards, bool(expected))
+                self.assertEqual(cards.count('vs. previous period</small>'), bool(order_label) + bool(revenue_label))
+                self.assertNotIn('N/A', cards)
+                self.assertNotIn('0.0%', cards)
+                self.assertEqual(cards.count('class="dashboard-stat-card h-100"'), 4)
+                self.assertNotIn('marketplace-kpi-pending-indicator', cards)
+                destination = os.environ.get('MARKETPLACE_KPI_REVIEW_DIR')
+                if destination:
+                    target = Path(destination); target.mkdir(parents=True, exist_ok=True)
+                    (target / (name + '.html')).write_bytes(page.content)
+
+    def test_kpi_unavailable_comparisons_hide_without_changing_other_data(self):
+        from unittest.mock import patch
+        from django.db import DatabaseError
+        baseline = self.dashboard().context['marketplace']
+        with patch('modules.reports.marketplace_kpi_trends.Sum', side_effect=DatabaseError('comparison unavailable')):
+            page = self.dashboard()
+        data = page.context['marketplace']
+        for key in ('total_products', 'pending_listings', 'total_orders', 'total_sales', 'sales_chart', 'product_approval_summary'):
+            self.assertEqual(data[key], baseline[key])
+        self.assertFalse(data['kpi_trends']['available'])
+        self.assertNotIn('data-kpi-trend=', self.kpi_cards(page))
+        self.assertNotIn('vs. previous period', self.kpi_cards(page))
+        destination = os.environ.get('MARKETPLACE_KPI_REVIEW_DIR')
+        if destination:
+            target = Path(destination); target.mkdir(parents=True, exist_ok=True)
+            (target / 'unavailable.html').write_bytes(page.content)
+        invalid = self.client.get(reverse('admin_dashboard_page'), {'period':'custom', 'date_from':'invalid', 'date_to':'2026-03-31'})
+        self.assertEqual(invalid.status_code, 400)
+        self.assertFalse(invalid.context['marketplace']['kpi_trends']['available'])
+        self.assertIsNone(invalid.context['marketplace']['products_added'])
+        self.assertNotIn('data-kpi-trend=', self.kpi_cards(invalid))
+
     def test_header_uses_authenticated_name_one_external_filter_and_compact_revenue(self):
         self.marketplace_admin.first_name = 'Lester <Admin>'
         self.marketplace_admin.last_name = 'Bulay'
@@ -59,6 +171,8 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.assertIn('Welcome back, Lester &lt;Admin&gt;!', header)
         self.assertNotIn('Bulay', header)
         self.assertIn("Here's what's happening in your marketplace today.", header)
+        self.assertLess(header.index('class="marketplace-reporting-controls"'),
+                        header.index('class="marketplace-welcome-copy"'))
         self.assertContains(page, 'id="salesPeriodSelect"', count=1)
         self.assertContains(page, 'id="salesCustomDates"', count=1)
         for control in ['salesPeriodSelect', 'salesDateFrom', 'salesDateTo', 'salesApplyCustom']:
@@ -70,9 +184,9 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.assertIn('name="retained" value="yes"', form)
         self.assertIn('<option value="weekly" selected>', form)
         revenue = re.search(r'<article class="dashboard-stat-card h-100">(?:(?!</article>).)*Marketplace Revenue.*?</article>', html, re.S).group()
-        self.assertIn('vs. previous period', revenue)
+        self.assertIn('Completed and paid orders', revenue)
         self.assertNotIn('Recognized in period', revenue)
-        self.assertNotIn('marketplace-kpi-note', revenue)
+        self.assertNotIn('&mdash; vs. previous period', revenue)
         self.assertIn('Recognized in selected period', html)
         self.assertIn('Previous period:', html)
         self.assertNotIn('admin_dashboard_filter.js', html)
@@ -80,6 +194,66 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.marketplace_admin.first_name = self.marketplace_admin.last_name = ''
         self.marketplace_admin.save(update_fields=['first_name', 'last_name'])
         self.assertContains(self.dashboard(), f'Welcome back, {self.marketplace_admin.username}!')
+
+    def test_compact_bundle_dashboard_keeps_saved_summary_and_existing_workspace(self):
+        from api.models import BundleRecommendation
+        a, b = sorted([self.prod_approved, self.prod_low], key=lambda product: product.pk)
+        BundleRecommendation.objects.create(product_a=a, product_b=b)
+        page = self.dashboard()
+        self.assertTemplateUsed(page, 'marketplace/partials/dashboard_bundle_summary.html')
+        self.assertContains(page, 'Saved Recommendations')
+        self.assertContains(page, 'Awaiting Seller Response')
+        self.assertContains(page, 'Current saved product bundle recommendations.')
+        for label in ('Analyzed Baskets', 'Analysis Summary', 'Seller Response Rate', 'Bundle Creation Rate', 'Bundles Created'):
+            self.assertNotContains(page, label)
+        summary = page.context['marketplace']['bundle_analysis']['dashboard_summary']
+        self.assertEqual(summary['suggested'], 1)
+        self.assertContains(page, reverse('bundle_monitor_list'))
+        self.assertEqual(self.client.get(reverse('bundle_monitor_list')).status_code, 200)
+
+    def test_attention_and_inventory_links_match_existing_destination_permissions(self):
+        from unittest.mock import patch
+        denied = {'can_manage_products', 'can_approve_products', 'can_view_products',
+                  'can_view_inventory', 'can_view_stock_movements', 'can_manage_sellers',
+                  'can_view_sellers', 'can_manage_orders', 'can_view_orders', 'can_view_user_monitoring',
+                  'can_view_marketplace_analytics'}
+        original = User.has_perm
+        def scoped_permission(actor, permission, obj=None):
+            if actor.pk == self.marketplace_admin.pk and permission.removeprefix('accounts.') in denied:
+                return False
+            return original(actor, permission, obj)
+        with patch.object(User, 'has_perm', autospec=True, side_effect=scoped_permission):
+            page = self.dashboard()
+        keys = {row['key'] for row in page.context['marketplace']['attention_required']['items']}
+        self.assertFalse(keys & {'low_stock_products', 'out_of_stock_products', 'pending_products', 'pending_sellers', 'pending_orders'})
+        self.assertNotContains(page, 'View All Inventory')
+        self.assertNotContains(page, 'View All Orders')
+        self.assertNotContains(page, 'View All Activities')
+        self.assertNotContains(page, 'View Detailed Analytics')
+        self.assertNotContains(page, 'View Recommendations')
+
+    def test_marketplace_and_super_totals_follow_scope_and_current_catalog_not_hardcoded_values(self):
+        archived = Product.objects.create(seller=self.seller, name='Archived scoped item', stock=10,
+                                          price=10, is_archived=True)
+        data = self.dashboard().context['marketplace']
+        from accounts.academic import scope_products
+        from modules.marketplace.services.order_access import admin_order_queryset
+        current = Product.objects.filter(is_archived=False)
+        self.assertEqual(data['total_products'], scope_products(current, self.marketplace_admin).count())
+        self.assertLess(data['total_products'], current.count())
+        self.assertNotIn(archived.pk, scope_products(current, self.marketplace_admin).values_list('pk', flat=True))
+        period = data['sales_period']
+        self.assertEqual(data['total_orders'], admin_order_queryset(self.marketplace_admin).filter(
+            created_at__date__range=(period.start, period.end)).count())
+
+    def test_activity_view_all_and_timestamp_use_existing_monitoring_permission(self):
+        self.event(product_id=self.prod_approved.pk)
+        page = self.dashboard()
+        event = page.context['marketplace']['activities'][0]
+        self.assertContains(page, 'datetime="' + event['date_iso'] + '"')
+        if self.marketplace_admin.has_perm('accounts.can_view_user_monitoring'):
+            self.assertContains(page, 'View All Activities')
+            self.assertEqual(self.client.get(reverse('admin_user_monitoring_page')).status_code, 200)
 
     def test_header_timestamp_is_explicitly_philippine_local_response_time(self):
         from datetime import timezone as datetime_timezone
@@ -111,6 +285,11 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
                     self.assertIn(f'<option value="{params["period"]}" selected>', header)
                     self.assertIn(data['sales_period'].start.strftime('%b') + ' ' + str(data['sales_period'].start.day), header)
                     self.assertEqual(data['sales_overview']['comparison']['days'], data['sales_period'].days)
+                    trend = data['kpi_trends']['orders']
+                    comparison = data['sales_overview']['comparison']
+                    self.assertEqual(trend['previous_start_date'], comparison['start'].isoformat())
+                    self.assertEqual(trend['previous_end_date'], comparison['end'].isoformat())
+                    self.assertEqual(trend['days'], data['sales_period'].days)
 
     def test_major_scope_covers_all_sections_and_ajax(self):
         response = self.dashboard()
@@ -300,6 +479,9 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.assertEqual(items["pending_orders"]["url"], reverse("admin_orders_page") + "?status=pending")
         self.assertTemplateUsed(response, "dashboard/partials/attention_required.html")
         self.assertContains(response, 'id="dashboardAttentionTitle"', count=1)
+        self.assertContains(response, 'class="dashboard-attention-summary"', count=len(items))
+        self.assertContains(response, 'dashboard-attention--compact', count=1)
+        self.assertContains(response, 'components/css/admin_dashboard_attention.css', count=1)
         for key in ("pending_bookings", "maintenance_facilities", "booking_conflicts", "backup_warning"):
             self.assertNotIn(key, items)
         self.assertEqual(self.dashboard({"period": "90", "grouping": "monthly"}).context["marketplace"]["attention_required"], attention)
@@ -337,7 +519,13 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
             root.joinpath(grouping+'.html').write_bytes(self.dashboard({'period':'90','grouping':grouping}).content)
         root.joinpath("order.html").write_bytes(self.client.get(reverse("admin_orders_page"),
             {"search": self.order_completed.order_code, "order": self.order_completed.pk}).content)
+        for order in response.context['marketplace']['recent_orders']:
+            preview = self.client.get(reverse('admin_orders_page'), {'order': order['id'], 'format': 'dashboard-order'})
+            self.assertEqual(preview.status_code, 200)
+            root.joinpath(f"preview-{order['id']}.html").write_bytes(preview.content)
         root.joinpath("data.json").write_text(json.dumps(response.context["marketplace"], default=str), encoding="utf-8")
+        BundleRecommendation.objects.all().delete()
+        root.joinpath("no-bundles.html").write_bytes(self.dashboard().content)
         Product.objects.filter(seller=self.seller).update(is_archived=True)
         MarketplaceOrder.objects.filter(product__seller=self.seller).delete()
         AccountActivity.objects.all().delete()
@@ -464,7 +652,7 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
         positions = [html.index(anchor) for anchor in anchors]
         self.assertEqual(positions, sorted(positions))
         self.assertNotContains(page, 'sellerOverviewTitle')
-        self.assertContains(page, 'class="marketplace-summary-left"')
+        self.assertNotContains(page, 'class="marketplace-summary-left"')
         self.assertContains(page, 'Marketplace Revenue')
         self.assertContains(page, 'No Bundle Suggestions Yet')
         self.assertContains(page, 'Completed and paid marketplace orders')
@@ -654,7 +842,7 @@ class MarketplaceAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
             value = {'empty': '&mdash;', 'zero': '&#8369;0.00', 'positive': '&#8369;1,250.50'}[name]
             self.assertInHTML(f'<strong>{value}</strong>',average_html)
             self.assertIsNone(metric['comparison']['change'])
-            self.assertContains(page, 'No eligible completed and paid orders are available for this average.', count=1 if amount is None else 0)
+            self.assertNotContains(page, 'No eligible completed and paid orders are available for this average.')
             self.export_sales_trend_review('average-' + name, page)
 
     def test_marketplace_comparisons_reuse_one_aggregate_and_actual_equivalent_dates(self):

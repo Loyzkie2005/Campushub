@@ -138,7 +138,13 @@ class FacilityAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.assertContains(response, '?action=upload-schedule')
         self.assertContains(response, reverse('admin_booking_details_page', args=['review-me']))
         self.assertContains(response, 'Review Queue')
-        self.assertContains(response, 'No verified facility receipts recorded yet.')
+        self.assertNotContains(response, 'Payment Overview')
+        self.assertNotContains(response, 'fd-payments')
+        self.assertContains(response, 'View Full Calendar')
+        self.assertContains(response, reverse('admin_calendar_page'))
+        self.assertContains(response, 'fd-schedule-grid')
+        self.assertContains(response, 'status=maintenance')
+        self.assertContains(response, 'fd-booking-id')
         self.assertNotContains(response, 'Marketplace Sales')
         # Rendered, isolated test fixtures for browser QA; never live dashboard data.
         if preview := os.environ.get('FACILITY_DASHBOARD_PREVIEW_DIR'):
@@ -155,4 +161,42 @@ class FacilityAdminDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.assertFalse(result['can_view_payments'])
         self.client.logout()
         self.assertEqual(self.client.get(reverse('admin_dashboard_page')).status_code, 302)
+
+    def test_activity_references_use_scoped_records_and_existing_authorized_routes(self):
+        for key, details in [('booking-updated', {'booking_id': self.booking_upcoming.pk}),
+                ('facility-updated', {'facility_id': self.fac_court.pk, 'facility_name': self.fac_court.facility_name}),
+                ('unknown-booking', {'facility_id': self.fac_court.pk, 'booking_id': 'not-a-real-booking'})]:
+            AccountActivity.objects.create(account_source='admin', result='success', activity_type='updated',
+                activity=key, module='Facility Bookings', metadata=details)
+        rows = {row['message']: row for row in self.data()['activities']}
+        self.assertEqual(rows['booking-updated']['reference'], self.booking_upcoming.pk)
+        self.assertEqual(rows['booking-updated']['url'], reverse('admin_booking_details_page', args=[self.booking_upcoming.pk]))
+        self.assertTrue(rows['booking-updated']['is_booking'])
+        self.assertIn('facility=', rows['facility-updated']['url'])
+        self.assertEqual(rows['facility-updated']['reference'], self.fac_court.facility_name)
+        self.assertNotIn('not-a-real-booking', rows['unknown-booking']['url'])
+        restricted = facility_admin_dashboard(RequestFactory().get('/'), SimpleNamespace(has_perm=lambda code: False))
+        self.assertFalse(any(row['url'] for row in restricted['activities']))
+        self.assertEqual(rows['facility-updated']['performed_by'], 'Actor not recorded')
+        self.client.force_login(self.facilities_admin)
+        response = self.client.get(reverse('admin_dashboard_page'))
+        self.assertContains(response, 'fd-activity-copy')
+        self.assertContains(response, 'View Details')
+        if preview := os.environ.get('FACILITY_DASHBOARD_PREVIEW_DIR'):
+            (Path(preview)/'fixture-activities.html').write_bytes(response.content)
+
+    def test_empty_dashboard_remains_compact_and_keeps_receipts_backend_available(self):
+        Booking.objects.all().delete()
+        Facility.objects.all().delete()
+        self.client.force_login(self.facilities_admin)
+        response = self.client.get(reverse('admin_dashboard_page'))
+        self.assertContains(response, 'No booking requests in this period.')
+        self.assertContains(response, 'class="fd-chart" hidden')
+        self.assertContains(response, 'No pending booking requests.')
+        self.assertContains(response, 'No upcoming approved reservations.')
+        self.assertNotContains(response, 'Payment Overview')
+        self.assertIn('payment_stats', response.context['facilities'])
+        self.assertNotContains(response, 'No schedule issues detected.')
+        if preview := os.environ.get('FACILITY_DASHBOARD_PREVIEW_DIR'):
+            (Path(preview)/'fixture-empty.html').write_bytes(response.content)
 

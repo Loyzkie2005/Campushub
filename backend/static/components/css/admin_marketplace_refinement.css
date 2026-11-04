@@ -1,0 +1,189 @@
+/* Marketplace-only follow-up. Shared Analytics tabs and the Dashboard keep their layouts. */
+/* Reuse Dashboard card/icon class names and its final summary/operations/refinement dimensions. */
+.marketplace-refined .marketplace-performance-kpis { grid-auto-rows: 1fr; }
+.marketplace-refined .marketplace-performance-kpis > .dashboard-stat-card {
+    display: grid; grid-template-columns: minmax(0, 1fr) 32px; grid-template-rows: auto auto 1fr;
+    align-content: start; align-items: center; min-height: 144px; min-width: 0;
+    padding: 16px; gap: 6px 10px; border: 1px solid var(--analytics-line); border-radius: 10px;
+    background: var(--analytics-white); color: var(--analytics-navy); box-shadow: none;
+}
+.marketplace-refined .marketplace-performance-kpis .dashboard-stat-icon {
+    grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 32px; height: 32px;
+    border: 1px solid rgba(26, 24, 81, .1); border-radius: 8px;
+    background: rgba(26, 24, 81, .05); color: var(--analytics-navy);
+}
+.marketplace-refined .marketplace-performance-kpis .dashboard-stat-icon svg { width: 18px; height: 18px; }
+.marketplace-refined .marketplace-performance-kpis .dashboard-stat-card > span {
+    grid-column: 1; grid-row: 1; margin: 0; color: var(--analytics-navy);
+    font-size: 13px; font-weight: 500; line-height: 1.4;
+}
+.marketplace-refined .marketplace-performance-kpis .dashboard-stat-card > strong {
+    grid-column: 1 / -1; grid-row: 2; margin: 0; min-width: 0;
+    font-size: 28px; font-weight: 700; line-height: 1.25; letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.marketplace-refined .marketplace-performance-kpis .dashboard-stat-card > small {
+    grid-column: 1 / -1; grid-row: 3; align-self: start; margin: 0;
+    color: var(--analytics-muted); font-size: 11px; line-height: 1.4;
+}
+.marketplace-refined .marketplace-compact-empty { margin: 0; padding: 8px 0; color: var(--analytics-muted); font-size: 13px; line-height: 1.7; }
+.marketplace-refined .analytics-empty-state { padding: 8px 0; }
+.marketplace-refined .analytics-empty-state strong { font-size: 13px; font-weight: 500; }
+.marketplace-refined .analytics-empty-state span { font-size: 12px; }
+.marketplace-refined .analytics-method-note { margin: 8px 0; }
+.marketplace-refined .analytics-kpi > small { line-height: 1.5; }
+.marketplace-refined .analytics-chart { height: 240px; }
+.marketplace-refined .analytics-chart-data .table-responsive { max-height: 160px; }
+.marketplace-refined .analytics-panel-header { margin-bottom: 12px; }
+.marketplace-refined .analytics-panel-header p { margin-top: 4px; }
+.marketplace-refined .marketplace-growth dl { margin-block: 12px 0; }
+.marketplace-refined .marketplace-growth dl > div { padding-block: 8px; }
+.marketplace-refined .marketplace-growth > strong { font-size: 22px; }
+.marketplace-refined .marketplace-stock-health { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 12px; }
+.marketplace-refined .marketplace-stock-health > div { min-width: 0; padding: 8px 0; }
+.marketplace-refined .marketplace-stock-health dt { color: var(--analytics-muted); font-size: 12px; font-weight: 500; }
+.marketplace-refined .marketplace-stock-health dd { margin: 4px 0 0; color: var(--analytics-navy); font-size: 22px; font-weight: 600; }
+.marketplace-refined .marketplace-seller-stack { display: grid; gap: 16px; min-width: 0; align-content: start; }
+.marketplace-refined .marketplace-seller-performance .analytics-table { min-width: 800px; }
+.marketplace-refined .marketplace-seller-performance :is(th, td):nth-child(2),
+.marketplace-refined .marketplace-seller-fulfillment :is(th, td):first-child { min-width: 180px; }
+.marketplace-refined .marketplace-payment-pair { align-items: stretch; }
+.marketplace-refined .marketplace-chart-donut { height: 200px; max-width: 280px; }
+.marketplace-refined .analytics-category-bars { margin-top: 8px; }
+.marketplace-refined .analytics-table caption { font-size: 12px; }
+/* Five Product & Inventory components: paired rankings, full-width inventory, paired efficiency/variants. */
+.marketplace-refined .marketplace-product-grid { align-items: start; }
+.marketplace-refined .marketplace-product-grid .analytics-table { min-width: 480px; }
+.marketplace-refined .marketplace-product-grid .table-responsive { max-height: none; }
+@media (min-width: 600px) {
+    .marketplace-refined .analytics-chart { height: 280px; }
+    .marketplace-refined .marketplace-chart-donut { height: 220px; }
+    .marketplace-refined .marketplace-stock-health { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1200px) {
+    .marketplace-refined .analytics-sales-panel .analytics-chart { height: 300px; }
+}
+/* Two content-sized revenue rows; summary cards do not inherit tall chart heights. */
+.marketplace-refined .marketplace-revenue-grid { grid-template-columns: minmax(0, 1fr); align-items: start; }
+.marketplace-refined .marketplace-revenue-grid > .analytics-panel { min-width: 0; height: auto; }
+.marketplace-refined .marketplace-revenue-grid > .analytics-sales-panel { grid-column: auto; }
+.marketplace-refined .marketplace-revenue-grid > .analytics-sales-panel { display: flex; flex-direction: column; }
+.marketplace-refined .marketplace-chart-empty {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 0; padding: 16px 8px; gap: 8px; text-align: center;
+}
+.marketplace-refined .marketplace-chart-empty .marketplace-empty-icon {
+    flex: none; width: 28px; height: 28px; color: var(--analytics-muted);
+}
+.marketplace-refined .marketplace-chart-empty > strong { color: var(--analytics-navy); font-weight: 600; }
+.marketplace-refined .marketplace-chart-empty > span { max-width: 44ch; margin: 0; line-height: 1.6; }
+.marketplace-refined .marketplace-revenue-grid .marketplace-growth dl > div { display: flex; flex-wrap: wrap; gap: 4px 10px; padding-block: 8px; }
+.marketplace-refined .marketplace-revenue-grid .marketplace-growth dd { font-size: 13px; overflow-wrap: anywhere; }
+/* Sales Growth alone: a leading percentage and two compact revenue areas. */
+.marketplace-refined .marketplace-growth-card .marketplace-growth > strong {
+    margin: 0; color: var(--analytics-navy); font-size: 32px; font-weight: 700;
+    line-height: 1.2; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.marketplace-refined .marketplace-growth-card .marketplace-growth dl {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 16px 0 0;
+}
+.marketplace-refined .marketplace-revenue-grid .marketplace-growth-card .marketplace-growth dl > div {
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start;
+    min-width: 0; padding: 8px; gap: 4px; border: 1px solid var(--analytics-line);
+    border-radius: 8px; background: var(--analytics-page);
+}
+.marketplace-refined .marketplace-growth-card .marketplace-growth dt {
+    font-size: 12px; line-height: 1.5; overflow-wrap: anywhere;
+}
+.marketplace-refined .marketplace-revenue-grid .marketplace-growth-card .marketplace-growth dd {
+    color: var(--analytics-navy); font-size: 16px; font-weight: 600; line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+}
+.marketplace-refined .marketplace-growth-card .analytics-method-note { margin: 12px 0 0; line-height: 1.6; }
+/* Order Volume owns the submission comparison; status detail stays in its separate card. */
+.marketplace-refined .marketplace-order-comparison {
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 0;
+}
+.marketplace-refined .marketplace-order-comparison > div {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    min-width: 0; padding: 8px; border: 1px solid var(--analytics-line); border-radius: 8px;
+    background: var(--analytics-page);
+}
+.marketplace-refined .marketplace-order-comparison dt {
+    min-width: 0; margin: 0; color: var(--analytics-muted); font-size: 12px; font-weight: 400;
+    line-height: 1.5; overflow-wrap: anywhere;
+}
+.marketplace-refined .marketplace-order-comparison dd {
+    margin: 0; color: var(--analytics-navy); font-size: 18px; font-weight: 600;
+    line-height: 1.4; font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.marketplace-refined .marketplace-order-comparison-note { margin: 8px 0 16px; }
+/* Only Orders & Payments adopts these compact Dashboard-style cards and breakdowns. */
+.marketplace-refined .marketplace-orders-section .marketplace-operational-kpis { align-items: stretch; }
+.marketplace-refined .marketplace-orders-section .dashboard-stat-icon { align-self: start; }
+.marketplace-refined .marketplace-orders-section .analytics-panel { padding: 16px; }
+.marketplace-refined .marketplace-orders-section .marketplace-payment-pair { align-items: start; }
+.marketplace-refined .marketplace-orders-section .analytics-chart { height: 240px; }
+.marketplace-refined .marketplace-orders-section .analytics-chart-data .table-responsive { max-height: none; overflow: visible; }
+.marketplace-refined .marketplace-orders-section .analytics-chart-data .analytics-table { min-width: 0; table-layout: fixed; width: 100%; }
+.marketplace-refined .marketplace-order-data { margin-top: 12px; }
+.marketplace-refined .marketplace-order-data summary { width: fit-content; color: var(--analytics-navy); font-size: 12px; font-weight: 500; cursor: pointer; }
+.marketplace-refined .marketplace-order-data summary:focus-visible { outline: 2px solid var(--analytics-navy); outline-offset: 4px; }
+.marketplace-refined .marketplace-orders-section .analytics-status-row { margin-bottom: 16px; }
+.marketplace-refined .marketplace-orders-section .analytics-status-row:last-child { margin-bottom: 0; }
+.marketplace-refined .marketplace-orders-section .analytics-status-info { gap: 8px; color: var(--analytics-navy); font-size: 12px; }
+.marketplace-refined .marketplace-orders-section .analytics-status-info > span { min-width: 0; overflow-wrap: anywhere; }
+.marketplace-refined .marketplace-orders-section .analytics-status-info a { color: var(--analytics-navy); text-decoration: none; }
+.marketplace-refined .marketplace-orders-section .analytics-status-info a:is(:hover, :focus-visible) { text-decoration: underline; }
+.marketplace-refined .marketplace-order-distribution-card { container-type: inline-size; }
+.marketplace-refined .marketplace-order-distribution-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 16px; min-width: 0; }
+.marketplace-refined .marketplace-order-distribution-layout .marketplace-order-donut { width: min(100%, 160px); height: 160px; margin-inline: auto; }
+.marketplace-refined .marketplace-order-distribution { min-width: 0; width: 100%; margin: 0; }
+.marketplace-refined .marketplace-order-distribution > div { padding: 8px 0; }
+.marketplace-refined .marketplace-order-distribution dt { display: flex; align-items: baseline; gap: 8px; color: var(--analytics-navy); font-size: 12px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
+.marketplace-refined .marketplace-order-indicator { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--analytics-muted); }
+.marketplace-refined .marketplace-order-distribution dd { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 4px 0 0 16px; font-size: 12px; line-height: 1.5; }
+.marketplace-refined .marketplace-order-distribution dd > span { color: var(--analytics-muted); }
+@container (min-width: 320px) {
+    .marketplace-refined .marketplace-order-distribution-layout { grid-template-columns: 140px minmax(0, 1fr); }
+    .marketplace-refined .marketplace-order-distribution-layout .marketplace-order-donut { width: 140px; height: 140px; }
+}
+@media (min-width: 900px) {
+    .marketplace-refined .marketplace-orders-section .marketplace-operational-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 600px) {
+    .marketplace-refined .marketplace-order-comparison { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .marketplace-refined .marketplace-order-comparison > div { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+.marketplace-refined .marketplace-revenue-grid .analytics-chart-data .analytics-table { min-width: 240px; table-layout: auto; font-size: 11px; }
+.marketplace-refined .marketplace-revenue-grid .analytics-chart-data :is(th, td) { padding: 8px; }
+.marketplace-refined .marketplace-revenue-grid .marketplace-category-card { display: flex; flex-direction: column; container-type: inline-size; }
+.marketplace-refined .marketplace-revenue-grid .marketplace-category-layout { flex: 1; align-items: center; align-content: center; }
+.marketplace-refined .marketplace-revenue-grid .marketplace-category-donut { position: relative; width: min(100%, 160px); height: 160px; }
+.marketplace-refined .marketplace-category-total { position: absolute; inset: 30% 16%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; pointer-events: none; color: var(--analytics-navy); }
+.marketplace-refined .marketplace-category-total > span { font-size: 10px; line-height: 1.2; }
+.marketplace-refined .marketplace-category-total > strong { width: 100%; text-align: center; font-size: 12px; line-height: 1.2; overflow-wrap: anywhere; }
+.marketplace-refined .marketplace-category-legend { min-width: 0; width: 100%; margin: 0; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.marketplace-refined .marketplace-category-legend:focus-visible { outline: 2px solid var(--analytics-navy); outline-offset: 3px; }
+.marketplace-refined .marketplace-category-legend > div { padding: 10px 0; border-bottom: 1px solid var(--analytics-line); }
+.marketplace-refined .marketplace-category-legend > div:last-child { border-bottom: 0; }
+.marketplace-refined .marketplace-category-legend dt { display: flex; align-items: baseline; gap: 6px; margin: 0; color: var(--analytics-navy); font-size: 12px; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
+.marketplace-refined .marketplace-category-indicator { display: inline-block; flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--analytics-muted); }
+.marketplace-refined .marketplace-category-legend dd { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: space-between; margin: 4px 0 0 14px; font-size: 11px; line-height: 1.5; }
+.marketplace-refined .marketplace-category-legend dd strong { font-weight: 600; overflow-wrap: anywhere; }
+.marketplace-refined .marketplace-category-legend dd > span { color: var(--analytics-muted); }
+@container (min-width: 240px) {
+    .marketplace-refined .marketplace-revenue-grid .marketplace-category-layout { grid-template-columns: 104px minmax(120px, 1fr); gap: 12px; }
+    .marketplace-refined .marketplace-revenue-grid .marketplace-category-donut { width: 104px; height: 104px; }
+}
+@container (min-width: 320px) {
+    .marketplace-refined .marketplace-revenue-grid .marketplace-category-layout { grid-template-columns: 144px minmax(150px, 1fr); gap: 16px; }
+    .marketplace-refined .marketplace-revenue-grid .marketplace-category-donut { width: 144px; height: 144px; }
+}
+@media (min-width: 1200px) {
+    .marketplace-refined .marketplace-revenue-primary { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+    .marketplace-refined .marketplace-revenue-secondary { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    .marketplace-refined .marketplace-revenue-grid > .analytics-sales-panel { grid-column: auto; }
+    .marketplace-refined .marketplace-revenue-grid .analytics-chart { height: 280px; }
+    .marketplace-refined .marketplace-revenue-grid .analytics-chart-data .table-responsive { max-height: 140px; }
+}

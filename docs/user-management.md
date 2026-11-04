@@ -1,4 +1,54 @@
-# User Management: roles, academic scope, seller access and account safety
+# User Management: roles, academic scope, seller access and account safety
+
+## Web Admin Back/Forward Browser Navigation & Logout Enforcement (October 27, 2026)
+
+### 1. Cause / Reason
+Confirmed by code inspection across `admin_session.js`, `admin_login.js`, `admin_tab_bootstrap.html`, `AdminTabAuthMiddleware`, `admin_login_page`, `admin_logout_page`, and `admin_session_status`:
+1. **`bootstrapTokenFromUrl()` re-saved stale URL tokens on Back/Forward**: Every admin page URL kept `?__at=<token>` in browser history (`window.history.replaceState` and rewritten links). When an administrator clicked the browser **Back** or **Forward** button, `bootstrapTokenFromUrl()` read `?__at=<token>` from the history entry URL and called `setTabToken(urlToken)`, automatically re-saving the token into `sessionStorage` instead of logging out.
+2. **Missing `Cache-Control: no-store` headers on admin HTML responses**: `AdminTabAuthMiddleware`, `admin_login_page`, and `admin_logout_page` did not set `Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0`, allowing the browser's Back-Forward Cache (bfcache) or disk cache to restore authenticated admin pages without contacting Django.
+3. **Returning to Login (`/`) or clicking Logout left `sessionStorage` active**: Clicking Logout (`a[href*="admin-logout"]`) or pressing **Back** to return to the Admin Login page (`/`) never called `clearTabToken()` in `sessionStorage`, and `admin_login_page` did not revoke an incoming tab token. Furthermore, `admin_session_status` (`/api/admin/session/`) used `@login_required(login_url="admin_login_page")`, which returned a `302 -> 200 OK` HTML login page instead of a `401` JSON response when unauthenticated, causing `verifySession()`'s `response.json()` to throw a `SyntaxError` that was silently ignored.
+
+### 2. Exact Files Changed
+| File | Current Line / Anchor | Summary of Changes |
+|---|---|---|
+| `backend/core/accounts/middleware.py` | Lines 19–75 (`_should_disable_browser_cache`, `_apply_no_store_headers`, `AdminTabAuthMiddleware.__call__`) | Added `private, no-store, no-cache, must-revalidate, max-age=0` headers to all admin HTML, login, logout, and session-check responses; redirected invalid/revoked `?__at=` tokens on admin HTML routes directly to `admin_login_page` (`/`). |
+| `backend/core/accounts/views.py` | Lines 128–159 (`admin_login_page`, `admin_logout_page`) | `admin_login_page` now revokes any supplied tab token (`revoke_admin_tab_token(token)`) and sets `no-store` headers; `admin_logout_page` sets `no-store` headers on the redirect to `/`. |
+| `backend/core/api/views.py` | Lines 446–459 (`admin_session_status`) | Replaced `@login_required` HTML redirect with `@never_cache` and an explicit `401` JSON response (`{"authenticated": False}`) when `request.user` is unauthenticated or lacks admin access. |
+| `backend/static/components/js/admin_session.js` | Lines 1–289 (`isBackForwardNavigation`, `stripTokenFromAddressBar`, `revokeAndRedirectToLogin`, `pageshow`, `popstate`) | Strips `?__at=` from the visible address bar after bootstrapping (`stripTokenFromAddressBar()`), clears `sessionStorage` and sets `campushub_admin_logged_out = '1'` on Logout or Login page load, and revokes the token + redirects to `/` (`revokeAndRedirectToLogin(true)`) whenever browser Back/Forward navigation (`back_forward`, `event.persisted`, or `popstate`) occurs on an admin route. |
+| `backend/static/components/js/admin_login.js` | Lines 122–155 (`submitLogin`, `resetLoginFormState`) | Uses `window.location.replace(...)` on login success and resets the login form / revokes any lingering tab token on initial load and `pageshow`. |
+| `backend/core/modules/user_management/templates/user_management/pages/admin_tab_bootstrap.html` | Lines 10–38 (`isBackForward` check) | Blocks `sessionStorage` token re-bootstrapping when reached via browser Back/Forward (`back_forward` navigation) and redirects to logout/login instead. |
+| `backend/core/modules/user_management/templates/user_management/pages/admin_login.html` | Lines 185–186 | Bumped `admin_session.js` and `admin_login.js` asset versions to `?v=20261027-back-logout`. |
+| `backend/templates/partials/admin_header.html` | Line 107 | Bumped `admin_session.js` asset version to `?v=20261027-back-logout`. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_bookings.html`, `admin_booking_details.html`, `booking_slip.html`, `job_order.html` | Lines 201, 68, 10, 17 | Bumped `admin_session.js` asset version to `?v=20261027-back-logout`. |
+| `backend/core/accounts/tests.py` | Lines 2183–2251 (`AdminBackForwardLogoutTests`) | Added automated regression tests for `no-store` headers, token revocation on logout and login-back navigation, and `401` JSON from `admin_session_status`. |
+
+### 3. Functions, Inputs/Outputs, and Data Flow
+- **`AdminTabAuthMiddleware.__call__(self, request)`** (`backend/core/accounts/middleware.py:36`):
+  - **Input**: Django `HttpRequest` (may include `?__at=<token>` or `X-Admin-Tab-Token`).
+  - **Output**: Django `HttpResponse` with `Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0`, `Pragma: no-cache`, and `Expires: 0`.
+  - **Data Flow**: Extracts `token = get_tab_token_from_request(request)`. If `token` is present and valid (`get_user_for_tab_token(token)` returns an active `User`), attaches `request.user` and returns the view response with `no-store` headers. If `token` is present on an admin HTML route but invalid/revoked (`user is None`), immediately returns `redirect("admin_login_page")` with `no-store` headers instead of rendering `admin_tab_bootstrap.html`.
+- **`isBackForwardNavigation(pageshowEvent)` & `revokeAndRedirectToLogin(redirectToLogin)`** (`backend/static/components/js/admin_session.js:52, 108`):
+  - **Input**: Optional `PageTransitionEvent` (`pageshowEvent`) and boolean `redirectToLogin`.
+  - **Output**: Clears `campushub_admin_tab_token` from `sessionStorage`, sets `campushub_admin_logged_out = '1'`, strips `?__at=` from the URL, and either redirects the tab via `window.location.replace('/admin-logout/?__at=<token>')` (when on an admin page) or sends a background `GET /admin-logout/?__at=<token>` with `keepalive: true` (when already on `/`).
+  - **Annotated Example**:
+    ```javascript
+    // When an admin page is loaded or restored via browser Back/Forward:
+    if (isBackForwardNavigation(event) || isMarkedLoggedOut()) {
+        // Clears sessionStorage, revokes the DB AdminTabToken via /admin-logout/,
+        // and replaces the page with the Admin Login screen (/).
+        revokeAndRedirectToLogin(true);
+        return;
+    }
+    ```
+
+### 4. Verification & Safe Practice Exercise
+- **Automated Verification**: `node --check` passed on both `admin_session.js` and `admin_login.js`; `37` Django tests (`AdminBackForwardLogoutTests`, `test_recovery_eligibility`, `UserMonitoringTests`, `AdminAccessControlTests`) passed in `40.450s`.
+- **Safe Practice Exercise**:
+  1. Run only the new Back/Forward session test class from the project root:
+     ```powershell
+     .\backend\core\venv\Scripts\python.exe backend\core\manage.py test accounts.tests.AdminBackForwardLogoutTests --keepdb --noinput
+     ```
+  2. Inspect `test_returning_to_login_page_with_token_revokes_session_and_blocks_forward_navigation` in `backend/core/accounts/tests.py:2235` to see how visiting `/?__at=<token>` deletes the `AdminTabToken` row and forces a subsequent `/admin-dashboard/?__at=<token>` request to redirect (`302`) to `/`.
 
 ## Program/Major activity wording (October 11, 2026)
 

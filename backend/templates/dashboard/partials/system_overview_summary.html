@@ -1,9 +1,8 @@
-{% comment %}Preserve canonical values and date-filter hooks in a compact left grid.{% endcomment %}
+{% comment %}Preserve canonical values and date-filter hooks in a responsive full-width summary.{% endcomment %}
 <section class="executive-section executive-system-overview" aria-labelledby="systemOverviewTitle">
     <header class="dashboard-section-heading executive-section-header">
         <div><h2 id="systemOverviewTitle">System Overview</h2><p class="executive-section-subtitle">Key activity across CampusHub at a glance.</p></div>
     </header>
-<div class="dashboard-summary-layout dashboard-top-layout">
     <div class="dashboard-kpi-region dashboard-summary-left">
         <p id="dashboardKpiStale" class="dashboard-kpi-stale" role="status" hidden>Showing last loaded values. Refresh to try again.</p>
         <section class="dashboard-stats-grid dashboard-overview-kpis row g-3" data-dashboard-loading-region aria-labelledby="systemOverviewTitle" aria-describedby="dashboardKpiStale">
@@ -16,7 +15,8 @@
                                 </div>
                                 <div>
                                     <span>Total Users</span>
-                                    <strong data-dashboard-kpi="total_users">{{ dashboard_stats.total_users|default:0 }}</strong>
+                                    <small class="dashboard-kpi-basis">All web and mobile accounts</small>
+                                    {% include 'dashboard/partials/kpi_value.html' with key='total_users' value=dashboard_stats.total_users metric=dashboard_kpis.total_users currency=False only %}
                                     {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_users' metric=dashboard_kpis.total_users zero_copy='Users will appear after account registration.' %}{% endif %}
                                 </div>
                             </a>
@@ -30,6 +30,7 @@
                                 </div>
                                 <div>
                                     <span>Active Sellers</span>
+                                    <small class="dashboard-kpi-basis">Current web/mobile seller access</small>
                                     <strong data-dashboard-kpi="active_sellers">{{ dashboard_stats.active_sellers|default:0 }}</strong>
                                     {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='active_sellers' metric=dashboard_kpis.active_sellers zero_copy='No active sellers.' %}{% endif %}
                                 </div>
@@ -44,6 +45,7 @@
                                 </div>
                                 <div>
                                     <span>Total Products</span>
+                                    <small class="dashboard-kpi-basis">Current non-archived catalog</small>
                                     <strong data-dashboard-kpi="total_products">{{ dashboard_stats.total_products|default:0 }}</strong>
                                     {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_products' metric=dashboard_kpis.total_products zero_copy='No products listed.' %}{% endif %}
                                 </div>
@@ -58,22 +60,9 @@
                                 </div>
                                 <div>
                                     <span>Total Orders</span>
-                                    <strong data-dashboard-kpi="total_orders">{{ dashboard_stats.total_orders|default:0 }}</strong>
+                                    <small class="dashboard-kpi-basis">Selected submission period</small>
+                                    {% include 'dashboard/partials/kpi_value.html' with key='total_orders' value=dashboard_stats.total_orders metric=dashboard_kpis.total_orders currency=False only %}
                                     {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_orders' metric=dashboard_kpis.total_orders zero_copy='No marketplace orders yet.' %}{% endif %}
-                                </div>
-                            </a>
-                        </div>
-            <div class="col-12 col-sm-6 col-xl-3">
-                            <a class="dashboard-stat-card h-100 dashboard-kpi-link" href="{% url 'admin_marketplace_analytics_page' %}">
-                                <div class="dashboard-stat-icon">
-                                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <span>Marketplace Revenue</span>
-                                    <strong data-dashboard-kpi="marketplace_revenue">&#8369;{{ dashboard_stats.total_revenue|floatformat:"2g" }}</strong>
-                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='marketplace_revenue' metric=dashboard_kpis.marketplace_revenue zero_copy='No completed paid sales in selected period.' suppress_zero_copy=sales_overview.has_sales %}{% endif %}
                                 </div>
                             </a>
                         </div>
@@ -86,6 +75,7 @@
                                 </div>
                                 <div>
                                     <span>Total Facilities</span>
+                                    <small class="dashboard-kpi-basis">All recorded facilities</small>
                                     <strong data-dashboard-kpi="total_facilities">{{ dashboard_stats.total_facilities|default:0 }}</strong>
                                     {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_facilities' metric=dashboard_kpis.total_facilities zero_copy='No facilities configured.' %}{% endif %}
                                 </div>
@@ -100,13 +90,29 @@
                                 </div>
                                 <div>
                                     <span>Total Bookings</span>
-                                    <strong data-dashboard-kpi="total_bookings">{{ dashboard_stats.total_bookings|default:0 }}</strong>
+                                    <small class="dashboard-kpi-basis">Selected submission period</small>
+                                    {% include 'dashboard/partials/kpi_value.html' with key='total_bookings' value=dashboard_stats.total_bookings metric=dashboard_kpis.total_bookings currency=False only %}
                                     {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='total_bookings' metric=dashboard_kpis.total_bookings zero_copy='No bookings in selected period.' %}{% endif %}
                                 </div>
                             </a>
                         </div>
             <div class="col-12 col-sm-6 col-xl-3">
-                            <article class="dashboard-stat-card h-100">
+                            <a class="dashboard-stat-card h-100 dashboard-kpi-link" href="{% url 'admin_marketplace_analytics_page' %}">
+                                <div class="dashboard-stat-icon">
+                                    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span>Marketplace Sales</span>
+                                    <small class="dashboard-kpi-basis">Selected paid-sales period</small>
+                                    {% include 'dashboard/partials/kpi_value.html' with key='marketplace_revenue' value=dashboard_stats.total_revenue metric=dashboard_kpis.marketplace_revenue currency=True only %}
+                                    {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='marketplace_revenue' metric=dashboard_kpis.marketplace_revenue zero_copy='No completed paid sales in selected period.' suppress_zero_copy=sales_overview.has_sales %}{% endif %}
+                                </div>
+                            </a>
+                        </div>
+            <div class="col-12 col-sm-6 col-xl-3">
+                            <a class="dashboard-stat-card h-100 dashboard-kpi-link" href="#dashboardAttentionTitle">
                                 <div class="dashboard-stat-icon">
                                     <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -114,18 +120,12 @@
                                 </div>
                                 <div>
                                     <span>Pending Approvals</span>
+                                    <small class="dashboard-kpi-basis">Current approval queue</small>
                                     <strong data-dashboard-kpi="pending_approvals">{{ dashboard_stats.pending_approvals|default:0 }}</strong>
                                     {% if global_dashboard %}{% include 'dashboard/partials/kpi_secondary.html' with key='pending_approvals' metric=dashboard_kpis.pending_approvals zero_copy='No pending approvals.' %}{% endif %}
                                 </div>
-                            </article>
+                            </a>
                         </div>
         </section>
-        {% if global_dashboard %}{% include 'dashboard/partials/attention_required.html' %}{% endif %}
     </div>
-    {% if show_bundle_suggestions %}
-    <aside class="dashboard-summary-aside executive-bundle-panel" aria-labelledby="marketplaceRecommendationsTitle">
-    {% include 'marketplace/partials/super_recommendation_preview.html' %}
-    </aside>
-    {% endif %}
-</div>
 </section>

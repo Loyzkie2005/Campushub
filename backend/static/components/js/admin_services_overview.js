@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     title: items => rowsByChart[key][items[0]?.dataIndex]?.label || '',
                     label: context => `${numbers.format(context.parsed.y)} requests`,
                 }}},
-                scales: {x: {grid: {display: false}, ticks: {font: {family: 'Inter, sans-serif', size: 12}, color: '#626781', maxRotation: 0,
+                scales: {x: {grid: {display: false}, ticks: {font: {family: getComputedStyle(document.body).fontFamily, size: 12}, color: '#626781', maxRotation: 0,
                     autoSkip: line, maxTicksLimit: line ? 6 : undefined,
                     callback: function(value) {
                         const label = this.getLabelForValue(value);
@@ -92,13 +92,19 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTrend(services);
             draw('distribution', services.requests_by_service.map(row => ({label: row.facility__facility_name, count: row.total})));
             $('[data-service-distribution-live]').textContent = '';
+            const labels = Array.from($('[data-service-recent]').closest('table').querySelectorAll('thead th'), heading => heading.textContent.trim());
             $('[data-service-recent]').replaceChildren(...services.recent_requests.map(row => {
                 if (![row.id, row.service, row.requester, row.status, row.url].every(value => typeof value === 'string')) throw new Error('Invalid request');
                 const item = text('tr', ''), reference = text('td', ''), link = text('a', row.id);
                 link.href = localLink(row.url); reference.append(link); item.append(reference);
                 for (const value of [row.service, row.requester, row.status]) item.append(text('td', value));
                 const time = text('time', dates.format(new Date(row.submitted_at))); time.dateTime = row.submitted_at;
-                const cell = text('td', ''); cell.append(time); item.append(cell); return item;
+                const cell = text('td', ''); cell.append(time); item.append(cell);
+                item.setAttribute('role', 'row');
+                Array.from(item.children).forEach((entry, index) => {
+                    entry.dataset.label = labels[index]; entry.setAttribute('role', 'cell');
+                });
+                return item;
             }));
             $('[data-service-recent-wrap]').hidden = !services.recent_requests.length;
             $('[data-service-recent-empty]').hidden = Boolean(services.recent_requests.length);

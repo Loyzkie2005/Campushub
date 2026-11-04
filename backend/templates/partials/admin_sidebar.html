@@ -30,9 +30,9 @@
         </a>
 
         <!-- Marketplace -->
-        {% if perms.accounts.can_manage_products or perms.accounts.can_approve_products or perms.accounts.can_manage_orders or perms.accounts.can_manage_sellers or perms.accounts.can_view_products or perms.accounts.can_view_inventory or perms.accounts.can_view_stock_movements or perms.accounts.can_view_orders or perms.accounts.can_view_sellers or perms.accounts.can_view_marketplace_analytics %}
-        <div class="nav-group{% if active_page == 'products' or active_page == 'inventory' or active_page == 'orders' or active_page == 'sellers' or active_page == 'bundle_suggestions' %} open{% endif %}">
-            <button type="button" class="nav-group-toggle" aria-expanded="{% if active_page == 'products' or active_page == 'inventory' or active_page == 'orders' or active_page == 'sellers' or active_page == 'bundle_suggestions' %}true{% else %}false{% endif %}">
+        {% if perms.accounts.can_manage_products or perms.accounts.can_approve_products or perms.accounts.can_manage_orders or perms.accounts.can_manage_sellers or perms.accounts.can_view_products or perms.accounts.can_view_inventory or perms.accounts.can_view_stock_movements or perms.accounts.can_view_orders or perms.accounts.can_view_sellers %}
+        <div class="nav-group{% if active_page == 'products' or active_page == 'inventory' or active_page == 'orders' or active_page == 'sellers' %} open{% endif %}">
+            <button type="button" class="nav-group-toggle" aria-expanded="{% if active_page == 'products' or active_page == 'inventory' or active_page == 'orders' or active_page == 'sellers' %}true{% else %}false{% endif %}">
                 <span class="nav-group-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" /></svg></span>
                 <span class="nav-group-title">Marketplace</span>
             </button>
@@ -67,13 +67,6 @@
                     <span class="item-label">Seller Applications</span>
                 </a>
                 {% endif %}
-                {% if perms.accounts.can_view_marketplace_analytics and request.user.is_active and not request.user.is_suspended %}
-                {% if request.user.is_superuser or request.user.role.strip.lower == 'super admin' or request.user.role.strip.lower == 'marketplace admin' %}
-                <a href="{% url 'bundle_monitor_list' %}" class="sidebar-item{% if active_page == 'bundle_suggestions' %} active{% endif %}"{% if active_page == 'bundle_suggestions' %} aria-current="page"{% endif %}>
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path stroke-linecap="round" d="M14 6h4v4M10 18H6v-4"/></svg>
-                    <span class="item-label">Bundle Suggestions</span>
-                </a>
-                {% endif %}{% endif %}
             </div>
         </div>
         {% endif %}
@@ -176,12 +169,12 @@
         </div>
         {% endif %}
 
-        <!-- Reports -->
+        <!-- Reports & Analytics -->
         {% if perms.accounts.can_view_reports or perms.accounts.can_generate_reports or perms.accounts.can_view_marketplace_reports or perms.accounts.can_view_facility_reports or perms.accounts.can_view_marketplace_analytics or perms.accounts.can_view_facility_analytics %}
         <div class="nav-group{% if active_page == 'reports' or active_page == 'marketplace_analytics' or active_page == 'facility_analytics' %} open{% endif %}">
             <button type="button" class="nav-group-toggle" aria-expanded="{% if active_page == 'reports' or active_page == 'marketplace_analytics' or active_page == 'facility_analytics' %}true{% else %}false{% endif %}">
                 <span class="nav-group-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" /></svg></span>
-                <span class="nav-group-title">Reports</span>
+                <span class="nav-group-title">Reports & Analytics</span>
             </button>
             <div class="nav-group-items">
                 {% if perms.accounts.can_view_marketplace_analytics or perms.accounts.can_view_facility_analytics %}

@@ -1,3 +1,4 @@
+from .models import Room
 from accounts.role_permissions import admin_read_permissions
 from modules.marketplace.services.fifo import order_request as fifo_order_request
 from modules.marketplace.services.fulfillment import fulfillment_buyer_guard
@@ -20,7 +21,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -132,6 +133,7 @@ def serialize_mobile_user(user):
 
 def serialize_campushub_user(user):
     from accounts.academic import academic_labels
+    from .food_preferences import preference_data
     user_type = (user.user_type or "").strip().lower()
     return {
         "id": user.id,
@@ -153,6 +155,7 @@ def serialize_campushub_user(user):
         "year_section": user.year_section,
         "profile_photo_url": user.profile_photo.url if user.profile_photo else "",
         "profile_completed": user.profile_completed,
+        **preference_data(user),
         "email_verified": user.email_verified,
         "last_login": user.last_login.isoformat() if user.last_login else None,
     }
@@ -249,6 +252,7 @@ def serialize_product(product, request=None, *, include_inventory=False):
         "department_id": product.department_id,
         "tags": product.tags,
         "product_type": product.product_type,
+        "inventory_method": product.inventory_method,
         "description": product.description,
         "category": product.category,
         "price": str(product.price),
@@ -288,7 +292,11 @@ def serialize_product(product, request=None, *, include_inventory=False):
         payload["stock_movements"] = []
         for sku in product.inventory_skus.all():
             for event in inventory_movements(sku):
-                payload["stock_movements"].append({**event, "date": event["date"].isoformat(), "sku": sku.code})
+                payload["stock_movements"].append({**event, "date": event["date"].isoformat(), "sku": sku.code,
+                    "allocations": [{"batch": {"id": allocation.batch_id, "code": allocation.batch.code},
+                        "quantity": allocation.quantity, "state": allocation.state,
+                        "state_label": allocation.get_state_display(), "legacy": allocation.legacy}
+                        for allocation in event.get("allocations", [])]})
         payload["stock_movements"] = sorted(payload["stock_movements"], key=lambda event: event["date"], reverse=True)[:100]
     return payload
 
@@ -440,10 +448,10 @@ def admin_login(request):
         )
 
 
-@login_required(login_url="admin_login_page")
+@never_cache
 def admin_session_status(request):
-    user = request.user
-    if not user_has_admin_access(user):
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False) or not user_has_admin_access(user):
         return JsonResponse({"authenticated": False}, status=401)
 
     return JsonResponse(
@@ -672,19 +680,13 @@ def mobile_complete_profile(request):
     user.year_section = year_section
     user.department, user.major = program, major
     user.profile_completed = True
-    user.save(
-        update_fields=[
-            "user_type",
-            "student_id",
-            "institutional_id",
-            "contact_number",
-            "year_section",
-            "department",
-            "major",
-            "profile_completed",
-            "updated_at",
-        ]
-    )
+    from .models import MobileFoodPreference
+    with transaction.atomic():
+        previous = CampusHubUser.objects.select_for_update().get(pk=user.pk)
+        user.save(update_fields=["user_type", "student_id", "institutional_id", "contact_number",
+            "year_section", "department", "major", "profile_completed", "updated_at"])
+        if not previous.profile_completed:
+            MobileFoodPreference.objects.get_or_create(user=user, defaults={"onboarding_stage": "preferences"})
 
     return JsonResponse(
         {
@@ -769,7 +771,7 @@ def seller_submit_product(request):
             return JsonResponse({"error": "Approved active seller access is required."}, status=403)
     owned = Product.objects.filter(mobile_seller=account) if source == "mobile" else Product.objects.filter(seller=account)
     if request.method == "GET":
-        return JsonResponse({"products": [serialize_product(row, request) for row in owned.select_related(
+        return JsonResponse({"capabilities": {"initial_batches": True, "initial_batch_expiry": True}, "products": [serialize_product(row, request) for row in owned.select_related(
             "seller", "seller__department", "seller__major", "mobile_seller", "mobile_seller__department", "mobile_seller__major", "department", "major").order_by("-submitted_at")]})
     try:
         data = json.loads(request.body)
@@ -788,11 +790,20 @@ def seller_submit_product(request):
         name = (data.get("name") or "").strip()
         price = Decimal(str(data.get("price", "")))
         stock = validate_stock_quantity(data.get("stock", 0))
+        from modules.marketplace.services.product_initial_inventory import validate_initial_batches, save_initial_batches
+        if stock > 2147483647:
+            raise ValueError("Stock exceeds the supported quantity limit.")
+        initial_batches = validate_initial_batches(data.get("initial_batches"),
+            method=data.get("inventory_method", "simple"), product_type=product_type, stock=stock)
+        if "initial_batches" in data and data["initial_batches"] is None:
+            raise ValueError("Enter at least one initial batch.")
         threshold = validate_low_stock_threshold(data.get("low_stock_threshold"), stock=stock) if data.get("low_stock_threshold") is not None else None
+        if threshold is not None and threshold > 2147483647:
+            raise ValueError("Low stock threshold exceeds the supported quantity limit.")
         category = (data.get("category") or "").strip()
         expiry_date = parse_expiry_date(data.get("expiry_date"))
-        if not name or len(name) > 150 or not price.is_finite() or price < 0 or price > Decimal("99999999.99") or price != price.quantize(Decimal("0.01")):
-            raise ValueError("Enter a product name and a valid non-negative price with at most two decimal places.")
+        if not name or len(name) > 150 or not price.is_finite() or price <= 0 or price > Decimal("99999999.99") or price != price.quantize(Decimal("0.01")):
+            raise ValueError("Enter a product name and a positive price with at most two decimal places.")
         if source == "mobile":
             from modules.marketplace.services.seller_applications import categories
             if category not in categories():
@@ -839,18 +850,25 @@ def seller_submit_product(request):
                     return JsonResponse({"error": "Unable to verify this suggestion. Retry."}, status=503)
                 if not any(sorted(int(product["id"]) for product in row["products"]) == pair_ids for row in result["rows"]):
                     raise ValueError("This suggestion no longer qualifies. Refresh Suggested Product Bundles.")
-            product = Product.objects.create(
+            method = data.get("inventory_method", "simple")
+            if not isinstance(method, str) or method not in {"simple", "fifo"} or (is_bundle_product and method != "simple"):
+                raise ValueError("Choose Simple stock or FIFO batches. Bundles use component stock.")
+            product = Product(
                 seller=account if source == "admin" else None,
                 mobile_seller=account if source == "mobile" else None,
                 department=program, major=major, name=name,
                 description=(data.get("description") or "").strip(), category=category,
-                price=price, product_type=product_type, stock=0 if is_bundle_product else stock,
+                price=price, product_type=product_type, inventory_method=method, stock=0 if is_bundle_product or initial_batches is not None else stock,
                 low_stock_threshold=None if is_bundle_product else threshold,
                 tags=tags,
                 expiry_date=expiry_date if not is_bundle_product and is_perishable_category(category) else None,
                 approval_status=Product.STATUS_APPROVED if is_web_manager else Product.STATUS_PENDING,
                 approved_by=request.user if is_web_manager else None,
                 approved_at=timezone.now() if is_web_manager else None)
+            product._inventory_actor = (account.get_full_name().strip() or account.username)[:150]
+            product.save()
+            if initial_batches is not None:
+                save_initial_batches(product, initial_batches, account, source)
             if recipe:
                 BundleComponent.objects.bulk_create([BundleComponent(bundle=product, **row) for row in recipe])
             if is_bundle_product and source == "mobile":
@@ -865,7 +883,8 @@ def seller_submit_product(request):
                 product.save(update_fields=["image_url", "updated_at"])
             log_marketplace_event(request, account=account, source=source, activity_type="PRODUCT_SUBMITTED",
                 activity=f"Product submitted: {product.name}", metadata={"product_id": product.pk})
-        return JsonResponse({"message": "Product submitted for marketplace approval.", "product": serialize_product(product, request)}, status=201)
+        return JsonResponse({"message": "Product submitted for marketplace approval.", "product": serialize_product(product, request),
+                             **({"initial_batches_saved": len(initial_batches)} if initial_batches is not None else {})}, status=201)
     except (ValueError, TypeError, InvalidOperation, ValidationError) as error:
         return JsonResponse({"error": str(error)}, status=400)
 
@@ -1070,6 +1089,7 @@ def admin_save_product(request):
 
         fields = {
             "product_type": product_type,
+            "inventory_method": data.get("inventory_method", existing_product.inventory_method if existing_product and not is_bundle_product else "simple"),
             "name": name,
             "description": (data.get("description") or "").strip(),
             "category": category,
@@ -1169,13 +1189,15 @@ def admin_save_product(request):
             status_code = 200
             message = "Product updated."
         else:
-            product = Product.objects.create(
+            product = Product(
                 seller=None if isinstance(owner, CampusHubUser) else owner,
                 mobile_seller=owner if isinstance(owner, CampusHubUser) else None,
                 created_by=request.user,
                 image_url="",
                 **fields,
             )
+            product._inventory_actor = (request.user.get_full_name().strip() or request.user.username)[:150]
+            product.save()
             if raw_images is not None:
                 urls = persist_product_images(raw_images, product.id, image_name)
                 if urls:
@@ -1275,6 +1297,14 @@ def admin_update_product_stock(request, product_id):
     if stock < 0:
         return JsonResponse({"error": "Stock cannot be negative"}, status=400)
 
+    reason = data.get("reason", "")
+    if not isinstance(reason, str) or len(reason.strip()) > 500:
+        return JsonResponse({"error": "Stock adjustment reason must be text of at most 500 characters."}, status=400)
+    method = data.get("inventory_method", product.inventory_method)
+    if not isinstance(method, str) or method not in {"simple", "fifo"}:
+        return JsonResponse({"error": "Choose Simple stock or FIFO batches."}, status=400)
+    product.inventory_method = method
+
     # A tracked product must update one exact option, never only its parent sum.
     options = product.customization_options or []
     variants = product_variant_items(product)
@@ -1293,7 +1323,13 @@ def admin_update_product_stock(request, product_id):
         product.stock = stock
 
     product._inventory_actor = request.user.get_full_name().strip() or request.user.username
-    product.save(update_fields=["stock", "customization_options", "updated_at"])
+    product._inventory_notes = reason.strip() or None
+    from modules.marketplace.services.fifo import FIFOError
+    try:
+        product.save(update_fields=["stock", "customization_options", "inventory_method", "updated_at"])
+    except FIFOError as exc:
+        transaction.set_rollback(True)
+        return JsonResponse({"error": str(exc)}, status=409)
     log_marketplace_event(request, account=product.owner, source="mobile" if product.mobile_seller_id else "admin", activity_type="INVENTORY_UPDATED",
         activity=f"Inventory updated: {product.name}", metadata={"product_id": product.pk, "program_id": product.department_id or product.owner.department_id,
             "major_id": product.major_id if product.department_id else product.owner.major_id})
@@ -1490,7 +1526,7 @@ def marketplace_reject_seller_request(request, request_id):
 
 def serialize_facility(facility):
     from modules.facilities.services.operating_schedule import workflow_for_display
-    from modules.facilities.services.rental_configuration import capacity_label, pricing_label
+    from modules.facilities.services.rental_configuration import capacity_label, compact_pricing_label, eligible_clients_label, pricing_label, pricing_sub_label
     from modules.facilities.services.job_order import default_job_order_service
 
     from modules.facilities.services.service_configuration import is_service, service_pricing_label
@@ -1511,6 +1547,10 @@ def serialize_facility(facility):
         "rate": str(rate),
         "price_type": facility.price_type or "hour",
         "price_label": service_pricing_label(facility) if is_service(facility) else pricing_label(facility),
+        "price_compact_label": service_pricing_label(facility) if is_service(facility) else compact_pricing_label(facility),
+        "price_sub_label": "" if is_service(facility) else pricing_sub_label(facility),
+        "eligible_clients": (facility.workflow_config or {}).get("eligible_clients") or "both",
+        "eligible_clients_label": "" if is_service(facility) else eligible_clients_label(facility),
         "capacity_label": capacity_label(facility),
         "booking_mode": facility.booking_mode or "room",
         "rooms_units": facility.rooms_units,
@@ -1556,6 +1596,34 @@ def _apply_facility_payload(facility, cleaned):
     facility.availability_status = cleaned["availability_status"]
 
 
+def _sync_facility_rooms(facility, data):
+    if not data.get("sync_rooms") or facility.booking_mode != "room" or not facility.rooms_units:
+        return
+    import uuid
+
+    target = max(int(facility.rooms_units or 0), 0)
+    per_room = int((facility.workflow_config or {}).get("capacity_per_room") or 2)
+    existing = list(Room.objects.filter(facility=facility).order_by("room_name", "pk"))
+    for idx, room in enumerate(existing, start=1):
+        room.room_type = facility.room_type or room.room_type or "Standard"
+        room.capacity = per_room
+        room.price = facility.rate or Decimal("0")
+        if not room.room_name:
+            room.room_name = f"Room {idx}"
+        room.save(update_fields=["room_type", "capacity", "price", "room_name"])
+    for idx in range(len(existing) + 1, target + 1):
+        Room.objects.create(
+            id=uuid.uuid4(),
+            facility=facility,
+            room_name=f"Room {idx}",
+            room_type=facility.room_type or "Standard",
+            capacity=per_room,
+            price=facility.rate or Decimal("0"),
+            status=Room.STATUS_AVAILABLE,
+        )
+    facility.configured_room_count = Room.objects.filter(facility=facility).count()
+
+
 def facilities_list(request):
     """Public list endpoint used by the mobile app."""
     facilities = Facility.objects.filter(is_archived=False).annotate(configured_room_count=Count("rooms"))
@@ -1576,6 +1644,7 @@ def facilities_create(request):
 
     try:
         import uuid
+
         from datetime import date
 
         data = json.loads(request.body)
@@ -1605,6 +1674,7 @@ def facilities_create(request):
         _apply_facility_payload(facility, cleaned)
         with transaction.atomic():
             facility.save(force_insert=True)
+            _sync_facility_rooms(facility, data)
             raw_images = data.get("images") or data.get("image_url") or ""
             if raw_images:
                 saved_images = persist_facility_images(raw_images, facility_id, cleaned["name"])
@@ -1638,13 +1708,15 @@ def facilities_update(request, facility_id):
     if request.method not in ("POST", "PUT", "PATCH"):
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
-    facility = get_object_or_404(Facility, id=facility_id)
-
     try:
+        from modules.facilities.services.operating_schedule import validate_schedule_change
+
         data = json.loads(request.body)
-        cleaned = validate_facility_payload(data, facility=facility)
-        before = facility_snapshot(facility)
         with transaction.atomic():
+            facility = get_object_or_404(Facility.objects.select_for_update(), id=facility_id)
+            cleaned = validate_facility_payload(data, facility=facility)
+            validate_schedule_change(facility, cleaned["workflow_config"])
+            before = facility_snapshot(facility)
             _apply_facility_payload(facility, cleaned)
             raw_images = data.get("images") or data.get("image_url") or ""
             if raw_images:
@@ -1653,6 +1725,7 @@ def facilities_update(request, facility_id):
             elif "images" in data or "image_url" in data:
                 facility.image_url = ""
             facility.save()
+            _sync_facility_rooms(facility, data)
             event = record_facility_activity(request, facility, before=before)
 
         return JsonResponse(
@@ -1662,6 +1735,8 @@ def facilities_update(request, facility_id):
                 "activity": facility_activity_row(event),
             }
         )
+    except Http404:
+        raise
     except ValidationError as error:
         return _facility_validation_response(error)
     except json.JSONDecodeError:
@@ -1911,6 +1986,29 @@ def recommended_products(request):
 
 @csrf_exempt
 @never_cache
+def marketplace_checkout_quote(request):
+    """Validate current selections/prices without reserving stock or creating orders."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Use POST to check checkout details."}, status=405)
+    from modules.marketplace.services.product_ownership import authenticated_actor, SelfProductInteraction
+    buyer, error = authenticated_actor(request)
+    if error is not None: return error
+    data = _parse_json(request)
+    items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(items, list) or not 1 <= len(items) <= 50:
+        return JsonResponse({"error": "Select between 1 and 50 checkout items."}, status=400)
+    from modules.marketplace.services.checkout import quote_cart
+    try:
+        quotes = quote_cart(items, buyer=buyer)
+    except SelfProductInteraction as exc:
+        return JsonResponse({'error': str(exc)}, status=403)
+    except (ValueError, TypeError, ArithmeticError) as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    return JsonResponse({"items": quotes})
+
+
+@csrf_exempt
+@never_cache
 @fulfillment_buyer_guard
 @fifo_order_request
 def marketplace_orders(request):
@@ -1942,7 +2040,10 @@ def marketplace_orders(request):
         return JsonResponse({"error": str(exc)}, status=400)
 
     product_id = data.get("product_id")
-    quantity = max(int(data.get("quantity") or 1), 1)
+    raw_quantity = data.get("quantity", 1)
+    if isinstance(raw_quantity, bool) or not isinstance(raw_quantity, int) or not 1 <= raw_quantity <= 2147483647:
+        return JsonResponse({"error": "Quantity must be a positive whole number."}, status=400)
+    quantity = raw_quantity
     option = (data.get("option") or "").strip()
     buyer_user_id = data.get("buyer_user_id")
     buyer_name = (data.get("buyer_name") or "").strip()
@@ -1991,6 +2092,22 @@ def marketplace_orders(request):
             ).first()
             if product is None:
                 return JsonResponse({"error": "Product not found."}, status=404)
+
+            from modules.marketplace.services.product_ownership import owns_product
+            if owns_product(verified_buyer, product):
+                return JsonResponse({'error': 'You cannot purchase your own product.'}, status=403)
+
+            from modules.marketplace.services.checkout import quote_item, supports_delivery
+            if fulfillment["fulfillment_method"] == "seller_delivery" and not supports_delivery(product, lock=True):
+                return JsonResponse({"error": "Seller Delivery is not confirmed for this product. Choose Cash on Pickup."}, status=400)
+            # New checkout submits the amount shown to the buyer. Never charge a changed price silently.
+            if "expected_unit_price" in data:
+                try:
+                    quote = quote_item(data, product)
+                    if Decimal(str(data["expected_unit_price"])) != Decimal(quote["unit_price"]):
+                        return JsonResponse({"error": "The product price changed. Review checkout again."}, status=409)
+                except (ValueError, TypeError, ArithmeticError) as exc:
+                    return JsonResponse({"error": str(exc)}, status=400)
 
             base_price = Decimal(product.price)
             selections: list[dict] = []
@@ -2075,23 +2192,45 @@ def track_product_interaction(request):
     if data is None:
         return JsonResponse({"error": "Invalid JSON format"}, status=400)
 
+    from modules.marketplace.services.product_ownership import authenticated_actor, owns_product
+    actor, error = authenticated_actor(request)
+    if error is not None: return error
+    if not isinstance(data, dict) or str(data.get('user_id')) != str(actor.pk):
+        return JsonResponse({'error': 'The interaction account must match the signed-in account.'}, status=403)
+
     user_id = data.get("user_id")
     product_id = data.get("product_id")
-    interaction_type = (data.get("interaction_type") or ProductInteraction.INTERACTION_VIEW).strip()
+    interaction_type = data.get("interaction_type", ProductInteraction.INTERACTION_VIEW)
+    if interaction_type is None:
+        interaction_type = ProductInteraction.INTERACTION_VIEW
+    if not isinstance(interaction_type, str):
+        return JsonResponse({'error': 'Invalid interaction_type.'}, status=400)
+    interaction_type = interaction_type.strip() or ProductInteraction.INTERACTION_VIEW
 
     if not user_id or not product_id:
         return JsonResponse({"error": "user_id and product_id are required."}, status=400)
+    if isinstance(product_id, bool) or not isinstance(product_id, (int, str)) or not str(product_id).isdecimal() or int(product_id) <= 0:
+        return JsonResponse({'error': 'A valid product ID is required.'}, status=400)
 
     valid_types = {c[0] for c in ProductInteraction.INTERACTION_CHOICES}
+    intent = data.get('intent')
+    if intent is not None and (not isinstance(intent, str) or intent not in {'cart', 'favorite', 'chat'}):
+        return JsonResponse({'error': 'Invalid product interaction.'}, status=400)
     if interaction_type not in valid_types:
         return JsonResponse({"error": "Invalid interaction_type."}, status=400)
 
     product = Product.objects.filter(
         id=product_id,
         approval_status=Product.STATUS_APPROVED,
+        is_archived=False,
     ).first()
     if product is None:
         return JsonResponse({"error": "Product not found."}, status=404)
+
+    if owns_product(actor, product) and (intent is not None or interaction_type == ProductInteraction.INTERACTION_PURCHASE):
+        return JsonResponse({'error': 'You cannot interact with your own product as a buyer.'}, status=403)
+    if intent is not None:
+        return JsonResponse({'allowed': True, 'product_id': product.pk})
 
     ProductInteraction.objects.create(
         user_id=int(user_id),

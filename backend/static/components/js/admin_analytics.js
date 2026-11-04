@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (typeof Chart === 'undefined') return;
 
-    Chart.defaults.font.family = 'Inter, sans-serif';
+    Chart.defaults.font.family = document.body.classList.contains('super-admin-analytics') ? 'Montserrat, sans-serif' : 'Inter, sans-serif';
     Chart.defaults.color = MUTED;
 
     // 1. Facilities Tab: Bookings by Facility Bar Chart
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 scales: {
                     x: {
                         grid: { display: false },
-                        ticks: { color: MUTED, font: { family: 'Inter, sans-serif', size: 12, weight: '600' } },
+                        ticks: { color: MUTED, font: { family: document.body.classList.contains('super-admin-analytics') ? 'Montserrat, sans-serif' : 'Inter, sans-serif', size: 12, weight: '600' } },
                     },
                     y: {
                         beginAtZero: true,

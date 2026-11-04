@@ -1,9 +1,12 @@
 <section class="dash-card bundle-dss marketplace-recommendation-summary super-recommendation-preview" aria-labelledby="marketplaceRecommendationsTitle">
-    <header>
-        <h2 id="marketplaceRecommendationsTitle">Suggested Product Bundles</h2>
-        <p class="super-recommendation-subtitle">Overview of marketplace product bundle recommendations.</p>
+    <header class="executive-card-header bundle-card-header">
+        <div class="bundle-header-copy">
+            <h2 id="marketplaceRecommendationsTitle">Suggested Product Bundles</h2>
+            <p class="super-recommendation-subtitle">Current saved product bundle recommendations.</p>
+        </div>
+        <a class="dash-view-all-link" href="{% url 'bundle_monitor_list' %}">View Recommendations <span aria-hidden="true">&rsaquo;</span></a>
     </header>
-    <div>
+    <div class="executive-card-body bundle-card-body">
         {% if bundle_analysis.monitor_error %}
         <p class="marketplace-recommendation-note" role="alert">Unable to load bundle suggestions. Reload the dashboard to retry.</p>
         {% else %}
@@ -26,7 +29,13 @@
                 <span class="super-recommendation-status">{% if row.response == 'Awaiting Response' %}Awaiting Seller Response{% elif row.response == 'Not Applicable' %}{{ row.delivery }}{% else %}{{ row.response }}{% endif %}</span>
             </article>
             {% empty %}
+            {% if bundle_analysis.error %}
+            <p class="marketplace-recommendation-note" role="alert">Unable to load bundle suggestions. Reload the dashboard to retry.</p>
+            {% elif bundle_analysis.dashboard_summary.suggested %}
+            {% include 'dashboard/partials/empty_state.html' with title='No Eligible Preview' description='Open Recommendations to review saved suggestions and their current eligibility.' icon='bag' %}
+            {% else %}
             {% include 'dashboard/partials/empty_state.html' with title='No Bundle Suggestions Yet' description='Saved product combinations will appear here when available.' icon='bag' %}
+            {% endif %}
             {% endfor %}
         </div>
         {% endif %}

@@ -554,6 +554,8 @@ def build_inventory_table(products):
             department = product.department or product.owner.department
             from accounts.academic import product_academic
             rows.append({**item, "product_id": product.pk, "product_name": product.name,
+                         "inventory_method": product.inventory_method,
+                         "can_receive": product.product_type == "single" and product.approval_status == "approved" and not product.is_archived and product.owner.is_active,
                          "thumbnail_url": item.get("image_url") or parent_image,
                          "thumbnail_fallback_url": parent_image if item.get("image_url") else "",
                          **product_academic(product),

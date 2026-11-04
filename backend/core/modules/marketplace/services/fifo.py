@@ -7,6 +7,7 @@ from uuid import UUID
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Case, IntegerField, Sum, Value, When
+from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.utils import timezone
 
@@ -17,15 +18,58 @@ class FIFOError(InsufficientStockError):
     pass
 
 
-def enabled():
+def enabled(product=None):
+    if product is not None and product.inventory_method != "fifo":
+        return False
     if not getattr(settings, "CAMPUSHUB_FIFO_ENABLED", False):
         return False  # Safe before the working database has the additive tables.
     from api.models import InventoryFIFOControl
     return InventoryFIFOControl.objects.filter(pk=1, active=True).exists()
 
 
+def check_simple_transition(product):
+    from api.models import InventoryBatch, InventoryBatchAllocation
+    if InventoryBatch.objects.filter(sku__product=product, remaining_quantity__gt=0).exists() or InventoryBatchAllocation.objects.filter(
+        batch__sku__product=product, state="reserved").exists():
+        raise FIFOError("Resolve FIFO stock and reservations before switching to Simple stock. Batch history will be retained.")
+
+
+def initialize_product(product, points, identities):
+    """Under the product lock, identify existing quantities without inventing receipts."""
+    from api.models import MarketplaceOrder, InventoryBatch, InventoryBatchAllocation
+    from .inventory_records import order_allocations
+    check_simple_transition(product)
+    holds = {key: [] for key in points}
+    for order in MarketplaceOrder.objects.filter(inventory_deducted=True, inventory_restored=False,
+            status__in=("pending", "processing", "ready_for_pickup")).order_by("pk"):
+        for point, quantity in order_allocations(order, product, inventory_keys=points).items():
+            if point not in points:
+                raise FIFOError("An existing reservation has an unresolved variant. Reconcile it before enabling FIFO.")
+            holds[point].append((order, quantity))
+    for point, available in points.items():
+        total = available + sum(quantity for order, quantity in holds[point])
+        if total > 2147483647:
+            raise FIFOError("Opening quantity exceeds the supported limit.")
+        if not total:
+            continue
+        batch = InventoryBatch.objects.create(sku=identities[point], origin="opening", initial_quantity=total,
+            remaining_quantity=available, transaction_reference="Opening balance when FIFO enabled",
+            actor=getattr(product, "_inventory_actor", ""))
+        for order, quantity in holds[point]:
+            InventoryBatchAllocation.objects.create(batch=batch, order=order, order_reference=order.order_code or "",
+                quantity=quantity, state="reserved", legacy=True)
+
+
 def fingerprint(payload):
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
+
+
+def ordered_batches(query):
+    """Unknown historical opening stock precedes dated receipts, with stable ties."""
+    return query.annotate(
+        opening_first=Case(When(origin="opening", then=Value(0)), default=Value(1), output_field=IntegerField()),
+        fifo_received_at=Coalesce("received_at", "recorded_at"),
+    ).order_by("opening_first", "fifo_received_at", "recorded_at", "pk")
 
 
 def operation(kind, key, payload):
@@ -45,9 +89,7 @@ def operation(kind, key, payload):
 def sync_change(sku, old, new, movement, product):
     """Called under Product.save's lock/transaction for every real stock delta."""
     from api.models import InventoryBatch, InventoryBatchAllocation
-    batches = list(InventoryBatch.objects.select_for_update().filter(sku=sku).annotate(
-        opening_first=Case(When(origin="opening", then=Value(0)), default=Value(1), output_field=IntegerField())
-    ).order_by("opening_first", "recorded_at", "pk"))
+    batches = list(ordered_batches(InventoryBatch.objects.select_for_update().filter(sku=sku)))
     if sum(batch.remaining_quantity for batch in batches) != old:
         raise FIFOError("Batch balance does not match available stock. Reconcile inventory before continuing.")
     delta = new - old
@@ -65,9 +107,9 @@ def sync_change(sku, old, new, movement, product):
             row.save(update_fields=["state", "resolved_at"])
     elif delta > 0:
         receipt = getattr(product, "_fifo_receipt", None)
-        InventoryBatch.objects.create(sku=sku, receipt_movement=movement, origin="receipt" if receipt else "adjustment",
-            initial_quantity=delta, remaining_quantity=delta, received_at=timezone.now() if receipt else None,
-            transaction_reference=receipt["reference"] if receipt else "Stock adjustment",
+        InventoryBatch.objects.create(sku=sku, receipt_movement=movement, origin="receipt" if receipt else "opening" if movement.kind == "opening" else "adjustment",
+            initial_quantity=delta, remaining_quantity=delta, received_at=receipt["received_at"] if receipt else None,
+            transaction_reference=receipt["reference"] if receipt else "Opening balance" if movement.kind == "opening" else "Stock adjustment",
             received_by_id=receipt["user_id"] if receipt else None, actor=movement.actor)
     elif delta < 0:
         if movement.kind == "reservation":
@@ -106,28 +148,67 @@ def complete(order):
 
 
 @transaction.atomic
-def receive(sku_id, quantity, reference, user, key):
+def receive(sku_id, quantity, reference, user, key, *, received_at=None, notes="", inventory_method=None, source="admin"):
     from api.models import InventorySKU, Product
     from .product_access import admin_product_queryset
     from .inventory import validate_stock_quantity
-    if not user.has_perm("accounts.can_manage_products"):
-        raise FIFOError("Receiving requires Manage Products permission.")
-    if not enabled():
-        raise FIFOError("Stock receiving is not available yet. Contact your system administrator.")
+    if source == "admin" and user.has_perm("accounts.can_manage_products"):
+        authorized = admin_product_queryset(user)
+    else:
+        from .seller_applications import latest
+        application = latest(user, source)
+        if application:
+            from api.models import SellerRequest
+            application = SellerRequest.objects.select_for_update().get(pk=application.pk)
+        if not user.is_active or not application or application.status != "approved" or application.is_suspended:
+            raise FIFOError("Approved seller access or Manage Products permission is required.")
+        authorized = Product.objects.filter(**({"mobile_seller": user} if source == "mobile" else {"seller": user}))
     try:
         quantity = validate_stock_quantity(quantity)
     except ValueError as exc:
         raise FIFOError("Enter a positive whole receiving quantity.") from exc
     reference = str(reference or "").strip()
-    if quantity < 1 or quantity > 2147483647 or not reference or len(reference) > 150:
-        raise FIFOError("Enter a positive quantity and a transaction reference of at most 150 characters.")
-    record = operation("receipt", key, {"sku": str(sku_id), "quantity": quantity, "reference": reference, "user": user.pk})
+    if quantity < 1 or quantity > 2147483647 or len(reference) > 150:
+        raise FIFOError("Enter a positive quantity and a reference of at most 150 characters.")
+    if inventory_method is not None and inventory_method not in {"simple", "fifo"}:
+        raise FIFOError("Choose Simple stock or FIFO batches.")
+    from django.utils.dateparse import parse_datetime
+    supplied_date = received_at
+    if supplied_date not in (None, ""):
+        try:
+            received_at = parse_datetime(str(supplied_date))
+        except (ValueError, TypeError):
+            received_at = None
+        if received_at is None:
+            raise FIFOError("Enter a valid receiving date and time.")
+        if timezone.is_naive(received_at):
+            received_at = timezone.make_aware(received_at, timezone.get_current_timezone())
+        if received_at > timezone.now():
+            raise FIFOError("Receiving date and time cannot be in the future.")
+    else:
+        received_at = timezone.now()
+    if not isinstance(notes, str) or len(notes.strip()) > 500:
+        raise FIFOError("Receiving notes must be text of at most 500 characters.")
+    notes = notes.strip()
+    details = {"sku": str(sku_id), "quantity": quantity, "reference": reference, "user": user.pk if source == "admin" else f"mobile:{user.pk}"}
+    if inventory_method is not None:
+        details["inventory_method"] = inventory_method
+    # Keep old keyed clients compatible: an omitted date is assigned only once.
+    if supplied_date not in (None, ""):
+        details["received_at"] = received_at.isoformat()
+    if notes:
+        details["notes"] = notes
+    record = operation("receipt", key, details)
     if record.response is not None:
         return record.response
-    identity = InventorySKU.objects.filter(pk=sku_id, product__in=admin_product_queryset(user)).first()
+    identity = InventorySKU.objects.filter(pk=sku_id, product__in=authorized).first()
     if identity is None:
         raise FIFOError("Inventory item is outside your authorized scope.")
     product = Product.objects.select_for_update().get(pk=identity.product_id)
+    if inventory_method is not None:
+        product.inventory_method = inventory_method
+    if product.inventory_method == "fifo" and not enabled():
+        raise FIFOError("Stock receiving is not configured. Contact your system administrator.")
     if product.product_type == "bundle" or product.is_archived or product.approval_status != Product.STATUS_APPROVED or not product.owner.is_active:
         raise FIFOError("Receive stock only for active approved single products or their exact variants.")
     from .inventory_records import stock_points
@@ -147,11 +228,13 @@ def receive(sku_id, quantity, reference, user, key):
     product._inventory_kind = "receipt"
     if product.stock > 2147483647:
         raise FIFOError("Total product stock exceeds the supported quantity limit.")
-    product._inventory_actor = user.get_full_name().strip() or user.username
-    product._fifo_receipt = {"reference": reference, "user_id": user.pk}
-    product.save(update_fields=["stock", "customization_options", "updated_at"])
-    batch = identity.batches.order_by("-pk").first()
-    record.response = {"message": "Stock received.", "batch": batch.code, "quantity": quantity}
+    product._inventory_actor = (user.get_full_name().strip() or user.username)[:150]
+    product._inventory_notes = notes or None
+    product._fifo_receipt = {"reference": reference, "user_id": user.pk if source == "admin" else None, "received_at": received_at}
+    product.save(update_fields=["stock", "customization_options", "inventory_method", "updated_at"])
+    batch = identity.batches.order_by("-pk").first() if product.inventory_method == "fifo" else None
+    record.response = {"message": "Stock received.", "batch": batch.code if batch else None, "quantity": quantity,
+        "inventory_method": product.inventory_method}
     record.save(update_fields=["response"])
     return record.response
 
@@ -161,7 +244,7 @@ def order_request(view):
     @wraps(view)
     def wrapped(request, *args, **kwargs):
         key = request.headers.get("Idempotency-Key")
-        if request.method != "POST" or not key or not enabled():
+        if request.method != "POST" or not key:
             return view(request, *args, **kwargs)
         class Rejected(Exception):
             def __init__(self, response): self.response = response
@@ -203,7 +286,7 @@ def reconciliation():
             reserved = sum(row["quantity"] for row in allocations)
             if available + reserved > 2147483647:
                 errors.append(f"SKU {sku.pk}: opening balance exceeds the supported quantity limit.")
-            rows.append({"sku": sku.pk, "product": product.pk, "group": point[0], "variant": point[1],
+            rows.append({"sku": sku.pk, "product": product.pk, "inventory_method": product.inventory_method, "group": point[0], "variant": point[1],
                 "available": available, "reserved": reserved, "opening_quantity": available + reserved, "holds": allocations})
         if product.product_type != "bundle":
             for order in holds:
@@ -234,7 +317,7 @@ def initialize(expected):
     if plan["errors"] or plan["fingerprint"] != expected:
         raise FIFOError("Reconciliation changed or contains mismatches. Cutover blocked; run dry-run again.")
     for row in plan["rows"]:
-        if not row["opening_quantity"]: continue
+        if row["inventory_method"] != "fifo" or not row["opening_quantity"]: continue
         batch = InventoryBatch.objects.create(sku_id=row["sku"], origin="opening", initial_quantity=row["opening_quantity"],
             remaining_quantity=row["available"], transaction_reference="FIFO cutover opening balance")
         for hold in row["holds"]:

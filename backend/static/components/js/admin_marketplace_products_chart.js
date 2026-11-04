@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function createChart() {
         try {
             if (typeof Chart === 'undefined') throw new Error('Chart library unavailable');
-            const font = { family: 'Inter, sans-serif', size: 12 };
+            const font = { family: getComputedStyle(document.body).fontFamily, size: 12 };
             chart = new Chart(canvas, {
                 type: 'bar',
                 data: { labels: rows.map(p => p.product_name), datasets: [{ label: 'Units sold',

@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{% static 'components/css/admin_dashboard.css' %}"><link rel="stylesheet" href="{% static 'components/css/admin_analytics.css' %}?v=20261020-below-header">
 {% include 'partials/web_typography.html' %}
 </head><body><div class="sidebar-section">{% include 'partials/admin_sidebar.html' with active_page='marketplace_analytics' %}<div class="main-wrapper" id="mainWrapper">
-{% include 'partials/admin_header.html' with page_title='Analytics' breadcrumb_section='Reports' breadcrumb_page=analytics_module|title analytics_subheader=True %}
+{% include 'partials/admin_header.html' with page_title='Analytics' breadcrumb_section='Reports & Analytics' breadcrumb_page=analytics_module|title analytics_subheader=True %}
 <main class="dashboard-content"><div class="analytics-page container-fluid p-4">
 {% if not user.is_superuser and user.role|lower != 'super admin' %}{% include 'reports/partials/analytics_toolbar.html' %}{% endif %}
 

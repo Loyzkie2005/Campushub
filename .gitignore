@@ -1,6 +1,7 @@
 # Local review output, caches and downloaded installers.
 /scratch/
 /output/
+/tmp/
 /*.zip
 /*.exe
 **/__pycache__/
@@ -8,6 +9,9 @@
 **/node_modules/
 
 # Local assistant/editor state, not CampusHub application source.
+**/.codex/
+**/.copilot/
+/copilot/
 **/.agents/
 **/.claude/
 **/.gemini/
@@ -27,6 +31,9 @@
 **/*.p12
 **/*.jks
 **/*.keystore
+**/key.properties
+**/*service-account*.json
+**/*firebase-adminsdk*.json
 **/*.dump
 **/*.backup
 /backend/core/venv/
@@ -35,6 +42,10 @@
 /backend/backups/*
 !/backend/backups/.gitignore
 /backend/media/
+**/*.sqlite3
+
+# Flutter is independently versioned in Loyzkie2005/CampusHub-Mobile.
+/campushub/
 
 # Flutter build output and device-generated plugin registrations.
 /campushub/.dart_tool/

@@ -72,7 +72,7 @@ PERMISSION_MODULES = (
         ),
     ),
     (
-        "Reports",
+        "Reports & Analytics",
         (
             ("can_view_marketplace_analytics", "View Marketplace Analytics"),
             ("can_view_facility_analytics", "View Facility Analytics"),
@@ -442,7 +442,7 @@ def sync_user_admin_permissions(user) -> None:
 
 
 def get_admin_home_url(user) -> str:
-    if user.is_superuser:
+    if user_has_admin_access(user):
         return reverse("admin_dashboard_page")
     if user.has_perm("accounts.can_manage_products") or user.has_perm("accounts.can_view_products"):
         return reverse("admin_products_page")

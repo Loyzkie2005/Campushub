@@ -1,6 +1,6 @@
 """Marketplace analytics and decision-support calculations.
 
-All sales metrics use completed and paid Cash-on-Pickup order records. The
+All sales metrics use completed and paid order records, independently of fulfillment. The
 functions in this module return presentation-ready dictionaries while keeping
 query and calculation logic out of the Django template.
 """
@@ -12,12 +12,15 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, time, timedelta
 from decimal import Decimal
+from .reporting_metrics import average_order_value, approved_seller_request_filter
 from math import ceil
 
 from django.db.models import (
     Case,
     CharField,
+    BigIntegerField,
     Count,
+    F,
     Q,
     Sum,
     Value,
@@ -74,11 +77,13 @@ def parse_analytics_period(params, *, today: date | None = None) -> AnalyticsPer
     if key in {"month", "this_month"}:
         return AnalyticsPeriod("month", "This Month", today.replace(day=1), today)
     if key in {"semester", "aug-dec"}:
+        # Historical analytics use the most recently started first semester, never future days.
+        semester_year = today.year if today.month >= 8 else today.year - 1
         return AnalyticsPeriod(
             "semester",
             "Aug - Dec (Semester 1)",
-            date(today.year, 8, 1),
-            date(today.year, 12, 31),
+            date(semester_year, 8, 1),
+            min(today, date(semester_year, 12, 31)),
         )
     if key == "custom":
         start_raw = (params.get("date_from") or params.get("start_date") or "").strip()
@@ -296,6 +301,7 @@ def _product_inventory(products, period_orders, period: AnalyticsPeriod) -> dict
         row["product_id"]: row["last_sale"]
         for row in valid_sales_queryset()
         .filter(product_id__in=[product.id for product in product_list])
+        .filter(analytics_at__date__lte=period.end)
         .values("product_id")
         .annotate(last_sale=Max("analytics_at"))
     }
@@ -333,6 +339,8 @@ def _product_inventory(products, period_orders, period: AnalyticsPeriod) -> dict
                 "action": action,
                 "units": units,
                 "last_sale": all_last_sales.get(product.id),
+                "observed_since": max((stamp.date() if timezone.is_naive(stamp) else timezone.localdate(stamp)
+                    for stamp in (product.submitted_at, product.approved_at) if stamp is not None), default=None),
             }
         )
 
@@ -358,8 +366,16 @@ def _slow_moving_products(inventory: dict, period_orders, period: AnalyticsPerio
         }
 
     rows = []
+    history_eligible, history_excluded = 0, 0
     for item in inventory["all_rows"]:
-        if item["stock"] <= 0 or item["units"] > 1:
+        if item["stock"] <= 0:
+            continue
+        observed_since = item.get('observed_since')
+        if observed_since is None or (period.end - max(period.start, observed_since)).days + 1 < SLOW_MOVING_MIN_DAYS:
+            history_excluded += 1
+            continue
+        history_eligible += 1
+        if item["units"] > 1:
             continue
         last_sale = item["last_sale"]
         rows.append(
@@ -369,15 +385,16 @@ def _slow_moving_products(inventory: dict, period_orders, period: AnalyticsPerio
             }
         )
     return {
-        "sufficient": True,
-        "rule": "Products with current stock and no more than 1 completed unit sold in the selected period.",
+        "sufficient": bool(history_eligible or not history_excluded),
+        "rule": ("Current in-stock products with at least 30 days of product history and no more than 1 completed unit sold in the selected period."
+                 if history_eligible or not history_excluded else "Insufficient product history. Products need at least 30 observed days; recently listed or approved products are excluded."),
+        "history_excluded": history_excluded,
         "rows": rows[:8],
     }
 
 
 def _approved_seller_ids(user=None) -> list[int]:
-    requests = SellerRequest.objects.filter(status=SellerRequest.STATUS_APPROVED, is_suspended=False, user__isnull=False,
-                                           user__is_active=True, user__is_suspended=False)
+    requests = SellerRequest.objects.filter(approved_seller_request_filter('user'))
     if user is not None:
         requests = scope_users(requests, user, prefix="user__")
     return list(
@@ -388,17 +405,32 @@ def _approved_seller_ids(user=None) -> list[int]:
 
 
 def _approved_mobile_seller_ids(user=None):
-    requests = SellerRequest.objects.filter(status="approved", is_suspended=False,
-        mobile_user__isnull=False, mobile_user__is_active=True, mobile_user__is_suspended=False)
+    requests = SellerRequest.objects.filter(approved_seller_request_filter('mobile_user'))
     if user is not None:
         from accounts.academic import scope_seller_requests
         requests = scope_seller_requests(requests, user)
     return list(requests.values_list("mobile_user_id", flat=True).distinct())
 
 
-def _seller_performance(period_orders, period: AnalyticsPeriod, inventory: dict, user=None) -> dict:
+def seller_identity_annotations(*, include_names=False):
+    """Virtual query fields for the effective owner; mobile ownership takes the existing precedence."""
+    mobile = Q(product__mobile_seller_id__isnull=False)
+    fields = {
+        'analytics_seller_source': Case(When(mobile, then=Value('mobile')), default=Value('web'), output_field=CharField()),
+        'analytics_seller_id': Case(When(mobile, then=F('product__mobile_seller_id')), default=F('product__seller_id'), output_field=BigIntegerField()),
+    }
+    if include_names:
+        for name in ('first_name', 'last_name', 'username'):
+            fields['analytics_seller_' + name] = Case(When(mobile, then=F('product__mobile_seller__' + name)),
+                default=F('product__seller__' + name), output_field=CharField())
+    return fields
+
+
+def _seller_performance(period_orders, period: AnalyticsPeriod, inventory: dict, user=None, *, stable_identities=False) -> dict:
     web_ids, mobile_ids = _approved_seller_ids(user), _approved_mobile_seller_ids(user)
-    products = Product.objects.filter(Q(seller_id__in=web_ids) | Q(mobile_seller_id__in=mobile_ids), is_archived=False)
+    owner_filter = (Q(mobile_seller_id__in=mobile_ids) | Q(mobile_seller_id__isnull=True, seller_id__in=web_ids)
+                    if stable_identities else Q(seller_id__in=web_ids) | Q(mobile_seller_id__in=mobile_ids))
+    products = Product.objects.filter(owner_filter, is_archived=False)
     if user is not None:
         products = scope_products(products, user)
     counts, active, owners = Counter(), set(), {}
@@ -409,8 +441,14 @@ def _seller_performance(period_orders, period: AnalyticsPeriod, inventory: dict,
         if period.start <= (product.updated_at.date() if timezone.is_naive(product.updated_at) else timezone.localdate(product.updated_at)) <= period.end or period.start <= (product.submitted_at.date() if timezone.is_naive(product.submitted_at) else timezone.localdate(product.submitted_at)) <= period.end:
             active.add(key)
     sales = {}
-    for row in period_orders.filter(product_id__in=products.values("pk")).values("product__seller_id", "product__mobile_seller_id").annotate(orders=Count("id"), units=Sum("quantity"), sales=Sum("total_price")):
-        key = f"mobile:{row['product__mobile_seller_id']}" if row['product__mobile_seller_id'] else row['product__seller_id']
+    seller_orders = period_orders.filter(product_id__in=products.values('pk'))
+    grouped = (seller_orders.annotate(**seller_identity_annotations()).values('analytics_seller_source', 'analytics_seller_id')
+               if stable_identities else seller_orders.values('product__seller_id', 'product__mobile_seller_id'))
+    for row in grouped.annotate(orders=Count('id'), units=Sum('quantity'), sales=Sum('total_price')).order_by():
+        if stable_identities:
+            key = f"mobile:{row['analytics_seller_id']}" if row['analytics_seller_source'] == 'mobile' else row['analytics_seller_id']
+        else:
+            key = f"mobile:{row['product__mobile_seller_id']}" if row['product__mobile_seller_id'] else row['product__seller_id']
         sales[key] = row
         active.add(key)
     low = Counter(item["seller_id"] for item in inventory["all_rows"] if item["state"] in {"Low Stock", "Out of Stock"})
@@ -421,30 +459,43 @@ def _seller_performance(period_orders, period: AnalyticsPeriod, inventory: dict,
             "department": owner.department.name if owner.department_id else "Not Assigned", "products": counts[key],
             "orders": int(totals.get("orders") or 0), "units": int(totals.get("units") or 0),
             "sales": _money_text(totals.get("sales")), "sales_value": float(_money(totals.get("sales"))), "low_stock": low[key]})
+        if stable_identities:
+            source = 'mobile' if isinstance(key, str) else 'web'
+            rows[-1].update(seller_key=f'{source}:{owner.pk}', seller_id=owner.pk,
+                            seller_source=source, username=owner.username)
     rows.sort(key=lambda row: (-row["sales_value"], -row["units"], row["seller"].lower()))
+    if stable_identities:
+        for rank, row in enumerate(rows, 1): row['rank'] = rank
     return {"active_count": len(active), "rows": rows[:10]}
 
 
-def _forecast(product: Product | None, period: AnalyticsPeriod, horizon: int, stock: int) -> dict:
+def _forecast(product: Product | None, period: AnalyticsPeriod, horizon: int, stock: int, *, user=None, today=None) -> dict:
     horizon = 30 if horizon == 30 else 7
     if product is None:
         return {"sufficient": False, "message": "No approved products are available for forecasting.", "horizon": horizon}
 
-    product_orders = _period_sales(period).filter(product_id=product.id)
-    daily_rows = (
+    today = today or timezone.localdate()
+    observed_end = min(period.end, today)
+    product_orders = _period_sales(period, user).filter(product_id=product.id, analytics_at__date__lte=observed_end)
+    daily_rows = list(
         product_orders.annotate(day=TruncDate("analytics_at"))
         .values("day")
-        .annotate(units=Sum("quantity"))
+        .annotate(units=Sum("quantity"), orders=Count('pk'))
     )
     demand_map = {row["day"]: int(row["units"] or 0) for row in daily_rows}
-    dates = [period.start + timedelta(days=offset) for offset in range(period.days)]
+    submitted = product.submitted_at
+    catalog_start = (timezone.localdate(submitted) if timezone.is_aware(submitted) else submitted.date()) if submitted else today
+    observed_start = max(period.start, min([catalog_start, *demand_map.keys()]))
+    observed_days = max(0, (observed_end - observed_start).days + 1)
+    dates = [observed_start + timedelta(days=offset) for offset in range(observed_days)]
     values = [demand_map.get(day, 0) for day in dates]
     nonzero_days = sum(1 for value in values if value > 0)
     total_units = sum(values)
     sufficient = (
-        period.days >= FORECAST_MIN_DAYS
+        observed_days >= FORECAST_MIN_DAYS
         and nonzero_days >= FORECAST_MIN_NONZERO_DAYS
         and total_units >= FORECAST_MIN_UNITS
+        and sum(values[-7:]) > 0
     )
     base = {
         "product_id": product.id,
@@ -452,17 +503,26 @@ def _forecast(product: Product | None, period: AnalyticsPeriod, horizon: int, st
         "horizon": horizon,
         "current_stock": stock,
         "sufficient": sufficient,
+        "method": "7-day moving average",
+        "history_days": observed_days, "sales_days": nonzero_days, "units": total_units,
+        "eligible_orders": sum(row['orders'] for row in daily_rows), "recent_units": sum(values[-7:]),
+        "observed_start": observed_start, "observed_end": observed_end,
+        "operational": observed_end == today,
+        "inventory_review": product.product_type == Product.TYPE_BUNDLE,
         "minimum": {
             "days": FORECAST_MIN_DAYS,
             "nonzero_days": FORECAST_MIN_NONZERO_DAYS,
             "units": FORECAST_MIN_UNITS,
         },
     }
+    if not base['inventory_review']:
+        from .inventory import get_product_inventory_status, product_variant_items, INVENTORY_STATUS_EXPIRED
+        base['inventory_review'] = bool(product_variant_items(product)) or get_product_inventory_status(product, today=today) == INVENTORY_STATUS_EXPIRED
     if not sufficient:
         return {
             **base,
             "message": "Insufficient historical data for reliable forecasting.",
-            "history_days": period.days,
+            "history_days": observed_days,
             "sales_days": nonzero_days,
             "units": total_units,
         }
@@ -476,7 +536,7 @@ def _forecast(product: Product | None, period: AnalyticsPeriod, horizon: int, st
         rolling.append(next_value)
 
     forecast_total = ceil(sum(predicted))
-    future_dates = [period.end + timedelta(days=offset + 1) for offset in range(horizon)]
+    future_dates = [observed_end + timedelta(days=offset + 1) for offset in range(horizon)]
     labels = [day.strftime("%b %d") for day in dates + future_dates]
     historical = values + [None] * horizon
     forecast_values = [None] * (len(values) - 1) + [values[-1]] + predicted
@@ -494,7 +554,8 @@ def _forecast(product: Product | None, period: AnalyticsPeriod, horizon: int, st
 
 
 def calculate_market_basket(transactions, *, minimum_support=0, minimum_confidence=0,
-                            minimum_lift=None, detailed=False, limit=8) -> dict:
+                            minimum_lift=None, detailed=False, limit=8,
+                            include_itemsets=False) -> dict:
     """Calculate directional association rules from real transaction item sets."""
     normalized = []
     names = {}
@@ -516,6 +577,7 @@ def calculate_market_basket(transactions, *, minimum_support=0, minimum_confiden
             "eligible_orders": len(normalized),
             "multi_item_orders": multi_count,
             "rows": [],
+            **({"frequent_itemsets": []} if include_itemsets else {}),
         }
 
     product_counts = Counter()
@@ -552,17 +614,29 @@ def calculate_market_basket(transactions, *, minimum_support=0, minimum_confiden
                 }
             )
     rows.sort(key=lambda row: (-row["lift"], -row["confidence"], -row["support"]))
-    return {"sufficient": bool(rows), "eligible_orders": total, "multi_item_orders": multi_count, "rows": rows[:limit] if limit is not None else rows}
+    result = {"sufficient": bool(rows), "eligible_orders": total, "multi_item_orders": multi_count, "rows": rows[:limit] if limit is not None else rows}
+    if include_itemsets:
+        # Expose the counters already computed above; do not change rule math
+        # or imply that this pair-based helper mines higher-order itemsets.
+        counts = [((product,), count) for product, count in product_counts.items()]
+        counts.extend(pair_counts.items())
+        result["frequent_itemsets"] = [
+            {"products": [{"id": product, "name": names.get(product, str(product))} for product in products],
+             "supporting_transactions": count, "support": round(count / total * 100, 2)}
+            for products, count in sorted(counts, key=lambda row: (-row[1], str(row[0])))
+            if count / total >= minimum_support
+        ]
+    return result
 
 
-def _market_basket(period_orders) -> dict:
+def _market_basket(period_orders, *, detailed=False) -> dict:
     grouped = defaultdict(list)
     # The current schema has a unique code per sellable-product order. Never
     # combine legacy NULL codes or infer a basket from a buyer/date or a combo's
     # customization. Real shared checkout identifiers are needed for pairs.
     for row in period_orders.exclude(order_code="").exclude(order_code__isnull=True).values("order_code", "product_id", "product_name"):
         grouped[row["order_code"]].append((row["product_id"], row["product_name"]))
-    return calculate_market_basket(grouped.values())
+    return calculate_market_basket(grouped.values(), detailed=detailed)
 
 
 def _peak_sales_period(period_orders) -> dict:
@@ -609,7 +683,7 @@ def _peak_sales_period(period_orders) -> dict:
     }
 
 
-def build_marketplace_analytics(params, *, today: date | None = None, user=None) -> dict:
+def build_marketplace_analytics(params, *, today: date | None = None, user=None, refined=False) -> dict:
     """Build the complete Marketplace Analytics page context."""
     today = today or timezone.localdate()
     period = parse_analytics_period(params, today=today)
@@ -629,7 +703,7 @@ def build_marketplace_analytics(params, *, today: date | None = None, user=None)
     buyer_activity = _buyer_activity(period_orders, period, time_series, user=user)
     categories = _category_sales(period_orders)
     inventory = _product_inventory(products, period_orders, period)
-    sellers = _seller_performance(period_orders, period, inventory, user=user)
+    sellers = _seller_performance(period_orders, period, inventory, user=user, stable_identities=refined)
 
     selected_product_id = params.get("forecast_product")
     try:
@@ -670,7 +744,7 @@ def build_marketplace_analytics(params, *, today: date | None = None, user=None)
             "active_buyers": buyer_activity["total"],
             "active_sellers": sellers["active_count"],
             "approved_products": approved_products_count,
-            "average_order_value": _money_text(revenue / completed_orders) if completed_orders else "0.00",
+            "average_order_value": _money_text(average_order_value(revenue, completed_orders)) if completed_orders else (None if refined else "0.00"),
         },
         "order_status_breakdown": {
             "total": total_period_orders,
@@ -688,7 +762,7 @@ def build_marketplace_analytics(params, *, today: date | None = None, user=None)
         "seller_performance": sellers,
         "inventory": inventory,
         "product_options": list(products.order_by("name").values("id", "name")),
-        "forecast": _forecast(selected_product, period, horizon, stock),
-        "market_basket": _market_basket(period_orders),
+        "forecast": _forecast(selected_product, period, horizon, stock, user=user, today=today),
+        "market_basket": _market_basket(period_orders, detailed=refined),
         "peak_sales": _peak_sales_period(period_orders),
     }

@@ -35,6 +35,117 @@ class OrdersAdminTests(TestCase):
     def setUp(self):
         self.client.force_login(self.admin)
 
+    def test_dashboard_fragment_requires_one_explicit_scoped_order(self):
+        allowed = self.order()
+        forbidden = self.order(self.foreign)
+        self.client.force_login(self.scoped)
+        url = reverse("admin_orders_page")
+        for value in ("", "invalid", "-1", "9" * 19, str(forbidden.pk), "999999999"):
+            response = self.client.get(url, {"format": "dashboard-order", "order": value})
+            self.assertEqual(response.status_code, 404)
+        response = self.client.get(url, {"format": "dashboard-order", "order": allowed.pk,
+                                         "page": 999, "status": "cancelled", "program": self.bsit.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'data-order-id="{allowed.pk}"', count=1)
+        self.assertNotContains(response, f'data-order-id="{forbidden.pk}"')
+        self.assertContains(response, "data-dashboard-order-fragment")
+        self.assertNotContains(response, "<!DOCTYPE")
+        self.assertNotContains(response, "ordersFilters")
+        self.assertNotContains(response, "<script")
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertEqual(self.client.post(url + f"?format=dashboard-order&order={allowed.pk}").status_code, 405)
+
+    def test_dashboard_fragment_reuses_all_canonical_order_attributes_without_writes(self):
+        from html.parser import HTMLParser
+
+        class Rows(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.rows = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "tr" and "data-order-id" in dict(attrs):
+                    # The canonical controller consumes dataset values. The full
+                    # table may also carry structural attributes such as role.
+                    self.rows.append({key: value for key, value in attrs if key.startswith("data-")})
+
+        order = self.order(message_to_seller='Saved <message> & "quotes"', official_receipt_no="OR-SAVED",
+                           fulfillment_method="seller_delivery", delivery_destination="Saved destination")
+        page = self.page(order=str(order.pk))
+        before = list(MarketplaceOrder.objects.values())
+        with CaptureQueriesContext(connection) as queries:
+            fragment = self.client.get(reverse("admin_orders_page"), {"format": "dashboard-order", "order": order.pk})
+        self.assertEqual(fragment.status_code, 200)
+        page_rows, fragment_rows = Rows(), Rows()
+        page_rows.feed(page.content.decode())
+        fragment_rows.feed(fragment.content.decode())
+        self.assertEqual(page_rows.rows, fragment_rows.rows)
+        self.assertEqual(before, list(MarketplaceOrder.objects.values()))
+        self.assertFalse(any(q["sql"].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")) for q in queries))
+        directory = os.environ.get("DASHBOARD_OPERATIONS_REVIEW_DIR")
+        if directory:
+            target = Path(directory)
+            target.mkdir(parents=True, exist_ok=True)
+            params = {"period": "last_30_days"}
+            (target / "dashboard.html").write_bytes(self.client.get(reverse("admin_dashboard_page"), params).content)
+            (target / "payload.json").write_bytes(self.client.get(reverse("admin_dashboard_api"), params).content)
+            (target / "order-detail.html").write_bytes(fragment.content)
+            self.assertEqual(before, list(MarketplaceOrder.objects.values()))
+
+    def test_dashboard_fragment_preserves_existing_view_only_permission(self):
+        from django.contrib.auth.models import Permission
+        order = self.order()
+        viewer = User.objects.create_user(username="dashboard-order-viewer", is_staff=True, department=self.btled, major=self.he)
+        viewer.user_permissions.add(Permission.objects.get(codename="can_view_orders", content_type__app_label="accounts"))
+        self.client.force_login(viewer)
+        response = self.client.get(reverse("admin_orders_page"), {"format": "dashboard-order", "order": order.pk})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.update(order, status="processing").status_code, 403)
+
+    def test_dashboard_fragment_keeps_tab_identity_and_denies_unprivileged_users(self):
+        order = self.order(self.foreign)
+        token = create_admin_tab_token(self.scoped)
+        response = self.client.get(reverse("admin_orders_page"), {"format": "dashboard-order", "order": order.pk}, HTTP_X_ADMIN_TAB_TOKEN=token)
+        self.assertEqual(response.status_code, 404)
+        self.client.force_login(self.buyer)
+        response = self.client.get(reverse("admin_orders_page"), {"format": "dashboard-order", "order": order.pk})
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_dashboard_includes_canonical_operational_modals_without_orders_page(self):
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+        request = RequestFactory().get("/")
+        request.user = self.admin
+        markup = render_to_string("marketplace/partials/dashboard_order_modals.html", request=request)
+        self.assertNotIn("<!DOCTYPE", markup)
+        self.assertNotIn('id="ordersFilters"', markup)
+        self.assertNotIn("admin_sidebar", markup)
+        for identifier in ("orderDetailModal", "completeOrderModal", "cancelOrderModal", "orderItemsTableBody",
+                           "orderStatusHistory", "orderManageReceipt", "btnModalStepOrder", "btnModalDelivery",
+                           "btnModalCancelOrder", "btnModalCompleteOrder", "orderSaveButton",
+                           "buyerPickupConfirmedCheck", "cashPaymentReceivedCheck"):
+            self.assertIn(f'id="{identifier}"', markup)
+            self.assertEqual(markup.count(f'id="{identifier}"'), 1)
+        self.assertIn('data-can-manage-orders="true"', markup)
+
+    def test_both_dashboard_recent_order_templates_have_plain_reference_and_one_eye(self):
+        from django.template.loader import render_to_string
+        order = {"code": "RECENT-APPROVED", "url": "/admin-orders/?order=1", "total": "100.00",
+                 "date": "Oct 26, 2026", "buyer_name": "Recorded Buyer", "seller_name": "Recorded Seller",
+                 "status_key": "pending", "status": "Pending", "payment_key": "unpaid", "payment_status": "Unpaid"}
+        for template, context in (
+            ("dashboard/partials/recent_orders.html", {"executive_mode": True, "recent_orders": [order]}),
+            ("marketplace/partials/dashboard_order_inventory.html", {"marketplace": {"recent_orders": [order]}}),
+        ):
+            with self.subTest(template=template):
+                markup = render_to_string(template, context)
+                self.assertEqual(markup.count("data-dashboard-order-details"), 1)
+                self.assertRegex(markup, r'<th\b(?=[^>]*\bscope="row")[^>]*>RECENT-APPROVED')
+                self.assertIn('role="tooltip">View Order Details</span>', markup)
+                self.assertRegex(markup, r'<th\b(?=[^>]*\bscope="col")[^>]*>Actions</th>')
+                self.assertNotIn('class="recent-order-link"', markup)
+                self.assertNotIn('>View Details</a>', markup)
+
     def order(self, product=None, **changes):
         product = product or self.product
         values = {"product": product, "product_name": product.name, "buyer_user_id": self.buyer.pk,

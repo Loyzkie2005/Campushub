@@ -111,6 +111,48 @@ def weekly_hours(value):
     return {day: {"open": start.strftime("%H:%M"), "close": end.strftime("%H:%M")} if day in selected else None for day in WEEKDAYS}
 
 
+def validate_schedule_change(facility, workflow):
+    """Do not close or shorten an affected day around an active slot reservation.
+
+    Called while the facility row is locked, sharing the booking-create lock.
+    Calendar blocks are retained independently and never treated as reservations.
+    """
+    if facility.booking_mode != "slot":
+        return
+    from django.utils import timezone
+    from api.models import Booking
+    from .schedules import schedule_blocks_q
+
+    previous_workflow = facility.workflow_config or {}
+    previous = weekly_hours(previous_workflow.get("operating_hours"))
+    proposed = weekly_hours(workflow.get("operating_hours"))
+    old_policy = bool(previous_workflow.get("weekend_only"))
+    new_policy = bool(workflow.get("weekend_only"))
+    if previous == proposed and old_policy == new_policy:
+        return
+    now = timezone.localtime()
+    bookings = facility.bookings.filter(
+        status__in=(Booking.STATUS_PENDING, Booking.STATUS_APPROVED), booking_date__gte=now.date(),
+    ).exclude(schedule_blocks_q()).only("id", "booking_date", "start_time", "end_time")
+    for booking in bookings:
+        if booking.booking_date == now.date() and booking.end_time and booking.end_time <= now.time().replace(tzinfo=None):
+            continue
+        day = WEEKDAYS[booking.booking_date.weekday()]
+        # An unrelated weekday edit must not invalidate historical exceptions.
+        if previous is not None and proposed is not None and previous[day] == proposed[day] and old_policy == new_policy:
+            continue
+        period = proposed.get(day) if proposed is not None else None
+        allowed = period is not None and not (new_policy and day in WEEKDAYS[:5])
+        if allowed:
+            allowed = (booking.start_time is not None and booking.end_time is not None
+                and parse_time(period["open"]) <= booking.start_time < booking.end_time <= parse_time(period["close"]))
+        if not allowed:
+            raise ValidationError({"operating_hours": (
+                f"The schedule would exclude active reservation {booking.pk} on {booking.booking_date:%b %d, %Y}. "
+                "Keep hours covering this reservation or reschedule it first."
+            )})
+
+
 def duration_hours(value):
     """Retain decimal-hour storage while accepting existing '1 hour' records."""
     if value in (None, ""):

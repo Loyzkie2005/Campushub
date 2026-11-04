@@ -14,24 +14,25 @@
     <link rel="stylesheet" href="{% static 'components/css/admin_sales_overview.css' %}?v=20261022-inter" />
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_filter.css' %}?v=20261005-stock-column-fit" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_system_status.css' %}?v=20261005-online-green" />{% endif %}
-    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_marketplace_overview.css' %}?v=20261022-inter" />{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_marketplace_overview.css' %}?v=20261031-recent-orders-balanced" />{% endif %}
     <link rel="stylesheet" href="{% static 'components/css/admin_dashboard_palette.css' %}?v=20261006-navy-columns" />
-    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_booking_overview.css' %}?v=20261017-executive" />{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_booking_overview.css' %}?v=20261031-summary-in-trend" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_most_booked_facilities.css' %}?v=20261007-facility-images" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_upcoming_reservations.css' %}?v=20261006-upcoming" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_summary.css' %}?v=20261022-inter">{% endif %}
-    {% if show_bundle_suggestions %}<link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261025-bundle-sync">{% endif %}
+    {% if show_bundle_suggestions %}<link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261103-bundle-empty">{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_executive.css' %}?v=20261020-header-status-stock">{% endif %}
-    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_facilities_overview.css' %}?v=20261022-facilities">{% endif %}
-    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_services_overview.css' %}?v=20261022-services">{% endif %}
-    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_operations.css' %}?v=20261024-registration-views">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_facilities_overview.css' %}?v=20261031-upcoming-reservations-one-row-v2">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_services_overview.css' %}?v=20261101-services-balanced">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_operations.css' %}?v=20261101-activity-context">{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_empty.css' %}?v=20261022-empty">{% endif %}
-    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_executive_refinement.css' %}?v=20261024-orders-row">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_executive_refinement.css' %}?v=20261103-kpi-trends-activity">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_attention.css' %}?v=20261103-compact">{% endif %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% include 'partials/web_typography.html' %}
 </head>
 
-<body>
+<body{% if global_dashboard %} class="super-admin-dashboard"{% endif %}>
     <div class="sidebar-section">
 
         {% include 'partials/admin_sidebar.html' with active_page='dashboard' %}
@@ -610,17 +611,18 @@
     <script src="{% static 'marketplace/js/bundle_suggestions.js' %}?v=20261022-monitor"></script>
     {% endif %}
     {% endif %}
+    {% if global_dashboard %}{% include 'marketplace/partials/dashboard_order_modals.html' %}{% endif %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'components/js/admin_notifications.js' %}?v=20260726-empty-messages"></script>
     <script src="{% static 'components/js/admin_dashboard.js' %}?v=20261022-inter"></script>
     {% if global_dashboard %}<script src="{% static 'components/js/admin_most_booked_facilities.js' %}?v=20261022-empty"></script>{% endif %}
     {% if global_dashboard %}<script src="{% static 'components/js/admin_upcoming_reservations.js' %}?v=20261023-users-overview"></script>{% endif %}
-    {% if global_dashboard %}<script src="{% static 'components/js/admin_booking_overview.js' %}?v=20261023-users-overview"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_booking_overview.js' %}?v=20261031-booking-bars"></script>{% endif %}
     <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20261023-users-overview"></script>
-    {% if global_dashboard %}<script src="{% static 'components/js/admin_marketplace_products_chart.js' %}?v=20261022-empty"></script><script src="{% static 'components/js/admin_dashboard_filter.js' %}?v=20261024-orders-nine"></script>{% endif %}
-    {% if global_dashboard %}<script src="{% static 'components/js/admin_services_overview.js' %}?v=20261023-users-overview"></script>{% endif %}
-    {% if global_dashboard %}<script src="{% static 'components/js/admin_dashboard_activities.js' %}?v=20261022-activities"></script>{% endif %}
-    {% if global_dashboard %}<script src="{% static 'components/js/admin_dashboard_executive.js' %}?v=20261024-registration-grouping"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_marketplace_products_chart.js' %}?v=20261031-saas-dashboard"></script><script src="{% static 'components/js/admin_dashboard_filter.js' %}?v=20261103-kpi-trends-activity"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_services_overview.js' %}?v=20261031-services-vertical"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_dashboard_activities.js' %}?v=20261101-activity-context"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_dashboard_executive.js' %}?v=20261031-remove-user-trend-view-chart-data"></script>{% endif %}
     {% if global_dashboard %}<script src="{% static 'components/js/admin_system_status.js' %}?v=20261022-top-layout"></script>{% endif %}
 </body>
 

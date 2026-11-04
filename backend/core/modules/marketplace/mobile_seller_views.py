@@ -43,6 +43,24 @@ def live_suggestions(account):
     return result
 
 
+@csrf_exempt
+@require_POST
+def receive_stock(request):
+    from .services.fifo import receive, FIFOError
+    account, error = approved_seller(request)
+    if error is not None:
+        return error
+    try:
+        payload = json.loads(request.body)
+        if not isinstance(payload, dict):
+            raise ValueError("Send a stock receiving object.")
+        return JsonResponse(receive(payload.get("sku"), payload.get("quantity"), payload.get("reference"), account,
+            payload.get("key"), received_at=payload.get("received_at"), notes=payload.get("notes", ""),
+            inventory_method=payload.get("inventory_method"), source="mobile"))
+    except (ValueError, TypeError, FIFOError) as exc:
+        return JsonResponse({"error": str(exc)}, status=409)
+
+
 def pair_key(row):
     return tuple(sorted(int(product["id"]) for product in row["products"]))
 
@@ -75,7 +93,7 @@ def workspace(request):
     owned = Product.objects.filter(mobile_seller=account).order_by("-submitted_at", "-pk")
     products = prime_bundle_inventory(owned)
     inventory = build_inventory_table([product for product in products if not product.is_archived])
-    inventory_fields = ("product_id", "product_name", "name", "sku", "on_hand", "reserved", "available",
+    inventory_fields = ("product_id", "product_name", "name", "sku", "sku_id", "inventory_method", "can_receive", "on_hand", "reserved", "available",
                         "threshold", "status", "status_label", "derived", "thumbnail_url")
     rows = [{key: row.get(key) for key in inventory_fields} for row in inventory]
     orders = seller_order_queryset(account)
@@ -92,23 +110,44 @@ def workspace(request):
     # Do not expose administrative URLs, metrics, thresholds or other sellers.
     public_recommendations = {key: recommendations[key] for key in ("rows", "error", "message", "detail")}
     from .services.orders import order_items
-    order_page = Paginator(orders.order_by("-created_at").select_related("product").prefetch_related(
-        "product__inventory_skus"), 30).get_page(request.GET.get("orders_page", "1"))
-    serialized_orders = [{"id": order.pk, "code": order.order_code or str(order.pk),
+    order_rows = orders.select_related("product").prefetch_related("product__inventory_skus")
+    order_page = Paginator(order_rows.order_by("-created_at", "-pk"), 30).get_page(request.GET.get("orders_page", "1"))
+    page_orders = list(order_page)
+    recent_orders_source = page_orders[:5] if order_page.number == 1 else list(
+        order_rows.order_by("-created_at", "-pk")[:5])
+    action_orders_source = list(order_rows.filter(status__in=(
+        MarketplaceOrder.STATUS_PENDING, MarketplaceOrder.STATUS_PROCESSING,
+        MarketplaceOrder.STATUS_READY_FOR_PICKUP)).order_by("created_at", "pk")[:5])
+    from .services.mobile_order_previews import buyer_full_names, product_preview
+    preview_orders = {order.pk: order for order in page_orders + recent_orders_source + action_orders_source}
+    full_names = buyer_full_names(list(preview_orders.values()))
+
+    def serialize_order_row(order):
+        items = order_items(order)
+        return {"id": order.pk, "code": order.order_code or str(order.pk),
         "product_name": order.product_name, "buyer_name": order.buyer_name,
+        "buyer_full_name": full_names.get(order.pk, ""), "product_preview": product_preview(order, items),
         "quantity": order.quantity, "total": str(order.total_price), "status": presentation(order)["status_label"], "status_key": order.status,
         "payment_status": order.get_payment_status_display(), "created_at": order.created_at,
-        "pickup_location": order.pickup_location, "items": order_items(order),
+        "pickup_location": order.pickup_location, "items": items,
         **presentation(order)}
-        for order in order_page]
+
+    serialized_orders = [serialize_order_row(order) for order in page_orders]
+    # Home always shows the newest owner orders, independent of the full list's page.
+    recent_orders = serialized_orders[:5] if order_page.number == 1 else [
+        serialize_order_row(order) for order in recent_orders_source]
+    # Home must not miss older open orders behind a page of completed records.
+    action_orders = [serialize_order_row(order) for order in action_orders_source]
     public_products = [serialize_product(product, request) for product in products]
-    response = JsonResponse({"seller": {**snapshot(account), "year_section": account.year_section},
+    response = JsonResponse({"seller": {**snapshot(account), "year_section": account.year_section,
+        "seller_delivery_enabled": latest(account, "mobile").seller_delivery_enabled},
         "products": public_products, "inventory": rows,
         "overview": {"active_products": sum(product.approval_status == Product.STATUS_APPROVED and not product.is_archived for product in products),
                      "completed_orders": orders.filter(status=MarketplaceOrder.STATUS_COMPLETED).count(),
                      "pending_orders": orders.filter(status="pending").count()},
         "bundle_submissions": [row for row in public_products if row["product_type"] == Product.TYPE_BUNDLE],
-        "orders": serialized_orders, "order_count": orders.count(),
+        "orders": serialized_orders, "recent_orders": recent_orders,
+        "orders_requiring_action": action_orders, "order_count": orders.count(),
         "orders_page": order_page.number, "orders_pages": order_page.paginator.num_pages,
         "recommendations": public_recommendations, "saved_suggestions": saved_pairs(account),
         "analytics": {"period": period.key, "label": period.label,
@@ -118,6 +157,28 @@ def workspace(request):
             "trend": _sales_time_series(sales, period, "daily"), "top_products": _top_products(sales)}})
     response["Cache-Control"] = "private, no-store"
     return response
+
+
+@csrf_exempt
+@never_cache
+@require_POST
+@transaction.atomic
+def delivery_setting(request):
+    account, error = approved_seller(request)
+    if error is not None: return error
+    from api.models import SellerRequest
+    try:
+        data = json.loads(request.body)
+        if not isinstance(data, dict) or set(data) != {"seller_delivery_enabled"} or not isinstance(data["seller_delivery_enabled"], bool):
+            raise ValueError
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "Send seller_delivery_enabled as true or false."}, status=400)
+    application = SellerRequest.objects.select_for_update().filter(mobile_user=account).order_by("-created_at", "-pk").first()
+    if not application or application.status != "approved" or application.is_suspended:
+        return JsonResponse({"error": "Approved active seller access is required."}, status=403)
+    application.seller_delivery_enabled = data["seller_delivery_enabled"]
+    application.save(update_fields=["seller_delivery_enabled", "updated_at"])
+    return JsonResponse({"seller_delivery_enabled": application.seller_delivery_enabled})
 
 
 @csrf_exempt

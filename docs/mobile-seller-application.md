@@ -1,5 +1,1730 @@
 # Mobile seller application and existing-account product ownership
 
+## Approved application wording and one manual phone notification - November 4, 2026
+
+1. **Cause / reason.** The user selected wording that tells an approved applicant what they can do next, then requested a phone notification without visible test wording. The earlier sentence only said that seller access was active.
+2. **Exact files changed / current lines and anchors.** `campushub/lib/module_app/screens/seller_application_form.dart:496`, the `'approved'` branch in `_statusPanel()`, replaces that one sentence. `docs/mobile-seller-application.md:3` records this change; `CAMPUSHUB_CONTEXT.md:3` links this report. No backend source or test file changed.
+3. **Changes made.** The approved status now says: **Your seller application is approved. You can now add products and submit them for review.** Other statuses and actions keep their existing behavior. One manually sent phone notification used the title **Seller Application Approved** and the exact new sentence, with no visible test label.
+4. **How it works / functions, inputs, outputs and data flow.** `SellerApplicationService.status()` reads the authenticated `/api/seller/access-status/` response. `_load()` in `seller_application_form.dart:97` copies its saved status into `_status`. `_statusPanel()` at line 453 selects the corresponding heading and message; only its approved message changed. Its output is Flutter `Text` inside the existing status page. Existing `onSellerApproved` navigation may leave that page in normal Profile navigation. This wording describes seller access while making clear that products still require review.
+
+   ```dart
+   // Displayed only by the existing approved-status branch.
+   'approved' =>
+       'Your seller application is approved. You can now add products and submit them for review.',
+   ```
+
+   The separate one-time phone verification read the connected phone's saved account and Firebase installation into memory, matched its active Django device/session binding, confirmed its latest actual seller application was approved and not suspended, then sent the exact source sentence through the existing Firebase configuration. It did not modify a seller application or queue a product review. Credentials, installation IDs and session tokens were not printed or saved.
+5. **Backend / API behavior.** No endpoint, permission or approval logic changed. This copy change does **not** connect `SellerRequest.approve()` to automatic push delivery. The manual notification is separate from the status page and from the product approval worker.
+6. **Database / migration impact.** None. The phone verification performed read-only application/device queries and sent one external notification. No working record, outbox row, schema or migration was changed by this step.
+7. **Tests performed.** `flutter test --no-pub test/seller_application_test.dart --reporter expanded` passed **13 tests**. `flutter analyze --no-pub lib/module_app/screens/seller_application_form.dart` reported **no issues in 31.1 seconds**. These existing widget tests cover saved statuses, submission, refresh, errors and responsive layouts; no new copy-only test was added. Actual phone verification confirmed the approved account, Firebase acceptance and Android receipt of the exact title/body. The received notification had `AUTO_CANCEL|SILENT`; a floating banner was **not verified for this message**. Sanitized evidence: `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261104/push-popup-20261104/seller-application-approved-result.json`. Earlier, the differently worded `CampusHub popup test` message did produce a visually verified floating banner; that does not prove this approval message popped up.
+8. **Remaining limitations / troubleshooting / safe practice.** The phone can classify individual messages as unwanted and silence them even with Banners enabled and a HIGH channel. Earlier diagnostics confirmed `tran.harassment=true` on prior suppressed messages; this step confirms the new message's SILENT flag without assuming the exact classification cause. CampusHub's phone Reminder Intensity was changed from AI Reminder to Follow App during the preceding investigation; that alone did not guarantee banners. No APK rebuild, reinstall, hot reload or automatic seller-approval push implementation was performed here. Load the updated Flutter source through the user's normal development run to see the new in-app sentence. Safe exercise: find the approved branch at line 495, identify the literal sentence at line 496, and compare it with the pending/rejected branches. Run the test command above to verify the status flow without changing a real application or sending another notification.
+
+## Seller Home: banner restored below Inventory Alerts - November 4, 2026
+
+This supersedes only the November 2 seller-banner removal below. The banner returns after the inventory-alert content and before Suggested Product Bundles. Sales Overview, Recent Orders, the floating navbar and buyer Home keep their existing placement.
+
+1. **Cause / reason.** The earlier approved-seller Home explicitly hid its top promotional carousel. The user now requested adding the existing banner back below Inventory Alerts. Rendering it again at the top would not satisfy that placement, so Home passes the shared component into the existing seller highlights instead.
+2. **Exact files changed / current lines and anchors.** Paths are relative to the project root:
+
+   | File | Current line / anchor | Change |
+   | --- | --- | --- |
+   | `campushub/lib/module_app/screens/dashboard_screen.dart` | 28 import; 414 `afterInventoryAlerts: CampusHomeBanners` | Create the existing carousel in approved seller Home and connect its existing catalog-tab callbacks and Home-active state. |
+   | `campushub/lib/module_app/screens/seller_dashboard_page.dart` | 36 constructor; 49 field; 282 forwarding | Accept an optional `afterInventoryAlerts` widget and pass it into the successful Home-section rendering. Dedicated seller pages receive no new banner. |
+   | `campushub/lib/module_app/screens/seller_workspace_content.dart` | 30 constructor; 43 field; 1712 `afterInventoryAlerts` | Render the optional widget after `inventory(attention: true)`, with a 16dp preceding gap, before the existing suggestion heading. |
+   | `campushub/test/seller_home_entry_test.dart` | 287 placement/navigation regression; 380 scrolling regression; 718 approval/revocation regression | Check one banner in seller content at three viewport/text-scale combinations, normal slide navigation, the Services action, active-state forwarding and retained workspace state. Replace obsolete seller-banner-absence expectations. |
+   | `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md` | This entry / latest seller-banner entry | Record the current placement, implementation, checks and safe exercise. |
+
+3. **Changes made.** Approved sellers see the same campus-photo carousel, captions, gold actions and pagination dots below inventory alerts, including the honest no-alerts state. It remains before Suggested Product Bundles. Buyer Home retains its original top carousel. The existing approved-seller top-banner suppression prevents a duplicate. No banner asset, slide content, styling or shared carousel logic changed.
+4. **How it works / functions, inputs, outputs and data flow.** `DashboardScreen.build` already knows the authenticated user, approved seller state and selected root tab. It supplies `CampusHomeBanners(active: _currentIndex == 0)` through `SellerDashboardPage.afterInventoryAlerts` to `SellerWorkspaceContent.afterInventoryAlerts`. The latter is a presentation slot, not a data loader. `homeHighlights(context)` still reads actual workspace inventory and suggestions; the slot is inserted after its inventory output. While seller workspace data loads or fails, its original loading/error/retry branch remains. The carousel keeps its own lifecycle, offscreen and reduced-motion behavior. Browse Products calls `_goToTab(1)`, View Facilities calls `_goToTab(3)` and View Services calls `_goToTab(2)`; the root navbar accounts for its seller Add Product item as before. Leaving Home passes `active: false`, and returning reuses the retained seller workspace.
+
+   ```dart
+   // Existing inventory output first; the optional shared banner follows it.
+   ...inventory(attention: true),
+   if (widget.afterInventoryAlerts != null) ...[
+     const SizedBox(height: 16),
+     widget.afterInventoryAlerts!,
+   ],
+   // Existing Suggested Product Bundles heading and records continue below.
+   ```
+
+   A widget slot reuses the existing carousel and root navigation callbacks without copying banner rendering into the seller workspace or creating another screen.
+5. **Backend / API behavior.** Unchanged. No endpoint, request payload, seller permission, approval calculation, inventory calculation, recommendation workflow or backend source changed. Scrolling to the banner and returning from Services does not trigger an extra workspace reload; the integration test retains one workspace read.
+6. **Database / migration impact.** None. No model, migration, working record, analysis execution or database mutation was used for this change. Widget tests use isolated service fixtures.
+7. **Tests performed.** **63 Flutter tests passed in 17 seconds** across `seller_home_entry_test.dart`, `seller_home_layout_test.dart`, `home_page_test.dart` and `campus_home_banners_test.dart`. The new root integration checks cover 280dp at 200% text, 390dp and 768dp, banner ordering/containment, exactly one banner, swiping to Services and returning, active-state forwarding and no extra workspace read. Existing tests cover approval/revocation, refresh, Home catalogs, banner callbacks/timing/lifecycle and seller layout. Three actual seller-banner captures were generated; 390dp and 280dp/200% were visually inspected. Whole-app `flutter analyze --no-pub` reported **no issues in 8.7 seconds**; Dart formatting completed. Evidence: `scratch/seller-home-banner-20261104/final-tests.log`, `analyze.log`, `renders/` and `layout-renders/`. Initial checks exposed test-harness issues: decorative dots are not buttons, retained offstage widgets require an explicit finder, and the existing layout captures require their output directory and real fonts. Those were corrected in verification; no unrelated runtime styling was altered to satisfy them.
+
+   Reproduce from `campushub` in PowerShell:
+
+   ```powershell
+   $env:SELLER_BANNER_REVIEW_DIR = Join-Path (Get-Location) '../scratch/seller-home-banner-20261104/renders'
+   $env:SELLER_HOME_REVIEW_DIR = Join-Path (Get-Location) '../scratch/seller-home-banner-20261104/layout-renders'
+   New-Item -ItemType Directory -Force -Path $env:SELLER_HOME_REVIEW_DIR | Out-Null
+   flutter test --no-pub test/seller_home_entry_test.dart test/seller_home_layout_test.dart test/home_page_test.dart test/campus_home_banners_test.dart
+   flutter analyze --no-pub
+   ```
+
+8. **Remaining limitations / troubleshooting / safe practice.** Verification uses actual Flutter widgets and bundled assets with isolated test services, not an installed physical device or a full-project suite. At extreme 280dp/200% text the unchanged shared banner action wraps onto two lines and extends beyond its inset gold decorative paint; this placement change does not redesign that existing component. If the banner is absent, first confirm seller workspace data loaded successfully and restart the current development build after the widget-tree change. Safe exercise: sign in with an already approved seller, scroll below Inventory Alerts, verify one banner before Suggested Product Bundles, swipe to View Services, open it and return Home. Confirm the banner remains in place and no product or inventory was changed. Compare a buyer account: its original top banner remains.
+
+## Current Seller Sidebar: exact Design B mockup matching - November 4, 2026
+
+1. **Cause / reason:** User provided a design mockup screenshot showing the exact seller mobile sidebar layout: `MAIN`, `SELLER TOOLS`, and `MESSAGES` grouped inside pure white rounded cards (`#FFFFFF`, border `#E3E7EF`, 16dp radius), seamless card rows without internal dividers, an active `Home` row with `#F4F5F9` rounded highlight and an inset 3.5dp gold pill indicator (`#FCB316`), exact icons (`Iconsax.home_2_copy`, `Iconsax.category_2_copy`, `Iconsax.chart_21_copy`), a circular avatar with `#F1F5F9` background, navy person outline, and right chevron `>`, and an open `Logout` row directly below a full-width divider with a trailing chevron `>`.
+2. **Exact files changed:**
+   - `campushub/lib/module_app/widgets/navigation/seller_drawer.dart:13`: updated `_DrawerStyle` with card radius 16dp, indicator width 3.5dp, border `#E3E7EF`, selected surface `#F4F5F9`, chevron color `#A8B1BF`; line 34: configured `SellerDestination` sections (`MAIN`, `SELLER TOOLS`, `MESSAGES`) and exact icons; line 122: updated `_card` to pure white border container without inner divider lines; line 136: updated `_entry` with inset vertical gold pill indicator and non-shifting icon alignment; line 290: updated header with light-gray avatar and chevron `>`; line 395: updated bottom `Logout` as an open row below a full-width horizontal divider with right chevron `>`.
+   - `campushub/test/seller_drawer_test.dart:82`: updated assertions for `My Purchases`, `SELLER TOOLS`, and `MESSAGES` groups.
+   - `campushub/test/drawer_render_test.dart:60`: updated visual snapshot fixture tests.
+3. **Changes made:**
+   - Aligned sidebar card layout to the exact visual reference image.
+   - Removed inner divider lines within cards for clean, modern cards.
+   - Formatted the active item selection indicator as an inset rounded gold pill (`width: 3.5`, `height: 22`, `color: #FCB316`) positioned at `left: 8` within the `#F4F5F9` rounded item background.
+   - Refined `Logout` to be an open row below the full-width divider with a trailing chevron.
+   - Added trailing chevron `>` to the profile header and set avatar background to `#F1F5F9` with outline user icon fallback.
+4. **How it works:**
+   - `CampusHubDrawer` renders the user profile header with a trailing chevron.
+   - Each section (`MAIN`, `SELLER TOOLS`, `MESSAGES`) renders its section header and a `_card` grouping without internal dividers.
+   - `_entry` uses a `Stack` to display the inset gold pill on the active item without shifting leading icon alignment.
+   - Below the scrollable area, a full-width divider precedes the `Logout` row.
+5. **Backend / API behavior:** Unchanged; no API, database, or backend modifications.
+6. **Database / migration impact:** None.
+7. **Tests performed:** 59/59 Flutter tests passed across `seller_drawer_test.dart`, `drawer_render_test.dart`, `seller_workspace_test.dart`, `seller_home_entry_test.dart`, and checkout workflows; `flutter analyze --no-pub` reported 0 issues.
+8. **Remaining limitations:** UI-scoped change to Flutter mobile drawer.
+
+## Current Seller Sidebar: grouped-card layout (Design B) - November 4, 2026
+
+1. **Cause / reason:** User requested updating the CampusHub Flutter mobile seller sidebar to the grouped-card layout (Design B) with organized sections (MAIN, SELLER MANAGEMENT, COMMUNICATION, and separate BOTTOM Logout), renaming "My Purchases" to "My Orders", pure white background (#FFFFFF), navy text and icons (#0B1F3A), gold indicator (#FCB316) for the active selection, white rounded container groups with subtle borders, right-facing chevrons, and vertical scrolling for smaller devices.
+2. **Exact files changed:**
+   - `campushub/lib/module_app/widgets/navigation/seller_drawer.dart:13`: added `_DrawerStyle` grouped-card tokens (card radius 12dp, indicator width 3dp, navy #0B1F3A, gold #FCB316, selected surface #F1F5F9); line 34: updated `SellerDestination` sections (`MAIN`, `SELLER MANAGEMENT`, `COMMUNICATION`) and renamed `purchases` label to `'My Orders'`; line 84: updated destinations list; line 122: added `_card` grouped container with white surface, rounded border, and anti-aliased clipping; line 136: updated `_entry` with chevron icons, selected background, and narrow gold left edge indicator; line 230: added uppercase muted section headers; line 290: updated ListView and separate bottom Logout container; line 453: updated `SellerDrawer.drawerDestinations`.
+   - `campushub/lib/module_app/widgets/profile/profile_widgets.dart:25`: restored `'Montserrat'` font family for `ProfileStyle.identityText` in adherence to AGENTS.md institutional identity rules.
+   - `campushub/test/seller_drawer_test.dart:82`: updated assertions for Design B grouped-card keys, renamed 'My Orders' label, gold indicators, navy #0B1F3A ink, and section groups.
+   - `campushub/test/drawer_render_test.dart:60`: updated section heading and label checks and output scratch directory.
+   - `campushub/test/seller_workspace_test.dart:285`: updated drawer scroll target and verified removal of standalone sidebar Account Settings row in favor of existing profile navigation.
+3. **Changes made:**
+   - Grouped menu items inside white rounded cards (`_card()`) with subtle `#E2E8F0` borders and 12dp border radius.
+   - Organized items into three distinct sections:
+     - **MAIN**: Home, My Orders (renamed from "My Purchases"), My Bookings.
+     - **SELLER MANAGEMENT**: My Products, Inventory, Orders Received, My Bundles, Sales Analytics (accessible when seller status is approved).
+     - **COMMUNICATION**: Messages (with dynamic badge count).
+   - Bottom area retains a separate, full-width white rounded card container for **Logout** with confirmation dialog.
+   - Highlighted active selection with subtle light-gray surface (`#F1F5F9`) and a 3dp narrow gold indicator (`#FCB316`) on the left edge.
+   - Applied navy text and icon color (`#0B1F3A`) across all menu rows and logout.
+   - Preserved profile header identity at the top with user avatar, name, and academic program info.
+   - Wrapped sidebar menu items in a vertically scrollable `ListView` ensuring accessibility on compact viewports and enlarged text scales.
+4. **How it works / functions, inputs, outputs and data flow:**
+   - `CampusHubDrawer.destinations` returns the ordered list of `SellerDestination` values based on `sellerApproved`.
+   - For each distinct section, `_sectionHeading(section)` renders small uppercase muted text (`Inter`, 11sp, letter spacing 0.6).
+   - `_card()` wraps all items of that section inside a single rounded container. Between adjacent items within the container, an indented 1dp divider is drawn.
+   - `_entry()` builds each row: leading 20dp Iconsax glyph in `#0B1F3A`, 14sp title, optional unread message badge (gold surface with navy text), and trailing 16dp `Iconsax.arrow_right_3_copy` chevron. When `selected == item`, the background changes to `#F1F5F9` and a narrow gold indicator (`#FCB316`) is pinned to the left edge.
+   - Tapping an item invokes the existing `onSelected(item)` callback, preserving all navigation routing.
+5. **Backend / API behavior:** No backend API endpoints, models, or network requests were added or modified. All existing routing and session logic remain unchanged.
+6. **Database / migration impact:** None.
+7. **Tests performed:**
+   - `flutter test --no-pub test/seller_drawer_test.dart`: 10/10 tests passed across multiple device viewports (375x812, 320x640, 844x390, 768x1024), scaling factors (1.0x, 1.3x, 2.0x), and light/dark themes.
+   - `flutter test --no-pub test/drawer_render_test.dart`: All render tests passed, verifying light and dark captures for both seller and standard buyer roles.
+   - `flutter test --no-pub test/seller_workspace_test.dart`: 15/15 tests passed.
+   - `flutter test --no-pub test/seller_home_entry_test.dart`: 22/22 tests passed.
+   - `flutter test --no-pub test/checkout_workflow_test.dart test/order_fulfillment_test.dart test/seller_stock_receiving_test.dart`: 11/11 tests passed.
+   - `flutter analyze --no-pub`: 0 issues found.
+8. **Remaining limitations / troubleshooting / safe practice:**
+   - Changes are scoped to the mobile Flutter seller sidebar presentation and labels.
+   - Hot restart the Flutter application to ensure all cached widget tree elements reflect the new grouped-card styling.
+
+## Current Add Product: centered Product Submitted content - November 4, 2026
+
+1. **Cause / reason:** User requested centering Product Submitted content. The confirmation previously used `Alignment.topCenter` and a32dp leading spacer, so the success group stayed near the top even with unused space above the bottom actions.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:567`, `submitted-content-viewport` LayoutBuilder, and line582, `submitted-confirmation-content` Column; `campushub/test/seller_add_product_page_test.dart:1394`, viewport/content geometry and narrow-screen scrolling in the existing confirmation cases. This guide and `CAMPUSHUB_CONTEXT.md` record the layout change.
+3. **Changes made:** Centered the success icon, heading, explanatory copy, status and returned-product summary as one group in the space above the existing bottom actions. Removed the fixed32dp top spacer. Existing16dp padding,640dp width limit, summary layout and fixed View My Products / Back to Home actions remain.
+4. **How it works:** `_submissionConfirmation(product)` still receives only the validated backend response after successful submission. A LayoutBuilder measures the available content viewport, and a ConstrainedBox gives the scroll content a minimum height equal to that viewport minus its32dp vertical padding. Center positions the content group in that space; the group's Column uses `MainAxisSize.min`. When large text makes the group taller than the viewport, the scroll view expands its content and starts at the top instead of clipping it. Example: ordinary390dp content is centered vertically and horizontally;280dp/200% content can scroll to the actual product summary while actions remain visible.
+5. **Backend / API behavior:** Unchanged success validation, returned product values/status, request count, callbacks, Android Back and route handling. No new request, automatic redirect, approval or notification behavior.
+6. **Database / migration impact:** None. No models, migrations or working records changed; verification uses isolated existing mock-service responses.
+7. **Tests performed:** Six existing confirmation/status/incomplete/malformed-response cases passed in6 seconds. The three navigation cases check actual centering when the content fits, reachable summary when it must scroll, returned server values, one POST and existing Products/Home/Android Back results. Command from `campushub/`: `flutter test --no-pub test/seller_add_product_page_test.dart --name 'confirmed product shows|returned approval status|incomplete product confirmation|malformed success'`. Scoped Flutter analysis reported no issues in4.6 seconds. Actual390dp centered and280dp/200% scrolled captures were inspected under `scratch/submitted-centered-20261104/renders/`.
+8. **Remaining limitations / troubleshooting / safe practice:** Local widget verification only; no live submission, device or full-app-suite result is claimed. Large content intentionally scrolls instead of being forced into the visible height. Hot-restart if the old top alignment persists. Run the isolated confirmation tests and compare the content group's center with the viewport above the actions, then scroll the large-text fixture to its summary and use both destination buttons. Do not submit a working product solely to check this layout.
+
+## Current Add Product: Review photo cards and Administrator approval - November 4, 2026
+
+### 1. Cause / reason
+
+User supplied references showing individual bordered photo cards with captions underneath and a compact Product Approval notice. Review previously overlaid Cover on the first thumbnail, left other photos uncaptioned and said Marketplace Admin. The requested Cover label has no checkmark. The follow-up removes its amber text color: Cover now uses the same muted caption color as the other photos.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` |892 `fullWidthBody`;902 notice variant | Opt Product Approval into an icon/title row with full-width body text underneath. Existing low-stock notice retains its default layout. |
+| Same screen |1053 column selection;1065 `review-photo-card`;1105 caption color | White rounded bordered cards, square photo area, captions below and no Cover checkmark. All captions use the existing muted color; Cover retains its font weight. Three columns at ordinary phone width, two when width/text scaling requires more room. |
+| Same screen |1123 `review-product-approval`;1126 message;1129 variant flag | Replace Marketplace Admin with Administrator and use the reference's review-complete wording. |
+| `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart` |12 gold /13 border tokens | Remove the now-unused amber Cover text token. Other form tokens remain. |
+| `campushub/test/seller_add_product_page_test.dart` |1091 six-photo captions;2131 cover card;2156 approval copy;2181 capture | Check labels, original photo order, caption below thumbnail, no check glyph, full-width notice, retained editing/drafts and actual submission. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Record source, data flow, checks and safe exercise. |
+
+### 3. Changes made
+
+Uploaded Photos in Review now displays individual white cards with subtle borders, rounded corners and inset square images. The first card's caption is plain **Cover**, without a checkmark or special text color; the others say **Photo 2**, **Photo 3**, and so on. All use the existing muted caption color, with Cover retaining its stronger font weight. Captions sit below their photos instead of overlaying them. Selected real photos and the existing image-error fallback remain; the reference's example Photo1 placeholders are not inserted as product data.
+
+Product Approval uses the existing muted surface, shield/title row and full-width supporting paragraph: **Your product will be reviewed by the Administrator before it appears in the marketplace. You'll be notified once the review is complete.** The Review footer retains only Submit for Approval. The separate upload-step card, X removal, picker and Cover selection remain.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_review()` reads the unchanged `_orderedImages` list, where the actual selected Cover is first. It iterates that list into `review-photo-card-$i`, passing each original image URL to `ProductImage`. Captions derive from the position, not new image records: `i == 0 ? 'Cover' : 'Photo ${i + 1}'`. A LayoutBuilder chooses available columns using content width and text scale. Existing accessible image labels remain, with duplicate child semantics excluded.
+
+`_reviewNotice(..., fullWidthBody: true)` changes only Product Approval's arrangement. The default remains false for Low Stock Notice. Notice text is presentation only: it does not grant an Administrator permission or change who receives an approval task. The real draft, existing section Edit actions, `_submit` and Django product service continue unchanged.
+
+### 5. Backend / API behavior
+
+No change to approval roles/permissions, notifications, API payloads, validation, photo ordering, seller ownership, submission or database state. Administrator is the requested visible wording, not a backend role rename.
+
+### 6. Database / migration impact
+
+None. No model, migration, working product, uploaded file, audit or notification record was changed. Widget tests use their existing isolated service responses and photo fixtures.
+
+### 7. Tests performed
+
+- Follow-up Cover color removal: two existing Review/edit/draft cases passed in6 seconds at390dp/100% and280dp/200%, using `flutter test --no-pub test/seller_add_product_page_test.dart --plain-name 'review sections edit'`. No new test, screenshot or full-suite run was added for this small color change. Source search confirms no remaining `coverText` references in Flutter source/tests.
+- Final six existing Review/six-photo/Cover/zero-stock widget cases passed in12 seconds at390dp/100% and280dp/200%. They cover plain Cover/no check glyph, positional captions, actual selected-photo ordering, caption placement, exact Administrator copy, full-width notice body, retained section editing/Cover and ordered submission. Command from `campushub/`: `flutter test --no-pub test/seller_add_product_page_test.dart --name 'review sections edit|six-photo gallery|required cover photo lifecycle|zero stock review'`.
+- Final scoped Flutter analysis reported **No issues found** in5.4 seconds. Dart formatting completed.
+- Actual six-photo desktop-sized phone render,390dp approval notice and280dp/200% Review captures were inspected under `scratch/review-photo-cards-20261104/renders/`. The first narrow render exposed Cover wrapping inside three columns; the final two-column narrow layout keeps Cover together. Local test fixtures use existing fallback images where fixture loading requires them; they are not working product uploads.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device, deployed/live API or full-app-suite result is claimed. Large text can wrap Photo labels and make cards taller; normal-width cards retain the reference's three-across presentation. Hot-restart if older overlay captions remain. Safely select photos, choose a Cover in Upload Images, open Review and compare its first card with that selection. Confirm Cover has no check and other cards have positional captions, then read Administrator in Product Approval. Use Edit to return without submitting. No working product submission is needed to verify this UI.
+
+## Current Add Product: remove Review footer Back button - November 4, 2026
+
+1. **Cause / reason:** User clarified that the entire Review footer Back button must be removed. The earlier icon-only interpretation was incorrect and is superseded.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:1144`, `_navigation` returns only the primary button; `campushub/test/seller_add_product_page_test.dart:250`, absent footer-back expectation, line253 Review text/tooltip absence, and line2186 existing header-back navigation; this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** Deleted the footer Back button, arrow and tooltip, plus its two-button responsive layout. Review now has one full-width Submit for Approval action. The header Back control and section Edit actions remain.
+4. **How it works:** `_navigation` returns its existing primary button for every step: Next before Review, Submit for Approval in Review. The unchanged guards, busy/loading state and `_submit` callback still apply. Existing `_back` remains available through the header. Example: use the header Back control to return to Upload Images with photos/Cover retained; no draft data is cleared.
+5. **Backend / API behavior:** Unchanged validation, requests, permissions and submission.
+6. **Database / migration impact:** None; no working records changed.
+7. **Tests performed:** Three existing footer/Review cases passed in5 seconds, including390dp/100% and280dp/200% Review navigation, absent footer Back button/text/tooltip, retained drafts and actual header-back action. Command from `campushub/`: `flutter test --no-pub test/seller_add_product_page_test.dart --name 'bottom actions stay visible|review sections edit'`. Actual390dp Review capture inspected under `scratch/review-no-back-20261104/renders/`; only full-width Submit for Approval remains in the footer.
+8. **Remaining limitations / troubleshooting / safe practice:** Local widget verification only; no device or full-suite rerun for this presentation edit. Hot-restart if the old footer persists. Safely open Review, confirm its single footer action, then use a section Edit action or header Back and verify the retained draft. No working submission is needed.
+
+## Current Add Product: web-style upload arrow - November 4, 2026
+
+1. **Cause / reason:** User requested the web image-uploader arrow UI on mobile. The web reference is the existing upload SVG at `backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html:190` and its58px navy square/34px glyph at `backend/static/components/css/admin_products.css:1897`. Mobile previously showed the image-plus glyph. The web reference files were read, not changed.
+2. **Exact files changed:** New `campushub/lib/module_app/widgets/seller/product_upload_icon.dart:4`, `ProductUploadIcon`, line24 `paint` and line60 `shouldRepaint`; `campushub/lib/module_app/screens/seller_add_product_page.dart:17`, import, and line1454 `product-upload-arrow`; `campushub/test/seller_add_product_page_test.dart:13`, import, and lines919–934, upload-icon assertions. This guide and `CAMPUSHUB_CONTEXT.md` record the change.
+3. **Changes made:** The existing upload target now contains a white upload arrow/tray in a58dp navy square, with the web glyph's34dp size and rounded1.8-unit strokes. It uses the existing mobile navy token. Existing mobile gallery wording, rounded upload target, Uploaded Photos card, X controls and Cover badge remain.
+4. **How it works:** `ProductUploadIcon.build(context)` reads the surrounding white IconTheme and creates a decorative34dp CustomPaint. `_ProductUploadPainter.paint(canvas, size)` scales the web's24-by24 SVG coordinates and draws its tray, shaft and arrowhead with rounded strokes. `shouldRepaint` responds to tint changes. The parent upload button still calls `_pickImages`; its loading, busy and six-photo guards remain. Example: tapping the navy arrow invokes the same native gallery picker as tapping the surrounding upload target. This native vector avoids new image files, SVG dependencies or network requests.
+5. **Backend / API behavior:** No change to picker options, validation, photo ordering, drafts, seller permissions or submission. Web behavior, background-removal settings and all Django services remain unchanged; only the visual arrow treatment is copied.
+6. **Database / migration impact:** None. No working-record writes, models, migrations, routes or dependencies were changed.
+7. **Tests performed:** Seven existing upload/six-photo/Cover/Review widget tests passed in10 seconds at390dp/100% and280dp/200%, including full-target gallery taps, navy58dp icon container, selection/removal/Cover and ordered submission. Scoped Flutter analysis reported no issues in2.9 seconds; Dart formatting completed. Inspected actual empty uploader captures at both widths, saved with other local fixtures under `scratch/product-upload-arrow-20261104/renders/`. Reproduce from `campushub/` with `flutter test --no-pub test/seller_add_product_page_test.dart --name 'photo upload area|six-photo gallery|required cover photo lifecycle|review sections edit'`.
+8. **Remaining limitations / troubleshooting / safe practice:** No physical-device, deployed/live API or full-app-suite result is claimed. Existing large-text scrolling remains necessary at280dp/200%. Hot-restart if the former image-plus glyph persists. Safely open Add Product step3, confirm the white arrow/navy square, tap it to choose local photos, cancel or select photos, then verify the existing Uploaded Photos card and X removal. No working submission is needed.
+
+## Current Add Product: Uploaded Photos card - November 4, 2026
+
+1. **Cause / reason:** User requested an **Uploaded Photos** container/card while keeping X controls instead of visible Remove labels. Selected photos previously formed an unboxed grid below the existing upload button.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:1025`, Review title, and lines1480/1491/1497, `uploaded-photos-card`, label and grid; `campushub/test/seller_add_product_page_test.dart:239`, distinct step/Review titles, lines936/938, empty-card absence, and line977 onward, white bordered card and X controls. This guide and `CAMPUSHUB_CONTEXT.md` record the current presentation.
+3. **Changes made:** The step heading remains Upload Images. Selected photos appear in a white, subtly bordered12dp-radius card labeled Uploaded Photos, with12dp internal padding and three thumbnail columns. The card is absent before photo selection. Existing X icons, accessible removal tooltips, Cover badge, replacement options and counter remain. Review's corresponding section is named Uploaded Photos.
+4. **How it works:** `_images()` checks the actual `_imageCount > 0` and wraps the existing grid in the new container. Its inner `LayoutBuilder` measures space after card padding before calculating thumbnail sizes. `_imageSlot` still renders each retained image and its X control, whose callback calls the unchanged `_removeImage(index)` to update counts, Cover and validation. Selected-image draft values continue to flow into Review and the existing submission service. Example: remove the Cover photo with X; the next retained photo becomes Cover, and removing the final photo hides the card. Review's Edit action still opens step3 with retained photos.
+5. **Backend / API behavior:** Unchanged picker, validation, payloads, permissions and submission.
+6. **Database / migration impact:** None; no working records changed.
+7. **Tests performed:** Seven existing upload/six-photo/Cover/Review cases passed in9 seconds at390dp/100% and280dp/200%, using `flutter test --no-pub test/seller_add_product_page_test.dart --name 'photo upload area|six-photo gallery|required cover photo lifecycle|review sections edit'` from `campushub/`. Checks include the selected-only white bordered card, X glyphs, no visible Remove text, actual removal/Cover reassignment, retained drafts and ordered submission. Two upload cases passed again in3 seconds after adjusting captures to scroll the card into view. Scoped Flutter analysis found no issues in2.9 seconds. Actual390dp and280dp/200% widget captures were inspected; evidence is under `scratch/uploaded-photos-card-20261104/renders/`. An initial helper expected the upload-step title in Review; its expectation was updated for the distinct Uploaded Photos Review heading before the passing run.
+8. **Remaining limitations / troubleshooting / safe practice:** No physical-device, live API or full-suite rerun is claimed. Captures use isolated test photos, not working uploaded records. Hot-restart if the old layout remains. Safe exercise: select local photos in step3, inspect the Uploaded Photos card and X controls, remove one and verify the count/Cover, then open Review and use Edit to confirm retained photos. Remove the last photo to confirm the card disappears. No working submission is needed.
+
+## Current Add Product: solid Stock Method surfaces and icons - November 4, 2026
+
+### 1. Cause / reason
+
+The screenshot and user clarification identify the Stock Method cards and icons. The selected card explicitly used a pale gray fill. Separately, Add Product forced a white screen while copying the surrounding app theme: dark mode left its pale icon theme and unselected-control color in place. Changing only `onSurface` did not update those independent colors. The dark-theme regression reproduced a white help-icon glyph on the white form before the icon-theme correction.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` |1533 `iconTheme`;1537 `unselectedWidgetColor`;1544 scheme brightness;1550 variant text;1551/1552 outlines | Complete the existing form-local light theme using existing navy/slate/border tokens. Set icon opacity to 1. The surrounding app theme remains selected by the user. |
+| `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart` |218 `ProductInventorySelector`;239 Material color | Give both stock methods an opaque white surface. Preserve the selected navy border and filled radio as the selection cues. |
+| `campushub/test/seller_add_product_page_test.dart` |133 `surroundingTheme`;752 stock-card cases;810 resolved scheme;813 rendered icon;851 capture | Exercise the actual gold-seeded dark app theme as well as light mode, at390dp/100% and280dp/200%. Check the rendered icon color, white cards, selection, help and retained field switching. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Record the confirmed cause, scope, data flow, checks and safe exercise. |
+
+### 3. Changes made
+
+Standard Stock and Batch Tracking stay white in both selection states. Their existing navy outline and radio identify the selected method. Help icons and unselected radio outlines use solid slate `ProductFormStyle.muted` rather than inherited dark-theme colors that look transparent on white. Card dimensions, layout, descriptions, touch targets and tooltip behavior are retained. The existing pale `selectedSurface` token remains available for its other callers; only the stock cards stop using it.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`SellerAddProductPage.build(context)` reads the surrounding `ThemeData`, copies it into the existing form-local `Theme`, and supplies a consistent light scheme, icon theme and unselected-control color. Flutter's existing IconButton/Radio widgets resolve their colors from that local theme. `ProductInventorySelector(value, onChanged)` still receives the real `simple`/`fifo` draft value and callback; it renders white Material cards and derives the navy border/radio selection from `value`.
+
+```dart
+// Existing selection and callbacks still decide which fields are shown.
+Material(
+  color: Colors.white, // Opaque surface in either selection state.
+  // Existing selected border and InkWell callback remain below.
+)
+```
+
+The form-local approach corrects inherited colors without changing the app-wide dark theme. Tapping Batch Tracking still updates the existing retained draft, displays the same batch fields, and eventually submits through the unchanged product service.
+
+### 5. Backend / API behavior
+
+No change to payloads, validation, inventory methods, seller access, submission, authentication or Django services. This is a Flutter presentation correction on the existing screen; no new route, package or request is introduced.
+
+### 6. Database / migration impact
+
+None. No models, migrations or working records changed. Widget tests use existing isolated/mock service responses and do not submit working products.
+
+### 7. Tests performed
+
+- Four focused stock-card cases passed, covering both surrounding themes and both width/text-scale combinations. They verify actual rendered help-icon color, theme resolution, white surfaces, card/radio selection and tooltip operation.
+- The complete existing Add Product widget suite passed **54/54 tests in34 seconds**, including retained drafts, both stock methods, batch validation, keyboard/navigation, photos/Cover, review, guarded submission/errors and confirmation flows. Command: `flutter test --no-pub test/seller_add_product_page_test.dart` from `campushub/`.
+- Final scoped `flutter analyze --no-pub` reported **No issues found** in3.5 seconds. `dart format` reported three files/zero further changes.
+- Eight actual widget captures were generated under `scratch/add-product-colors-20261104/renders/`. Inspected dark-surrounding Standard Stock at390dp and selected Batch Tracking at280dp/200%; white surfaces, visible icons and selected navy outline/radio are present. These are local Flutter widget renders, not generated illustrations or physical-device screenshots.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device, live API, deployment or full-app test run is claimed. Existing280dp/200% text can wrap heavily within the narrow cards; this color change retains that layout. A hot reload may retain an older tree or app build: reopen Add Product or perform a hot restart before comparing.
+
+Safe exercise: switch the app to dark mode, reopen Add Product, enter valid Product Information and advance to Pricing & Inventory. Confirm both stock cards are white, icons are visible, and selection moves the navy outline/radio. Open each information icon and close it, switch back to Standard Stock, and confirm its quantity draft remains. Repeat in light mode. Do not submit a product just to verify colors. Reproduce isolated checks from `campushub/` with `flutter test --no-pub test/seller_add_product_page_test.dart --plain-name "stock cards align content"`.
+
+## Current Add Product: native Product Images upload area - November 3, 2026
+
+This entry supersedes older six-slot rendering, immediate missing-photo feedback and photo-validation wording below. The existing Cover and submission rules still apply.
+
+### 1. Cause / reason
+
+The latest brief requests one tappable gallery area, selected-only thumbnails, a heading counter and validation that does not appear on first entry. Inspection confirmed the existing full-width upload button already called the real `ImagePicker` gallery API; no simulation callback existed in this step. The unwanted clutter came from rendering all six storage slots, placing the count below the grid, and showing a required-photo error whenever the count was zero.
+
+### 2. Exact files changed and current anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` |380 `_continue`;431 `_draftIssue`;1272 `_removeImage` | Use the exact requested missing-photo message for continuation/final guards and removing the last image. |
+| Same screen |1226 `_section(..., trailing:)` | Optional trailing heading widget; only Product Images supplies it. Other sections retain their existing heading layout. |
+| Same screen |1323 `_imageSlot`;1326 `removeTarget` | Render uploaded photos only; retain image options/remove/Cover. Compact removal target avoids covering the image center; Cover label scales down to fit. |
+| Same screen |1427 `_images`;1483 `product-image-grid`;1513 `product-image-counter` | New exact copy, heading count, selected-only three-column grid and interaction-triggered error display, all within the existing unboxed section. |
+| `campushub/test/seller_add_product_page_test.dart` |207 `next` helper;863 upload-area checks;961 six-photo flow;1024 Cover lifecycle;1143 invalid/cancel/excess flow;1162 oversize case;1987 Review edits | Update Step3 count/validation expectations and add gallery-edge/counter/grid checks at390dp and280dp/200%. Preserve review/submission assertions. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Records functions/data flow, exact anchors, verification, diagnosed overlap and safe practice. |
+
+### 3. Changes made
+
+- Heading **Product Images** now has a live **0 of 6** / **2 of 6** counter at its right. Description: **Add at least one clear photo of your product.**
+- One full-width outlined target contains the existing image icon, **Add product photos**, and **Tap to choose photos from your gallery.** Its entire surface calls the existing native gallery picker; there is no separate upload/simulation control. Busy and six-photo capacity guards remain.
+- Helper text is exactly **JPEG, PNG, WebP, GIF • Max 6 photos • 5 MB each**. Selected photos alone render below it in three columns with8dp gaps. With zero selections there is no grid and no six empty placeholders.
+- First valid image automatically remains Cover. Its small badge uses `IgnorePointer`; tapping a photo opens the existing Replace photo / Set as Cover sheet. Remove, cover reassignment/compaction and Cover-first submission remain. At compact thumbnail widths below96dp, Remove uses a32dp target; larger thumbnails retain48dp. This prevents the remove overlay from consuming the thumbnail-center tap in a three-column phone grid. Cover text scales down within its existing badge rather than truncating.
+- Validation is now exactly **Please add at least one product photo.** It appears when appropriate, such as removing the last image or a guarded final submission, rather than on first opening Step3. Invalid/oversize gallery results retain their specific existing errors. Empty Next stays disabled; cancellation alone creates no missing-photo error.
+- Existing Inter typography, navy/gold/white styling, horizontal progress and Step3 of4, footer Next, retained drafts and four-step submission workflow remain. No outer visual wrapper, duplicate route, dependency or new screen was added. Review's separate image-count wording remains unchanged.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_pickImages({int? slot})` remains the production picker entry point. With no slot it computes remaining capacity and opens `ImagePicker.pickMultiImage(limit: remaining)`; replacement or one remaining place uses `pickImage(source: ImageSource.gallery)`. It preserves the existing1280px/quality85/no-full-metadata options. Cancel returns an empty selection and leaves draft images intact. Excess results reject, even if a platform ignores its picker limit. `_readImage(XFile)` still checks size, actual encoded image type and decodability before producing a data URL. A whole chosen batch is validated before mutating draft slots, so a later invalid/oversize file cannot partially add earlier files.
+
+The existing parent-owned `_selectedImages` storage still has six slots for compatibility. `_images()` now builds thumbnails only for non-null slots and computes their width as `(availableWidth - 16) / 3`. `_imageSlot(index, size)` receives only occupied indexes and renders the actual `ProductImage`; its null-placeholder branch is removed. `_section`'s optional trailing widget produces the Product Images heading row while its null/default branch preserves other section headings.
+
+`_primaryImage` is still assigned on the first successful upload. `_showImageActions(index)` changes that index or invokes native replacement. `_removeImage(index)` compacts the retained data URLs and remaps Cover; deleting Cover promotes the first remaining photo, and removing all clears Cover and shows the requested validation. The32/48dp remove control is independent of the photo's options action. The non-clickable Cover badge retains its semantic description on the photo.
+
+```text
+Tap anywhere in upload area -> existing ImagePicker gallery call
+  cancel -> same draft, no new required error
+  invalid/excess/oversize -> specific error, same draft
+  valid1-6 photos -> retained slots + first Cover -> counter and selected-only grid
+Back/Next -> same parent-owned slots/Cover
+Submit -> existing _draftIssue -> _orderedImages(Cover first) -> same ProductService -> Django
+```
+
+Example: choose three valid images; the header reads3 of6 and one row of three thumbnails appears. Set the third as Cover; remove the second; the remaining Cover is remapped correctly and Review/submission still puts it first. Removing both remaining images hides the grid, changes the counter to0 of6, disables Next and displays the requested message. No image is uploaded to the backend until the existing product submission runs.
+
+### 5. Backend / API behavior
+
+Unchanged. The same service, authentication, image data URLs, six-image cap, Cover-first `images` list and product approval submission contract remain. No image/permission/backend endpoint was added or simulated. The existing pinned `image_picker` dependency and native platform configuration remain. These widget tests replace only the platform picker during testing; the application still instantiates the real `ImagePicker`.
+
+### 6. Database / migration impact
+
+None. No models, migrations, dependencies, native permissions, assets or working records changed. No backend, order/inventory calculation, price validator, other screen or deployment was modified by this image-step task.
+
+### 7. Tests performed
+
+- Final whole-app **`flutter analyze --no-pub`: No issues found** (23.3 seconds). This is the requested Flutter analysis, using the already resolved dependencies. `dart format` completed for the screen and test file.
+- Initial full Add Product run:50/52 passed in54 seconds. Two280dp/200% flows exposed a real overlap: the old48dp remove target covered a77dp thumbnail's center, so a center tap removed a photo instead of opening its options. After the scoped32dp compact-target correction, **all8 affected image/Review checks passed in18 seconds**, including both originally failing cases. No second full run was performed; all52 cases passed across the full run and affected rerun.
+- Checks exercise upload-area edges calling the platform picker, count/heading alignment, no empty slots, exactly three columns, first Cover, non-clickable badge, center-tap options, cover changes/removal/reassignment, first-entry versus last-removal validation, disabled Next, native remaining limits, seven-image rejection, invalid type, an oversized file after an otherwise valid selection without partial insertion, retained drafts, Review edits, and exact Cover-first POST image order.
+- Commands from `campushub/`: `flutter test --no-pub test/seller_add_product_page_test.dart`; affected rerun adds `--name 'photo upload area|six-photo gallery|required cover photo|gallery cancel|review sections edit'`. Tests used approved escalation because earlier sandboxed Flutter test runs stalled.
+- Actual font-loaded empty390dp, six-photo390dp and selected280dp/200% renders were inspected. Captures are in `scratch/product-images-upload-20261103/renders/`, including `product-images-empty-390.png`, `six-photo-step-3.png`, `product-images-three-280.png` and `selected-cover-280.png`. Fixtures use tiny transparent PNGs, so these captures verify layout/controls; URL/content/order assertions verify the retained images.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical Android/iOS gallery was opened in this environment; native gallery wiring was inspected and picker calls were verified through the existing Flutter platform test double. A device smoke check remains necessary for OS-specific permission UI. Existing denial/error messages and configuration remain. At very narrow widths or200% text the content grows and scrolls, while all three thumbnail columns remain; compact Remove targets are32dp. No live API submission or deployment was performed.
+
+Safe exercise: open an unsent local draft, navigate to Step3 and confirm0 of6, no placeholders/error and disabled Next. Tap an edge of the upload area, cancel, and confirm unchanged state. Select three small valid photos, verify one row and first Cover, tap a photo's center to open options, change Cover and remove another. Navigate Back/Next and confirm the draft survives. Remove all photos and verify the exact validation/disabled Next. On a real device, confirm the OS gallery opens; do not submit a working product just to test layout. If a photo tap removes it, inspect the compact `removeTarget`; if an empty grid returns, check the non-null filter rather than changing the six-slot payload storage. If an error appears on first entry, check the `_imageError != null` condition rather than enabling empty Next.
+
+## Current Add Product: low-stock threshold placeholder - November 3, 2026
+
+1. **Cause / reason:** The user requested **Enter low stock threshold(e.g. 5)** instead of the field's previous `5` hint.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:1759` (threshold field's `_decoration` hint); this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** Replaced only the placeholder string, using the user's exact wording. Label, helper text, tooltip, value, validation, spacing and styling remain.
+4. **How it works / inputs, outputs and data flow:** `_decoration(String hint)` at `:1177` puts its input into `InputDecoration.hintText`. The threshold field supplies the new string; Flutter shows it when `_lowStockThreshold` is empty. The controller at `:46` still starts with the actual value `5`. Editing that controller continues through `_validateLowStockThreshold`, Review and the existing submission payload; the hint is display text and is never submitted. Example: clearing `5` reveals the requested hint, while typing `8` hides it and retains8 as the entered threshold.
+5. **Backend / API behavior:** Unchanged. Threshold numeric rules, default, alerts and payload remain.
+6. **Database / migration impact:** None; no model, migration, dependency, asset or working record changed.
+7. **Tests performed:** Single-file `flutter analyze --no-pub lib/module_app/screens/seller_add_product_page.dart` reported **No issues found** (1.5 seconds). `dart format` applied normal wrapping to the longer decoration expression. No widget tests or rendering were run for this placeholder-only change.
+8. **Remaining limitations / troubleshooting / safe practice:** The hint appears only when the field is empty; the existing default5 intentionally remains. Long text may truncate at narrow widths or large text sizes. In an unsent draft, open Pricing & Inventory, clear the threshold and confirm the new placeholder, then restore5. If the hint is invisible, check for an actual controller value before changing decoration or validation. No physical-device or live API check was performed.
+
+## Current Add Product: required and invalid validation messages - November 3, 2026
+
+1. **Cause / reason:** The user approved applying separate required messages for empty fields and valid-value messages for invalid entries throughout Add Product. Price and quantities previously used the same message for both cases. Product name, description and threshold already distinguished missing input; category, received-date and photo feedback used action wording rather than explicit required wording.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:97` (price empty guard), `:253` (category message), `:380` / `:431` / `:1259` / `:1483` (consistent missing-photo feedback); `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart:24` (standard/batch quantity empty guard), `:53` (received-date message); `campushub/test/seller_add_product_page_test.dart:423` (required-step checks), `:628` (batch checks), `:925` (photo checks), `:1987` (final draft checks); this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** Blank or whitespace-only price now reports **Selling price is required.**; standard stock reports **Stock quantity is required.**; batch quantity reports **Batch quantity is required.** Nonempty invalid input retains the existing valid-value messages, including the user's exact **Please enter a valid selling price.** and **Please enter a valid stock quantity.** Missing category says **Category is required.**; missing batch date says **Date received is required.**; missing photos say **At least one product photo is required.** Existing Product name / Description / Low stock threshold required messages remain. Tags, unit cost and expiry remain optional. Layout, tooltips, numeric/date rules and workflow do not change.
+4. **How it works / inputs, outputs and data flow:** `_validatePrice(String? value)` trims input, returns the required string if empty, then runs the unchanged numeric rules and returns either the existing invalid message or null. `ProductFormStyle.quantity(String? value, {bool positive = false})` follows the same order and chooses Stock/Batch required text from its existing positive flag. `_validateStock` delegates to that helper; batch widgets use `positive: true`. `receivedDate(DateTime? value)` returns the required message for null, its existing date error for future dates, or null. `_required` and `_validateLowStockThreshold` already check trimmed emptiness. Category still checks null, and photos still check the actual image count.
+
+   Field validators (`seller_add_product_page.dart:1654` / `:1684` / `:1765`, inventory widget `:398`) and `_draftIssue` (`seller_add_product_page.dart:390`) reuse these same rules, so Next and final Submit agree. The final guard returns the responsible step plus an error before any POST; batch errors retain their Batch1/2/etc. prefix. Existing generic product-information final feedback still reopens Step1, whose fields display their specific messages. Example: price `   ` returns the required message; price `0` returns the existing invalid-price message; price `1.25` returns null. Standard stock `0` stays valid; batch stock `0` stays invalid.
+5. **Backend / API behavior:** Unchanged. Standard stock remains an integer from0 through2147483647; batch quantities remain positive integers. Price remains positive and finite with up to8 integer digits and2 fractional digits. Same fields are required as before, no new fields become required, optional blanks remain accepted, and the same service/permissions/approval/backend rules remain.
+6. **Database / migration impact:** None. No model, migration, dependency, asset or working record changed.
+7. **Tests performed:** Final three-file `flutter analyze --no-pub` reported **No issues found** (2.9 seconds); `dart format` applied normal test formatting. Full Add Product run exercised50 cases in52 seconds:46 passed, and4 new final-submit text assertions initially failed because the finder searched beneath a keyed Text widget rather than reading that widget's data. After correcting only that test selector, the four final-submit checks **passed4/4 in6 seconds**. Thus all50 cases passed across the full run and focused rerun; a second full run was not performed. Checks cover empty/whitespace required messages, nonempty invalid messages, valid zero standard stock/threshold, batch zero rejection/date requirement, photo requirement, unchanged optional expiry, retained drafts and zero POSTs for missing/invalid final quantities. Commands from `campushub/`: `flutter test --no-pub test/seller_add_product_page_test.dart` and then the same with `--name 'final submission rechecks'`. Tests used approved escalation because earlier sandboxed runners stalled.
+8. **Remaining limitations / troubleshooting / safe practice:** No new render, physical-device or live API check was performed. Short invalid-price/stock messages still omit the precise numeric rules, which remain enforced. In an unsent local draft, leave Step1 blank and tap Next to see its required messages. On Step2, clear price/stock/threshold and verify the corresponding required text; enter negative or fractional values to verify the existing invalid text. Use price1.25/stock0/threshold0 to confirm valid continuation; switch to Batch Tracking to check empty quantity/date messages and zero rejection. Optional cost/expiry must still allow blanks. If old wording persists, validate again or hot restart; edit the shared validator's strings rather than loosening its conditions. In tests, `product-submit-error` is the Text widget itself: read its `.data` rather than searching its descendants.
+
+## Current Add Product: centered right-side Stock Method help - November 3, 2026
+
+1. **Cause / reason:** The earlier title Row's48dp help button created excess description spacing; the preceding change moved help to the centered outer Row and removed that gap. For the latest "move to right again" request, inspection confirmed the button was already at the right inset, but `AlignmentDirectional.centerStart` kept its visible18dp icon on the left of its48dp target. The visible glyph needed right alignment inside that existing target.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart:115` (optional alignment input), `:119` (typed property), `:200` (IconButton consumes alignment), `:297` and `:300` (both stock cards request centerEnd); `campushub/test/seller_add_product_page_test.dart:728` (`stock cards align content and select through the card`), `:766` (visible glyph bounds); this guide and the current entry in `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** Only the two stock-method help widgets now request `AlignmentDirectional.centerEnd`. This shifts the visible glyph30dp farther right inside its unchanged48dp target, placing its right edge16dp inside the card. The optional alignment defaults to the existing centerStart for other uses, including Low Stock Threshold. Centered height, zero added description gap, target size, text, styling and callbacks remain. Existing layout tests now measure the actual icon as well as its button.
+4. **How it works / inputs, outputs and data flow:** `ProductInventorySelector(value, onChanged)` receives the retained `simple`/`fifo` value from the Add Product screen. Its Row still contains radio,8dp gap, Expanded title/description Column,4dp gap, and help button. `ProductInventoryInfo(alignment: AlignmentDirectional.centerEnd)` passes the optional `AlignmentGeometry` through `_ProductInventoryInfoState` to `IconButton.alignment`; it changes glyph position without moving/resizing the button. Example: omitting alignment preserves start alignment for threshold help; passing centerEnd places stock help at the right inset. Card/radio taps invoke `onChanged`; help opens its tooltip without invoking that callback. No controller, payload or calculation changed.
+5. **Backend / API behavior:** Unchanged; no endpoints, inventory identifiers, FIFO rules, permissions or submission changes.
+6. **Database / migration impact:** None. No models, migrations, dependencies, assets or working records changed.
+7. **Tests performed:** Two-file `flutter analyze --no-pub` reported **No issues found** (3.7 seconds); `dart format` reported no formatting changes. **4/4 focused widget tests passed** (4 seconds) at390dp/100% and280dp/200%, measuring the visible glyph's16dp right inset and centered height, plus button bounds, zero added description gap, centered radios, independent help taps, method selection and batch help tap/long-press/hover/outside dismissal. Command from `campushub/`: `flutter test --no-pub test/seller_add_product_page_test.dart --name 'stock cards align|concise batch tooltip'`. Tests used approved escalation because prior sandboxed runs stalled. The actual390dp selected-card capture was inspected in `scratch/stock-tooltip-right-edge-20261103/`;280dp was checked by widget assertions.
+8. **Remaining limitations / troubleshooting / safe practice:** At280dp/200%, the narrow text area can still wrap within words and increase card height; help stays centered against the complete text block. Text retains normal font line height, with no added gap. No physical-device or live API checks were performed. In a local unsent draft, open Pricing & Inventory, select Batch Tracking, and tap each help icon. Verify the tooltip appears, Batch Tracking remains selected, both icons are centered at the right edge, and descriptions begin immediately below their titles. Repeat with enlarged system text. If extra space returns, check that help remains a sibling of the Expanded text Column rather than a child of a title Row. Do not change selection callbacks to adjust spacing.
+
+## Current Add Product: organized Review & Submit - November 3, 2026
+
+### 1. Cause / reason
+
+Step 4 previously displayed an ungrouped vertical list, large review photos and only a Submit footer. The attachment requests three compact editable summaries, a conditional low-stock notice, approval guidance and Back/Submit actions. Inspection also confirmed that only active step fields were mounted, so final submission needed to recheck the retained complete draft rather than relying on Review's empty set of inputs.
+
+### 2. Exact files changed and current anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` | 389 `_draftIssue`; 435 `_submit`; 790 `_reviewValue`; 810 `_reviewGroup`; 867 `_reviewDetails`; 885 `_reviewNotice`; 923 `_review`; 995 `review-batches`; 1015 low-stock notice; 1104 `_navigation`; 1144 footer Back | Replaces the existing Step 4 summary and adds only the requested supporting validation/navigation behavior. |
+| `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart` | 39 `unitCost`; 47 `receivedDate`; 55 `expiryDate`; 399/451 existing validators | Extracts existing validation rules for reuse by both the editable fields and final submission. |
+| `campushub/lib/module_app/widgets/seller/product_expiry_field.dart` | 62 expiry validator | Calls the same extracted optional-date rule; field/picker behavior is unchanged. |
+| `campushub/test/seller_add_product_page_test.dart` | 238 Review headings; 244 footer expectation; 572 expanded batch check; 1500 tag-chip assertions; 1828 Edit/retention tests; 1941 final draft checks; 1980 zero-stock notice | Updates existing review assertions and adds five behavior checks covering normal/narrow layouts, editing, final validation and notice behavior. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Records functions/data flow, causes, verification and safe practice. |
+
+### 3. Changes made
+
+The existing Add Product header, gold/navy progress line and Step 4 of 4 label remain. Review & Submit now has the requested supporting sentence and three separate white rounded summaries, each with Edit:
+
+- **Product Information:** name, category and naturally wrapping description; optional tags are compact read-only neutral chips with full-value tooltips. Empty tags omit that row.
+- **Pricing & Inventory:** prominent 20sp semibold peso price; Standard Stock/Batch Tracking, total quantity, threshold, optional simple expiry and batch count. Compact detail columns become one column at narrow widths/large text. Batch details expand to show actual quantities, received dates, optional unit cost and optional expiry without inputs.
+- **Product Images:** uploaded-photo count and compact square Cover-first thumbnails only, with a small non-clickable Cover indicator and no upload/removal controls. Existing images and Cover index are reused.
+
+The nonblocking **Low Stock Notice** appears exactly when actual total stock is at or below the configured threshold, including zero stock/zero threshold. It uses a small warning icon and light-gold surface. It is absent above the threshold. The **Product Approval** panel below the summaries uses the exact requested review/notification copy, an information/shield icon and subtle neutral background.
+
+The fixed SafeArea footer displays outlined Back and a more prominent navy Submit for Approval in a row when they fit. It stacks them at narrow widths or enlarged text; both remain accessible and use 15sp semibold text. Header Back still works. Earlier steps retain their current Next footer. No extra outer card, editable field copies, step, percentage, unrelated redesign or route was added. For large-text narrow section headers, Edit is top-right above the full-width title so words do not break awkwardly.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_review()` reads existing controllers, `_inventoryMethod`, `_batchTotal`, `_expiry`, batch drafts and `_orderedImages`. It formats those retained values without changing them. `_reviewGroup(title, step, children)` applies the shared section header/border and calls `_changeStep(step)` from Edit. Step indices0/1/2 reopen the same existing fields, so photos, Cover, tags, dates and quantities remain in their parent-owned draft. Next follows the existing step sequence back to Review; no secondary editor exists.
+
+`_reviewValue(label, value, prominent)` provides compact gray13sp labels and navy14sp medium values; only price uses20sp semibold. `_reviewDetails(details)` uses available width and the user's text scaler to choose one/two columns. `_reviewNotice(...)` is reused for stock and approval information. `_review()` parses the configured threshold and compares it with the same Standard Stock value or computed batch total used for submission. It does not fabricate a stock status or introduce a blocking low-stock rule.
+
+`_draftIssue()` returns either null for a valid draft or `(stepIndex, message)` for the first invalid section. It reuses existing price, required/quantity/threshold rules and the extracted batch received-date/unit-cost/optional-expiry validators. It also checks the selected category, product-name limit, batch count/total and minimum photo count. If invalid, `_submit` reopens that existing step, retains entered values and enables validation feedback before making any API request. Existing busy/loading and successful-response confirmation guards remain.
+
+```text
+Review Edit Pricing -> _changeStep(1) -> same controllers/batch drafts
+Next -> existing validations -> Photos -> Review renders updated values
+Submit -> _draftIssue()
+  invalid -> existing responsible step + feedback, zero POSTs
+  valid -> unchanged ProductService payload -> Django -> existing confirmation
+```
+
+Example using test-only values: stock5 and threshold5 show the low-stock notice, but Submit stays enabled. Edit Pricing changes stock to6; on returning, Review shows6 units and hides the notice. Two batches of3 and4 display7 total units and2 batches; expanding details reveals their own dates/costs. Editing Images returns to Step3 with the selected Cover still intact.
+
+### 5. Backend / API behavior
+
+Unchanged. No endpoint, field name, inventory identifier, ownership/authentication, allocation, expiry persistence, image ordering or approval/publication rule changed. Standard/Batch use the existing `simple`/`fifo` values. This adds a client-side final draft check before the same submit service. Low stock does not block submission. Failed requests still retain Review/draft and allow the existing retry action; successful submissions still show the response-based confirmation. Approval notice text does not implement a new notification system.
+
+### 6. Database / migration impact
+
+None. No models, schemas, migrations, dependencies, assets or working records changed. No duplicate screen/component file or deployment/server action.
+
+### 7. Tests performed
+
+- Whole-app final `flutter analyze --no-pub`: **No issues found**, 7.5 seconds.
+- **48/48 Add Product tests passed in24 seconds.** After the final narrow-header-only adjustment, **3/3 Edit/batch-review checks passed in7 seconds**.
+- New tests exercise all three Edit destinations, preserved/updated controllers/tags/dates/photos/Cover, read-only Review, exact price/quantity/image order, threshold equality/above/zero notice behavior, nonblocking Submit, footer Back and final invalid standard/batch draft rejection before POST. Existing batch totals, photo validation, failure/retry, duplicate-submit guards, returned confirmation data/status and Android Back continue to pass.
+- Normal390dp and narrow280dp/200% text Review renders plus expanded Batch Tracking review were inspected. Captures: `scratch/add-product-review-20261103/renders/`. Fixtures use tiny/transparent test photos; image URL/order assertions verify data, while renders verify layout/control placement.
+- Initial checks caught a non-existent Chip tooltip parameter (replaced with native Tooltip), a flow-control lint, and shell-transferred peso/separator characters (corrected before passing verification). No hosted API submission, backend test run or physical-device check was performed for this Flutter-only change.
+
+Reproduce from `campushub/`: `flutter analyze --no-pub` and `flutter test --no-pub test/seller_add_product_page_test.dart`.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Edit returns to the selected existing step and uses the normal Next sequence, rather than adding a special return-to-review editor. Batch details are initially collapsed; expand them to inspect dates/costs/expiry. Large text can increase card height and stack footer actions; content remains scrollable. Existing backend rules remain authoritative, including approval and actual notification behavior.
+
+Safe exercise: use the mocked test harness to review a draft with stock5/threshold5, edit stock to6 and confirm the notice disappears. Edit information and images, confirm retained values/Cover, then use footer Back. Test invalid retained quantities through the regression test and verify zero requests. Do not create a working product to check spacing. If Edit clears a field, inspect its parent-owned controller/draft; if a notice is wrong, compare `_batchTotal`/quantity against the actual parsed threshold rather than hardcoding5. For new validation rules, reuse the same function in the field and `_draftIssue` to avoid conflicting behavior.
+
+## Current Add Product: submitted-for-approval confirmation - November 3, 2026
+
+### 1. Cause / reason
+
+The existing successful `_submit` immediately popped the Add Product route and showed a snackbar. This gave no durable product summary or choice of destination. The user requested an explicit submission confirmation after backend success, while keeping Marketplace Admin approval separate.
+
+### 2. Exact files changed and current anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` | 19 `ProductSubmissionDestination`; 54 `_submittedProduct`; 55 `_leavingConfirmation`; 389 `_submit`; 405 returned product; 430 response validation; 467 `_submissionConfirmation`; 503 PopScope; 582 summary; 649/668 actions; 1193 success render branch | Replaces immediate pop/snackbar with confirmed product details and a separate confirmation state inside the existing route. |
+| `campushub/lib/module_app/screens/products_screen.dart` | 33 `showAddProductPage`; 35–36 optional callbacks; 63 route result; 72–77 destination handling | Dispatches the selected existing destination after closing the completed route; retains the existing nullable bool completion contract for refresh callers. |
+| `campushub/lib/module_app/screens/dashboard_screen.dart` | 188 Add Product call; 190 `_openSellerTool(SellerDestination.products)`; 191 `_goToTab(0)` | Connects actions to existing My Products/Home navigation and preserves post-submission refresh. |
+| `campushub/lib/module_app/screens/seller_dashboard_page.dart` | 428 Add Product call; 430 existing `_select(products)`; 432 `_backHome` | Connects the same actions when the form is opened from the seller workspace; existing reload follows completion. |
+| `campushub/test/seller_add_product_page_test.dart` | 62 `successResponse`; 281 submit helper; 1093 confirmation actions; 1162 actual returned status; 1186 incomplete response | Uses realistic product response fixtures and verifies confirmation, callbacks, Back, server data and failed-request retention. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Records functions/data flow, response contract, verification and safe practice. |
+
+### 3. Changes made
+
+After successful submission, the existing screen displays a centered navy outlined check on a subtle gold circle, **Product Submitted!**, the requested review description and a small light-gold **Pending Approval** indicator. A bordered compact summary shows only the returned cover image, name, formatted selling price, category and status. Inter, existing navy/gold/white, 16dp screen padding, rounded borders and accessible buttons are retained. The content scrolls on small screens/large text; the actions remain below it.
+
+**View My Products** opens the existing seller product destination; **Back to Home** uses the existing Home navigation. There is no automatic timed redirect, extra form step, progress line on the confirmation, duplicate My Products screen or new route dependency. The completed form is no longer rendered. Android Back leaves to Home rather than exposing a completed submission form. A one-shot leave guard prevents repeated action callbacks from popping additional routes.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_submit()` calls the same `ProductService.submitProduct(...)` with the same payload. It now captures the returned map instead of discarding it. Before showing confirmation, it requires a positive integer product ID, nonempty returned name/category, a finite positive returned price and a known actual approval status (`pending`, `approved`, `rejected`, `archived`). Incomplete/unreadable confirmation data stays on Review with the existing caution to check My Products before retrying; it never displays an invented Pending status.
+
+The valid map is retained in `_submittedProduct`. `build` detects it and returns `_submissionConfirmation` instead of the form. This is a presentation state, not Step 5. The summary reads the response's `images[0]`, or its `image_url` fallback, and the returned name/price/category. It does not substitute the typed draft for server fields. Pending shows the requested review sentence; another recognized returned status shows its actual label and neutral submission-confirmed copy.
+
+```text
+Review -> unchanged submit service -> confirmed returned product
+  -> validate details/status -> retained confirmation (no form progress)
+  -> user chooses destination -> pop completed route with destination enum
+  -> showAddProductPage dispatches existing caller callback -> returns true
+  -> existing Home/workspace refresh loads actual saved products
+```
+
+`_submitting` disables form actions during the request, and `_submittedProduct != null` blocks another submission after success. No submit control exists in the confirmation. Failed requests leave the same controllers, photos, cover, inventory and dates intact; the existing Submit for Approval action becomes available for retry when the error clears/busy state ends. The tests explicitly cover a failed request followed by a successful retry. Unconfirmed responses tell the seller to check My Products first because a server may have saved the product even if a complete confirmation was not received.
+
+`showAddProductPage(context, onViewProducts, onBackHome)` continues to verify seller access before opening the existing route. The form returns a destination enum only after the user chooses an action or uses Back; the wrapper calls the appropriate callback while mounted and still returns `true` to existing refresh callers. The production Home callback uses `_openSellerTool(products)`/`_goToTab(0)`, and the seller workspace uses `_select(products)`/`_backHome`. Both reuse existing permissions, screen state and routes.
+
+### 5. Backend / API behavior
+
+Unchanged. The existing POST returns `product` including `id`, `name`, `price`, `category`, `images`/`image_url` and `approval_status`; the client now uses those fields for confirmation. No extra write, approval request, publication change, fake status or change to FIFO/image/expiry behavior. Pending listings stay under the existing Marketplace Admin approval workflow and existing public-list visibility rules. The notification sentence is the requested copy; this UI change does not implement or alter notification delivery.
+
+### 6. Database / migration impact
+
+None. No schemas, migrations, endpoints, dependencies, assets or working records changed. No new Flutter screen file: confirmation is private rendering in the existing Add Product route. No server restart or deployment.
+
+### 7. Tests performed
+
+- Final whole-project `flutter analyze --no-pub`: **No issues found**, 12.3 seconds.
+- **43/43 Add Product tests passed in 31 seconds.** New checks verify actual server values that differ from the form draft, returned Pending/Archived status, absence of form/progress after success, no timed redirect, both navigation callbacks, Android Back without form return, one POST, incomplete/malformed response protection and preserved error/retry behavior. Existing inventory, image order, draft, expiry, tooltip, validation and responsive tests pass.
+- Actual confirmation renders inspected at390dp normal text and280dp/200% text: `scratch/product-submission-confirmation-20261103/renders/`. Large content scrolls above accessible bottom actions. Thumbnail fixtures are transparent test PNGs; tests assert the actual returned image URL, while captures verify layout rather than real photo composition.
+- The first focused run exposed a test timing issue: waiting for all animations during a deliberately unresolved request advanced the mock timeout. The helper now supports immediate pumping for that pending-request check; final tests verify disabled actions while it remains in flight. Const/flow-control and test-fixture lint issues were resolved before final analysis.
+- No live API submission, backend test rerun or physical-device navigation test; backend code is unchanged. Navigation destination callbacks are exercised in widget tests; the production callback wiring was inspected directly.
+
+Reproduce from `campushub/`: `flutter analyze --no-pub` and `flutter test --no-pub test/seller_add_product_page_test.dart`.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The successful response must contain the existing complete product fields; an older/incomplete server response shows an unconfirmed-submission error instead of guessing summary data. Client busy guards prevent ordinary repeated taps but are not a new backend idempotency system; after an uncertain network result, check My Products before retrying. Existing server permissions/public visibility remain authoritative.
+
+Safe exercise: use the mocked confirmation tests, which deliberately return **Confirmed server product**, price35.75 and categorySnacks regardless of the form fixture. Verify those server values appear, wait3 seconds and confirm the screen remains, then use View My Products/Home/Android Back. Confirm no Review form is exposed and no second POST occurs. To manually inspect without creating working products, use the same local test harness; do not submit a real listing just to verify styling. If a button lands on the wrong screen, inspect its caller callback rather than adding a duplicate destination route.
+
+## Current Add Product: required photos, Cover controls and bold peso - November 3, 2026
+
+### 1. Cause / reason
+
+The attached request makes one photo required in the mobile form and replaces Primary controls with automatic Cover assignment. The old grid put a large clickable Primary/Set primary button across each uploaded photo and allowed advancing without photos. The user's message also requests arranging/bolding the Philippine peso symbol in Selling Price.
+
+### 2. Exact files changed and current anchors
+
+- `campushub/lib/module_app/screens/seller_add_product_page.dart:372` `_continue` image guard; `:385` `_submit` image guard; `:558` Review image semantics; `:575` Review Cover label; `:601` `_navigation` disabled Next; `:697` `_removeImage`; `:720` `_showImageActions`; `:844` non-clickable Cover badge; `:872` `_images`; `:901` upload description; `:923` formats/size helper; `:934` missing-image feedback; `:1101` Selling Price prefix style.
+- `campushub/test/seller_add_product_page_test.dart:61` bundled Inter setup; `:185` existing workflow Next helper now supplies the required fixture image; `:784` six-photo/order regression; `:847` Cover lifecycle tests at 390dp and 280dp/200% text. Imports include ProductImage, and the old no-photo Review expectation now checks the required fixture image.
+- This existing guide and `CAMPUSHUB_CONTEXT.md` record the implementation and verification. No new application screen or component file.
+
+### 3. Changes made
+
+Step 3 says **Upload at least 1 photo (maximum 6).** Next is disabled when no image exists, with **Add at least 1 product photo to continue.** visible below the grid. Defensive continuation/submission guards also block an empty gallery. Existing format checks and 5MB-per-file limit remain. The helper now says **Supported: JPEG, PNG, WebP, GIF · Max 5 MB each** and the counter updates immediately.
+
+The first image automatically becomes Cover. Only the Cover has a small non-clickable white status label and navy thumbnail outline. Each photo keeps its top-right 48dp remove target. Tapping an uploaded thumbnail opens a small native bottom sheet containing Replace photo and, for a non-cover photo when multiple images exist, Set as Cover. No large action button covers the thumbnail; a single image never offers Set as Cover. Existing gallery picker and thumbnails remain.
+
+Removing a non-cover preserves the cover. Removing the cover promotes the first remaining photo. Removal compacts the remaining photos into the existing six slots; empty add-photo placeholders follow them. Removing all photos clears cover and disables Next. Normal width uses three columns; the existing narrow-screen two-column fallback is retained for readable status/removal controls. No progress/header/container redesign.
+
+The Selling Price prefix remains `₱ ` in the input decoration, now explicitly Inter16/700 navy. Using the input's 16sp size keeps it on the same text baseline as the entered amount. Price parsing and the existing label remain unchanged.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_pickImages` still validates every selected file before changing any slots; its existing `_primaryImage ??=` automatically chooses the first image. The internal variable/keys are preserved for compatibility while visible text says Cover. `_showImageActions(index)` receives the tapped occupied slot, returns a native-sheet action, then changes only `_primaryImage` or invokes the existing picker for replacement. Cancelling the sheet changes nothing. IgnorePointer makes the Cover label status text rather than a separate button.
+
+`_removeImage(index)` computes surviving original indices and the surviving/promoted Cover. It copies the surviving image data into the existing fixed-length list using `setAll`, pads the unused slots with null and translates the cover to its new slot index. This avoids both stale cover indices and changing the six-slot list length. The first verification caught an invalid `clear()` on that fixed list; it was corrected before the passing tests.
+
+```text
+Photos [A, B, C], Cover C -> remove B -> slots [A, C, null, ...], Cover index 1
+_orderedImages -> [C, A] -> existing ProductService images JSON -> Django
+Remove C -> slots [A, null, ...], Cover A
+Remove A -> all null -> no Cover, Next disabled
+```
+
+Draft image data and `_primaryImage` remain screen-owned, so changing steps preserves both. The footer reads `_imageCount` to disable Next on Step 3 only. `_continue` provides an additional guard; `_submit` returns to Step 3 with feedback if an empty image draft ever reaches Review. Other form validation, stock fields, approval and route behavior remain.
+
+### 5. Backend / API behavior
+
+Unchanged endpoints, fields and authentication. `_orderedImages` already places the selected cover first, followed by the other images; ProductService sends the same `images` array. Django's existing serializer uses `images[0]` as `image_url` for marketplace cards/search/listings (`backend/core/api/views.py:232`), so no new cover flag or renamed backend field is needed. The minimum-one-photo requirement is enforced in this mobile form; the backend's optional-image compatibility for other existing clients is unchanged. FIFO, approvals and image validation/storage services were not modified.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, dependencies, assets, working records, new endpoints or deployment changes. Tests use in-memory photo fixtures and mocked HTTP submission.
+
+### 7. Tests performed
+
+- Final two-file `flutter analyze --no-pub`: **No issues found**, 4.2 seconds.
+- **38/38 Add Product tests passed in 29 seconds.** Four focused gallery checks previously passed in10 seconds, including lifecycle tests at390dp and280dp with200% text.
+- Covers disabled empty Next, automatic first Cover, single-photo controls, changing Cover, removing non-cover/cover/all images, counter and compact slot updates, retained Cover across Review/back, first-image submission order, six-image limit, cancelled/invalid picker selections and bold peso prefix. Existing other step/draft/expiry/permissions/submission checks pass.
+- Actual normal and enlarged-text gallery renders inspected at `scratch/add-product-cover-20261103/renders/`; test thumbnails use transparent one-pixel fixtures, so these renders verify controls/layout rather than real photo composition. The complete suite now always loads bundled Inter even without screenshot capture: placeholder test glyphs caused spurious large-text failures before that setup correction. Old optional-photo assumptions were updated to provide a fixture before advancing.
+- Backend tests were not rerun because backend source/contracts are unchanged; the existing serializer's first-image behavior was inspected directly.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device image permissions/gallery session or hosted upload/deployment was performed. Required images apply to this mobile form, not every API client. A disabled Next cannot receive a tap, so missing-image guidance is displayed immediately; the defensive callback guards also retain the message if invoked programmatically.
+
+Safe exercise: from `campushub/`, run `flutter test --no-pub test/seller_add_product_page_test.dart`. In a local draft, add one photo and confirm Cover/Next, add another and tap it for Set as Cover, remove each photo and inspect promotion/count. Advance/back to confirm retention without submitting working records. If cover order is wrong, inspect `_orderedImages` and cover-index translation rather than adding a new payload field. Keep `setAll` for the fixed six-slot list; clearing/resizing it is invalid.
+
+## Current Add Product: revised stock descriptions and explicit header color - November 3, 2026
+
+1. **Cause / reason:** The user supplied shorter stock descriptions and reported missing Add Product header text. Inspection confirmed the title was still present; its shared style had no explicit text color. Inherited color is a possible visibility cause, not a confirmed device diagnosis.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart:241` (radio accessibility descriptions), `:276` (visible descriptions); `campushub/lib/module_app/screens/seller_add_product_page.dart:911` (existing AppBar title), `:912` (shared header style with navy color); this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** Standard Stock now says **Enter the number of items available for sale.** Batch Tracking now says **Organize your items based on when you restock them.** The same wording is used by screen-reader labels. The existing centered Add Product title explicitly uses navy `#0B1F3A` on white, retaining Inter20/600. No duplicate title, divider or outer container was added.
+4. **How it works / data flow:** `ProductInventorySelector(value, onChanged)` still maps `simple`/`fifo` to the same cards and callback; only the displayed/semantic descriptions changed. The existing Scaffold AppBar remains above the scrollable form on every step. `AppTypography.screenHeader.copyWith(color: ProductFormStyle.navy)` keeps the shared font role and supplies a local foreground color, avoiding reliance on inherited title color. Example: Step 2 displays Add Product at the top and the updated descriptions underneath the unchanged method names.
+5. **Backend / API behavior:** Unchanged. No submitted values, validation, FIFO allocation, threshold/expiry logic, authentication, navigation or approval behavior changed.
+6. **Database / migration impact:** None. No schema, migrations, dependencies, assets or new files.
+7. **Checks performed:** Two-file `flutter analyze --no-pub` reported **No issues found** in2.5s. Source inspection confirmed the exact descriptions and explicit title color. No tests or app/device renders were run, following the user's earlier testing preference.
+8. **Remaining limitations / troubleshooting / safe practice:** Header visibility has not been verified on the reported device. Optional manual check: hot restart the app, open Add Product, navigate to Step 2 without submitting and confirm the navy title and both descriptions. If the title is still absent, confirm that the running build uses this existing screen/route before adding another header. Existing font/copy-specific test expectations were not rerun or updated in this small edit.
+
+## Current Add Product: shared Inter typography and stock help - November 3, 2026
+
+1. **Cause / reason:** The latest request standardizes the mobile UI on the already bundled Inter font and supplies explanations for Standard Stock, Batch Tracking and Low Stock Threshold. It supersedes earlier Poppins/Montserrat choices.
+2. **Exact files changed:** Add Product uses `campushub/lib/module_app/theme/app_typography.dart:51` (`AppTypography`, shared roles/theme), `campushub/lib/module_app/screens/seller_add_product_page.dart:479` (progress), `:491` (review), `:679` (section titles), `:873` (scoped theme), `:910` (header), `:1125` (threshold help); `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart:61` (labels), `:86` (configurable tooltip), `:97` (explanations), `:198` (stock selector); `product_expiry_field.dart:149` and `product_tag_input.dart:144` (shared roles). Global application files and their exact anchors are listed in [the typography guide](mobile-typography.md:3). This guide and `CAMPUSHUB_CONTEXT.md` record the update.
+3. **Changes made:** Inter roles apply to all four steps: header20/600, section18/600, stock title14/600, labels14/500, inputs16/400, helpers/tooltips13/400, progress13/500, buttons16/600 and errors13/500. Existing navy/gold/white/red colors remain. Standard Stock now has an info icon too; Batch Tracking uses the latest supplied explanation; threshold help appears beside its label. Existing stock descriptions are retained.
+4. **How it works:** `AppTypography.theme(base)` merges typography into existing colors and component settings; named const styles avoid repeating role sizes. Parent-owned drafts, fields, four-step progress and navigation remain. Existing `ProductInventoryInfo` accepts optional title/message/keys and is reused for all three explanations. Its icon only opens the bounded tap/long-press/hover tooltip and does not call selection/threshold callbacks. Example: opening Standard Stock help leaves the method `simple` and quantity unchanged. Full function/input/output and data-flow explanations are in the linked typography guide.
+5. **Backend / API behavior:** Unchanged, including `simple`/`fifo` identifiers, receipt/expiry notes, approval, ownership and Django FIFO allocation.
+6. **Database / migration impact:** None. No endpoints, schema, migration, dependencies or assets changed; existing Inter asset reused.
+7. **Checks performed:** Whole-app `flutter analyze --no-pub` reported **No issues found**, final run7.8s; source formatted; bundled Inter inspected for peso glyph and requested weights. No tests/render/device checks were run. Earlier results below describe earlier implementations only.
+8. **Remaining limitations / safe practice:** App-wide visual fit and previous font-specific test expectations are not verified by analysis. Existing text scaling is retained. Optional manual exercise: open Add Product at large text size, navigate all steps without submitting, open the three stock/threshold explanations and check unchanged inputs. Exact role table, changed-file list, limitations and troubleshooting: [mobile typography](mobile-typography.md:3).
+
+## Current Add Product: Standard Stock and Batch Tracking cards - November 3, 2026
+
+1. **Cause / reason:** The latest request replaces the earlier Simple Stock/Batch Inventory wording with Standard Stock/Batch Tracking. The earlier card placed the info icon beside the title in a Wrap and aligned the radio at the top. The requested layout centers the radio, keeps title/description together and places help at the right edge.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart:13` (`selectedSurface`), `:89` (tooltip explanation), `:159` (help semantics), `:190` (`ProductInventorySelector.build`), `:224` (radio semantics), `:251` (titles), `:265` (descriptions), `:296` (12dp spacing); `campushub/lib/module_app/screens/seller_add_product_page.dart:514` (Review Stock Method wording); `campushub/test/seller_add_product_page_test.dart:515` (review expectation), `:622` (help label), `:633` (outside-dismissal location), `:671` (stock-card checks from the interrupted preceding task, updated copy). This guide and `CAMPUSHUB_CONTEXT.md` are updated; no new files were created for this request.
+3. **Changes made:** Titles/descriptions are exactly **Standard Stock** / **Manage all your items using one total quantity.** and **Batch Tracking** / **Manage stock separately for each restock or delivery.** Review and screen-reader labels use the same terminology. Batch Tracking help says **Batch Tracking records stock separately for each restock or delivery. When an order is fulfilled, the system uses the oldest available batch first.** Existing `Icons.info_outline` supports tap/long press/hover. Cards have equal 16dp padding, 12dp corners, a 12dp gap, a navy selected border/radio and subtle `#F7F8FC` selected surface; unselected cards remain white with a light border and no shadows.
+4. **How it works / functions and data flow:** `ProductInventorySelector(value, onChanged)` still receives `simple` or `fifo` from the screen. RadioGroup handles radio/keyboard selection; the card InkWell calls the same callback when its body is tapped. A centered Row holds the radio and Expanded text Column, with the description 4dp below the title. The batch text reserves 48dp for an independently positioned info target, preventing overlap. Its position follows the first title line's scaled height, keeping the icon aligned when text size changes. `_ProductInventoryInfoState` still opens only its tooltip; it never calls `onChanged`. The bounded/scrollable native tooltip and grouped outside-dismissal behavior remain. Example: tapping **Standard Stock** still sets `simple`, which displays the existing quantity field; tapping **Batch Tracking** sets `fifo`, which displays the existing batch fields. Review translates those values to the new labels only. Drafts, expiry and thresholds remain parent-owned.
+5. **Backend / API behavior:** Unchanged. No requests, identifiers, `simple`/`fifo` constants, receipt persistence, allocation rules, ownership or approval logic changed. FIFO continues in Django.
+6. **Database / migration impact:** None. No schemas, migrations, working records, dependencies or new components/screens/files were added for the latest request.
+7. **Tests performed:** **No tests or analysis were run after the user's instruction to stop testing.** Source inspection confirms the latest displayed labels/descriptions and unchanged internal identifiers. Before that instruction, the interrupted preceding task's focused run completed with three passing checks and one failing narrow-tooltip assertion; it is not verification of this final wording. That assertion observed a changed selection after an outside-dismissal tap at y=60, which can land on scrolled card content; its dismissal point is now the inert header title at y=28. The existing expectations were synchronized with the renamed UI without adding further test cases or running them. Final runtime behavior is unverified.
+8. **Remaining limitations / troubleshooting / safe practice:** Text wraps naturally at narrow widths or enlarged text rather than being clipped into a fixed card height. No final render/device check or deployment was performed, per the requested limited verification scope. Optional manual practice: open Step 2, tap each card body and confirm the corresponding existing fields; enter a quantity, switch methods/back and confirm retained data. Tap or long-press the info icon and confirm selection stays unchanged. Advance to Review and confirm the new method label without submitting a working product. If the API identifier changes with the wording, restore `simple`/`fifo`; only presentation text should be renamed.
+
+## Current Add Product: optional expiry field and per-batch dates - November 3, 2026
+
+### 1. Cause / reason
+
+The requested interaction is a single optional date field with an explanatory info icon, not a separate expiry question. The inspected screen already had an optional product-level button (no Yes/No question), but lacked the requested field styling/help and placed that same product date below both stock methods. Initial batch payloads supported quantity, received date and unit cost, with no dedicated batch expiry column.
+
+### 2. Exact files changed and current code anchors
+
+| File relative to project root | Current line / anchor | Purpose |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/seller/product_expiry_field.dart` | 8 `ProductExpiryField`; 27 `format`; 59 optional FormField; 69 `choose`; 89 dialog theme; 173 `_ExpiryHelpState` | New reusable field, calendar, clear action and tooltip. |
+| `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart` | 64 `ProductBatchDraft`; 68 `expiryDate`; 70 `toJson`; 422 `if (showExpiry)` | Retains each batch's optional date and renders its field only when requested by the parent. |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` | 277 nonperishable-category handling; 405 batch payload; 415 simple expiry payload; 524 batch review; 528 simple review; 1107 `showExpiry`; 1183 `product-expiry` | Replaces the former date button and removes `_chooseExpiry`; selects simple/per-batch placement and reviews actual selected dates. |
+| `campushub/lib/module_app/services/seller_application_service.dart` | 248 `hasExpiry`; 252 `initial_batch_expiry` | Rejects unsupported server versions before submitting selected batch dates. |
+| `backend/core/modules/marketplace/services/product_initial_inventory.py` | 38 optional expiry parsing; 62 receipt notes | Validates supplied batch dates and persists them in the existing receipt notes. |
+| `backend/core/api/views.py` | 774 listing GET `capabilities` | Advertises additive `initial_batch_expiry: true` on the existing authenticated endpoint. |
+| `campushub/test/seller_add_product_page_test.dart` | 1243 simple selection/null; 1290 independent batch dates/compatibility; 1398 tooltip | Adds behavior, submission, retention and responsive tooltip tests; updates the old clear-date assertion for the icon. |
+| `backend/core/api/test_mobile_seller_application.py` | 240 persisted expiry metadata; 276 invalid date cases | Verifies actual receipt records, optional dates and atomic rejection of malformed/past batch dates. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Records implementation, contract limits, verification and safe practice. |
+
+### 3. Changes made
+
+Step 2 now shows **Expiry Date (Optional)** with `Icons.info_outline` immediately after the label, a full-width rounded input, calendar icon and **Leave blank if not applicable.** helper. A selected date displays as `MMM dd, yyyy`; its X clears the nullable draft. The field itself and calendar icon open the same Material dialog, with dimmed background, Cancel/OK, white surface and navy selected date. Today and future dates are selectable; past dates are disabled. The form remains on Step 2 after selection/cancellation.
+
+Simple Stock uses one field; Batch Inventory places one inside each batch and hides the product-level field. Existing food-category detection remains authoritative: Rice Meals, Snacks, Desserts, Beverages, Combo Meals and Breakfast. School Supplies and Clothing do not show expiry. No new category values, outer wrapper, screen or question was introduced. The four steps, progress, bottom actions, approval and other form fields remain.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`ProductExpiryField(id, value, onChanged, decoration, enabled)` takes a nullable date from the existing screen or batch draft. `choose()` opens `showDatePicker` with today's date as its minimum. A past retained value cannot crash the picker: opening starts at today, while validation asks the seller to replace/clear a past date. Cancel leaves the value untouched. OK calls `state.didChange(picked)` and the parent callback; X calls both with `null`. `format()` changes display text only; network dates still use ISO `YYYY-MM-DD`.
+
+`_ExpiryHelpState` uses the native Tooltip for long press/hover, plus `ensureTooltipVisible()` for normal tap. Its navy/white explanation is bounded by the viewport, dismisses on outside tap and uses the existing 12-second duration. The icon retains a 48dp minimum target and a screen-reader label. Large text can wrap labels and helper text.
+
+Simple dates remain in `_expiry`; batch dates remain in `ProductBatchDraft.expiryDate`. Moving Back/Next or switching stock methods does not clear either draft. As before, changing to a nonperishable category clears incompatible expiry dates; dates cannot leak into that category's submission. Simple Stock sends the existing product `expiry_date`. Batch Inventory sends each selected date as optional `initial_batches[i].expiry_date`; it sends no product-level date, avoiding an inaccurate date applied to every batch. Unselected/cleared dates remain null in memory and are omitted from JSON, preserving the existing optional-field convention; Django stores no product expiry/no batch-expiry note. Missing expiry means unspecified, not proof that a product never expires.
+
+Annotated example using test values:
+
+```text
+Batch 1: received 2026-11-03, expiry 2026-11-05
+  -> initial_batches[0].expiry_date = "2026-11-05"
+  -> Django validates ISO date >= local today
+  -> that batch's receipt_movement.notes contains "Expiry date: 2026-11-05"
+Batch 2: no selected expiry -> no expiry note; no 'never expires' flag
+```
+
+### 5. Backend / API behavior
+
+The existing authenticated `/api/seller/products/submit/` route accepts an additive optional expiry key inside initial batch rows. `validate_initial_batches()` accepts missing/null/blank dates, rejects invalid ISO dates or dates before Django's local today, and combines a selected date with the existing unit-cost receipt notes. `save_initial_batches()` still performs the same atomic stock/receipt saves. Capability checking prevents an older server from silently ignoring a selected date; it leaves the review and draft available with a clear error. Old no-expiry clients remain compatible.
+
+**Storage limitation:** InventoryBatch has no expiry column. This change preserves batch dates as receipt metadata, matching the existing cost-note approach. It does not add automatic per-batch expiry filtering, FEFO allocation, or a product-wide earliest-expiry rule. The backend's existing FIFO allocation and product expiry rules remain unchanged. ProductService, routes, authentication/ownership and approval rules are unchanged.
+
+### 6. Database / migration impact
+
+No model/schema changes or migrations. Uses the existing nullable Product expiry field and InventoryStockMovement notes linked to each batch. No dependencies, working records, production deployment or server restart changed.
+
+### 7. Tests performed
+
+- Five-file Flutter analysis: **No issues found**.
+- **48/48 Flutter tests passed in 37 seconds** across Add Product, seller receiving and seller application. After the final calendar surface-only correction, **7/7 expiry tests passed in 11 seconds**.
+- **46/46 Django tests passed in 7.902 seconds**, using the existing isolated PostgreSQL test runner; Django system check reported no issues. Covers selected/unknown batch dates in actual receipt notes, combined unit cost, malformed/past rejection without partial records, and existing seller workflows. The first run found a missing food-category test fixture; the fixture was corrected before this passing run.
+- Flutter checks cover today-only minimum, Cancel/OK, exact display/ISO values, clear-to-null submission, per-category visibility, independent dates retained across steps/methods, no duplicate product date, old-server no-write protection, and tooltip tap/long press/hover/outside dismissal at 390dp and 280dp with 200% text. Initial new submission tests used a helper that restarted Step 1; corrected those test calls to advance from their actual step, then reran.
+- Actual selected/simple, batch, narrow tooltip and dimmed white calendar renders inspected. Evidence: `scratch/add-product-expiry-20261103-tests.log`, `scratch/add-product-expiry-20261103-focused.log`, and `scratch/add-product-expiry-20261103/renders/`.
+
+Reproduce from `campushub/`: `flutter test --no-pub test/seller_add_product_page_test.dart test/seller_stock_receiving_test.dart test/seller_application_test.dart`. From the project root: `backend/core/venv/Scripts/python.exe scratch/mobile-add-product/run_image_tests.py` (isolated test database, FCM disabled).
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+This existing Add Product route creates listings; it has no product-edit mode or saved-product loader. No edit workflow was invented or changed. The reusable date widget accepts a supplied nullable value, but loading an existing product into an editor remains outside this create-only route. Batch expiry notes are persisted metadata rather than a dedicated queryable expiry field. Mobile calendar boundaries use the device's local date; Django validates batch dates against its configured local date. No physical-device keyboard/TalkBack test or hosted deployment was performed.
+
+If a selected batch date cannot submit, inspect the server capability instead of removing the compatibility guard. If the date appears twice, verify `product-expiry` is restricted to Simple Stock. If a date vanishes when switching methods, check that its value still belongs to the parent draft rather than local widget state.
+
+Safe exercise: in the mocked test flow, choose Snacks, leave the simple expiry blank and advance/back. Select today, cancel a replacement, then clear it; verify Step 2 and the null value. Switch to Batch Inventory, enter two valid quantities/received dates, select different expiry dates, switch methods/back and inspect Review. Run the tests above and verify receipt-note assertions without creating products in the working database.
+
+## Current Add Product: remove header divider - November 3, 2026
+
+1. **Cause / reason:** The AppBar explicitly drew a gray bottom border. The user requested removing this header line while keeping step progress and input outlines.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:970` (AppBar, immediately after `leading: BackButton`); this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** Removed the AppBar's `shape: Border(bottom: BorderSide(color: _line))` property. Existing zero elevation and zero scrolled-under elevation remain; no header divider or replacement shadow is added.
+4. **How it works / data flow:** The AppBar now renders its existing white surface without the custom bottom border. Its BackButton still calls `_back`; form values and navigation are untouched. `_progress()` at line 445 separately renders the step indicator from `_step`, so removing the header border does not remove the progress track. Input decoration still supplies field outlines. Example: Step 1 retains its gold progress segment and gray remaining track below the now borderless header.
+5. **Backend / API behavior:** Unchanged; this single presentation-property removal adds no requests or data transformations.
+6. **Database / migration impact:** None. No schema, migrations, records or dependencies changed.
+7. **Tests performed:** Single-file Flutter analysis reported **No issues found**. The existing `four active sections, left progress and right label fit 390.0/844.0/1.0` test passed (**1/1**, 2 seconds), exercising all four steps. Actual Step 1 render inspected: header divider absent, progress and input outlines present. Captures: `scratch/add-product-header-20261103/renders/`.
+8. **Remaining limitations / troubleshooting / safe practice:** No physical-device session or deployment was performed. Safe exercise: open Add Product and compare the white header with its separate progress track; enter sample values and use Next/Back without submitting. If a divider reappears, inspect this AppBar's shape or inherited AppBarTheme rather than removing `_progress()` or field borders.
+
+## Current Add Product: category dropdown alignment - November 3, 2026
+
+1. **Cause / reason:** The former popup used the field's coordinates captured once when opened. A regression test confirmed that closing the keyboard could move the form while leaving the popup at its old position, 170dp above the expected position in the test. The user requested aligning the dropdown with its field.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:32` (`_categoryLink`), `:255` (`_categoryField`), `:1018` (Category field call); `campushub/test/seller_add_product_page_test.dart:1223` (keyboard alignment regression), `:1257` (responsive menu bounds); this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** The Category popup now uses Flutter's native MenuAnchor linked to the existing field. LayoutBuilder gives the menu the field's actual width. Its left/right edges match the input, with a 4dp gap below it when space permits, existing white/navy styling and rounded corners. Category titles, form spacing and other fields remain unchanged.
+4. **How it works / functions and data flow:** `_categoryField(categories)` receives the existing category list and builds the same validated FormField. Tapping its InkWell dismisses typing focus and opens/closes the anchored menu. `_categoryLink` lets the menu follow the field when keyboard insets move it; width constraints come from the field rather than screen-wide guesses. MenuItemButton selection updates `_category`, clears expiry for nonperishable categories as before, and calls `state.didChange(category)` so validation receives the selected value. The menu closes after selection or an outside tap. Example: select Snacks, reopen the menu, then dismiss it outside; Snacks remains selected and flows into the existing review/submission payload. Empty-category and busy guards remain.
+5. **Backend / API behavior:** Unchanged. Existing category values, requests, authentication, approval, product service and FIFO business rules remain. Six protected integration/backend source hashes match; the alignment fix makes no new API requests.
+6. **Database / migration impact:** None. No schema, migrations, records, endpoints or dependencies changed.
+7. **Tests performed:** **28/28 Add Product tests passed in 23 seconds.** Two-file Flutter analysis reported **No issues found**. New checks verify matching left/right edges and width at 280dp, 390dp and 640dp, selection retention, outside-tap dismissal and alignment after a simulated 280dp keyboard closes. The keyboard regression failed against the former implementation and passes with the anchor. Actual form renders were inspected, including the keyboard-close case. Evidence: `scratch/add-product-category-align-20261103-tests.log` and `scratch/add-product-category-align-20261103/renders/`.
+8. **Remaining limitations / troubleshooting / safe practice:** Physical-device keyboard and screen-reader testing were not performed; no deployment or backend test run was needed for this Flutter-only fix. Flutter may move the menu vertically to fit limited screen space. If alignment regresses, check that MenuAnchor still receives `_categoryLink` and both width constraints still use `constraints.maxWidth`. From `campushub/`, run `flutter test --no-pub test/seller_add_product_page_test.dart`; safely select a category, open/close the keyboard and reopen/dismiss the menu without submitting a product. Confirm matching edges and retained selection.
+
+## Current Add Product: compact Tags height and close help icon - November 3, 2026
+
+1. **Cause / reason:** The shared Tags outline inherited the ordinary field's 15px top/bottom padding on top of its inner entry/chip height. This made the combined field taller than Product Name. The user requested matching normal input height and placing the info glyph immediately after the label.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/seller/product_tag_input.dart:107` (54dp minimum/content padding), `:111` (50dp minimum content to match the visible border), `:114` (Wrap spacing), `:152` (120dp typing width with chips), `:177` (inner entry padding), `:222` (help icon padding/alignment); `campushub/test/seller_add_product_page_test.dart:1043` (normal input-height comparison), `:1189` (4dp glyph gap); this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** Tags uses the same 14dp horizontal inset as ordinary inputs, 2dp outer vertical padding, 6dp inner entry padding, 6dp chip gaps and 2dp row gaps. Its empty/single-chip height matches the normal input at standard text size. The info glyph starts 4dp after Tags (Optional), with zero internal icon padding and start alignment, while its tappable button remains at least 48x48dp.
+4. **How it works:** `ProductTagInput` still receives the same `tags`, `entry`, `decoration` and enabled state. Only layout values change: its shared InputDecorator and 50dp minimum content apply minimum heights rather than a fixed maximum, so multiple chip rows and larger text can grow naturally. A shorter typing area avoids wrapping a single chip onto an extra row unnecessarily. `ProductTagsHelp` keeps the same Tooltip behavior and callback; moving the glyph within its full-sized button changes visual proximity without shrinking its tap target. Example: one short tag and the Add a tag entry fit within the same compact outline; additional tags wrap as needed. Enter/comma/removal/Next -> canonical tags -> Review/API data flow is unchanged.
+5. **Backend / API behavior:** Unchanged. No tag parsing, validation, payload, route, approval or FIFO business-rule changes.
+6. **Database / migration impact:** None. No schema, migrations, dependencies, assets, working records or deployment changes.
+7. **Tests performed:** Two-file Flutter analysis reported **No issues found**. The existing Add Product suite checks compact empty/single-chip height, comparison of both layout and visible border height with the actual Product Name border container, excluding its character counter, exact info-glyph gap, retained tag submission, tooltip access, long-tag wrapping and other form workflows. **24/24 Add Product tests passed in 18 seconds**; actual compact-field render inspected. The border-height test excludes the Product Name counter and checks the painted container rather than only overall layout height. Captures: `scratch/add-product-tags-compact-20261103/renders/`.
+8. **Remaining limitations / troubleshooting / safe practice:** Multiple rows or enlarged text can still increase the field height; no content is forced into a clipped fixed box. Physical-device keyboard/TalkBack and deployment were not performed. Safe exercise: run `flutter test --no-pub test/seller_add_product_page_test.dart` from `campushub/`, enter one short tag and compare the outline with an ordinary input, then add several tags and confirm wrapping/X removal. Tap just after the label to open help. Do not alter API values or create working products to check field size.
+
+## Current Add Product: tags inside the field and instructions in a tooltip - November 3, 2026
+
+1. **Cause / reason:** The user requested moving the visible tag helper text into an information tooltip and placing the chips inside the input border. Previously, the text field and chip Wrap were separate children, so accepted tags appeared below the field.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/seller/product_tag_input.dart:95` (`build`, outer InputDecorator), `:147` (borderless inner TextFormField), `:182` (`ProductTagsHelp`); `campushub/lib/module_app/screens/seller_add_product_page.dart:671` (`_label` optional labelAction), `:681` (flexible label), `:1074` (Tags help icon); `campushub/test/seller_add_product_page_test.dart:1048` (chip containment), `:1124` (tooltip tests). This guide and `CAMPUSHUB_CONTEXT.md` record the accepted layout.
+3. **Changes made:** A single rounded Tags field now encloses both removable chips and the typing area. Chips wrap inside the border. The instructions appear only when the seller taps/long-presses the information icon beside Tags (Optional), or hovers over it with a mouse. The full-tag/removal tooltips and existing X actions remain. No permanent helper paragraph is displayed underneath.
+4. **How it works / inputs, outputs and data flow:** `ProductTagInput(tags, entry, decoration, enabled)` keeps the same parent-owned controllers and conversion rules. Its outer InputDecorator receives the existing field decoration, while its inner TextFormField has no border. A local FocusNode updates the shared outline when typing; tapping the field background focuses the entry. The FocusNode listener is removed and disposed with the widget. The Wrap contains accepted InputChips and a constrained typing area, growing vertically as needed. The outer hint is explicitly empty so only the inner entry draws the placeholder; `copyWith(hintText: null)` would retain the old hint and duplicate it. `ProductTagsHelp` uses the native Tooltip with a navy surface, white text, a bounded width and a 12-second display duration. `_label` accepts an optional action and lets the label wrap at large text sizes, avoiding an overflow beside the icon. Data still flows Enter/comma -> same canonical comma-separated controller -> Review -> unchanged ProductService payload; Next still commits unfinished text.
+
+   Annotated test-only example: entering `local,` creates a local chip inside the outline; typing fresh continues alongside it when space permits. Next saves fresh as before. Removing local with X produces the existing `fresh` API value, without a separate tag endpoint or new model.
+5. **Backend / API behavior:** Unchanged. Six protected route/client/backend/FIFO hashes match. Optional tags retain the established string contract; authentication, stock, approval and submission behavior are preserved.
+6. **Database / migration impact:** None. No schema, migrations, dependencies, assets, working records or deployment changes. Only the two Flutter UI files and existing test/documentation files change.
+7. **Tests performed:** The Add Product, receiving and seller-application suites cover the updated embedded tags plus existing workflows. Added checks measure each chip inside the field border, ensure instructions are absent until opened, and exercise tooltip tap, long press, mouse hover, outside dismissal and screen bounds at 390dp and 280dp/200% text. Three-file Flutter analysis reported **No issues found**. Actual normal/large-text chip and help renders were inspected. The first verification caught a 16px label-row overflow at 200% text; Flexible now permits wrapping. An import-order error and duplicated empty-field placeholder were also corrected. Final verification: **38/38 Flutter tests passed in 20 seconds** across the three suites. Evidence: `scratch/add-product-tags-inline-20261103-tests.log` and `scratch/add-product-tags-inline-20261103/renders/`.
+8. **Remaining limitations / troubleshooting / safe practice:** No physical-device keyboard/TalkBack session or hosted API check was performed. Long chips still ellipsize with a full-tag tooltip; drafts remain in memory until the route closes. If a second outline appears, check the inner InputBorder.none settings. If the empty placeholder repeats, verify the outer decorator's hint is an empty string, not null. Safe exercise: run `flutter test --no-pub test/seller_add_product_page_test.dart` from `campushub/`; enter two test tags, remove one, open the info icon and advance/back. Confirm accepted chips remain inside the outline and no instruction paragraph remains beneath it. Use the mocked workflow; do not create working products for a layout check.
+
+## Current Add Product: bottom actions, red validation and removable tags - November 3, 2026
+
+### 1. Cause / reason
+
+The user requested lower buttons, red required/error text and tags that become removable chips with understandable instructions. Confirmed causes: `_navigation` was the last child of the scrolling form, so it followed content rather than staying at the screen bottom; the form-local ColorScheme explicitly assigned navy to error; Tags was an ordinary comma-separated text field without an add/remove interaction.
+
+### 2. Exact files changed and current anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` | 37 `_tagEntry`; 75 disposal; 350 `_continue`; 659 error decoration; 676 `ProductFieldLabel`; 899 ColorScheme error; 1057 `ProductTagInput`; 1275 `product-form-navigation` | Retains a separate unfinished tag entry, commits it on Next, renders tag chips, uses red errors/required markers and places navigation below the scroll area inside SafeArea. Image/submission errors also use the scoped red. |
+| `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart` | 12 `ProductFormStyle.error`; 37 `ProductFieldLabel`; 293 batch field label | Adds the form-local red `#B91C1C` and a reusable label that colors only the required asterisk. Batch quantity/date labels share it. |
+| `campushub/lib/module_app/widgets/seller/product_tag_input.dart` | 7 `ProductTagInput`; 28 `_add`; 39 `commit`; 72 `_changed`; 98 helper text; 113 InputChip; 122 removal | New reusable chip input backed by the existing comma-separated tag controller, with Enter/comma addition, duplicate suppression, full-tag tooltips, accessible removal labels and responsive long-tag constraints. |
+| `campushub/test/seller_add_product_page_test.dart` | 954 footer/keyboard; 979 red errors; 1029 tag submission; 1087 long tags | Adds behavior checks and updates retained-tag expectations to assert chips instead of raw input text. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Records exact changes, functions/data flow, verification, limitations and a safe exercise. |
+
+### 3. Changes made
+
+Next, Back and Submit remain in the existing navigation widget, now in a separate bottom area outside the Expanded scroll view. SafeArea and Scaffold keyboard resizing keep them above system insets/the keyboard. Content remains unboxed and scrollable, with 16px horizontal padding. Existing gold-to-navy progress and all four steps remain.
+
+The scoped error color is now red. Validation messages, normal/focused error borders, required asterisks and image/submission errors use it; ordinary labels and main branding stay navy. This fixes the theme cause rather than only recoloring one required message.
+
+Tags become neutral removable chips when the seller presses Enter or types a comma. Helper text says: Type a tag, then press Enter or a comma to add it. Tap × to remove. The placeholder supplies examples. A tag's tooltip retains its full text if its chip label is ellipsized; its X has a Remove tag [name] tooltip/semantic action. Next commits unfinished text automatically. Values survive backward navigation and continue to appear in Review.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+The Form now contains a Column with `Expanded(SingleChildScrollView(...))` and a bottom Padding containing `_navigation`. Scrolling therefore moves only the content; it does not move the actions. No new outer card or visible wrapper was added. The existing busy flags and callbacks still control the same buttons.
+
+`ProductFieldLabel(label)` renders the label as TextSpan content, using the current form error color only for a trailing required marker. `_decoration` supplies red error styles and borders to ordinary inputs, the category decorator and reusable batch fields. The scoped ColorScheme is the shared error source for this screen.
+
+`ProductTagInput` receives two parent-owned controllers: `tags` stores the established API value; `entry` holds unfinished typing. `values(tags)` parses trimmed, nonempty, unique tags in insertion order. `_changed` splits completed comma/newline entries into chips while leaving the last unfinished part editable. `commit(tags, entry)` adds every remaining nonempty part and clears only the entry field. `_continue` calls commit on Step 1 before validation, preventing loss when the seller taps Next without pressing Enter.
+
+`_add` uses an ordered set to avoid duplicate exact tags; removing a chip rewrites the existing canonical string without that tag. The widget listens to that controller for changes and removes its listener when unmounted. The parent retains/disposes both controllers, so changing steps never loses accepted tags. No second product model or API was introduced.
+
+```text
+Typing -> entry controller -> Enter/comma -> removable chips + existing tags string
+Next -> commit unfinished entry -> existing required-field validation
+Review -> same tags string -> unchanged ProductService tags field -> Django
+```
+
+Annotated example, test data only: enter homemade and press Enter, then enter local, homemade,. The chips contain homemade and local once each. Remove homemade and type fresh without pressing Enter. Next commits fresh; Review and the existing POST contain `local, fresh`. The user never has to type or edit the serialized comma-separated value.
+
+### 5. Backend / API behavior
+
+Unchanged. The existing optional `tags` string is still sent through ProductService; Django retains its existing normalization/storage rules. Six protected route/client/backend/FIFO source hashes match. Authentication, approval, batch allocation, price/stock validation, image handling and product submission behavior remain. No requests occur merely from adding/removing a tag or scrolling the content.
+
+### 6. Database / migration impact
+
+None. No models, endpoints, migrations, dependencies, assets or working data changed. No physical device, server restart, app installation or production deployment was performed. The error token is scoped to this form rather than changing the global theme.
+
+### 7. Tests performed
+
+**36/36 Flutter tests passed in 19 seconds** across the Add Product, seller receiving and seller application suites. Four-file analysis reported **No issues found**. New tests verify footer position before/after scrolling, movement above a simulated 280dp keyboard inset, red required asterisks/error text/focused borders, Enter/comma addition, duplicate suppression, X removal, Next committing unfinished text, retained chips across steps, exact submitted tag payload and long tags at 280dp/200% text. Existing draft/approval/batch/photo/permission/navigation tests continue to pass.
+
+Actual bundled-font renders for normal layout, red validation errors, chips and simulated keyboard insets were inspected. Captures are under `scratch/add-product-footer-tags-20261103/renders/`. A simulated keyboard inset reserves space; it is not a physical keyboard screenshot. Six protected integration hashes match. Backend tests were not rerun for this Flutter-only change.
+
+Reproduce from `campushub/`:
+
+```powershell
+flutter test --no-pub test/seller_add_product_page_test.dart test/seller_stock_receiving_test.dart test/seller_application_test.dart
+flutter analyze --no-pub lib/module_app/screens/seller_add_product_page.dart lib/module_app/widgets/seller/product_inventory_fields.dart lib/module_app/widgets/seller/product_tag_input.dart test/seller_add_product_page_test.dart
+```
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+No physical-device keyboard/TalkBack or hosted API verification was performed. Drafts remain in memory until the route closes. Existing backend tag length/count rules remain authoritative; this task does not change them. Long chip labels are ellipsized inside the available width, with their full content in the tooltip. Ordinary screen text stays navy; red is reserved for actual required/error information here.
+
+If Next scrolls away, check that `_navigation` is the sibling of the Expanded scroll view rather than inside its Column of fields. If error text is navy, inspect both the scoped ColorScheme error and `_decoration` before overriding individual labels. If a word disappears, inspect commit and the canonical tag controller; do not send the unfinished entry controller directly to the API.
+
+Safe exercise: run the tag test, change its test-only fresh tag to handmade and update its expected `local, handmade` payload. Verify Enter/comma, X removal and Next without Enter, then restore the fixture. Run the footer/keyboard test and confirm the same button stays at the bottom of the available content area while the fields scroll. Use mocks only; do not submit demonstration listings.
+
+## Current Add Product: Next button label - November 3, 2026
+
+1. **Reason:** The user requested Next instead of Continue.
+2. **Files:** `campushub/lib/module_app/screens/seller_add_product_page.dart:605`, `_navigation` button Text; this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Change:** Steps 1-3 now display Next. Step 4 still displays Submit for Approval.
+4. **How it works:** The existing `_step == 3` condition selects the displayed label. `_continue` still validates the active fields and advances the retained draft; function names and widget keys remain unchanged.
+5. **Backend/API:** Unchanged.
+6. **Database/migrations:** None.
+7. **Verification:** Single-file Flutter analysis passed with No issues found. No new tests or device run for this text-only change.
+8. **Limits / safe practice:** Use the running app's normal reload, check Next on Steps 1-3 and Submit for Approval on Step 4 without submitting a real product. If Continue persists, confirm the app loaded the changed Text at line 605. Earlier guide references to Continue describe the same navigation action.
+
+## Current Add Product: gold-to-navy step progress - November 3, 2026
+
+1. **Cause / reason:** The user requested gold `#FCB316` for Steps 1-2 and a gradient into navy for Steps 3-4. This explicit request is scoped to the progress line.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:409`, `_progress`; `campushub/test/seller_add_product_page_test.dart:309`, `product-step-gradient` assertion; this guide and `CAMPUSHUB_CONTEXT.md` record the new progress styling.
+3. **Changes made:** The thin rounded line stays gold through its first half, blends gold to the existing navy `#0B1F3A` between half and three-quarters, and remains navy through its final quarter. The remaining track stays light gray. Step text, unboxed sections and spacing remain.
+4. **How it works:** The existing LinearProgressIndicator still receives `(_step + 1) / 4`. A ShaderMask maps a full-width LinearGradient with stops `[0, .5, .75, 1]` onto only the filled line. Its white indicator is an alpha mask, not a visible white bar; transparent remaining progress reveals the separate gray ColoredBox beneath it. Keeping the shader anchored to the whole track prevents Step 1 from showing navy prematurely. Example: Step 2 fills half the track in gold; Step 4 reveals the entire gold-to-navy line.
+5. **Backend / API behavior:** Unchanged. No validation, navigation, authentication, approval, payload, photo or FIFO changes.
+6. **Database / migration impact:** None. No models, migrations, dependencies, assets, working records or deployment changes.
+7. **Tests performed:** **18/18 Add Product Flutter tests passed in 15 seconds**; two-file analysis reported **No issues found**. Existing progress-value/position/responsive checks remain and the paint assertion now checks the mask. Actual Step 2 and Step 4 renders were inspected; captures are in `scratch/add-product-progress-gradient-20261103/renders/`.
+8. **Remaining limitations / troubleshooting / safe practice:** No physical-device or hosted-server verification was performed. Safe exercise: run `flutter test --no-pub test/seller_add_product_page_test.dart` from `campushub/`, navigate through all four steps and back, and confirm the same line changes from quarter/half gold to the navy-ending full gradient without losing entered values. If the whole remaining track changes color, check the transparent indicator background and separate gray track before changing step calculations.
+
+## Current Add Product: remove the section card wrapper - November 3, 2026
+
+This overrides the earlier instruction to retain an active section card. All four steps now use an unboxed heading and fields directly on the screen background.
+
+1. **Cause / reason:** The user explicitly requested removal of the remaining container wrap. `_section` still supplied a bordered rounded white card with another 16px inset inside the screen's existing padding.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_add_product_page.dart:653`, anchor `_section`; `campushub/test/seller_add_product_page_test.dart:150`, anchor `tapKey`; this guide and `CAMPUSHUB_CONTEXT.md` record the current layout. No other application source changes.
+3. **Changes made:** `_section` now uses an undecorated full-width SizedBox and Column. Removed its border, rounded decoration, background and inner padding. Retained the heading, 16px title/content and section spacing, existing 16px screen padding, gold progress and four-step controls.
+4. **How it works:** `_section(title, children)` receives the same active-step title and field widgets and returns only layout. Data still flows through the same retained controllers, validation and Review step to the existing submission service. Test `tapKey` now targets the actual inventory radio instead of the whole card's center, which moved onto the information icon when the fields became wider. Example: the Product Name field now starts at the screen's 16px inset instead of the former 32px combined inset.
+5. **Backend / API behavior:** Unchanged. No authentication, navigation flow, product approval, request payload, image handling or FIFO calculation changes.
+6. **Database / migration impact:** None. No schema, migrations, dependencies, assets, working data, device actions or deployment changes.
+7. **Tests performed:** **32/32 existing Flutter tests passed in 16 seconds** across the Add Product, seller receiving and seller application suites; two-file analysis reported **No issues found**. Formatting reported two files/zero changes. Actual unboxed widget captures are saved under `scratch/add-product-unboxed-20261103/renders/`; the 390dp Product Information render was visually inspected. The initial run exposed three test-only inventory card-center taps hitting the information icon; the helper now selects the native radio directly.
+8. **Remaining limitations / troubleshooting / safe practice:** No physical-device or hosted API test is needed to establish removal of a local decorative widget, and none is claimed. Inputs, inventory choice/batch rows and image tiles retain their own functional borders. Safe exercise: run `flutter test --no-pub test/seller_add_product_page_test.dart` from `campushub/`, compare all four steps and confirm fields align at the same 16px inset as progress/navigation. Check Back/Continue retention without submitting a working product. If the old outer border persists, verify the running app loaded the changed `_section` before altering shared input borders.
+
+## Current Add Product: four retained form steps - November 3, 2026
+
+This entry supersedes the continuous-form layout and separate Preview Product dialog described below. It changes the existing Flutter Add Product route, not another screen. The established Simple Stock/Batch Inventory API contract, actual FIFO backend allocation, image picker and approval workflow remain.
+
+### 1. Cause / reason
+
+The user's new brief requests one section at a time, a thin progress line on the left with Step X of 4 on the right, Back/Continue navigation and a final inline review. Confirmed in the prior screen: all section cards appeared together and Preview Product opened a separate dialog. The parent layout already used undecorated layout widgets; it now contains only the progress row, one active section card and navigation, without another visible wrapping card.
+
+### 2. Exact files changed, current lines and code anchors
+
+| File relative to the project root | Current line / anchor | Change and reason |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` | 16 `SellerAddProductPage`; 31 `_scroll`; 32 `_step`; 65 disposal | Retains the existing screen/controllers and adds a scroll controller plus a zero-based active step. Both the scroll controller and existing draft controllers are disposed with the route. |
+| Same screen | 312 `_validInventoryTotal`; 324 `_changeStep`; 338 `_back`; 347 `_continue`; 355 `_submit` | Validates the active step before advancing, preserves drafts, resets focus/scroll when changing steps and permits submission only from Review. Existing submission arguments and error/success handling remain. |
+| Same screen | 409 `_progress`; 438 `_reviewValue`; 450 `_review`; 550 `_navigation` | Adds the left-line/right-label progress row, real entered-data summary and responsive Back/Continue/Submit controls. Removes the former separate preview dialog and its action. |
+| Same screen | 653 `_section`; 880 `PopScope`; 917 scroll view; 927/1026/1190/1191 active section branches | Keeps one active bordered section card, 16px screen/major spacing, header and platform Back behavior, and a single scrollable content layout. Inactive section widgets are not displayed. |
+| `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart` | 56 `ProductInventoryInfo.explanation` | Replaces only the tooltip wording with the exact shorter explanation in the new brief. Tap/long-press/hover, bounded scrolling and independent semantics remain. |
+| `campushub/test/seller_add_product_page_test.dart` | 277 responsive step cases; 358 validation; 413 keyboard/header/platform Back; 447 retained batches; 645 photo review; 748 submission guards | Replaces the obsolete all-sections-visible/preview-dialog expectations with the four-step journeys while retaining gallery, validation, permissions, submission and error coverage. |
+| `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md` | This entry / newest four-step entry | Records current behavior, source anchors, functions/data flow, verification, troubleshooting and a safe test exercise. |
+
+Five project files changed: two runtime Dart files, one existing test file and two existing documents. Snapshots, protected hashes, logs and actual widget captures are under `scratch/add-product-steps-20261103/`.
+
+### 3. Changes made
+
+1. Product Information: Product Name, Category, Description and optional Tags.
+2. Pricing & Inventory: Selling Price, stock selector, Simple quantity or retained batch rows, Low Stock Threshold and the existing optional perishable expiry field.
+3. Product Images: existing gallery control, up to six previews, primary selection and removal in the existing compact responsive grid.
+4. Review & Submit: actual name/category/description/tags, formatted selling price, stock method, total quantity, batch details where applicable, threshold, optional expiry and all selected images in primary-first order. The notice explains Marketplace Admin approval; Submit for Approval uses the existing service.
+
+The progress bar shows 1/4, 2/4, 3/4 and full progress, using gold `#FCB316` against the existing light border color. Step text stays to its right, with no percentage text or outer progress container. Navy `#0B1F3A`, white, Poppins, existing inputs, thin borders and minimal shadows remain. Only the current section card is built. Header/progress/navigation have no new decorative wrappers.
+
+Continue appears only on Steps 1-3; Back appears on Steps 2-4. Header Back and platform Back move to the previous step when applicable, preserving the draft. Back from Step 1 returns through the existing route. Buttons/focus/navigation are blocked while picking/submitting. Narrow or enlarged-text navigation stacks without compressing touch targets. No new animation is added.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+`_step` stores 0-3. `_progress()` derives both the LinearProgressIndicator value `(_step + 1) / 4` and the visible/semantic Step X of 4 text from that one value, preventing disagreement between line and label.
+
+`_continue()` validates the currently mounted Form fields. Step 1 therefore cannot advance with a missing name/category/description. Step 2 uses the existing positive-price, integer quantity, nonnegative threshold, batch/date/cost validators and `_validInventoryTotal()`; empty batches and overflowing totals remain blocked. Step 3 keeps images optional, as in the existing backend/form contract. Image selection is still validated before it enters the draft, and there is no POST during Continue.
+
+`_changeStep(next)` dismisses focus and tooltips, changes the active index, clears the current error-display flag and resets scroll to the top after layout. It does not clear any text controller, selected category/date, image slot or batch draft. Returning to a step mounts its fields from those same retained objects. The current Form registers only visible fields; invalid hidden inventory methods do not block the selected method. Required prior steps must be passed again after navigating backward to edit them.
+
+`_back()` chooses the preceding step or the existing Navigator exit. `PopScope` intercepts platform Back within Steps 2-4 and blocks it while busy. Successful submission still returns true through the original route; tests verify the form closes only after confirmed success.
+
+`_reviewValue(label, value)` renders labelled text. `_review()` reads the existing controllers and `_orderedImages`; it never creates product records or recalculates backend allocations. Images use the same ProductImage renderer and primary-first ordering. Actual batch dates/costs, tags and expiry remain inspectable before submission. No photo selection produces an honest No product photos selected message.
+
+`_navigation(categoriesAvailable)` chooses Continue or Submit based on the step, with Back where appropriate. Existing loading state disables duplicate submissions and Back actions. A failed/malformed/unsupported-server result leaves Review and the original draft intact. The seller can navigate back to edit it.
+
+```text
+Existing authenticated Add Product route -> retained form controllers
+  -> Step 1 validate information -> Step 2 validate inventory
+  -> Step 3 existing image picker -> Step 4 read the retained draft
+  -> existing ProductService.submitProduct -> existing Django listing/approval flow
+Back changes the active step only; no HTTP write occurs before Submit.
+```
+
+Annotated test-only example: enter quantity 9 in Simple Stock, switch to Batch Inventory and enter batches of 3 and 4. Review displays Batch Inventory and 7 units. Back through Images to Inventory keeps both batch dates/costs; switching to Simple Stock restores quantity 9. Changing steps never copies 7 into the Simple quantity or creates a stock movement. Django remains responsible for FIFO allocation after the listing is approved and purchased.
+
+### 5. Backend / API behavior
+
+Unchanged in this task. `ProductService.submitProduct` receives the same arguments as before, including primary-first images and optional initial batches/cost/expiry. Six protected source hashes match: `products_screen.dart`, `product_service.dart`, `seller_application_service.dart`, the Django product submission view, initial-batch service and FIFO service. Source comparisons also confirm the image MIME/read/picker logic, slot/gallery implementation and ProductService argument block are unchanged.
+
+The same bearer-token authentication, approved-seller access checks, pending-product approval, capability preflight for older batch servers, saved-batch confirmation, timeout handling and no automatic POST retry remain. No endpoints or database contracts were added. Step controls do not simulate or change FIFO stock deduction.
+
+### 6. Database / migration impact
+
+None. No backend files, models, schemas, migrations, dependencies, assets or working product records were changed. No app/emulator launch, installation, server restart or deployment was performed. All entered example names/images/amounts in verification are isolated widget fixtures, not hardcoded application data.
+
+### 7. Tests performed
+
+- **32/32 Flutter tests passed** in 14 seconds across `seller_add_product_page_test.dart`, `seller_stock_receiving_test.dart` and `seller_application_test.dart`. Tests cover one active section, exact progress values and horizontal alignment, all required validation, no early HTTP writes, retained values/methods/batches/dates/costs, review, all six images/primary order/removal, invalid/excess/cancelled gallery selection, keyboard scrolling, header/platform Back, guarded submission, existing auth/payload, retryable errors, malformed success, older batch servers and existing seller application/receiving flows.
+- Responsive journeys passed at 280x844/200% text, 320x844/130%, 390x844, 640x900 and 844x390 landscape. The real bundled-font captures for all four 390dp steps were inspected: progress above one card, no visible outer wrapper, preserved navy/white/gold, readable review and navigation outside the card. Additional batch, six-photo, tooltip, keyboard and responsive captures are saved in the evidence folder.
+- Three-file Flutter analysis reported **No issues found**. Final formatting reported three files/zero changes. The first analysis identified a non-const Semantics constructor and test/style brace warnings; these were corrected. The final test-only brace cleanup does not alter the passing test behavior.
+- Six protected integration/backend hashes match; the submission argument block and unchanged image-helper/gallery source comparisons passed. Backend tests were not rerun for this Flutter-only presentation change. No native TalkBack or physical gallery session was performed, and no full accessibility compliance score is claimed. The web-only design-kit gate is not a Flutter renderer; its previously documented unavailable dependencies are not represented as a native pass.
+
+Reproduce from `campushub/`:
+
+```powershell
+flutter test --no-pub test/seller_add_product_page_test.dart test/seller_stock_receiving_test.dart test/seller_application_test.dart
+flutter analyze --no-pub lib/module_app/screens/seller_add_product_page.dart lib/module_app/widgets/seller/product_inventory_fields.dart test/seller_add_product_page_test.dart
+```
+
+Set PRODUCT_FORM_REVIEW_DIR to `scratch/add-product-steps-20261103/renders` using an absolute path before the test command to regenerate captures. Logs are `flutter-tests.log` and `analyze.log`; `protected.json` records the six unchanged integration sources.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+Drafts are preserved while moving between steps and after definite submission errors, but are not saved across closing the route or restarting the app. Photos remain optional to preserve the current contract. An uncertain network response still requires checking My Products before retrying; this task adds no new listing idempotency contract. Optional batch cost remains in the existing receipt-note workflow described below. Physical-device/TalkBack and hosted-server verification remain outside this local change.
+
+If a field seems reset, inspect the controller or retained batch object rather than adding duplicate per-step models. If Continue does not advance, inspect inline errors in the active section and the batch total error; it should not validate inactive sections. If the last step crashes after another code change, first verify earlier-step validation was not bypassed. If the gallery changes, compare the protected image-helper/gallery slices and the six-photo regression before altering backend storage. Use your normal hot reload/restart workflow to show the update; this task did not control your running app.
+
+Safe exercise: in the test named `batch drafts, dates, costs and method switches...`, change the test-only second quantity from 4 to 6, update its expected total/payload from 7 to 9, and run that test. Navigate backward and confirm Simple Stock still retains its separate 9 while both batch dates/costs remain. Restore the fixture afterward. Then run the 280dp/200% four-step case and inspect the captures; only the current section should appear, while navigation remains reachable by scrolling. Do not submit demonstration products or receive working stock for this exercise.
+
+## Add Product: Simple Stock and Batch Inventory - November 3, 2026
+
+This entry is the current Add Product specification. It supersedes the older dropdown/one-quantity inventory presentation below. The existing route, Product Information, Pricing & Inventory, Product Images, review notice, authentication and approval workflow remain.
+
+### 1. Cause / reason
+
+Confirmed in the implementation: the Flutter form displayed a stock-method dropdown and one ordinary stock input for both methods. Its submission sent only `stock` and `inventory_method`; separate received dates and costs could not be saved. Product Preview and primary-photo selection were also absent. Django already had real FIFO batch allocation and a movement ledger, but ordinary receiving correctly accepts only approved listings. A new listing starts pending, so initial receipts must be saved within listing creation rather than through the later receiving endpoint.
+
+### 2. Exact files changed, current lines and code anchors
+
+Paths are relative to the project root. These are current anchors for this implementation; older reports below retain historical line numbers.
+
+| File | Current line / nearby anchor | What changed |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_add_product_page.dart` | 16 `SellerAddProductPage`; 50 `_batchTotal`; 54 `_orderedImages`; 309 `_submit`; 370 `_previewProduct`; 606 `_images`; 869 `ProductInventorySelector`; 897 `ProductBatchFields`; 943 Low Stock Alert At; 1038 preview-product | Updates the existing form, retains both inventory drafts, computes the displayed total, adds preview and primary photos, and submits only the selected method. Removes the former gradient-border class and inline low-stock caution; uses a solid focus border and ordinary helper text. |
+| `campushub/lib/module_app/widgets/seller/product_inventory_fields.dart` | 7 `ProductFormStyle`; 36 `ProductBatchDraft`; 53 `ProductInventoryInfo`; 144 `ProductInventorySelector`; 244 `ProductBatchFields`; 320 date FormField; 371 optional unit cost | New reusable inventory widgets, form-scoped brand values, validators and batch draft controllers. |
+| `campushub/lib/module_app/services/product_service.dart` | 186 `submitProduct`; 192 `initialBatches`; 206 initial_batches; 217 saved-count confirmation | Adds an optional batch payload and checks the server acknowledged every batch. Existing callers omit it. |
+| `campushub/lib/module_app/services/seller_application_service.dart` | 224 `createProduct`; 228 capability preflight | Before a batch POST, reads the same existing endpoint and verifies initial-batch support. Keeps the current bearer-token header, timeout handling and no automatic POST retry. |
+| `backend/core/api/views.py` | 756 `seller_submit_product`; 774 capabilities; 793 batch validation; 806 positive price; 861 zero-stock creation; 870 initial receipts; 887 saved count | Adds optional initial batches to the existing GET/POST contract, validates before writes and saves receipts inside the existing atomic approval/ownership transaction. |
+| `backend/core/modules/marketplace/services/product_initial_inventory.py` | 14 `validate_initial_batches`; 58 `save_initial_batches` | Normalizes batch input and feeds real receipt changes through existing `Product.save` inventory hooks. |
+| `campushub/test/seller_add_product_page_test.dart` | 554 batch retention/submission; 643 invalid/removal cases; 707 older-server guard; 746 tooltip/responsive/semantics; 811 primary photo | Updates former label/caution assertions and adds behavior and real widget-render coverage. |
+| `backend/core/api/test_mobile_seller_application.py` | 212 persisted receipts/FIFO; 240 invalid batches; 260 rollback; 276 disabled engine/legacy; 285 price/quantity bounds | Adds database/API regressions using disposable test records. |
+| `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md` | This entry / newest Add Product entry | Records the accepted behavior, integration contract, verification, limits and practice exercise. |
+
+### 3. Changes made
+
+- Replaces the dropdown with Simple Stock and Batch Inventory radio cards and the requested plain-language descriptions. The saved internal values remain `simple` and `fifo`. The icon sits beside the Batch Inventory title and has an independent spoken label.
+- Simple Stock shows Available Quantity. Batch Inventory shows separately removable rows with positive Batch Quantity, required Date Received and optional Unit Cost, plus Add Another Batch and the live Total Available Stock. Low Stock Alert At remains common to both methods. Up to 100 initial rows are supported; quantities/totals/thresholds respect PostgreSQL's 2,147,483,647 bound.
+- Hiding a method retains its controllers and dates; invalid hidden fields do not block the active method. Removing a batch updates the total and preserves the other rows' identities. Removed controllers are disposed with the page after their widgets have left the tree.
+- Uses the user's requested form-local navy `#0B1F3A`, gold `#FCB316`, white, bundled Poppins, subtle full borders, solid focus feedback and rounded fields. Shared colors and unrelated screens are not changed.
+- Keeps the six-photo limit, actual gallery picker, image validation, previews and removal. The first selected photo starts as primary; Set primary changes the first image sent to Django. Removing the primary chooses the next remaining image. The upload control is more compact.
+- Preview Product validates and opens a scrollable local review dialog without posting. Submit for Approval uses the existing pending-product flow and busy-state duplicate guard. Existing optional perishable expiry behavior remains.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+`ProductBatchDraft` owns quantity/cost text controllers and the selected date. `toJson()` produces `{quantity, received_date, unit_cost?}` only after validation. `ProductFormStyle.quantity(value, positive: ...)` returns an inline error string or null: Simple Stock accepts zero; individual batches require at least one. `_batchTotal` sums positive parsed drafts for the display; it does not deduct or reserve inventory.
+
+`ProductInventorySelector(value, onChanged)` renders the two native grouped radios; its card also responds to a tap. It uses separate semantics for the information button, avoiding merging an interactive explanation into a radio label. `ProductInventoryInfo` uses Flutter Tooltip for tap, long-press, mouse hover, keyboard activation and timed dismissal. The exact requested explanation fits a bounded, scrollable area. Grouped TapRegions dismiss on outside taps while allowing scrolling inside. The WidgetSpan's outer text scale is neutral; the user's text scale is applied once to the explanation. This prevents doubled scaling and screen overflow at 200% text. Tooltip duration is 12 seconds after release/show, with the existing native hover behavior.
+
+`ProductBatchFields(draft, number, decoration, onChanged, onRemove, enabled)` updates its draft, reports changes for the total and renders inline quantity/date/cost errors. The date picker allows recorded dates from 1900 through today; no received date is invented for an empty row.
+
+`_orderedImages` returns the selected primary first and all remaining actual images afterward. Both `_previewProduct` and `_submit` use that order. The preview reads the entered name/category/price/description/tags/stock/threshold/optional expiry and primary image; Back to Form keeps the same draft. Preview and the existing optional expiry picker use the Form's descendant context so Flutter captures the scoped navy/white/Poppins theme rather than the surrounding application's default dialog theme.
+
+```text
+Form controllers + selected method
+  -> validate active fields -> optional local preview (no HTTP write)
+  -> ProductService.submitProduct
+  -> batch only: same-endpoint GET capability check
+  -> authenticated existing POST /api/seller/products/submit/
+  -> validate_initial_batches -> normalized rows or HTTP 400
+  -> existing atomic ownership/application checks -> pending zero-stock product
+  -> save_initial_batches -> Product.save -> movement ledger + real FIFO batches
+  -> response confirms saved batch count -> existing success navigation
+Later purchase -> existing Django FIFO allocation -> oldest received stock first
+```
+
+Annotated example, documentation/test data only:
+
+```json
+{
+  "inventory_method": "fifo",
+  "stock": 7,
+  "initial_batches": [
+    {"quantity": 3, "received_date": "2026-01-03", "unit_cost": "2.50"},
+    {"quantity": 4, "received_date": "2026-01-01"}
+  ]
+}
+```
+
+The server checks that 3 + 4 equals 7. It saves two receipt batches, even though the older date was entered second. A purchase of five units reserves four from January 1 and one from January 3 through the existing backend allocator. The optional cost is stored as `Unit cost: PHP 2.50` in that batch's receipt movement notes. There is no new numeric cost column or cost-based accounting feature.
+
+### 5. Backend / API behavior
+
+The URL and auth/owner/RBAC gates are unchanged. GET adds `capabilities.initial_batches: true`; POST optionally accepts `initial_batches` and returns `initial_batches_saved` when supplied. Legacy Simple Stock and aggregate FIFO callers retain their existing request shape. The Flutter batch path refuses to POST to an older server lacking the capability, preventing unknown rows from being silently ignored. A missing saved-count acknowledgment is treated as uncertain success: check My Products before another submission.
+
+`validate_initial_batches` requires a nonempty list of 1-100 rows, positive whole quantities, real nonfuture ISO dates, valid optional nonnegative currency amounts, and a bounded total matching stock. It returns normalized timezone-aware received timestamps and notes. Explicit null batches, Simple Stock/bundle batch payloads and inconsistent totals are rejected. Selling price must now be positive in this listing endpoint; stock and low-stock threshold remain nonnegative bounded integers.
+
+`save_initial_batches` accepts only a new empty FIFO product. Within the caller's transaction it applies each quantity with receipt metadata using `Product.save`. Existing hooks create the actual movement and `InventoryBatch` records. A failure rolls back the listing and all receipts together. Later `fifo.receive`, its approved-product requirement, order reservation/payment/completion/cancellation behavior and `fifo.ordered_batches` are unchanged. FIFO must already be configured; this change never activates it.
+
+### 6. Database / migration impact
+
+No models, schema, migrations, API URLs, dependencies, assets or working records were changed. Uses existing Product stock, InventoryStockMovement notes/received_at and InventoryBatch fields. Batch cost is retained as receipt notes because the current schema has no dedicated cost field. Test data exists only in disposable databases/widget fixtures. No server restart, deployment, app installation, emulator or physical-device action was performed.
+
+### 7. Tests performed
+
+- **71/71 Django tests passed** in 11.337 seconds across `api.test_mobile_seller_application`, `modules.marketplace.test_hybrid_inventory` and `modules.marketplace.test_fifo_inventory`. The isolated local PostgreSQL database was destroyed; system checks reported no issues. New coverage includes exact received dates/cost notes, seller ownership/pending status, invalid/empty/overflow drafts, disabled FIFO, legacy Simple Stock, rollback after receipts were written, and oldest-date backend allocation.
+- **30/30 Flutter tests passed** across `seller_add_product_page_test.dart`, `seller_stock_receiving_test.dart` and `seller_application_test.dart`. They cover retained drafts/dates/cost, total/removal, hidden ordinary quantity, preview without POST, exact batch payload, old-server guard, primary-photo ordering, six-image validation, duplicate busy guard, errors/permissions and existing receiving/application behavior. Tooltip cases check tap/long-press/hover, outside/timed dismissal, scrolling and independent semantics at 280dp/200%, 320dp/130% and 640dp. Existing keyboard/scroll cases cover 360dp and 390dp.
+- Five-file Dart analysis reported **No issues found**. Dart formatting ran on changed Dart files. Actual bundled-font widget captures were generated and visually inspected. Initial review exposed vertical tooltip overflow, doubled WidgetSpan text scaling, and scroll dismissal; these were corrected and behavior/bounds covered. An initial test assumed UTC dates equaled local dates; it now checks local received dates. A semantics-test handle cleanup error was also corrected.
+- The optional vendor web design-kit command was attempted and returned exactly **`RESULT: 0/52 checks passed  =  0%`**. This is a failed/unavailable web-kit gate, not a Flutter accessibility result. Its output reports missing `python3`, Playwright/sample files/modules and denied receipt writes under the read-only vendor directory. No kit pass or WCAG compliance score is claimed, and no unrelated kit installation/change was made. Full output is `scratch/add-product-batches-20261102/optional-web-kit-gate.log`.
+
+Reproduce the application checks from the project root (Flutter commands run inside `campushub/`):
+
+```powershell
+# Disposable LOCAL PostgreSQL runner; never uses production test tables.
+backend/core/venv/Scripts/python.exe -B scratch/operating-schedule-20261029/run_tests.py api.test_mobile_seller_application modules.marketplace.test_hybrid_inventory modules.marketplace.test_fifo_inventory
+# In campushub/:
+flutter test --no-pub test/seller_add_product_page_test.dart test/seller_stock_receiving_test.dart test/seller_application_test.dart
+flutter analyze --no-pub lib/module_app/screens/seller_add_product_page.dart lib/module_app/widgets/seller/product_inventory_fields.dart lib/module_app/services/product_service.dart lib/module_app/services/seller_application_service.dart test/seller_add_product_page_test.dart
+```
+
+Flutter logs/captures are in `scratch/add-product-batches-20261102/`. The reused backend runner explicitly selects localhost:5432, creates a uniquely named disposable test database, bootstraps the project's unmanaged test schema and destroys that database afterward. Do not replace it with a working-data receiving/initialization call to test this UI.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+- Source changes are local. A backend with initial-batch capability is required before using Batch Inventory submission; this task did not deploy it or change FIFO configuration. Older-server blocking is intentional and leaves the form intact.
+- No physical-device gallery/TalkBack session, live authenticated listing, browser build or complete WCAG audit was performed. The form preserves entered data while switching methods and after definite server errors; drafts are not persisted across closing the route or app restart. Submission timeouts still require checking My Products before retrying; no new listing idempotency scheme was added.
+- Unit cost is a receipt note, not a structured cost/report field. Initial receipts use date precision in the Django timezone; same-date batches retain stable recording order. Separate future costing/report functionality would need its own explicit design and contract.
+- If batch totals disagree, inspect each quantity and the posted `stock`; never fix it by directly editing batch balances. If dates appear a day earlier in raw SQL, compare timezone-local dates rather than UTC midnight. If the tooltip vanishes while reading, inspect the grouped TapRegions and timer before adding another popup implementation. The optional web-kit failure remains outside this native Flutter change.
+
+Safe exercise: in the existing Flutter test named `batch drafts survive method switches...`, change the test-only second quantity from 4 to 6 and update its expected total/payload from 7 to 9. Run that test, switch methods and confirm the simple draft remains 9 while the batch draft keeps its own quantities/dates. Restore the fixture and rerun. Then run the tooltip test at 280dp/200% and scroll its explanation; verify it remains visible inside the screen and dismisses on an outside tap. Use test fixtures only; do not submit demonstration products or receive real stock for practice.
+
+## Recent Orders compact pagination dot spacing - November 2, 2026
+
+Keep pagination inside the bordered card below View Details. The latest screenshot clarifies that the remaining concern is the horizontal space between dots.
+
+1. **Cause / reason:** Every dot occupied a48dp-wide native button, so adjacent centers were48dp apart even though the circles were only7/9dp wide. Earlier vertical spacing changes did not reduce this horizontal gap.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/seller/seller_recent_orders.dart:358` (dot cell width), `:364`/`:365` (explicit native minimum/fixed size); `campushub/test/seller_home_layout_test.dart:610` (target size), `:611` (adjacent-center measurement). This guide at line3, `CAMPUSHUB_CONTEXT.md:3`, and `campushub/DESIGN.md` at Current accepted scope record the current choice. Five project files, one runtime Dart file.
+3. **Changes made:** Reduce each dot cell from48dp to24dp wide and set the native button minimum/fixed size to24x44dp so Material defaults do not widen it. Keep the44dp row height, centered group,7/9dp circles, inside-card placement, colors, zero padding and all existing actions.
+
+| Before | After | Why |
+| --- | --- | --- |
+| 48dp-wide cells;48dp between dot centers | 24dp-wide cells;24dp between centers | Groups the indicators closer together without changing the order content or vertical layout. |
+
+4. **How it works / functions and data flow:** Existing authenticated workspace JSON still supplies the newest seller-owned order maps to SellerRecentOrders. The same footer for-loop renders one IconButton for each of the capped five rows. Its narrower SizedBox and explicit minimum/fixed size determine the24dp center spacing; Row keeps the whole group centered. Tapping still calls the same PageController.jumpToPage, swiping updates the same selected index, and refreshed-order selection is unchanged. No new function or data field was introduced. Example using isolated fixtures only: five orders now produce a120dp-wide group rather than240dp; zero/one order still has no dots. The prior compact vertical layout stays44dp tall with no extra bottom inset when dots exist, and8dp bottom padding for a single order without them.
+5. **Backend / API behavior:** Unchanged. No requests, serializers, calculations, sorting, ownership, buyer information, order/payment statuses, permissions, inventory, fulfillment, See All or View Details changes. Nine protected hashes match. Reversing only the three pagination width/style edits reproduces the complete previous runtime source exactly.
+6. **Database / migration impact:** None. No models, schema, migration, dependency, asset, working record, session, installation or deployment changes.
+7. **Tests performed:** 65/65 Flutter tests passed (15s) across seller Home layout/workspace/entry suites. The existing carousel test measures24x44dp controls and24dp between adjacent centers; it retains inside-card containment, balanced vertical spacing, swipe, keyboard activation, exact details and return state. Zero/one/five records, refreshed selection, long names/IDs,280/320dp at2x text,414dp,600dp/1.3x and844x390 landscape, seller permissions and See All remain covered. Two-file static analysis reported No issues found; formatting reported2 files/0 changes. The actual bundled-font render was inspected and shows a compact centered group. Evidence: `scratch/seller-recent-orders-dot-gap-20261102/` contains flutter-tests.log, analyze.log, scope.log, protected.json, .dart.bak snapshots and renders. UI/UX Pro Max and Emil Design Engineering guidance was applied within the user's requested spacing scope; no optional web-kit score or complete accessibility audit is claimed.
+8. **Remaining limitations / troubleshooting / safe practice:** Individual dot bounds are now24x44dp, narrower than before to honor the requested compact grouping; horizontal swipe remains available. Physical Android/TalkBack, live-account actions and backend tests were not run. Use your own Hot Reload. Missing dots with fewer than two orders are intentional. Safe exercise: from campushub/, run `flutter test --no-pub test/seller_home_layout_test.dart`; inspect the adjacent-center assertion, compare two/five-order fixtures, tap a dot, swipe, activate a dot with the keyboard and return from View Details. Verify selected order/data stay unchanged. Do not edit real orders or stock for this check.
+
+## Recent Orders reference label and top pagination - November 2, 2026
+
+This follow-up supersedes the older below-card dot placement. The user confirmed that pagination dots should move above the order card. Keep the existing buyer-first summary and all other Home sections.
+
+1. **Cause / reason:** The card displayed the recorded order code without the requested `Order #` label, and its existing indicator row followed the PageView. This is a presentation request; no order-data or permission defect was identified.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/seller/seller_recent_orders.dart:166` (`_height` reference measurement), `:225` (moved existing indicator row), `:261` (unchanged PageView), `:301` (displayed reference); `campushub/test/seller_home_layout_test.dart:170` (reference assertions), `:543` (swipe/top-dot/detail integration), `:740` (long reference), `:886` (all-status preview), `:1059` (capture the complete carousel). This guide at line3, `CAMPUSHUB_CONTEXT.md:3`, and `campushub/DESIGN.md` at `Current accepted scope` record the current choice. Five project files changed; only one runtime Dart file changed.
+3. **Changes made:** Prefix the actual recorded code with `Order #` beneath the buyer's full name. Move the exact existing centered dot row above the cards, outside their border. Keep its gold selected state, 48dp targets, accessible labels, keyboard controls and zero/one-order visibility rule. All card fields, styles, compact status badges and actions remain.
+4. **How it works / functions and data flow:** Django's existing owner-scoped workspace JSON provides each `row['code']`. `SellerRecentOrders.build` renders `Order #` followed by that unchanged code. `_height(context, width, row)` measures the same prefixed string with the original 11sp style and single-line ellipsis, keeping the buyer/status header safe at narrow widths. The outer Column now lays out indicators, then the same measured PageView. Its PageController, `onPageChanged`, `didUpdateWidget` selected-order preservation and exact-row View Details callback are unchanged. Illustrative fixture only: recorded code `2026ABC123` displays as `Order #2026ABC123`; the underlying code and detail map remain unchanged.
+5. **Backend / API behavior:** No endpoint, serializer, sorting, reporting-period rule, buyer resolution, seller ownership, role permission, payment or fulfillment workflow changed. The existing newest-five owner list, See All -> Orders Received and full product information inside View Details remain. Nine protected source hashes, including the workspace, client service, inventory and backend read/access helpers, match their before-values; a source comparison confirms only the prefix and indicator position changed in the runtime widget.
+6. **Database / migration impact:** None. No schema, migration, dependencies, assets, working records, session state, deployment or device action changed. Render fixtures stay inside tests.
+7. **Tests performed:** **65/65 Flutter tests passed** (15s) across `seller_home_layout_test.dart`, `seller_workspace_test.dart` and `seller_home_entry_test.dart`. Existing checks verify top/external dots, five-order cap, swipe and keyboard controls, exact details/return state, zero/one-order empty behavior, refreshed selection, seller access and See All. Long-data cases include280/320dp with2x text,414dp,600dp/1.3x and844x390 landscape. Two-file Dart analysis reported `No issues found!`; formatting reported2 files/0 changes. Actual bundled-font light/dark-surrounding renders were inspected. The initial run exposed one test's remaining unprefixed all-status expectations; those assertions now use the requested label, with coverage retained. Evidence: `scratch/seller-recent-orders-top-20261102/{flutter-tests.log,flutter-tests-first.log,analyze.log,scope.log,protected.json,renders/}`. UI/UX Pro Max's Flutter Column/Row guidance applied; its UX searches did not return a verified carousel-placement rule, so placement follows the user's confirmed choice. The optional web token-kit gate is absent; no score from it is claimed.
+8. **Remaining limitations / troubleshooting / safe practice:** No physical Android/TalkBack or live-account check, backend-test rerun, installation or deployment was performed. Use your own Flutter Hot Reload to show the update. If dots are missing, first confirm there are at least two actual orders. Keep recorded codes intact, including any existing prefix they contain; this change adds only the visible label. Safe exercise: run `flutter test --no-pub test/seller_home_layout_test.dart` from `campushub/`; compare the zero/one/five-order fixtures, use a top dot and swipe back, then open View Details and return. Confirm the selected order and full detail information remain while long IDs ellipsize rather than overflow. Do not create or edit real orders for this exercise.
+
+## Recent Orders summary without product previews - November 2, 2026
+
+This entry supersedes the product-preview portion of the preceding refinement. Recent Orders now shows buyer full name/status, secondary Order ID, Order Total, date/payment and View Details. Product names, photos, quantities and extra-item text appear only through the carousel's detail action. Inventory Alerts and other dashboard sections retain their current implementation.
+
+### 1. Cause / reason
+
+The user requested a compact monitoring summary after the preceding implementation added product information to each carousel card. Confirmed in the source: that product block also contributed image/text height to every page. The existing detail view showed product names and quantities but omitted variants/photos; a carousel-scoped detail option now keeps the requested product information behind View Details without changing other order-screen callers.
+
+### 2. Exact files changed, current lines and nearby anchors
+
+| File, relative to the project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/seller/seller_recent_orders.dart` | 61 `buyer`; 117 `_height`; 283 Order Total Wrap | Keep full-name preference, remove all product-preview helpers/widgets/image import and their height contribution, add a labelled prominent total, and right-align payment text. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 1208 `_orderDetailItem`; 1261 default `fullProductDetails = false`; 1694 carousel opt-in | Preserve item names/quantities/subtotals and optionally show recorded variants/photos only for the carousel detail action. Other callers retain their existing presentation. |
+| `campushub/test/seller_home_layout_test.dart` | 138 summary absence/data preservation; 196 legacy data; 230 product-detail integration | Verify no product/image/quantity in the cards, original detail map, compact size, buyer/ID order, and product name/quantity/variant/image inside View Details and after returning. |
+| `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md`; `campushub/DESIGN.md` | Latest summary entry / Current accepted scope | Record the current summary/detail boundary, functions/data flow, checks, limitations and safe exercise. |
+
+Six project files: two runtime Dart files, one test file and three existing documents. Before-snapshots and evidence are in ignored `scratch/seller-recent-orders-summary-20261102/`. Older reports below retain historical line numbers.
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Buyer/status, ID, product tile, total and footer | Buyer/status, ID, labelled total and footer | Removes product repetition and shortens the card. |
+| Image/product/quantity/additional count in the carousel | Recorded product information behind View Details | Keeps Home focused on order monitoring. |
+| Product-aware height calculation | Header/total/metadata/button height calculation | Removes the product block's reserved space rather than leaving a blank gap. |
+
+The existing white surface, thin border, Montserrat, navy #1A1851, gold #FCB316 indicators and compact semantic status pills remain. Buyer names keep their two-line limit; the ID stays smaller/muted beneath the name. Order Total uses a 22sp/700 navy value. A Wrap places label/value on one line when space permits and stacks them at larger text sizes; the card measures the same behavior. Date and right-aligned Payment stay below, with the existing 48dp-minimum View Details button at the bottom. No screenshot example name, amount or status was copied into runtime data.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`SellerRecentOrders.buyer(row)` still prefers buyer_full_name from the authenticated workspace, with its existing recorded-name/missing-name fallback. `_rows` still caps the server's newest-first list at five, and PageController/refresh selection/dots are unchanged. Removing `_product`, `_productSummary` and related text/image helpers changes presentation only; the original order map still contains items, variants, quantities, totals and thumbnail metadata.
+
+`_height` no longer measures a product tile. Its text helper also measures label/value widths so its total-row height matches the native Wrap at the current width/font scale. It still chooses the tallest of the existing pages to avoid a page-height jump. View Details sends the original map to its existing callback without deleting or rewriting fields.
+
+The carousel callback alone passes `fullProductDetails: true` to `_showOrderDetails`. `_orderDetailItem` uses the recorded item name/quantity/subtotal, adds the recorded variant, and displays a saved image URL when available. Image precedence is a nonempty item thumbnail/image, then the first item's existing product_preview thumbnail. It does not look up a new product or assign one item's image to unrelated items. The option defaults false; the Orders Received list and its existing calls retain their prior behavior. Status/payment/fulfillment actions are untouched.
+
+```text
+Same owner-scoped Django JSON -> original order map
+  -> summary: buyer/status -> ID -> total -> date/payment -> View Details
+  -> carousel View Details: original items + recorded variant/photo
+  -> same workflows and server permissions
+```
+
+Annotated example, isolated fixtures only: a row includes a full buyer name, product_preview with a photo URL and items with quantity3/variant Large / Blue. The summary displays no product fields. Tapping View Details shows the saved full product name, quantity, variant and image argument; returning Home leaves those product fields out of the summary again. No order mutation or additional backend request is needed for this presentation.
+
+### 5. Backend / API behavior
+
+Unchanged. No request, endpoint, response, buyer resolution, product serialization, newest-first sorting, owner filtering, status rule, payment/fulfillment logic or role permission changed. Existing backend product fields remain available for details and compatibility. Fourteen protected hashes match, including the inventory widget, backend adapter/helpers/inventory/order access/fulfillment, client service, image component, header and navigation. Scope comparisons verify other Home sections are unchanged and only the carousel opts into the additional detail presentation.
+
+### 6. Database / migration impact
+
+None. No models, schema, migrations, dependencies, asset files, session/preferences, working records or deployment changed. UI captures use isolated fixtures only; no fake application data or replacement product image was created.
+
+### 7. Tests performed
+
+- **65/65 Flutter tests passed** (17s) across seller Home layout/workspace/entry suites. New/updated assertions verify product/image/quantity/extra-item absence, full-name preference, secondary ID placement, original-map callback, compact card height below260dp in the normal test, and product name/quantity/variant/image inside the actual carousel detail route.
+- Existing tests retain latest-five/page cap, no auto-rotation, swipe/keyboard/indicator behavior, external dots hidden for zero/one, selection retention, status colors/alignment, all See All destinations, seller permissions, Home refresh/state and unrelated-section behavior. Narrow/long-data/large-text cases include280/320dp at2x,414dp,600dp/1.3x and844x390 landscape.
+- Static analysis of the three changed Dart source/test files reported **no issues** (4.8s). Formatting completed. The actual bundled-font order-summary render was inspected in light/dark surroundings: no product tile, prominent total and external dots; existing white surfaces remain. No missed-tap warnings were suppressed.
+- Backend tests were not rerun for this Flutter-only change; protected backend sources are unchanged. Evidence: `flutter-tests.log`, `analyze.log`, `protected.json`, `verify_scope.cjs`, `renders/orders-light.png` and `orders-dark.png` under `scratch/seller-recent-orders-summary-20261102/`.
+
+Reproduce from `campushub/`:
+
+```powershell
+flutter test --no-pub test/seller_home_layout_test.dart test/seller_workspace_test.dart test/seller_home_entry_test.dart
+flutter analyze --no-pub lib/module_app/widgets/seller/seller_recent_orders.dart lib/module_app/screens/seller_workspace_content.dart test/seller_home_layout_test.dart
+```
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device/TalkBack session, live-image-host check, app install/restart or deployment was performed. Buyer-name availability and historical seller restrictions retain their prior limits. Details display images only when the existing record supplies a URL; missing images/variants are not invented. Existing older endpoints can still omit optional photo metadata.
+
+If a blank product-sized gap remains, check both the removed widget include and `_height` before changing padding elsewhere. If a product still appears in a summary, inspect SellerRecentOrders rather than deleting API item data. If the detail photo is missing, inspect the recorded item/preview URL and existing ProductImage resolver; do not reuse another item's image. Use your own Hot Reload to show the current layout.
+
+Safe exercise: put long product names, quantities, variants and a photo URL only in a disposable test row, run the Flutter command and confirm none appear in the card. Tap View Details and verify the original item information, then return to the carousel and swipe. Compare Inventory Alerts to confirm its source/layout remains unchanged; do not modify working orders to test a layout.
+
+## Inventory Alerts and purchased-order previews - November 2, 2026
+
+This entry supersedes the earlier Inventory Attention layout and ID-first Recent Orders header. Only these two seller Home sections change. Sales KPIs, bundles, header, drawer, bottom navigation, Inventory Management, order processing and stock calculations retain their current implementations.
+
+### 1. Cause / reason
+
+Confirmed in the existing source: Home gave On Hand, Reserved and Available equal emphasis, placed the stock badge below the metrics, and included expired-only records. The user requested Available Stock as the primary metric with the product-specific threshold beside it and alerts limited to low/out of stock. Recent Orders showed the saved buyer_name and no product image/quantity; older buyer snapshots can contain a short name or username. The existing order model records the buyer ID/email/name and purchased product/image/quantity; canonical item snapshots are available through order_items. These sources can supply the requested presentation without modifying checkout or stock logic.
+
+### 2. Exact files changed, current lines and nearby anchors
+
+| File, relative to the project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/seller/seller_inventory_alert.dart` | 7 `SellerInventoryAlert` | New presentation-only compact alert: product/SKU left, content-sized badge right, Available Stock/Restock Threshold pair, neutral On Hand/Reserved row. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 1111 Home status filter; 1205 `_inventoryAttention`; 1656 identity header flag; 1734 `sectionHeader` | Limit Home to canonical low/out statuses, delegate the alert UI, keep its three-record cap and Inventory navigation, and use Montserrat only for this section's header. Full Inventory Management remains unchanged. |
+| `campushub/lib/module_app/widgets/seller/seller_recent_orders.dart` | 62 `buyer`; 69 `_product`; 118 `_productSummary`; 203 `_height`; 352 buyer key | Prefer full buyer name, put the smaller ID below it, show the first purchased product/thumbnail/quantity and additional-item count, and measure the updated two-line content. Keep the compact status and existing carousel/footer actions. |
+| `backend/core/modules/marketplace/services/mobile_order_previews.py` | 8 `buyer_full_names`; 30 `product_preview` | Read-only, batched buyer resolution and immutable purchased-item preview fields. |
+| `backend/core/modules/marketplace/mobile_seller_views.py` | 115 bounded order lists; 123 name lookup; 129 optional preview fields | Add buyer_full_name/product_preview to existing serialized orders while retaining old fields, owner query, dates, pagination and calculations. |
+| `backend/core/api/test_mobile_seller_workspace.py` | 262 snapshot/full-name test; 282 overlapping IDs; 293 item/bundle identity; 312 query growth | Verify actual account/order/item data, snapshot precedence, source disambiguation, canonical access restrictions and bounded reads. |
+| `campushub/test/seller_home_layout_test.dart` | 138 purchased preview; 190 legacy data; 224 inventory values/statuses; existing responsive/navigation cases | Verify full-name preference, product image/name/quantity, original-map details callback, two-line limits, stock values/thresholds, filtering and updated layout. |
+| `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md`; `campushub/DESIGN.md` | Latest entry / Current accepted scope | Record the current design, functions/data flow, tests, scope limits, troubleshooting and safe exercise. |
+
+Ten project files: five runtime files, two test files and three existing documents. The new runtime files are the inventory alert widget and read-only order-preview helper. Earlier reports below retain historical line numbers. Before-snapshots and evidence are under ignored `scratch/seller-home-order-inventory-20261102/`.
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Three equal stock metrics and badge below | Product/SKU + top-right pill; larger Available Stock beside threshold | Establishes the requested stock priority with a compact flat card. |
+| Expired-only rows included on Home | Only server low_stock/out_of_stock rows, at most three | Matches the alert definition without recalculating any stock. |
+| Short buyer snapshot above no product preview | Full-name preference, secondary ID, actual first item/image/quantity | Uses the buyer and purchased-item information requested. |
+| ID/header-only height estimate | Measurement includes two-line buyer/product names and image/item text | Keeps the PageView bounded and prevents overflow at larger text sizes. |
+
+Inventory cards use white, a thin existing border, 14dp padding and Montserrat. Available Stock is 26sp/700 navy; threshold is 16sp/600. On Hand and Reserved are 13sp secondary values in one light neutral row. Low Stock uses the existing amber status treatment; Out of Stock uses a neutral navy pill. No duplicate stock label, fake quantity, global palette change or new inventory action was added. Null values retain the existing quantity formatter's unavailable mark, including derived records without a recorded threshold. Empty nonempty-inventory text now says No low-stock or out-of-stock alerts., rather than claiming expired-only inventory is healthy.
+
+Recent Orders keeps its existing compact status colors/pill at top-right. The full buyer name is 14sp/600 with at most two lines; the ID is smaller muted 11sp below it. The first purchased product has a 56dp thumbnail, 13sp/600 name (at most two lines), recorded quantity and +N more item(s) when supplied. Order Total/date/payment, View Details, horizontal swiping, See All and external dots remain. Missing images use the existing ProductImage fallback; no replacement image was created.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Inventory: the unchanged authenticated workspace supplies canonical inventory rows. `inventory(attention: true)` filters the recorded status keys and passes each row plus the existing quantity formatter to `SellerInventoryAlert`. The widget reads product_name, sku, available, threshold, on_hand, reserved and status_label directly. It does not subtract reservations, select a threshold, recompute availability, receive stock or write to the server. The generic section header's new identity flag defaults false; only Inventory Alerts opts in, preserving other headers' existing styles.
+
+Orders: `workspace(request)` still starts with approved_seller and the existing seller_order_queryset. It materializes the same bounded page/recent/action lists, gathers their distinct order records, and calls `buyer_full_names` once. That helper loads mobile and web candidates in two batch queries only when recorded buyer IDs exist. A saved email is compared case-insensitively; exactly one match is required. Without an email, an overlapping ID remains ambiguous when both account namespaces contain it. A uniquely resolved account supplies its actual first/last full name; otherwise the saved order name remains. A known username snapshot is not promoted to a full name. Original buyer_name is preserved in the JSON and database.
+
+`product_preview(order, items)` reads the canonical order_items output and its saved first item. It retains the purchased name and quantity rather than replacing them with today's product name/price. Image precedence is first-item snapshot, order image snapshot, then the actual linked product's current image if no snapshot exists. It normalizes recorded image lists and reports the count of additional canonical items. Bundle ingredients remain components of one purchased bundle, not separate purchased products. No product lookup by guessed name or foreign item ID is performed.
+
+Optional response additions are `buyer_full_name` and `product_preview` (product_name, quantity, thumbnail_url, additional_items). `_product` supports older response shapes through existing items/product fields. `buyer` uses the new field when present, including an honest missing-name result. `_productSummary` uses the existing ProductImage URL/base64/media resolver. `_height` measures the same two-line text, image block and footer at the device's actual text scale. View Details receives the original order map.
+
+```text
+Authenticated seller -> unchanged owner/permission scope
+  -> unchanged inventory snapshot -> low/out Home filter -> compact stock cards
+  -> bounded order lists -> batch buyer identity + purchased-item snapshots
+  -> optional preview fields -> same carousel / exact-row View Details
+  -> See All -> existing Inventory Management / Orders Received
+```
+
+Annotated example, disposable tests only: an order saves a username, buyer ID/email, Purchased Full Product Name, quantity3 and an order-image URL. The linked buyer's actual full name appears on Home; renaming/repricing the current product does not change the purchased name, quantity, image snapshot or total. A stock row with Available4 and threshold7 displays those exact values; the app never substitutes the global low-stock default.
+
+### 5. Backend / API behavior
+
+Inventory backend logic is unchanged. Order backend changes are read-only presentation enrichment in the existing workspace GET; no endpoint, request argument, status/processing transition, stock reservation, checkout, revenue rule, date filter, owner query, pagination rule or role permission changed. Full-list page one is still reused for the five-order recent preview. Batch buyer lookup stays constant with row count; item/image reads use the already selected product and recorded snapshots. Old JSON fields remain for other consumers.
+
+The existing seller permission rule excludes ambiguous legacy multi-item order snapshots. It remains unchanged: this task does not authorize widening access or merging independently recorded orders. The preview renderer supports permitted item arrays and +N counts, while the current guard still governs which historical records reach the endpoint. Fifteen protected hashes verify canonical inventory/order/fulfillment/checkout/model/view code, header/navigation, image widget and client transport remain unchanged. Scope comparisons also verify other SellerWorkspaceContent sections/details, sales calculations, status styling and the carousel footer/pagination.
+
+### 6. Database / migration impact
+
+No models, schema, migrations, dependencies, assets, real accounts/orders/stock, sessions or deployment changed. The new helper performs reads only. PostgreSQL tests create/destroy a disposable local database; Flutter records/captures are isolated fixtures. No sample names, images or quantities were added to runtime application data.
+
+### 7. Tests performed
+
+- **29/29 Django/PostgreSQL tests passed** (2.916s) across the seller workspace and fulfillment suites. New cases verify complete linked names, case-insensitive saved-email matching, separate web/mobile accounts sharing an ID, snapshot preservation after product rename/reprice, recorded image/quantity/total, additional items versus bundle components, unchanged legacy seller restrictions, unchanged order count/stock/name on GET and constant query growth. Existing ownership, suspension, permissions, payment, reservations and period tests pass; system checks clean and temporary database destroyed.
+- **64/64 Flutter tests passed** in the final seller Home layout/workspace/entry run. New cases verify full-name preference over username, two-line name limits, smaller ID beneath buyer, actual thumbnail argument, purchased quantity/additional count, exact original-map details callback, unavailable-name fallback, primary stock font/value, per-product thresholds and exclusion of expired/healthy rows. Existing five-order carousel/dots/keyboard/state, all See All destinations, header, permissions and refresh/navigation regressions pass.
+- Responsive coverage retains 280/320dp at 2x text, 375/390/414dp, 600dp/1.3x and 844x390 landscape. An old landscape assertion assumed the ID Text filled the entire first row; it now verifies that the smaller secondary ID stays clear of the top-right badge. Final rerun passed without suppressing missed taps or overflow.
+- Four-file static analysis reported **no issues** (5.5s); formatting completed. Actual bundled-font captures were inspected for order/product placement and Inventory Alerts in light/dark surroundings; the existing white Home surfaces remain. Shared Home captures were refreshed. This is not a full accessibility/TalkBack audit.
+- Evidence: `backend-tests.log`, `flutter-tests.log`, `analyze.log`, `protected.json`, `verify_scope.cjs`, `renders/orders-light.png`, `renders/inventory-light.png` and `renders/shared/` in `scratch/seller-home-order-inventory-20261102/`.
+
+Reproduce from `campushub/`:
+
+```powershell
+flutter test --no-pub test/seller_home_layout_test.dart test/seller_workspace_test.dart test/seller_home_entry_test.dart
+flutter analyze --no-pub lib/module_app/screens/seller_workspace_content.dart lib/module_app/widgets/seller/seller_recent_orders.dart lib/module_app/widgets/seller/seller_inventory_alert.dart test/seller_home_layout_test.dart
+```
+
+Backend reproduction from the repository root uses the existing local disposable runner: `backend/core/venv/Scripts/python.exe -B scratch/operating-schedule-20261029/run_tests.py api.test_mobile_seller_workspace modules.marketplace.test_order_fulfillment`.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device/TalkBack session, live-account transaction, image-host availability check, app installation/restart or hosted rollout was performed. Serve the updated Django code and refresh Home to receive the added fields; older endpoints use the existing recorded-name/item fallback. A missing or ambiguous linked buyer cannot supply an invented full name. Missing photos keep the existing neutral image fallback. Two-line limits can ellipsize exceptionally long text while preserving the original record/detail action. Existing ambiguous multi-item seller restrictions remain as described above.
+
+If stock looks unexpected, inspect the canonical row's available/threshold/reserved/status fields; do not calculate a new quantity in the widget or change inventory workflows. If a name is short, inspect buyer_full_name, the order's buyer ID/email and saved name; never select a mobile/web identity solely because their IDs match. If a photo is missing, inspect the snapshot URL and existing ProductImage resolver/server before inserting a replacement image. Use your own Hot Reload/pull-to-refresh after the backend response is updated.
+
+Safe exercise: in disposable fixtures only, set a threshold different from5 and verify that exact number appears. Change an order's current product name after preserving a different purchased snapshot; the preview must retain the purchased name/quantity/total. Give web/mobile test buyers the same ID with different emails and confirm only the saved-email match provides a full name. Follow See All/View Details without submitting a real stock receipt or order.
+
+## Compact Recent Orders status pill - November 2, 2026
+
+This refinement changes only the order-reference/status row and its height measurement in the existing Recent Orders widget. The carousel, other card fields, View Details, See All, data source and backend statuses retain their current behavior.
+
+### 1. Cause / reason
+
+Confirmed in the source: both the reference and status Container were wrapped in Expanded. The status therefore occupied half the row even for a short Pending label. The row also aligned children at their top edges. The requested correction is a compact, right-aligned pill with semantic status colors and safe handling of long references.
+
+### 2. Exact files changed, current lines and nearby anchors
+
+| File, relative to the project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/seller/seller_recent_orders.dart` | 65 `_statusBadge`; 99 `_height`; 179 `statusMaxWidth`; 214 order header | Add the content-sized pill, scoped semantic colors and a maximum for exceptional labels; center the header row and truncate long IDs to one line. Update only header height measurement to match. |
+| `campushub/test/seller_home_layout_test.dart` | 168 semantic badge cases; 489 long-reference geometry | Verify six recorded-status cases, intrinsic width/padding/radius/colors, right edge and vertical centers, plus narrow/large-text/landscape reference behavior. Capture actual widget renders. |
+| `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md`; `campushub/DESIGN.md` | Newest badge entry / Current accepted scope | Record the requested local status-color exception, data flow, checks, limits and safe practice. |
+
+Five project files: one runtime Dart file, one test file and three existing documents. Before-snapshots and evidence are in ignored `scratch/seller-order-badge-20261102/`. Earlier report line numbers below are historical; use the anchors above for this correction.
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Status Expanded fills half the row | Non-flex pill uses its text width plus 11dp padding per side | Removes the stretched background without a fixed badge width. |
+| 8dp corners and one neutral fill | Fully rounded 999dp radius, 6dp vertical padding and semantic fill/text pairs | Matches the requested small pill and distinct recorded statuses. |
+| Top-aligned, potentially wrapping reference/status | Vertically centered row; reference uses one-line ellipsis | Keeps a long ID from pushing the badge out of alignment or overflowing. |
+| Height assumes wrapping header text | Header measurement uses the same one-line limits | Avoids leaving blank card space after the alignment correction. |
+
+Only the order reference retains Expanded, so it takes remaining space. A maximum badge width reserves 48dp for that reference after card insets and the existing 12dp gap. This is a loose upper bound, not a fixed width: short labels remain content-sized. Exceptionally long labels can truncate; the existing detail view still provides the full order information. No decorative status dot or new action was added.
+
+| Recorded status | Background | Text | Computed solid-color contrast |
+| --- | --- | --- | --- |
+| Pending | `#FFF3D6` | `#8C5900` | 5.37:1 |
+| Processing / Ready for Pickup | `#EAF0FF` | `#24428A` | 8.29:1 |
+| Completed | `#EAF6EE` | `#21643C` | 6.41:1 |
+| Cancelled | `#FDECEC` | `#9F2D2D` | 6.37:1 |
+| Unclassified recorded value | `#F1F1F5` | `#1A1851` | 14.41:1 |
+
+These functional badge colors implement the user's latest explicit semantic-color request locally; they do not change the project's neutral status treatment elsewhere. Status text remains present, so color is not the only indicator. Ratios were calculated from the solid sRGB pairs; this is not a full accessibility audit.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_statusBadge(row, maxWidth)` receives an existing server order map and a responsive maximum. It reads `status_key`, falling back to the recorded display status when the key is absent. A normalized copy selects colors only. The badge Text still displays the original `row['status']`; no value is translated into a different order state or written back.
+
+The existing LayoutBuilder supplies the available width. `_statusBadge` returns a ConstrainedBox with a loose maximum, a rounded Container and one-line Text. The header Row keeps Expanded on the ID alone, followed by the existing gap and badge. CrossAxisAlignment.center aligns their vertical centers. `_height` gains optional `maxLines` text measurement, applied only to these header labels; buyer, amount, date, payment, button and other measurements are unchanged.
+
+```text
+Existing owner-scoped Django order map -> same Recent Orders carousel
+  -> status_key/display label -> local color pair
+  -> original status text + content-sized rounded badge
+  -> same record -> existing View Details callback
+```
+
+Annotated example: `status_key: pending`, `status: Pending` produces the requested amber pill. A long order reference uses an ellipsis in the header while its original map and existing View Details handler remain intact. Ready for Pickup stays that exact recorded label; an unknown status keeps its recorded text and neutral colors.
+
+### 5. Backend / API behavior
+
+Unchanged. No endpoint, serializer, status definition, seller filter, permissions, payment/fulfillment logic or API request changed. Eleven protected source hashes match, including the workspace adapter, order-access and fulfillment services, client seller service, Home/header/drawer/navigation and seller content. Before/after comparison confirms the rest of the carousel/card and non-header height calculations are unchanged.
+
+### 6. Database / migration impact
+
+None. No models, schema, migrations, dependencies, assets, sessions, working records or deployment changed. Rendered order labels/amounts are isolated widget fixtures only.
+
+### 7. Tests performed
+
+- **61/61 Flutter tests passed** (19s) across seller Home layout, workspace and entry suites. Six new cases check Pending, Processing, Completed, Cancelled, Ready for Pickup and a neutral unknown recorded status. Assertions prove badge width equals rendered label width plus 22dp, padding/radius/colors are correct, and right-edge/vertical alignment holds.
+- Existing long-content cases now also verify one-line ID ellipsis, the 12dp gap and aligned header centers at 280/320dp with 2x text, 414dp, 600dp/1.3x and 844x390 landscape. Existing zero/one/five orders, swipe/keyboard dots, selected-page retention, exact-row View Details, See All, permissions, navigation and Home state tests pass.
+- Two-file static analysis reported **no issues** (15.4s). Actual bundled-font Pending and Processing/Home captures were inspected; six individual badge captures and light/dark-surroundings Home captures are in `renders/`. Existing white card surfaces remain. Computed source-color contrast is recorded above.
+- The first test compilation caught an untyped test-fixture map; adding its String-key type fixed the harness. The final full run is clean, without missed-tap warnings. No backend tests were rerun for this Flutter-only change; backend files match their before hashes.
+- Evidence: `flutter-tests.log`, `analyze.log`, `protected.json`, `verify_scope.cjs`, `renders/badge-pending.png` and `renders/orders-light.png` under `scratch/seller-order-badge-20261102/`.
+
+Reproduce from `campushub/`:
+
+```powershell
+flutter test --no-pub test/seller_home_layout_test.dart test/seller_workspace_test.dart test/seller_home_entry_test.dart
+flutter analyze --no-pub lib/module_app/widgets/seller/seller_recent_orders.dart test/seller_home_layout_test.dart
+```
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device/TalkBack session, working-data transaction, app installation/restart or hosted rollout was performed. Very long references/status labels can truncate under narrow/large-text constraints; the original record and existing detail view remain available. Text scaling is respected rather than disabled.
+
+If the pill stretches again, inspect for an Expanded/tight width around the badge Container before changing backend data. Its only width constraint should be the responsive maximum. If a color looks unexpected, inspect the recorded `status_key` and fallback label; do not change the stored order state for presentation. Use your own Hot Reload to display the local edit.
+
+Safe exercise: change only the disposable widget fixture to Pending and lengthen its order code, run the Flutter command, and confirm the badge stays compact/right-aligned while View Details still opens the same record. Restore the fixture afterward; do not edit real orders or status enums for a color test.
+
+## Seller Home Recent Orders - November 2, 2026
+
+This entry supersedes the earlier Orders Requiring Action preview. Only that Home section changes: show the newest five seller-owned orders across all recorded statuses, with the requested subtitle, existing carousel/actions, and concise empty state. Sales, the identity header, inventory, bundles, buyer Home and navigation retain their current implementations.
+
+### 1. Cause / reason
+
+Confirmed from the source: Home selected `orders_requiring_action`, which intentionally returned the oldest open orders. That is unsuitable for the user's new Recent Orders definition because it excludes completed/cancelled records and reverses the chronology. Filtering the current Orders Received page would also produce an older preview after visiting page two. The carousel already rendered every requested field and placed its indicators outside the cards; those behaviors were preserved.
+
+### 2. Exact files changed, current lines and nearby anchors
+
+| File, relative to the project root | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/mobile_seller_views.py` | 114 order pagination; 126 `recent_orders`; 140 JSON response | Add a bounded newest-first preview independent of the full list's page; use primary key as a stable timestamp tie-breaker. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 1561 `homeRecentOrders`; 1569 `_recentOrdersHeader`; 1721 carousel include | Read the recent array without status filtering, add title/subtitle and right-aligned See All, and keep Orders Received/detail callbacks. |
+| `campushub/lib/module_app/widgets/seller/seller_recent_orders.dart` | 14 empty text; 26 indicator gold; 55 `style`; 123 empty title; 243 indicator condition | Apply section-local Montserrat and gold #FCB316, show the two-part empty message, and retain the five-page manual carousel and external indicators. |
+| `backend/core/api/test_mobile_seller_workspace.py` | 228 `test_recent_orders_are_newest_owner_records_of_every_status_on_every_page` | Exercise every status, equal timestamps, seller isolation, old creation dates, pagination, recorded fields/payment, and unchanged order count. |
+| `campushub/test/seller_home_layout_test.dart` | 167 typography; 194 carousel/details; 281 zero/one order; 397 destinations; 474 recent-source test | Check requested text/fields/styles, dots below cards, capped pages, exact-row details, empty state, completed/cancelled inclusion, server-array precedence and legacy fallback. Add landscape coverage. |
+| `campushub/test/seller_workspace_test.dart` | 275 traversal; 428 section order | Update the section label while preserving existing navigation assertions. |
+| `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md`; `campushub/DESIGN.md` | Latest Recent Orders entry / Current accepted scope | Record this refinement, data flow, checks, troubleshooting and safe exercise. |
+
+Nine project files: three runtime files, three test files and three existing documents. Earlier reports below retain historical line numbers. Use the current anchors above when code moves. Before-snapshots/evidence are in ignored `scratch/seller-recent-orders-20261102/`.
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Orders Requiring Action / oldest open records | Recent Orders / newest five records, all statuses | Matches the new historical preview definition. |
+| No section subtitle | Latest orders received from buyers. | Explains the content without adding another card. |
+| One-line action-queue empty text | No Recent Orders / New customer orders will appear here. | Gives the requested honest zero-order state. |
+| Shared Inter styling inside the order preview | Scoped Montserrat, navy #1A1851, white and gold #FCB316 | Applies the requested typography/accent only to this section. |
+
+See All stays at the right of the header's first row and opens the same Orders Received destination. Its width is flexible so larger text fits narrow screens. Subtitle spans the section width. Order cards retain ID/reference, buyer, recorded status, total, creation date, recorded payment and View Details. Pagination remains below the bordered cards, uses native 48dp buttons/selected semantics, and disappears for zero or one record. No timer, new animation, icon, demo order or unrelated redesign was added.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`workspace(request)` still verifies `approved_seller` and obtains `seller_order_queryset(account)` from the authenticated mobile account. It orders that same queryset by descending `created_at`, then descending primary key when times match. There is no status or sales-period filter on Recent Orders. `serialize_order_row(order)` supplies the existing real order fields and canonical fulfillment/payment labels.
+
+The response adds `recent_orders`, containing at most five serialized orders. Page one reuses `serialized_orders[:5]`, adding no separate recent-order query. Other pages read a bounded five-row slice independently; full-list pagination stays at 30. The older `orders_requiring_action` response remains compatible with older clients but is no longer used by this Home section. Recognized-sales eligibility and all sales calculations are unchanged.
+
+`SellerWorkspaceContent.homeRecentOrders` prefers the new array, including an authoritative empty array. An older endpoint falls back to its existing newest-first `orders` page; inline Home already requests page one. `_recentOrdersHeader()` supplies the title/subtitle and existing destination callback. `SellerRecentOrders` takes at most five rows, preserves the selected record by ID on refresh, measures the tallest card with the actual font/text scale, and passes the exact selected map into the unchanged detail handler.
+
+```text
+Existing authenticated seller workspace GET
+  -> approved_seller + seller_order_queryset(account)
+  -> newest-first orders, all statuses -> recent_orders[0:5]
+  -> homeRecentOrders -> existing SellerRecentOrders PageView
+  -> View Details: exact order / See All: existing Orders Received
+```
+
+Annotated example, isolated tests only: with 31 older completed orders plus five equally dated orders spanning pending/processing/ready/cancelled/completed, Home receives those five newer records ordered by ID descending. A newer order belonging to another seller never appears. Choosing page two or a different Sales period does not replace the recent preview with older records.
+
+### 5. Backend / API behavior
+
+Existing workspace GET gains one optional read-only response field; no new endpoint, request argument, client service or authorization path. The timestamp tie-breaker makes both the first full-list page and preview deterministic. Canonical statuses, payment/fulfillment transitions, recognized revenue, order details, stock, role permissions, private response caching and existing action-order compatibility are unchanged. Source comparisons verify the rest of the backend adapter and all other SellerWorkspaceContent sections/detail code remain unchanged; twelve protected source hashes also match.
+
+### 6. Database / migration impact
+
+No models, schema, migrations, dependencies, asset binaries, working orders/accounts/stock, device installation or deployment changed. PostgreSQL tests create/destroy a disposable local database. Flutter images use existing isolated test fixtures; no sample data is sent to the application database.
+
+### 7. Tests performed
+
+- **25/25 Django/PostgreSQL tests passed** (5.031s), including the new recent-order regression and existing workspace/fulfillment suites. Coverage includes all five canonical statuses, seller isolation even with a foreign seller parameter, stable tied timestamps, five-record limit, period/page independence, recorded fields/payment values, zero recognized sales for the tested date period, no extra order writes, existing authorization and bounded query growth. System checks clean; temporary database destroyed.
+- **55/55 Flutter tests passed** (21s) across `seller_home_layout_test`, `seller_workspace_test` and `seller_home_entry_test`. They cover cap/swipe/manual timing/keyboard indicators, exact-row View Details and return state, external-dot geometry, no dots for zero/one, both empty lines, title/subtitle/right-side See All, all seven recorded fields, completed/cancelled source selection, old-server compatibility, section ordering, existing destination/permission flows, Home refresh/state and header behavior.
+- Responsive cases include long content at 280/320dp with 2x text, 414dp, 600dp/1.3x and 844x390 landscape; existing 375dp filter and Home-header cases remain. The first run caught a 28dp right overflow in the new header at 280dp/2x text. Bounding the right action with Flexible/Align corrected it; final rerun passed. No warning was suppressed.
+- Four-file static analysis reported **no issues** (6.6s). Actual bundled-font order-section captures were inspected in light/dark surroundings; the section preserves its existing white surface. Both captures show title/subtitle, recorded fields and dots below the card. UI/UX Pro Max searches informed manual carousel controls, focus and native semantics; no claim of a complete accessibility audit.
+- Evidence: `flutter-tests.log`, `backend-tests.log`, `analyze.log`, `protected.json`, `verify_scope.cjs` and `renders/layout/orders-light.png` / `orders-dark.png` under `scratch/seller-recent-orders-20261102/`.
+
+Reproduce from `campushub/`:
+
+```powershell
+flutter test --no-pub test/seller_home_layout_test.dart test/seller_workspace_test.dart test/seller_home_entry_test.dart
+flutter analyze --no-pub lib/module_app/screens/seller_workspace_content.dart lib/module_app/widgets/seller/seller_recent_orders.dart test/seller_home_layout_test.dart test/seller_workspace_test.dart
+```
+
+Backend reproduction from the repository root: `backend/core/venv/Scripts/python.exe -B scratch/operating-schedule-20261029/run_tests.py api.test_mobile_seller_workspace modules.marketplace.test_order_fulfillment`. The existing runner enforces a local disposable PostgreSQL database; do not import test fixtures into working data.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device/TalkBack session, live-account transaction or hosted rollout was performed. The page-independent preview requires the updated Django code to be served. Older servers remain compatible through the loaded-page fallback; they cannot provide a separate newest-first preview on an arbitrary later full-list page. When fewer than five real orders exist, show the actual count; never fill missing pages with placeholders.
+
+If Home still shows only open orders, inspect `recent_orders` and `homeRecentOrders`, not the recognized-sales filter or status workflow. If the subtitle/title appears old, use your own Hot Reload after checking the source anchors. If dots look wrong, inspect the actual array length and selected page before changing data. The indicators belong to the outer carousel Column, after its PageView, not inside any order Container.
+
+Safe exercise: change statuses only in the disposable test fixture to completed/cancelled, run the Flutter command, and verify both remain in Recent Orders. In the backend test, give the five newest owner orders equal creation times and verify stable descending IDs on pages one and two. Test See All and View Details without submitting any real order or changing real stock.
+
+## Seller Home profile-triggered header - November 2, 2026
+
+This header-only refinement supersedes the separate seller Home greeting in the preceding banner-removal work. Approved seller Home now starts with the existing photo beside Welcome Back, and the authenticated full name, followed directly by Sales Overview. Buyer Home, other bottom-navigation tabs and dedicated seller-tool headers keep their existing appearance and actions.
+
+### 1. Cause / reason
+
+Confirmed in the existing source: the shared header provided a hamburger button plus a profile shortcut, while Home repeated Welcome Back with the first name beneath it. The user requested one compact seller Home identity area that opens the existing drawer. No authentication, seller-eligibility or reporting defect was inferred.
+
+### 2. Exact files changed, current lines and nearby anchors
+
+Paths are relative to the project root. Earlier sections retain historical line numbers; use these current anchors for this refinement.
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/dashboard_screen.dart` | 303 `isSellerHome`; 310 header padding; 313 hamburger conditional; 323 identity callback; 401 `showWelcomeGreeting` | Apply the drawer-trigger identity only to approved-seller tab 0; hide that Home's duplicate greeting. Search, Notifications, SafeArea and the existing drawer remain. |
+| `campushub/lib/module_app/widgets/navigation/header_profile_button.dart` | 25 `greeting`; 28 `actionLabel`; 38 `nameText`; 90 caption | Add optional caption and action purpose while keeping defaults for other callers. Use Montserrat 12sp muted caption and 14sp/600 navy name; keep the recorded photo and initials/error fallback. |
+| `campushub/lib/module_app/screens/home_page.dart` | 35 `showWelcomeGreeting`; 50 member; 219 conditional | Default true preserves buyer welcome text. False removes the seller's greeting and its trailing spacer together; existing 8dp list padding places Sales Overview directly below the header. |
+| `campushub/test/seller_home_entry_test.dart` | 63 font loader; 119 responsive seller-header tests; existing retained-state/navigation checks | Verify seller-only layout, safe insets, truncation, full-name semantics, actual avatar tap, drawer return, Search, Notifications and unchanged headers on other tabs. Capture actual widgets with bundled fonts. |
+| `campushub/test/header_profile_button_test.dart` | 69 photo-test variants | Verify the same stored image URL and failure fallback with and without the new greeting. Existing default identity/long-name tests remain. |
+| `campushub/test/seller_workspace_test.dart` | 1088 Home greeting assertion | Expect the moved header greeting when existing seller-tool navigation returns to Home. No navigation implementation changed. |
+| `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md`; `campushub/DESIGN.md` | Latest header entry / Current accepted scope | Record the current presentation, data flow, checks and troubleshooting without changing older historical reports. |
+
+Nine project files: three runtime Dart files, three test files and three existing documents. Before-snapshots and evidence are under ignored `scratch/seller-home-header-20261102/`.
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Separate hamburger and profile shortcut on seller Home | Existing avatar/name area opens the same drawer | One large, discoverable navigation target without a duplicate icon. |
+| Standalone Welcome Back with first name below the header | Small Welcome Back, caption above the real full name beside the photo | Consolidates identity and removes the redundant heading. |
+| Seller greeting plus spacing before Sales Overview | Sales Overview begins 8dp below the complete header | Keeps the first operational section close without modifying KPI cards. |
+
+The name stays on one line with an ellipsis. The caption may wrap to two lines at large text sizes instead of losing Back. Header height grows naturally; no fixed-height clipping or text-scaling override was added. Existing minimum-48dp identity and action targets remain. Header uses its existing white/navy surface and bundled Montserrat identity styles. No new gold element or global color/font change was introduced; existing accents remain in their current components.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`DashboardScreen.build` calculates `isSellerHome` from the existing server-verified seller flag, current user and selected tab index. Only approved-seller Home omits the hamburger and supplies `greeting: 'Welcome Back,'`, `actionLabel: 'Open menu'` and the existing `ScaffoldState.openDrawer()` callback to HeaderProfileButton. Other tabs retain the hamburger and profile-tab shortcut; buyer/pending/revoked Home keeps its original header and content greeting.
+
+`HeaderProfileButton.build` reads the existing AuthUser full name, falling back to recorded first/last name parts, plus `resolvedProfilePhotoUrl`. Optional greeting changes only the label layout. Optional actionLabel changes its tooltip/spoken purpose; assistive technology receives Open menu plus the full untruncated name. The existing NetworkImage, initials and photo-error handling are unchanged. Search and Notifications keep their original callbacks and right-side order.
+
+`HomePage.showWelcomeGreeting` is a presentation input, not a permission check. The default true retains all other callers' welcome text; Dashboard passes false for approved-seller Home. Catalog loaders, refresh/state retention, seller content and the four KPI calculations are untouched.
+
+```text
+Existing signed-in AuthUser + verified seller status + selected tab
+  -> DashboardScreen.build: seller + Home?
+     yes -> existing photo / caption / full name -> open existing drawer
+            Home hides duplicate greeting -> Sales Overview
+     no  -> existing hamburger + profile shortcut header
+  -> same Search route, Notifications sheet and drawer destinations
+```
+
+Annotated example: an approved student seller sees their saved full name beside the photo; tapping the photo opens the drawer. Switching to Services restores the existing header. Returning Home restores the greeting without reloading the seller workspace or losing the Home scroll position. The name and photo come from the session, not test labels or a second account request.
+
+### 5. Backend / API behavior
+
+Unchanged. No endpoint, request, response, seller permission, session storage, order/product rule or data calculation changed. The existing approval check still governs seller presentation; Django continues to enforce authorization. The photo opens navigation rather than navigating directly to Profile on seller Home; Profile remains available through the existing drawer. Eleven protected source hashes include the drawer, Search, bottom navigation, seller content/service, auth/session, buyer banner, auth form and Django workspace.
+
+### 6. Database / migration impact
+
+None. No models, migrations, dependencies, assets, real account/order/stock records or deployment changed. Widget tests use isolated session/API-shaped fixtures; screenshot names and amounts are test fixtures only.
+
+### 7. Tests performed
+
+- Final related Flutter regression: **102/102 passed** across eleven files covering seller/buyer Home, profile button, seller workspace/layout, banners, dashboard header/search, seller drawer, floating navigation and center action. Includes six seller-header layouts: 280/320/390/414/768dp, with 2x text at 320/414dp and simulated top/side safe insets.
+- Each new responsive integration case actually taps the avatar, returns through the existing drawer Home entry, opens Search and Notifications, changes tabs and returns Home. Assertions check minimum-48dp targets, no hamburger/duplicate greeting, single-line name truncation, full-name spoken action, right-side alignment and header-to-Sales spacing.
+- Stored-image URL/error fallback and default profile behavior pass in both caption modes. Existing buyer-header profile shortcut, banner, approval/revocation, retained-state, refresh, seller permissions and tool-navigation regressions pass.
+- Actual bundled-font renders reviewed at normal 390dp and narrow 320dp/2x text; the caption wraps at large text while action icons remain reachable. Six responsive header captures plus shared seller Home/catalog captures are in `renders/`. No generated image or replacement asset was used.
+- Initial test development measured an IconButton's inner Tooltip instead of its full tap target and selected the outer blank semantics node. The final checks target the actual IconButtons and labelled semantics node. The long-name/2x drawer test scrolls its actual menu item into view and checks hit-testability; no missed taps are suppressed.
+- Static analysis of all six changed Dart source/test files reported **no issues** (5.1 seconds); the final 102-test run finished in 33 seconds without missed-tap warnings. Eleven protected hashes and before/after comparisons confirm unchanged Dashboard code outside its header/greeting flag, Home code outside greeting visibility, and the original photo/fallback block. Logs: `flutter-tests.log`, `analyze.log`; scope evidence: `protected.json`, before-snapshots and `verify_scope.cjs` under `scratch/seller-home-header-20261102/`.
+
+Reproduce from `campushub/`:
+
+```powershell
+flutter test --no-pub test/seller_home_entry_test.dart test/header_profile_button_test.dart test/seller_home_layout_test.dart test/seller_workspace_test.dart test/home_page_test.dart test/campus_home_banners_test.dart test/dashboard_header_test.dart test/dashboard_search_appbar_test.dart test/seller_drawer_test.dart test/floating_bottom_navbar_test.dart test/dashboard_center_add_button_test.dart
+flutter analyze --no-pub lib/module_app/screens/dashboard_screen.dart lib/module_app/screens/home_page.dart lib/module_app/widgets/navigation/header_profile_button.dart test/seller_home_entry_test.dart test/header_profile_button_test.dart test/seller_workspace_test.dart
+```
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device/TalkBack session, live-account change, app install/restart or deployment was performed. Full-name semantics and tap behavior were checked in Flutter tests; this is not a full accessibility audit. Real photo loading still depends on the existing saved URL/network; the current fallback remains available. The optional design-doctrine kit lacks its token/script files, so its external gates were not run; verification uses the actual Flutter implementation and tests.
+
+If a seller still sees the hamburger on Home, inspect the existing verified approval state and tab index before changing permissions. A hamburger on another tab is intentional. If a name is truncated, its full value remains in the spoken menu action and drawer. A missing picture uses the existing initials fallback; inspect the saved profile URL rather than adding a replacement asset. If an old duplicate greeting remains, verify Dashboard passes `showWelcomeGreeting: false` for that approved account, then use your own Hot Reload.
+
+Safe practice exercise: change only a disposable test fixture's full name to a longer value, run the first test command and verify the avatar still opens the drawer, both right-side actions work, and Sales Overview follows the header. Compare a pending seller: its buyer greeting/banner must remain. Never edit working users or approval records for a visual test.
+
+## Seller Home without promotional banners - November 2, 2026
+
+Superseded for banner visibility/placement by the November 4 restoration above: seller Home now has one existing carousel below Inventory Alerts, while its top banner remains suppressed.
+
+This entry supersedes the older welcome/banner and bundles-first seller Home order below. Buyer Home keeps its existing campus promotional carousel. Seller Home now starts Welcome Back -> Sales Overview -> Orders Requiring Action -> Inventory Alerts -> Suggested Product Bundles. Existing Sales Trend follows these requested sections; Explore CampusHub remains afterward. No Seller Dashboard heading, subtitle or Quick Actions was introduced.
+
+### 1. Cause / reason
+
+Confirmed from the source: HomePage mounted the shared promotional carousel for everyone before its optional seller section. Removing the shared widget globally would also remove buyer banners. Seller Home also placed bundles before orders/inventory, and Recent Orders showed an unfiltered page of recent orders rather than an operational action queue. Filtering just that page would miss older open orders behind 30 newer completed orders. These are the specific presentation/data-boundary gaps corrected here; order workflows and metric definitions were not rebuilt.
+
+### 2. Exact files changed, current lines and nearby anchors
+
+Paths are relative to the project root; use the named anchor if later edits move lines.
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/home_page.dart` | 34 `showPromotionalBanners`; 48 member; 230 banner conditional | Default banner visibility remains true for buyer Home. Omit the entire carousel subtree when the caller marks the approved-seller Home, removing its image/button/dots/timer together. |
+| `campushub/lib/module_app/screens/dashboard_screen.dart` | 393 banner flag | Pass false only when the existing approved-seller state and signed-in user are present. Header, role checks, services/catalogs and bottom navigation are unchanged. |
+| `campushub/lib/module_app/screens/seller_dashboard_page.dart` | 253 inline Home padding | Remove the extra 8dp above the existing seller section so Sales Overview starts after Home's existing 12dp greeting gap. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 1561 `homeActionOrders`; 1692 order header; 1700 inventory header; following bundle include | Read the new server-owned open-order preview (with an older-server fallback), label operational sections as requested, and move existing bundles after inventory. Four KPI cards, period control, stock/suggestion helpers, actions and chart stay intact. |
+| `campushub/lib/module_app/widgets/seller/seller_recent_orders.dart` | 14 `emptyMessage`; 115 empty content | Reuse the existing five-order preview/detail navigation with a Home-specific honest empty message. Its default remains compatible with other callers. |
+| `backend/core/modules/marketplace/mobile_seller_views.py` | 113 `order_rows`; 116 `serialize_order_row`; 126 `action_orders`; 137 response field | Add a read-only `orders_requiring_action` array of up to five oldest open owner-scoped orders, independent of recent-order pagination and Sales dates. Reuse the exact existing serialized order fields. |
+| `backend/core/api/test_mobile_seller_workspace.py` | 206 action-order regression | Verify owner/status isolation, five-record limit, oldest pending history beyond a completed recent page, delivery remaining unpaid, page independence and no new order writes on reads. |
+| `campushub/test/seller_home_entry_test.dart` | 84 seller/banner/greeting-gap checks; 424 regular states; 440 approval/revocation; actual render test | Verify seller-only absence, buyer/revoked presence, retained shell/nav/state and the direct greeting-to-sales placement. Capture loads actual Inter as well as existing fonts. |
+| `campushub/test/seller_home_layout_test.dart` | 342 section order/actions; 419 action-preview regression; existing responsive/render cases | Update requested labels/order and verify the server preview plus old-server fallback/empty result. |
+| `campushub/test/seller_workspace_test.dart` | 100 menu helper; 120 hit-test assertion; existing overview section expectations | Update order/labels and ensure See All is actually in the viewport before tapping, preserving real navigation verification. |
+| `docs/mobile-seller-application.md`; `CAMPUSHUB_CONTEXT.md`; `campushub/DESIGN.md` | Current seller/buyer Home entries | Record the requested scope, data flow, checks, troubleshooting and safe practice. |
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Campus promotional carousel before seller KPIs | Sales Overview directly after Welcome Back | Removes the seller-only promotional block and its View Services/banner dots without removing buyer discovery. |
+| Bundles before Recent Orders/Inventory Attention | Orders Requiring Action, Inventory Alerts, then bundles | Puts existing operational sections in the requested order. |
+| Recent page used as the Home order preview | Up to five oldest open seller orders | Keeps older waiting orders visible even when newer completed records fill page one. |
+
+The Weekly filter and four existing KPI cards remain. The actual seller's pending/processing/ready orders feed the action card. Inventory still uses the existing canonical available/reserved/threshold/status records and concise previews, including the existing expiry alert handling. Bundles keep the same eligibility, owner filtering, empty/error states, See All, View Suggestion and Create Bundle callbacks. The existing Sales Trend and later catalog previews remain, because the user requested removing the promotional banner, not those features. The order preview's own paging indicators are retained; the removed dots belong to the campus promotional carousel.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`DashboardScreen.build` receives the existing asynchronously verified seller state. It passes `showPromotionalBanners: false` only for an approved seller with a current user. `HomePage(..., showPromotionalBanners: true)` defaults to the old buyer behavior; `HomePageState.build` conditionally mounts CampusHomeBanners, then the same optional seller content. This flag is independent of whether some other informational/error widget is supplied as `sellerSections`, so an ordinary buyer's status-error UI does not accidentally hide banners. Rejected, pending and revoked seller states retain regular Home.
+
+`workspace(request)` still authenticates/authorizes with `approved_seller`, then obtains the existing `seller_order_queryset(account)`. The new open preview filters that same queryset by canonical pending, processing and ready_for_pickup states, orders by recorded creation date/ID and takes five. Delivered-but-unpaid orders remain open until the existing explicit payment/completion workflow finishes; completed/cancelled rows are not action previews. Sales period filtering remains confined to existing analytics calculations, so an older waiting order is not hidden by Weekly sales dates.
+
+`serialize_order_row(order)` returns the same fields as the former inline serialization, including real product/buyer/items, status key, payment and fulfillment presentation. It feeds both unchanged paginated `orders` and new `orders_requiring_action`. Existing `order_count`, pagination, KPIs, recognized revenue and response cache/permission rules retain their definitions.
+
+`SellerWorkspaceContent.homeActionOrders` reads the new array. If an older endpoint does not provide it, the compatibility path filters the existing loaded order page using its recorded status key/display value. `homeHighlights` passes the result to the existing SellerRecentOrders widget, with No orders require action right now when empty. No new endpoint, separate request, manufactured order or local revenue calculation is involved.
+
+```text
+Existing seller approval + bearer-authenticated workspace GET
+  -> Django owner-scoped orders / canonical stock / eligible bundle suggestions
+  -> unchanged KPIs + added bounded open-order preview
+  -> same Flutter seller state and callbacks
+  -> Sales -> Orders -> Inventory -> Bundles -> existing Trend
+
+Buyer / pending / revoked account -> same Home carousel and catalogs
+```
+
+Annotated example, disposable test records only: 31 newer completed orders fill page one; a pending order from 90 days earlier still appears in `orders_requiring_action`. Another seller's pending order never appears, even if the request includes that seller's ID. Nothing is inserted or changed by the GET.
+
+### 5. Backend / API behavior
+
+The existing workspace GET adds one optional response key and bounded read-only queries. Existing consumers and older-server compatibility are preserved; no request contract or write endpoint changed. Fulfillment/payment transitions, stock reservation/release, seller approval/suspension, role permissions, seller service transport and navigation remain. Thirteen protected source hashes passed. Before/after comparisons also confirmed unchanged header/bottom-navigation implementation, buyer catalog/search/refresh code, stock/product/order/recommendation helpers, KPI/filter/chart code, original serialized order fields and seller authorization/write workflows.
+
+### 6. Database / migration impact
+
+No models, schema, migrations, dependencies, asset binaries, working records, session/preference resets or deployment. Django tests used an automatically created/destroyed local PostgreSQL database; Flutter screenshots use isolated API-shaped fixtures only. No demonstration orders/products were sent to working data.
+
+### 7. Tests performed
+
+- **24/24 Django/PostgreSQL tests passed** in 12.505 seconds across the mobile seller workspace and fulfillment suites; system checks were clean and the temporary database was destroyed. New coverage verifies old open orders beyond recent-page boundaries, owner isolation/ignored foreign seller parameter, open-only statuses, five-row limit, delivered-but-unpaid presentation, stable action queue across pages and unchanged order count on reads. Existing recognized-revenue, receiving, permission and constant-query-growth checks pass.
+- **82/82 Flutter tests passed** in the broad seller/buyer Home, banner, header search, drawer and bottom-nav run. This includes the new server-array/fallback behavior and buyer/seller/approval-revocation banner checks, plus existing responsive, empty/error, filter, bundle/action, refresh/retained-state and permission coverage.
+- The first broad run exposed a test-helper warning: it scrolled the section header into view but tapped See All below the viewport. The helper now explicitly brings the button into view and asserts hit-testability before tapping. The complete **15/15 seller workspace/navigation suite passed again** with no missed-tap warning. These 15 overlap the 82; they are not an additional unique test count.
+- Static analysis of all eight changed Flutter source/test files reported **no issues** (42.0 seconds). Formatting completed. Actual Inter/bundled-font captures were reviewed for the shared header/greeting/Weekly/four-KPI/order view, inventory-to-bundles ordering and retained trend. The original buyer banner component remains unchanged and its auto-rotation/dots/navigation tests passed.
+- Evidence: `scratch/seller-home-without-banner-20261102/backend-tests.log`, `flutter-tests.log`, `navigation-tests.log`, `analyze.log`, `protected.json`, `verify_scope.cjs`, `renders/shared/shared-home-seller-sections.png`, and the layout/standalone render folders. The enabled render tests produced actual Flutter widget images; no AI image was generated.
+
+Reproduce Flutter checks from `campushub/`:
+
+```powershell
+flutter test --no-pub test/seller_home_layout_test.dart test/seller_home_entry_test.dart test/seller_workspace_test.dart test/home_page_test.dart test/campus_home_banners_test.dart test/dashboard_search_appbar_test.dart test/seller_drawer_test.dart test/floating_bottom_navbar_test.dart
+flutter analyze --no-pub lib/module_app/screens/home_page.dart lib/module_app/screens/dashboard_screen.dart lib/module_app/screens/seller_dashboard_page.dart lib/module_app/screens/seller_workspace_content.dart lib/module_app/widgets/seller/seller_recent_orders.dart test/seller_home_layout_test.dart test/seller_home_entry_test.dart test/seller_workspace_test.dart
+```
+
+Backend reproduction uses the existing disposable-local runner from the repository root: `backend/core/venv/Scripts/python.exe -B scratch/operating-schedule-20261029/run_tests.py api.test_mobile_seller_workspace modules.marketplace.test_order_fulfillment`. It enforces the local test connection and destroys the timestamped database afterward; never import these fixtures into the working database.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical Flutter/IME session, live-account transaction, hosted Django rollout or forced app restart was performed. The complete action preview requires the updated Django workspace code to be served; an older endpoint still works through the loaded-page fallback, which cannot discover older orders outside that page. Preview limits remain five action orders and the existing three stock alerts; See All leads to the existing full tools. Buyer catalogs remain after seller operational content.
+
+If a banner appears for a currently approved seller, inspect the existing verified approval state and the new Home flag; do not hide banners based only on an account role or any non-null sellerSections widget. If action orders look incomplete, inspect the new response array before changing frontend filters or Sales dates. If See All appears unresponsive in a test, scroll the actual button rather than only its section header; never suppress missed-tap warnings.
+
+Safe exercise: in the disposable API test only, put an old pending owner order behind 31 completed records and verify the five-row action list still includes it on both order pages. In the Flutter tests, compare an approved seller with a pending/revoked account: the first has no `home-campus-banners`, while the latter retain the original carousel and bottom navigation. Follow bundle See All without submitting a bundle, and confirm Sales Overview/Orders/Inventory/Bundles order from widget coordinates. Leave all real accounts, orders and stock unchanged.
+
+## Shared floating navigation — October 29, 2026
+
+Latest November4 clarification: removed the rectangular backing strip by extending Dashboard body content behind the retained rounded pill. Root-tab scroll padding uses the measured navbar inset so final items remain reachable; Profile moves the inset into its scroll content. Seventy Flutter checks passed; whole-app analysis clean. Exact files/data flow/verification: [backing-strip report](mobile-profile.md#floating-navbar-remove-rectangular-backing-strip---november-4-2026).
+
+November4 follow-up: tapped destinations/Add Product now have no rectangular ink splash or hover box; selected glyph/text/motion and circular keyboard-focus feedback remain. The existing root Scaffold keeps the dock visible during section scrolling. Sixteen navigation/dashboard/system tests passed with twelve enabled rest/pressed/scrolled captures. Exact files, functions/data flow and safe exercise: [current navbar report](mobile-profile.md#floating-navbar-no-tap-box-visible-while-scrolling---november-4-2026). No backend/database/seller-workflow change.
+
+The shared FloatingBottomNavbar now uses an inset rounded dock for both account configurations. Approved sellers keep Home/Marketplace/Add Product/Services/Facilities; the gold center action remains raised16dp and calls the original DashboardScreen._openAddProduct. Its inputs are the same currentIndex, _goToTab callback and seller-only action callback; taps still select root pages or open the original form. No backend, permissions, records or approval behavior changed.
+
+The [current floating-navbar guide](mobile-profile.md#shared-floating-bottom-navigation--october-29-2026) owns exact files/lines, eight-part report, measured geometry and checks. Sixteen focused tests passed, including seller action-vs-page behavior,48dp targets, label separation and large text. Safe exercise: use the isolated seller navbar test to tap Add Product and confirm its local action counter increments while selected index stays unchanged; never submit a live product for this layout check. App run/reload remains under the user's Ctrl+F5 control.
+
+## Home category shortcuts and sales-period menu placement - October 29, 2026
+
+1. **Cause / reason:** The user requested removal of Home's highlighted Snacks/category shortcuts and confirmed the Sales Overview dropdown was covering its filter/header. Home rendered saved preferences as ActionChips above its banner. The compact filter used Flutter's default over-button position and supplied `initialValue`, which aligns the selected row with the anchor instead of placing the whole menu below it.
+2. **Exact files changed:** `campushub/lib/module_app/screens/home_page.dart:228` (`build`, banner now directly follows greeting spacing); `campushub/lib/module_app/screens/seller_workspace_content.dart:1540` (`salesPeriod`, under position at 1546 and 8dp offset at 1547); `campushub/test/home_page_test.dart:14` (no shortcut highlights); `campushub/test/seller_home_layout_test.dart:135` (menu bounds at 375dp and 320dp/2×); `campushub/test/seller_workspace_test.dart:893` and 920 (menu geometry plus actual period selection); `campushub/test/seller_home_entry_test.dart:104` (native drag-slop expectation); this guide at line 3; `docs/mobile-profile.md` latest note; `CAMPUSHUB_CONTEXT.md:3`; and `campushub/DESIGN.md` (`seller-sales-period`/Home). The same request also changes Facility Details rates, documented in `docs/mobile-services-navigation.md` top.
+3. **Changes made:** Removed only Home's preferred-category chip row. Existing preference storage, optional Home constructor inputs, category discovery and Marketplace filters remain available. Set the compact PopupMenuButton to `PopupMenuPosition.under` with `Offset(0, 8)`; removed `initialValue` to prevent selected-row centering from pulling the menu upward. Existing checked Daily/Weekly/Monthly items still reflect the server period and call the same callback.
+4. **How it works:** `HomePageState.build(context)` renders the greeting followed by CampusHomeBanners and existing catalogs/seller sections. It no longer builds buttons from `preferredCategories`. `salesPeriod(compact: true)` reads `analytics.period` for displayed text, checked item state and semantics. Selecting a menu item passes its existing `day`, `7` or `month` value through `onPeriod` to `SellerDashboardPage._changePeriod`, which reloads the authenticated workspace. Only menu placement changes; totals are still server results. Example: choosing Monthly from a Weekly overview still sends `month`, while the menu's top remains below the filter rather than over the Weekly label.
+5. **Backend / API behavior:** Unchanged; preference persistence, seller ownership/RBAC, period normalization, workspace requests and all totals/calculations retain their existing implementation.
+6. **Database / migration impact:** None; no records, schema, migrations or dependencies changed.
+7. **Tests performed:** Combined six-file regression run passed **74 tests (15 seconds)**: `home_page_test`, `seller_home_layout_test`, `seller_workspace_test`, `seller_home_entry_test`, `facility_details_test` and `facility_booking_flow_test`. Seven changed Dart files passed analysis (2.1 seconds) and final formatting (zero changes). Menu bounds are checked for all three selected periods at normal/2× text; integration tests retain Daily/Monthly callbacks, reload counts and checked states. The initial run found a scroll expectation 20dp too large; isolated reproduction and Flutter's local controller documentation confirmed the default gesture threshold. The test now subtracts `kDragSlopDefault` from the requested 120dp movement; production scrolling was not changed. The final rerun passed.
+8. **Remaining limitations:** No fresh screenshot or physical-device run. Native popup placement can still reposition to fit screen edges when there is insufficient room. No claim of live backend or full accessibility validation.
+
+**Troubleshooting / safe exercise:** Reload through your normal workflow. Confirm Home has no Snacks/Beverages shortcut row, then open Sales Overview's filter and choose Daily, Weekly and Monthly. The menu should sit below the trigger and the selected label/totals should refresh normally. If the label changes but totals look unexpected, inspect the existing server response for that period rather than calculating totals in Flutter. Safely change only the fixture `analytics.period` in the existing menu-bounds test, run it, and trace the selection callback without writing real sales records.
+
+## Suggested Product Bundles directly below KPIs - October 28, 2026
+
+This user-requested placement supersedes the section order in the earlier dashboard report below. Current Home order is welcome/banner, Sales Overview KPI cards, Suggested Product Bundles, Recent Orders, Inventory Attention, Sales Trend, then Explore CampusHub. Current Inter typography remains unchanged.
+
+1. **Cause / reason:** the existing bundle section followed Sales Trend. The user requested it immediately below the KPI cards.
+2. **Exact files changed / current anchors:** `campushub/lib/module_app/screens/seller_workspace_content.dart:1325` (`homeHighlights`), `:1438` (moved recommendations header), `:1442` (existing `suggestions(context, preview: true)`), `:1443` (Recent Orders); `campushub/test/seller_home_layout_test.dart:318` (expected section order); `campushub/test/seller_workspace_test.dart:404` (section traversal order); this guide at line 3; `CAMPUSHUB_CONTEXT.md:3` (latest entry). Five project files, one runtime file.
+3. **Changes made:** moved the existing header and preview together directly after the four KPI cards. Removed their previous position below the chart, so the section still appears once. Updated the two existing ordering checks; no new test suite or replacement component was added.
+4. **How it works / functions, inputs, outputs and data flow:** `homeHighlights(context)` returns the same ordered widget list with a different placement. Existing workspace JSON -> `suggestions(context, preview: true)` -> owner-filtered recommendation cards or honest empty/error state. `sectionHeader(..., SellerDestination.recommendations)` still sends See All to the same destination; View Suggestion/Create Bundle/Retry retain their callbacks. Example: an eligible pair now appears between Pending Orders' KPI row and the Recent Orders heading; its product IDs and record are unchanged. Moving the shared section preserves both inline Home and the existing standalone overview without duplicating data or navigation.
+5. **Backend / API behavior:** unchanged. No service, endpoint, permissions, paid-sales, order, inventory, recommendation or Apriori changes.
+6. **Database / migration impact:** none. No models, migrations, dependencies, sessions or working records changed. Screenshot data remains isolated test fixtures.
+7. **Tests performed:** **45 Flutter tests passed** in 9 seconds across existing seller Home layout, workspace and Home-entry suites. These cover requested ordering, existing bundle actions and See All, responsive/empty/error states, carousel behavior and seller approval/revocation/retained Home. Three-file analysis reported **No issues found** (1.7s); format check reported **3 files, 0 changed**. Render evidence refreshed under `scratch/inter-home-20261028/`; log: `bundle-position-tests.log`. No native device action or full backend test run was performed.
+8. **Remaining limitations / troubleshooting / safe exercise:** no hot reload/restart/install was performed. Use your own Hot Reload to display this order; if the earlier new Inter assets are not yet loaded, stop and rerun Flutter as described in the typography guide. Safe exercise: inspect the `sections` list at the test anchor above, run `flutter test --no-pub test/seller_home_layout_test.dart`, and verify the bundle heading is below both KPI rows and above Recent Orders. Test See All without creating a real bundle or editing records; empty recommendations should remain in the same position with their honest message.
+
+## Compact Seller Home and swipeable Recent Orders - October 28, 2026
+
+### 1. Cause / reason
+
+Confirmed from the existing Flutter implementation: KPI labels used a one-line ellipsis; Home reused tall Inventory/Orders detail cards; Recent Orders showed only three vertical records; bundles preceded urgent operational sections; catalog strips relied on estimated fixed heights. The user requested a presentation refinement of the existing Home, not a replacement dashboard. Existing owner-scoped Django workspace data and shared routes were already suitable. No backend defect or accounting error was inferred.
+
+### 2. Exact files changed and current code anchors
+
+| File | Current line / nearby code anchor | What changed |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 979 `_inventoryAttention`; 1058 `_showOrderDetails`; 1255 `suggestions`; 1336 `homeHighlights`; 1474 `_overviewMetricCard`; 1536 `sectionHeader` | Compact Home summaries, existing detail handler extracted for reuse, two-column metrics, reordered sections and existing destinations |
+| `campushub/lib/module_app/widgets/seller/seller_recent_orders.dart` | 7 `SellerRecentOrders`; 28 `didUpdateWidget`; 59 `_height`; 130 `PageView.builder` | New five-order manual carousel with identity-aware updates, measured wrapping, accessible gold indicators and exact-row detail callback |
+| `campushub/lib/module_app/widgets/seller/seller_sales_trend.dart` | 6 `SellerSalesTrend`; 14 `_SellerSalesTrendState`; 114 `Slider` | Existing series/painter retained; readable date/value inspection, keyboard control and compact zero-sales state |
+| `campushub/lib/module_app/screens/home_page.dart` | 130 `_section`; 185 local `strip`; 255 `EXPLORE CAMPUSHUB`; 265 catalog sections | Natural-height horizontal previews, bounded widths, shared spacing and honest facility empty wording |
+| `campushub/lib/module_app/widgets/home/home_preview_cards.dart` | 43 `HomeSectionHeader`; 160 `MarketplacePreviewCard`; 296 stock summary; 354 `FacilityPreviewCard`; 431 rate; 479 `ServicePreviewCard` | Responsive headers, stock text, accessible cart action, price font fallback, consistent 126dp images, facility capacity/rate/status and saved service descriptions |
+| `campushub/lib/module_app/screens/search_page.dart` | 221 `_productCards` | Natural-height equal-height rows for the shared product card, preventing its new stock/cart content from clipping in Search |
+| `campushub/test/seller_home_layout_test.dart` | 134 carousel test; 200 reorder/shrink test; 368 real Explore tests; 488 optional render test | New interaction, responsive, long-text, empty/error, keyboard and render coverage; all data is isolated test fixtures |
+| `campushub/test/seller_workspace_test.dart` | 97 `menu`; 361 branded Home test; 478 zero-sales test | Explicit outer-scroll targeting for the new nested PageView, requested section sequence and current initially visible section |
+| `campushub/test/home_page_test.dart` | 209 / 213 facility empty-state assertions | Expect “No facilities are currently listed.” |
+| `docs/mobile-seller-application.md` | 3 this section | Implementation report, troubleshooting, data flow and safe exercise |
+| `CAMPUSHUB_CONTEXT.md` | 3 newest entry | Current behavior and verification record |
+
+Eleven project files: six runtime Dart files, three test files and two existing documents. Render evidence and logs are under ignored `scratch/seller-home-20261028/`; no additional preview startup entry point was added. Earlier guide line numbers below are historical snapshots; use this table for this change.
+
+### 3. Changes made
+
+- The four existing KPIs remain a two-column grid, including narrow/large-text layouts. Labels wrap in full. Text measurement determines a shared height for all four cards; icons align above labels. Total Sales opens existing Sales Analytics; the order counts open existing Orders Received. No unsupported status-filter route was invented.
+- Recent Orders now uses one full-width PageView page per order, the newest five rows from the current owner-scoped first API page, with no timer. Cards display the actual code, status, buyer, total, payment status and date. View Details reuses the existing exact-row detail view, including its existing items and fulfillment actions. See All reuses Orders Received. Pagination controls have 48dp targets, semantic selected labels and keyboard activation; the active dot is gold with a navy outline and a larger size. Zero orders has a concise honest message; one order has no dots.
+- Inventory Attention still selects the existing low-stock/out-of-stock/expired rows and caps Home at three. It now shows product/SKU, a three-column On Hand/Reserved/Available row, actual status and actual threshold. Derived bundle availability retains its existing label. The complete Inventory destination is unchanged.
+- Home order is welcome/banner, Sales Overview, Recent Orders, Inventory Attention, Sales Trend, Suggested Product Bundles, then Explore CampusHub. Bundles remain owner-filtered and show at most two concise previews; existing View Suggestion/Create Bundle/See All actions remain. Empty and API-error messages are distinct; Retry uses the existing reload callback.
+- Sales Trend still paints the same actual daily data. First/last dates format compactly when ISO dates are supplied. Tapping the chart selects the nearest recorded day; its exact amount is shown below. A native Slider provides tooltip, keyboard and semantic inspection when there are multiple days. Zero paid sales keeps a shorter chart and honest message; invalid series stays unavailable. Loading/error/retry remains handled by the existing seller workspace loader.
+- Marketplace/Facilities/Services keep their actual loaders and detail callbacks. Preview strips now size to their tallest content instead of guessing text height, align their first card to the same 16dp Home inset, retain manual scrolling and cap widths rather than stretching cards across tablets. All three use 126dp image areas. Facility capacity can wrap, the existing rate formatter supplies its rate summary, and status is displayed as supplied by the model without inferring slot availability or using a green status dot. Service summaries use the recorded description, falling back to the actual category when none is recorded. Product cards retain category and availability, show low/zero/unpurchasable stock text, and give the existing cart action a labelled 48dp button. Montserrat fallback supports the peso glyph in the shared price style. Header actions stack below full-width titles on narrow screens at large text sizes.
+
+The changed seller summary typography reuses `ProfileStyle.identityText` (bundled Montserrat with its weight axis); shared catalogs retain their configured bundled UI font. Existing mobile navy/gold tokens are reused, including mobile gold `#FCB315`, without changing the global palette, sidebar or bottom navigation. Native buttons retain focus/pressed/disabled behavior; no new dependency or animation package was added.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+```text
+Authenticated user -> existing approved-seller status check
+  -> SellerApplicationService.workspace(period, ordersPage)
+  -> Django approved_seller + seller_order_queryset(account)
+  -> existing overview / orders / inventory / analytics / recommendations JSON
+  -> SellerWorkspaceContent.homeHighlights(context)
+       orders -> SellerRecentOrders -> PageView -> exact-row _showOrderDetails
+       inventory -> existing attention filter -> three compact rows
+       analytics -> unchanged KPI values + SellerSalesTrend
+       owned qualifying recommendations -> two concise previews
+  -> existing HomePage catalog loaders -> natural-height horizontal strips
+```
+
+`SellerRecentOrders` takes order maps and the existing money/date/detail callbacks. `_rows` takes the first five without fetching anything or recalculating statuses/totals. Django already sorts this page newest-first. `_height(context, width, row)` uses TextPainter with the same inherited style, text scaler and available widths as the card, including wrapped button text. The largest result gives every page the same height. The PageController owns the selected page; disposal releases it. `didUpdateWidget` matches the selected order ID when a supplied list changes and moves safely to the first record if it disappears. The existing keep-alive Home section and retained tabs still preserve state when browsing away and back; no new resume/return requests were added. A deliberate full workspace reload can reconstruct the section; selection across that reconstruction is not guaranteed by the identity-update test.
+
+`_showOrderDetails(context, row)` was moved out of the existing order-card callback so both the list and carousel open the same ProfileDetailScaffold and invoke the same fulfillment handler. It does not fetch a different order or add a new order route. Example using test fixtures only: swiping from `ORDER-100` to `ORDER-99`, then choosing View Details, opens `Order ORDER-99` with Buyer 1 and its recorded Unpaid status; returning keeps page 2 selected. No paid state or completed sale is inferred from viewing it.
+
+`HomePage.strip` uses SingleChildScrollView + IntrinsicHeight + Row over at most six cards. Each card receives a fixed bounded width, while the row height follows real content and text scaling. Search needs the same treatment because it reuses MarketplacePreviewCard; `_productCards` now uses intrinsic rows of its existing one/two/three columns. This adds intrinsic layout work over these small rows instead of introducing a new widget library or continually increasing guessed heights. No performance benchmark is claimed.
+
+### 5. Backend / API behavior
+
+Unchanged. Read-only inspection of `backend/core/modules/marketplace/mobile_seller_views.py:70` (`workspace`) confirms approved active mobile-seller enforcement, owner-scoped `seller_order_queryset(account)`, and sales derived from `valid_sales_queryset` (completed and paid). The existing page at line 95 is newest-first, **30 orders per page**; it has no caller-configurable page-size parameter. Home takes five from that existing first response and does not load subsequent history pages. No new five-record server optimization was guessed. Existing Total Orders/Completed/Pending counts, period selection, paid-sales accounting, fulfillment/payment separation, inventory reservations/thresholds, saved recommendations and Apriori remain authoritative and unchanged. The seller detail screen still has no new payment action. `inventory_views.py` and `mobile_services.py` were not edited.
+
+### 6. Database / migration impact
+
+None. No database access was required to implement or verify these Flutter presentation changes. No schema, migration, account, role, seller approval, authentication, session, order, stock, recommendation or working-record writes. Existing dependencies and service contracts are unchanged. Synthetic names/orders are restricted to test fixtures and screenshots; production consumes the original authenticated APIs.
+
+### 7. Tests performed
+
+- Final **81 Flutter tests passed** across ten suites in **11 seconds** in the recorded final run: new seller Home layout, existing seller workspace, seller Home entry/lifecycle, regular Home, banners, header/search navigation, shared drawer, Search, order fulfillment and Home card/navigation tests. The render environment variable was supplied, so the optional screenshot test actually ran.
+- New coverage verifies zero/one/seven source orders (five shown), manual swipe/no automatic movement after twenty simulated seconds, active indicator styling, keyboard indicator activation, exact details and return state, reorder/shrink/empty updates, existing KPI/See All destinations, three actual-threshold stock summaries and horizontal quantity alignment, honest bundle empty/error states, and keyboard inspection of exact recorded trend values. Width/text-scale cases include 280/2x, 320/2x, 414/1x and 600/1.3x; existing tests additionally cover landscape and seller/non-seller approval, revocation, retry, tabs, retained state/scroll and deliberate refresh.
+- Real Explore widgets were exercised at 320px/2x and 414px/1x, with first-card bounds, manual product scrolling and all three See All callbacks. Existing navigation tests still open product/facility/service destinations, and fulfillment tests still verify separate payment behavior.
+- Final scoped Flutter analysis of all nine changed Dart files reported **No issues found** (1.1s), after the final price-fallback/capacity-wrap refinement. Final `dart format --output=none --set-exit-if-changed` reported **9 files, 0 changed** (0.11s). Scoped whitespace checks passed. No web-kit N/N score, native device result or full TalkBack/WCAG certification is claimed.
+- Rendered fourteen PNGs using bundled fonts: four seller-section captures in light/dark surrounding themes and Marketplace/Facilities/Services at both tested Explore widths. Visually inspected KPIs/orders/stock/trend/bundles and catalog examples, including the final large-text heading layout. Screenshots use white captured surfaces and isolated fixtures; initial transparent captures/Ahem test-font captures were replaced. Final large-text facility capacity wrap and price-font fallback are checked in the final screenshots.
+- Initial verification exposed fixed Search-height clipping, a wrapped carousel button omitted from its height calculation, a narrow large-text period/header layout, and test helpers that ambiguously targeted nested scrollers. These were corrected. Outdated empty-text/section-order assertions were updated without removing existing permission or workflow coverage. Early failures/logs are retained separately from the successful final results.
+
+Commands (from `campushub/`):
+
+```powershell
+flutter test --no-pub test/seller_home_layout_test.dart test/seller_workspace_test.dart test/seller_home_entry_test.dart test/home_page_test.dart test/campus_home_banners_test.dart test/dashboard_search_appbar_test.dart test/seller_drawer_test.dart test/search_page_test.dart test/order_fulfillment_test.dart test/home_card_background_test.dart
+```
+
+Evidence: `scratch/seller-home-20261028/tests-final.log`, `analysis-final.log`, `layout-renders.log`, and the PNGs in that directory. Test/analysis execution used outside-sandbox access to the installed Flutter SDK/user cache; it did not run, restart, install or control the user's app.
+
+### 8. Remaining limitations, troubleshooting and safe learning exercise
+
+No physical-device/emulator installation, hot reload/restart, backend test run or real-account order submission/payment/stock action was performed. The UI uses the last loaded authenticated snapshot until the existing deliberate refresh; it is not a new real-time order subscription. The API still returns its original 30-row page. Catalog names/descriptions use concise existing line limits; the full values remain in existing details. At extreme text lengths/scales, a complete order card can be taller than the viewport; normal vertical Home scrolling exposes the entire card without clipping its content. The chart remains the existing custom line chart, with exact-day value inspection rather than a new charting dependency. The optional design-kit gate files were absent, so native Flutter checks and rendered evidence were used instead of inventing a web gate result.
+
+If a screen looks stale, apply your own Flutter Hot Reload/Hot Restart and reopen Home; no automatic device action was taken. If no seller sections appear, inspect the existing approved active seller status and bearer response; never force approval in the UI. If the recommendation service fails, its Retry refreshes the original workspace rather than displaying empty-success data. If only one order exists, absent pagination is intentional. Home's latest-five list is independent of its sales-period filter, matching the existing API semantics.
+
+Safe exercise: run `flutter test --no-pub test/seller_home_layout_test.dart`, find the isolated `layoutData(orders: ...)` fixture, temporarily change its test call from seven orders to one, and observe that pagination disappears while the detail action remains. Restore the fixture and rerun; verify five page indicators return. For large text, inspect the `(320.0, 2.0)` case and confirm the KPI labels wrap, quantities remain in three columns and no RenderFlex overflow is reported. Follow `onDetails -> _showOrderDetails -> detail -> ProfileDetailScaffold` without editing API URLs, permissions or real records. This teaches layout/state changes safely outside production data.
+
+## Stop unnecessary dashboard refresh on return and resume - October 28, 2026
+
+This extends the offscreen-state correction below. Access verification still runs when returning to Home or resuming the app; unchanged seller access no longer reloads dashboard content.
+
+1. **Cause / reason:** confirmed by two failing regressions: `_goToTab(0)` and `didChangeAppLifecycleState(resumed)` both called `_loadUserName()`, which incremented `_sellerRefreshRevision` every time approval was true. The inline seller page interpreted every increment as a content-refresh request and replaced its sections with loading content. Both trigger tests observed a second workspace read even though the seller remained approved.
+2. **Exact files changed / current anchors:** `campushub/lib/module_app/screens/dashboard_screen.dart:102` (`_loadUserName` optional input), `:129` (guarded revision increment), `:162` (`_refreshHome` explicit refresh); `campushub/test/seller_home_entry_test.dart:135` (return/resume trigger matrix), `:137` (regression names), `:178` onward (workspace/status/scroll assertions); this existing guide and `CAMPUSHUB_CONTEXT.md:3`. Four files; one runtime source file. The preceding keep-alive correction remains intact.
+3. **Changes made:** add optional `refreshWorkspace = false` to `_loadUserName`. Increment the seller refresh revision only when access is approved and this input is true. `_refreshHome()` explicitly passes true; ordinary initialization, Home-tab return, app resume and seller-status callbacks keep the default access-check behavior. Initial/newly approved seller sections still load when created. Manual Retry, sales-period filters and existing data-changing actions retain their current behavior.
+4. **How it works / inputs, outputs and data flow:** `_loadUserName()` still loads the saved authenticated user, calls the existing seller-status service and updates identity, approval and any access error. Its optional boolean now controls only the content-refresh revision output. Example: `_loadUserName()` verifies access without asking an unchanged seller section to reload; `_loadUserName(refreshWorkspace: true)` also increments the revision. `HomePage._refresh -> _refreshHome -> explicit true -> revision -> SellerDashboardPage.didUpdateWidget -> _load` remains the deliberate refresh path. Successful Add Product still uses `_refreshHome`. This separates access verification from refresh intent without removing either workflow.
+5. **Backend / API behavior:** no endpoint, permission or server logic changes. Returning/resuming still checks seller status, so approval/revocation can update Home and its drawer. It no longer refetches the workspace merely because an unchanged approved status was verified. Django remains authoritative for all seller operations; authentication/error handling is unchanged.
+6. **Database / migration impact:** none. No schema, record, token, session, order, inventory, analytics or dependency changes. All regression users/data remain test fixtures.
+7. **Tests performed:** both pre-fix regressions failed with expected one workspace request / actual two. Final **43 Flutter tests passed** (18s) across seller Home/workspace, regular Home, campus banners and header search/navigation. New cases confirm Home-tab return and app resume each perform one status check, no extra workspace fetch, the same scroll offset and the same seller State. Existing browsing/pull-to-refresh, approval/revocation, retry and seller-tool cases pass. Dart formatting completed; scoped whitespace check passed. Two-file Flutter analysis completed with **No issues found** (43.6s).
+8. **Remaining limitations / troubleshooting / safe exercise:** actual permission changes or a failed access check may still change visible seller content through the existing fail-closed behavior. Dashboard figures remain the last loaded snapshot until deliberate refresh or an existing data-changing action. No native device/emulator interaction, build/install, app restart or backend regression run was performed. Safe exercise: use your own Flutter Hot Restart once to load all accumulated lifecycle changes, scroll Home down, switch to Services and back, then minimize/restore the app; unchanged access should preserve the dashboard and scroll position. Pull down from the top to explicitly refresh. Reproduce safely with `flutter test --no-pub test/seller_home_entry_test.dart` without modifying real records.
+
+## Home scrolling preserves inline seller state - October 28, 2026
+
+1. **Cause / reason:** confirmed by a failing widget regression: Home uses a lazy vertical `ListView`. Its inline `SellerDashboardPage(homeSection: true)` was disposed after scrolling past it and recreated on the way back. Recreation reran `initState() -> _load()`, increasing workspace reads from one to two without a refresh gesture. `_load()` temporarily renders a short loading indicator instead of the seller sections; that height change can cause the reported scroll jump. Unwanted reload was reproduced; the user's exact native-device jump was not captured.
+2. **Exact files changed / current anchors:** `campushub/lib/module_app/screens/seller_dashboard_page.dart:51` (`_SellerDashboardPageState`, keep-alive mixin), `:55` (`wantKeepAlive`), `:240` (`super.build(context)`); `campushub/test/seller_home_entry_test.dart:28` / `:44` (fixture request counter), `:76` (`browsing Home preserves seller state; pull-to-refresh still works`); this existing feature guide and `CAMPUSHUB_CONTEXT.md:3`. Four files, one application source file. HomePage, sidebar, bottom navigation and backend source are unchanged.
+3. **Changes made:** add Flutter's `AutomaticKeepAliveClientMixin` to the seller page state and return `widget.homeSection` from `wantKeepAlive`. Call `super.build(context)` so the parent lazy list receives the keep-alive notification. Only the inline Home section asks to survive scrolling outside the viewport; standalone seller tools retain their usual lifecycle. No forced scroll-to-top, extra controller or artificial refresh timer is introduced.
+4. **How it works / functions, inputs, outputs and data flow:** the existing DashboardScreen supplies the authenticated user, verified seller approval, `homeSection: true` and refresh revision. The mixin consumes `homeSection` and retains the existing State/data/filter subtree while the vertical ListView recycles other offscreen children. Scrolling back reuses that state rather than calling `initState()` again. Real refresh still uses `HomePage._refresh() -> DashboardScreen._refreshHome() -> _loadUserName() -> refreshRevision -> SellerDashboardPage.didUpdateWidget() -> _load()`. Existing authorization, error/retry and lifecycle/status refreshes remain active. Removing seller access still removes the seller section from Home.
+
+   Annotated example: `first Home load: workspaceReads = 1 -> scroll to Services -> scroll back to Sales Overview: still 1 and the same State -> pull downward at Home's top: workspaceReads = 2`. Only deliberate refresh should cause the last request in this example. Retaining one bounded inline dashboard is narrower than rebuilding Home as an eager scroll view or disabling refresh.
+5. **Backend / API behavior:** existing Django endpoints, bearer authentication, approval checks, ownership, forecasts, FIFO, Apriori and order/payment rules are unchanged. Normal browsing no longer causes the duplicate seller-status/workspace reads from widget recreation. Deliberate refresh, app-resume verification and access-revocation handling remain as before.
+6. **Database / migration impact:** none. No schema, migration, account, seller permission, inventory, order, session or saved-data changes. The request counters and workspace responses are isolated widget-test fixtures.
+7. **Tests performed:** reproduced the pre-fix extra request (expected one workspace read, actual two), then confirmed the same regression passes after the keep-alive change. Final **41 Flutter tests passed** in 9 seconds across `seller_home_entry_test.dart`, `seller_workspace_test.dart`, `home_page_test.dart`, `campus_home_banners_test.dart` and `dashboard_search_appbar_test.dart`. The new regression checks normal small-scroll offset, stable seller State, unchanged request counts while browsing, and a real pull-to-refresh gesture producing the second workspace request. Existing regular-user layouts, seller approval/revocation, tools/routes, banners/search and bottom navigation also pass. Two-file analysis: **No issues found** (1.8s). Formatting check: **2 files, 0 changed**. Scoped whitespace check passed. The refresh test explicitly returns to scroll offset zero before dragging; an earlier gesture away from the leading edge correctly did not refresh.
+8. **Remaining limitations / troubleshooting / safe exercise:** no native-device/emulator interaction, hot reload/restart, APK installation or backend test run was performed. This fixes the reproduced inline-seller recreation; it does not establish every possible source of a device scroll jump. The retained seller subtree uses memory while offscreen and is released with its Home/route or removal after access changes. Safe exercise: apply your own Flutter Hot Reload, scroll from Sales Overview down to Services and back, and verify seller cards no longer flash a fresh loading spinner. Pull down only from the very top and verify refresh still works. Run `flutter test --no-pub test/seller_home_entry_test.dart` to repeat the isolated check without changing real account or marketplace data. When debugging another jump, distinguish ordinary scrolling from a top-edge refresh or app-resume status check before modifying their existing handlers.
+
 ## Applicant profile pictures and eye-only details action — October 25, 2026
 
 This request supersedes the earlier visible View Application button label. The existing read-only drawer and approval workflows remain.
@@ -1571,4 +3296,288 @@ File: [campushub/test/seller_add_product_page_test.dart](file:///c:/Users/leste/
 - `flutter test test/seller_workspace_test.dart`: 10/10 tests passed in 5s.
 - `python manage.py test api.test_mobile_seller_workspace`: 11/11 tests passed in 0.64s.
 
+---
 
+## Seller Home: "See All" Now Matches Home Instead of Showing a Literal ">"
+
+### Cause (confirmed)
+- The seller dashboard section headers printed `See All >` as one text string. The `>` was a typed character, not an icon, so it looked different from Home's `HomeSectionHeader`, which renders the words `See All` plus a small `arrow_forward_ios_rounded` icon (`campushub/lib/module_app/widgets/home/home_preview_cards.dart:66-92`).
+- The correct, shared pattern is **"See All" + a trailing chevron icon**, because the icon scales and aligns consistently with the other CampusHub "See All" actions.
+
+### Exact files changed
+- [campushub/lib/module_app/screens/seller_workspace_content.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/lib/module_app/screens/seller_workspace_content.dart#L414-L423): added the `_seeAllLabel` getter.
+- Same file, line ~1573 (`_recentOrdersHeader`) and line ~1816 (`sectionHeader`): replaced `const Text('See All >')` with `_seeAllLabel`.
+- [campushub/test/seller_workspace_test.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/test/seller_workspace_test.dart#L451-L453): the tap target now finds `See All` instead of `See All >`.
+- `campushub/DESIGN.md` line ~311: updated the wording to "See All (with a trailing chevron icon, matching Home)".
+
+### How it works
+1. `_seeAllLabel` returns a `Wrap` containing a `Text('See All')` and an `Icon(Icons.arrow_forward_ios_rounded, size: 11, color: ProfileStyle.navy)`.
+2. `Wrap` is used instead of `Row` because `Row` gives its children unlimited width, so at 2x text scale the label overflowed by 87 px. `Wrap` lets the icon move to a second line and lets the text shrink/wrap, so the header stays inside the screen at 320 px width with 2x text.
+3. Both the Recent Orders header and every `sectionHeader` (Inventory Alerts, Suggested Product Bundles, etc.) use the same getter, so the action looks identical everywhere.
+4. Tapping the button still calls `widget.onNavigate(...)` with the same destination; no navigation behavior changed.
+
+### Backend / API behavior
+- Unchanged. This is presentation-only; no request, payload or endpoint was touched.
+
+### Database / migration impact
+- None.
+
+### Tests performed
+- `flutter analyze lib/module_app/screens/seller_workspace_content.dart test/seller_workspace_test.dart`: no issues.
+- `flutter test test/seller_workspace_test.dart test/seller_home_layout_test.dart`: 41 passed, 2 failed. The two failures are the pre-existing `recent-order ... badge hugs its label` width assertions (`Expected: a value less than <154.5>, Actual: <201.0>` / `<190.75>`); they also fail with the original `See All >` text, so they are unrelated to this change.
+- Verified the narrow/large-text cases now pass: `sales menu stays below its filter at 320.0/2.0`, `seller Home wraps long data at 320.0/844.0/2.0`, and `seller profile header and zero sales fit Size(320.0, 812.0) at 2x text`.
+
+### Remaining limitations
+- The chevron uses a fixed `size: 11`, matching Home, so it does not grow with the user's text scale. That is the existing Home convention.
+- Not yet checked on a physical phone; verification was widget tests only.
+
+### Safe practice exercise
+1. Open `seller_workspace_content.dart` at `_seeAllLabel` (around line 414).
+2. Change `size: 11` to `size: 16`.
+3. Run `flutter test test/seller_workspace_test.dart` from the `campushub` folder and confirm the "See All" test still passes.
+4. Change it back to `11` so the seller header stays visually identical to Home.
+
+---
+
+## Add Product: Tags Placeholder Is Centered and No Longer Clipped
+
+### Cause (confirmed)
+- The Tags field wraps its chips and text entry in a `Wrap` inside a `ConstrainedBox(minHeight: 50)`. `Wrap` places its runs at the top of that box, so the empty placeholder `e.g. homemade, snacks` sat above the vertical center of the 54 px container.
+- When at least one chip existed, the text entry was forced to a fixed `120` px width. At 2x text scale on a 280 px-wide screen the hint `Add a tag` was clipped to `Add a ...`, which looked unbalanced next to the chip.
+
+### Exact files changed
+- [campushub/lib/module_app/widgets/seller/product_tag_input.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/lib/module_app/widgets/seller/product_tag_input.dart#L110-L118): the `Wrap` is now wrapped in `Align(alignment: AlignmentDirectional.centerStart, ...)`, which centers the run vertically while keeping it left-aligned.
+- Same file, line ~151 (`SizedBox` width): the entry width is now `160 * MediaQuery.textScalerOf(context).scale(1)` capped at `constraints.maxWidth`, so the hint grows with the user's text size instead of being clipped.
+
+### How it works
+1. `ConstrainedBox(minHeight: 50)` keeps the field the same height as the other single-line fields.
+2. `Align` fills that height and centers its child vertically; the child `Wrap` sizes to its content height. Result: chips and the placeholder sit in the middle of the border instead of at the top.
+3. When tags are empty, the entry still takes the full width (`constraints.maxWidth`).
+4. When tags exist, the entry requests up to `160` logical pixels multiplied by the current text scale, never more than the available width. At 2x scale on 280 px the entry becomes the full row width, so `Add a tag` is fully visible.
+5. `Wrap` still moves the entry to a new line when it does not fit beside the chips; no chip is ever clipped.
+
+### Backend / API behavior
+- Unchanged. Tags are still serialized as the same comma-separated string by `ProductTagInput.commit` / `values`.
+
+### Database / migration impact
+- None.
+
+### Tests performed
+- `dart format` and `flutter analyze lib/module_app/widgets/seller/product_tag_input.dart`: no issues.
+- With bundled fonts loaded (`PRODUCT_FORM_REVIEW_DIR` set): `flutter test test/seller_add_product_page_test.dart` → 27 passed, 1 failed. The failure is `category popup stays aligned after keyboard inset changes`; it passes when run alone, so it is a pre-existing order-dependent test, unrelated to tags.
+- Tag-specific tests pass both individually and in the full run: `tags become removable chips...`, `long tag chips fit a narrow large-text form...`.
+- Captured renders at 390x844/1x and 280x844/2x: the placeholder is vertically centered, and `Add a tag` is no longer truncated.
+
+### Remaining limitations
+- The placeholder still does not wrap to multiple lines; very large text (for example 3x) on a very narrow screen can still clip a long hint. The 2x case requested here is fixed.
+- Verified with widget renders, not a physical phone.
+
+### Safe practice exercise
+1. Open `product_tag_input.dart` around line 151.
+2. Change `160` to `120`.
+3. Run `flutter test test/seller_add_product_page_test.dart --plain-name "long tag chips fit a narrow large-text form and keep their remove action"` from `campushub` with `PRODUCT_FORM_REVIEW_DIR` set, then look at `tag-chips-280.png`. The `Add a tag` hint will be clipped again.
+4. Change it back to `160`.
+
+---
+
+## Add Product: Footer "Back" Text Button Removed (Header Arrow Kept)
+
+### Cause (confirmed)
+- The Add Product footer showed an `OutlinedButton` labelled `Back` beside `Next` on steps 2-4. The header `BackButton` arrow already performs the same `_back()` action (previous step, or exit on step 1), so the footer text button was redundant.
+
+### Exact files changed
+- [campushub/lib/module_app/screens/seller_add_product_page.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/lib/module_app/screens/seller_add_product_page.dart#L600-L643): `_navigation` no longer builds the `OutlinedButton` or the two-button `Row`/`Column`; it always returns the full-width primary button (`Next` / `Submit for Approval`). The header `leading: BackButton(onPressed: _busy ? null : _back)` remains.
+- [campushub/test/seller_add_product_page_test.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/test/seller_add_product_page_test.dart#L181-L209): the `back` helper now taps `find.byType(BackButton)`; `expectStep` asserts the header arrow exists and `back-product-step` no longer exists; the pending-submission test checks that the header arrow is disabled while busy.
+
+### How it works
+1. The footer now contains only the primary action: `Next` on steps 1-3 and `Submit for Approval` on step 4.
+2. The header arrow calls `_back()`: on steps 2-4 it calls `_changeStep(_step - 1)`; on step 1 it pops the page.
+3. `PopScope` still maps the platform back action to the same behavior while the form is not busy.
+4. Because there is only one button, the previous narrow-screen/large-text stacking logic for two footer buttons is no longer needed.
+
+### Backend / API behavior
+- Unchanged. No endpoint, payload or validation was touched.
+
+### Database / migration impact
+- None.
+
+### Tests performed
+- `dart format` and `flutter analyze` on the edited screen and test file: no issues.
+- `flutter test test/seller_add_product_page_test.dart`: 34/34 passed with bundled fonts (`PRODUCT_FORM_REVIEW_DIR` set).
+- Targeted tests also passed alone: `keyboard, header Back and platform Back retain the same draft`, `seller access and empty category guards keep their existing behavior`, `submission is authenticated, guarded while pending and retains review on error`.
+
+### Remaining limitations
+- The footer no longer shows a labelled `Back` action; previous-step navigation now relies on the header arrow or the platform back action. This matches the request.
+- Not yet checked on a physical phone.
+
+### Safe practice exercise
+1. Open `seller_add_product_page.dart` at `_navigation` (around line 600).
+2. Wrap the returned `SizedBox` in the previous two-button `Row` by re-adding an `OutlinedButton` with `key: ValueKey('back-product-step')` and `onPressed: _busy ? null : _back`.
+3. Run `flutter test test/seller_add_product_page_test.dart --plain-name "keyboard, header Back and platform Back retain the same draft"`; the `expectStep` assertion `back-product-step` finds nothing will fail.
+4. Remove the added button again to restore the requested single-button footer.
+
+---
+
+## Add Product: Tags Help Tooltip Copy Updated
+
+### Cause (confirmed)
+- The Tags help tooltip used the older sentence `Type a tag, then press Enter or a comma to add it. Tap × to remove. Next saves unfinished text too.` The requested copy is shorter and does not mention the Next behavior.
+
+### Exact file changed
+- [campushub/lib/module_app/widgets/seller/product_tag_input.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/lib/module_app/widgets/seller/product_tag_input.dart#L10-L11): `ProductTagInput.instructions` is now `Type a tag and press Enter or comma to add it. Tap × to remove a tag.`
+
+### How it works
+1. The info icon (`ValueKey('product-tags-info')`) opens a `Tooltip` whose `message` is `ProductTagInput.instructions`.
+2. Tests and the tooltip both read the same constant, so there is one source of truth.
+
+### Backend / API behavior
+- Unchanged. Tags are still committed as the same comma-separated string.
+
+### Database / migration impact
+- None.
+
+### Tests performed
+- `flutter analyze lib/module_app/widgets/seller/product_tag_input.dart`: no issues.
+- `flutter test test/seller_add_product_page_test.dart --plain-name "tag instructions appear only from help icon at 390.0"` and `... at 280.0`: both passed.
+
+### Remaining limitations
+- The tooltip text is a single line that may wrap inside the 320 px tooltip; that behavior is unchanged.
+
+### Safe practice exercise
+1. Open `product_tag_input.dart` around line 10.
+2. Change `Tap × to remove a tag.` to `Tap the × icon to remove it.`
+3. Run the two `tag instructions` tests above; they should still pass because they compare against the constant.
+4. Change it back.
+
+---
+
+## Add Product: Low Stock Threshold Help Icon Sits Next to Its Label
+
+### Cause (confirmed)
+- `ProductInventoryInfo` uses a 48x48 `IconButton` for its accessible tap target, but the icon was centered inside that box. In the `_label` row (`Flexible(label)`, `SizedBox(width: 4)`, `labelAction`), the glyph therefore appeared about 15 px farther from the label than the Tags help icon, which already used `alignment: centerStart` and `padding: zero`.
+
+### Exact file changed
+- [campushub/lib/module_app/widgets/seller/product_inventory_fields.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/lib/module_app/widgets/seller/product_inventory_fields.dart#L172-L181): the `IconButton` now has `padding: EdgeInsets.zero` and `alignment: AlignmentDirectional.centerStart`.
+
+### How it works
+1. The `IconButton` keeps its `BoxConstraints(minWidth: 48, minHeight: 48)` tap target, so accessibility is unchanged.
+2. `alignment: centerStart` places the 18 px info glyph at the left edge of the 48 px box, directly after the label's 4 px gap.
+3. The same widget is used by Batch Tracking and Low Stock Threshold, so both help icons now align consistently.
+
+### Backend / API behavior
+- Unchanged. The tooltip content and the threshold value sent to `POST /api/seller/products/submit/` are untouched.
+
+### Database / migration impact
+- None.
+
+### Tests performed
+- `flutter analyze lib/module_app/widgets/seller/product_inventory_fields.dart`: no issues.
+- `flutter test test/seller_add_product_page_test.dart --plain-name "four active sections, left progress and right label fit 390.0/844.0/1.0"`: passed.
+- `flutter test test/seller_add_product_page_test.dart --plain-name "concise batch tooltip supports tap, long press, hover and outside dismissal at 390.0"`: passed.
+- The earlier 280/2x failures came from the ongoing Inter-font test migration; the test harness now loads `assets/fonts/inter/InterVariable.ttf`, and the full `seller_add_product_page_test.dart` suite passes 36/36.
+
+### Remaining limitations
+- The visual gap still includes the label's existing 4 px `SizedBox`; reducing it further would make the icon touch the text. The 48 dp tap target is intentionally kept.
+- Not yet checked on a physical phone.
+
+### Safe practice exercise
+1. Open `product_inventory_fields.dart` around line 172.
+2. Change `alignment: AlignmentDirectional.centerStart` to `AlignmentDirectional.center`.
+3. Run the two tests above and inspect `step-2-390.png`; the Low Stock Threshold icon will move back to the middle of its 48 px box, increasing the visible gap.
+4. Change it back to `centerStart`.
+
+---
+
+## Add Product: Stock Method Help Icons Sit Beside Their Titles
+
+### Cause (confirmed)
+- The Standard Stock and Batch Tracking help icons were painted by a `PositionedDirectional` at the card's right edge (`end: ProductFormStyle.gap`), so the icon appeared far from the title even though the title was on the left. The body text also had to reserve `end: ProductFormStyle.target` to avoid overlapping the floating icon.
+
+### Exact files changed
+- [campushub/lib/module_app/widgets/seller/product_inventory_fields.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/lib/module_app/widgets/seller/product_inventory_fields.dart#L199-L295): replaced the `Stack`/`PositionedDirectional` overlay with a title `Row` containing the title and `ProductInventoryInfo`; removed the `end` reservation on the description; updated the two tooltip constants.
+- [campushub/test/seller_add_product_page_test.dart](file:///c:/Users/leste/Desktop/CAMPUSHUB/campushub/test/seller_add_product_page_test.dart#L704-L721): updated geometry assertions to expect the icon immediately after the title, and loaded the Inter font in `setUpAll`.
+- [docs/mobile-seller-application.md](file:///c:/Users/leste/Desktop/CAMPUSHUB/docs/mobile-seller-application.md): this guide.
+
+### Changes made
+- Standard Stock tooltip now reads `Enter the total number of items you have available.`
+- Batch Tracking tooltip now reads `Keep track of your stock each time you add new items. Older stock is sold first.`
+- The info icon for each method now renders directly after its title (`Batch Tracking ⓘ`) instead of at the card's far right.
+- The 48x48 tap target is unchanged; the title row is 48 px tall so the icon still has a full accessible target.
+- The description no longer reserves 48 px of trailing space, so wrapped copy uses the full card width.
+
+### How it works
+1. Each method card lays out `Radio` + 8 px + `Expanded(Column)`.
+2. The Column's first child is now `Row(Flexible(title), SizedBox(4), ProductInventoryInfo)`.
+3. `Flexible` lets long titles wrap at 280 px / 2x without overflowing.
+4. `ProductInventoryInfo` still uses the same tooltip, `TapRegion`, and 48 dp `IconButton`, so tap, long-press, hover, and outside-dismiss behavior are unchanged.
+
+### Backend / API behavior
+- Unchanged. The stock method value and submit payload are untouched.
+
+### Database / migration impact
+- None.
+
+### Tests performed
+- `flutter analyze lib/module_app/widgets/seller/product_inventory_fields.dart test/seller_add_product_page_test.dart`: no issues.
+- `flutter test test/seller_add_product_page_test.dart --plain-name "stock cards align content and select through the card at 390.0/1.0"`: passed.
+- `flutter test test/seller_add_product_page_test.dart --plain-name "stock cards align content and select through the card at 280.0/2.0"`: passed.
+- Full `flutter test test/seller_add_product_page_test.dart`: 36/36 passed.
+- Rendered `step-2-390.png` and `batch-tooltip-390.png` confirm the icon sits beside each title and the tooltip shows the new copy.
+
+### Remaining limitations
+- The title row is 48 px tall to preserve the tap target, so each card is slightly taller than before.
+- Not yet checked on a physical phone.
+
+### Safe practice exercise
+1. Open `product_inventory_fields.dart` around line 250.
+2. Change `const SizedBox(width: 4)` between the title and the info icon to `const SizedBox(width: 16)`.
+3. Run the stock-card tests above and inspect `step-2-390.png`; the icon moves 12 px farther from the title.
+4. Change it back to `4`.
+
+
+
+---
+
+## Add Product Form: Renamed Available Quantity to Available Stock
+
+### Cause (confirmed)
+- In the Add Product form, the standard stock field previously displayed the label `'Available Quantity *'` and the placeholder `'Enter available quantity'`, and the final review step displayed `'Total Available Quantity'`.
+- Per user instruction and institutional inventory standards, this was renamed to `'Available Stock *'` and `'Enter available stock'`, harmonizing terminology across the mobile seller form and the web admin product modal (which previously used `'Stock Quantity'`).
+
+### Exact files changed
+- [campushub/lib/module_app/screens/seller_add_product_page.dart](file:///C:/Users/leste/Desktop/CAMPUSHUB/campushub/lib/module_app/screens/seller_add_product_page.dart#L987-L1685):
+  - Line 987: Updated review label `_reviewValue('Total Available Stock', '$total units')`.
+  - Line 1674: Updated field label `_label('Available Stock *', ...)`.
+  - Line 1682: Updated field input decoration `_decoration('Enter available stock')`.
+- [backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html](file:///C:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/templates/marketplace/pages/admin_products.html#L391):
+  - Line 391: Updated form label `<label for="productStock" class="form-label">Available Stock <span class="required-asterisk">*</span></label>`.
+
+### Changes made
+1. Replaced `'Available Quantity *'` with `'Available Stock *'` on the standard stock field in `seller_add_product_page.dart`.
+2. Replaced the input placeholder `'Enter available quantity'` with `'Enter available stock'`.
+3. Replaced `'Total Available Quantity'` with `'Total Available Stock'` in the review step (Step 4) of `seller_add_product_page.dart`.
+4. Replaced `'Stock Quantity'` with `'Available Stock'` in the web admin Add Product modal form (`admin_products.html`) for cross-platform alignment.
+
+### How it works
+- **Mobile Seller Flow**: In Step 2 (Pricing & Inventory), when the user selects "Standard Stock" (`_inventoryMethod == 'simple'`), the field label displays `Available Stock *` with hint text `Enter available stock`. When reaching Step 4 (Review), the summary row displays `Total Available Stock` alongside the formatted count (e.g. `10 units`).
+- **Web Admin Flow**: When administrators open the Add Product modal, section 3 ("Pricing & Inventory") displays the field label `Available Stock *` matching the helper description directly underneath ("You will be alerted when available stock reaches this amount or lower.").
+- All backend keys (`stock`), validation rules, API endpoints (`/api/seller/products/submit/`), and form controllers (`_quantity`) remain unchanged.
+
+### Backend / API behavior
+- Unchanged. The payload continues sending the parsed integer under `'stock'`.
+
+### Database / migration impact
+- None. No models, tables, columns, or migrations were touched.
+
+### Tests performed
+- `flutter test test/seller_add_product_page_test.dart`: 50/50 tests passed in 25s.
+- `python manage.py test modules.marketplace.tests`: 29/29 tests passed in 19.8s.
+
+### Remaining limitations
+- Mobile batch tracking (FIFO) uses individual `'Batch Quantity *'` fields for each restock lot, while standard stock uses `'Available Stock *'`. This distinction is intentional and accurately reflects batch inventory semantics.
+
+### Safe practice exercise
+1. Open `campushub/lib/module_app/screens/seller_add_product_page.dart` around line 1674.
+2. Locate the `_label('Available Stock *', ...)` widget anchor.
+3. Verify that the label and hint string `'Enter available stock'` are properly synchronized.
+4. Run `flutter test test/seller_add_product_page_test.dart` from the `campushub` folder to verify that widget keys and form flow remain intact.

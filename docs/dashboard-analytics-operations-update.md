@@ -1,5 +1,1284 @@
 # CampusHub Dashboards: Analytics and Operations
 
+## Current: compact shared Attention Required styling - November 3, 2026
+
+### 1. Cause / reason
+
+The user requested compact, consistent Attention Required cards for Super Admin and Marketplace Admin. Confirmed causes: Super Admin's generic priority-card header reserves 112px/144px minimum heights and a divider even though this header now contains only a title; Marketplace's separate header/body padding adds a different gap. Existing role-specific CSS also differs in icon color, row height and action placement. This change affects only Attention Required.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/static/components/css/admin_dashboard_attention.css` |3 compact scope/tokens;15 header;25 title;38 body;47 list;56 row;67 icon;75 summary;100 count;112 action;132 hover;138 focus;144 container query | New shared presentation for the existing two cards. Override their older fixed heights/padding within an explicit compact scope. |
+| `backend/templates/dashboard/partials/attention_required.html` |1 `dashboard-attention--compact` | Opt in only for `global_dashboard` or the existing Marketplace `executive_attention` flag. Existing loops, IDs, error/empty/loading hooks and label/count/action output stay unchanged. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` |30 `admin_dashboard_attention.css` | Load the shared stylesheet after existing Super Admin refinements, only for the global dashboard. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` |19 `admin_dashboard_attention.css` | Load the same stylesheet after existing Marketplace and bundle styles. |
+| `backend/core/modules/reports/test_dashboard_periods.py` |401/402 compact marker and stylesheet assertions | Extend the existing Super Admin attention regression. |
+| `backend/core/modules/reports/test_marketplace_admin_dashboard.py` |366/367 compact marker and stylesheet assertions | Extend the existing Marketplace attention regression. |
+| `docs/dashboard-analytics-operations-update.md`; `docs/dashboard-marketplace-design.md`; `CAMPUSHUB_CONTEXT.md` |Newest compact-attention entries | Explain implementation, verification and a safe practice exercise. |
+
+### 3. Changes made
+
+Both cards now use a natural-height top-left heading with 16px top, 12px side and 12px bottom padding. The body uses 12px side/bottom padding and no header/inner divider. Rows have white surfaces, subtle borders, 12px corners, 8px vertical spacing and a 52px minimum height. The icon is 16px gold `#FCB316`; titles, counts and actions use navy `#1A1851`. Every text element inherits the page's existing bundled Montserrat UI token. Counts keep a small neutral background.
+
+At card widths of at least 460px, the existing three children form icon → grouped title/count → right-aligned action. Below that card width, the action occupies a second row and remains right-aligned. Titles and actions wrap rather than overflowing. The breakpoint uses the card's width, so it also works in the two different dashboard grids. Adjacent cards, dashboard grids, bundle content and welcome headers are unchanged.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No runtime function was added or changed. Existing authorized Django attention builders produce `attention_required.items`, each containing its real `key`, `severity`, `label`, `count`, `url` and `action`. The existing shared partial renders those values. Its new class selects the shared stylesheet, which changes geometry and presentation only. Super Admin's existing `renderAttention(attention)` in `admin_dashboard_filter.js` still rebuilds the same row/icon/summary/action classes after refresh, so refreshed rows receive the same styling automatically.
+
+For example, a real low-stock item with count2 still renders `Low Stock Products`, `2` and its existing inventory URL. The stylesheet places the action in column3 when the card is wide enough; it never changes the value or constructs another destination. The narrowly scoped shared file was chosen instead of editing generic `.executive-card-header` rules, because those rules also size unrelated cards. Its container name excludes the generic priority-header height query for this card, and its explicit header reset overrides the existing viewport-based heights.
+
+### 5. Backend / API behavior
+
+Unchanged. Role-specific alert types, academic scope, current inventory rules, permission checks, counts, API payloads, update events and navigation targets are preserved. Loading, error and empty-state visibility remains controlled by existing code. There are no new requests or business rules.
+
+### 6. Database / migration impact
+
+None. No model, migration or working-record changes. Verification used a disposable local PostgreSQL test database and locally rendered fixtures.
+
+### 7. Tests performed
+
+- **12/12 targeted Django tests passed in 5.213 seconds**, with no system-check issues. Coverage includes Super Admin's actual issues/routes, pending-product creator exclusions, inventory/expiry/reservation rules, empty/archived states, schedule conflicts, bounded queries/error handling and destination filters; Marketplace counts, missing scope, action permissions and fixture export; and existing Super Admin section order/header/saved-bundle behavior.
+- **777 Chromium checks passed across 32 renders**: populated and empty cards for both roles at 280/320/414/768/1024/1280/1440/1920px. Measured identical header/body padding, zero minimum header height and dividers, 12px heading-to-first-row gap, 52px desktop rows, gold icons, navy Montserrat text, contained content, role-specific counts/URLs, right-aligned actions and responsive wrapping. Existing destination clicks, keyboard focus and hover passed; no JavaScript errors, missing assets or write requests were observed.
+- Inspected actual desktop captures for both roles, phone Marketplace, narrow Super Admin and empty Super Admin. Logs, measurements and captures: `scratch/attention-compact-20261103/`. Tracked-change whitespace check passed; Git emitted only the existing line-ending conversion notice.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Browser checks used Django-rendered local fixtures with local request interception, not a live signed-in deployment or physical device. Narrow cards intentionally become taller when labels/actions wrap. The outer grid can still stretch this card to match its neighbor; no unrelated grid or bundle height was changed. No full application suite or unrelated vendor demonstration gate is claimed.
+
+Safe practice: open each authorized dashboard, confirm gold icons and a compact gap under Attention Required, then follow an existing alert link and confirm its destination/filter. Resize to 390px: the action should stay right-aligned inside its row, below the title/count when necessary. Refresh Super Admin and confirm the rebuilt rows retain the same layout. Use existing records and GET navigation only. If old spacing remains, confirm the stylesheet URL ends in `20261103-compact` and loads after the role-specific styles; inspect the compact class and computed header `min-height` before changing any backend count or permission code.
+
+## Current: remove gray descriptions from Super Admin priority headers - November 3, 2026
+
+1. **Cause / reason:** The user clarified that "remove gray" means removing the description text beneath the Attention Required and Suggested Product Bundles headings. The screenshot's background, borders and empty-state explanation are outside this change.
+2. **Exact files changed:** `backend/templates/dashboard/partials/attention_required.html:4` (`dashboardAttentionTitle`, in the `global_dashboard` header); `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:3` (`marketplaceRecommendationsTitle`); this guide and `CAMPUSHUB_CONTEXT.md`.
+3. **Changes made:** Removed the two static paragraph elements: "Items requiring administrator review or action." and "Current saved recommendations. Evidence and source details are available in Bundle Suggestions." No CSS, heading, View All link, alert row, count, icon or empty-state text changed. The Marketplace Admin header branch and its separate compact bundle partial remain unchanged.
+4. **How it works / inputs, outputs and data flow:** Django still renders the existing shared attention partial with `global_dashboard` and `attention_required.items`, and the Super Admin preview with `bundle_analysis.monitor_rows` / `monitor_error`. Only two constant output paragraphs were removed. Existing queryset/context -> template conditions/loops -> actual alerts or saved suggestions remains. For example, a low-stock count2 still renders2 with the same inventory action; an empty bundle list still shows No Bundle Suggestions Yet and its explanation. Template removal was chosen over hiding gray elements broadly so other descriptions/status messages remain readable.
+5. **Backend / API behavior:** Unchanged. No permission, query, period, inventory, audit, Apriori, seller-response or endpoint changes.
+6. **Database / migration impact:** None. No models, migrations, dependencies, assets or working records changed. Verification used a disposable local PostgreSQL database.
+7. **Tests performed:** **4/4 existing Super Admin card/layout checks passed in1.790 seconds**, with no Django system-check issues. These cover priority-section order/saved-bundle refresh, error-versus-empty states, product images/recorded seller response, and limiting saved previews to two without mutating context. Log: `scratch/marketplace-dashboard-layout-20261103/super-card-subtitles.log`. No new tests were added for two static paragraph removals; no new browser render, device or deployment check was performed.
+8. **Remaining limitations / troubleshooting / safe practice:** Existing header padding/grid and backgrounds remain; this only removes the requested header descriptions. Refresh a local Super Admin dashboard and confirm both headings and View All remain, the two gray header paragraphs are absent, and alert actions/empty-bundle text still appear. Use existing records or disposable fixtures rather than creating suggestions. If the old descriptions persist, refresh the Django-served page and check these two templates; do not remove every `.executive-section-subtitle` or change global muted colors, because other dashboard sections still use them.
+
+## Current: System Overview inline activity trends - November 3, 2026
+
+This is the accepted System Overview trend behavior. It supersedes percentage badges, neutral N/A/0% indicators and neutral New Activity text. Only Total Users, Total Orders, Total Bookings and Marketplace Sales have trend hooks; the other four cards keep their existing summaries.
+
+### 1. Cause / reason
+
+The original implementation already compared some period metrics, but displayed comparison text below the number and did not calculate registration growth independently of the lifetime account count. The first implementation in this task added database-backed equal-length KPI comparisons. The user's subsequent instructions replace its badge presentation with inline text and hide indicators that do not describe a valid nonzero change.
+
+Confirmed during verification: ordinary SVG `hidden` property assignment did not control an SVG attribute, and a wrapped currency/trend pair can increase natural row height on narrow cards. The final requested text presentation removes the SVG entirely, keeps the original card/grid sizing declarations, and permits normal text wrapping instead of clipping. The actual main values, icons, titles, explanatory basis text and other four summaries remain.
+
+### 2. Exact files changed, current lines and code anchors
+
+Paths are relative to the project root. These are current anchors; older entries below retain historical line numbers.
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/reports/dashboard_kpi_trends.py` | 6 `comparison_dates`; 13 `activity_trend`; 40 `attach_kpi_trends` | Creates the four KPI trend results from existing aggregates. Final presentation outputs blank/hidden for zero activity or rounded-zero percentages, green New Activity for a zero baseline, signed labels and a `visible` flag. Formula and period boundaries are unchanged by the final display refinement. |
+| `backend/core/modules/reports/dashboard_periods.py` | 152 KPI dates; 165 account aggregates; 203 prior orders; 209 prior revenue; 295 physical booking comparison; 312 attach | Adds equal-length prior counts to the existing aggregate queries and attaches only the four requested trend results. Existing lifetime values and other sections' comparison fields remain intact. |
+| `backend/core/modules/reports/account_metrics.py` | 8 `account_population`; 15 `previous_new` | Optional prior-registration aggregate in the existing web/mobile queries. Other callers retain their previous output when the argument is absent. |
+| `backend/core/modules/reports/dashboard_executive.py` | 106 `executive_overview`; 113 `kpi_previous`; 121 `kpi_previous_total` | Reuses the existing physical booking aggregate for the equal-length KPI baseline. Its booking chart/comparison calculation stays separate. |
+| `backend/templates/dashboard/partials/system_overview_summary.html` | 19, 64, 94, 109 `kpi_value.html` includes | Wraps only the four requested values with their inline trend partial. Other card markup, destinations, icons and descriptions remain. |
+| `backend/templates/dashboard/partials/kpi_value.html` | 1 conditional value row | Keeps the original main value/currency formatting and places the trend immediately after it in a baseline-aligned flex row. |
+| `backend/templates/dashboard/partials/kpi_trend.html` | 1 `data-dashboard-trend` | Plain signed text or New Activity; no badge, SVG, border or colored container. Hidden results occupy no layout space. |
+| `backend/templates/dashboard/partials/kpi_secondary.html` | 1 conditional comparison caption | Shows `vs. previous period` only for visible trends. Other four metrics retain their previous descriptive/zero-state text. |
+| `backend/static/components/css/admin_executive_refinement.css` | 21 trend color variables; 208 value row; 223 plain trend; 252 hidden elements | Baseline flex layout with compact spacing and wrapping; 11px semibold text; explicit transparent/background-free styling; scoped hidden override. Card dimensions, padding, grid and shared typography declarations are untouched. |
+| `backend/static/components/js/admin_dashboard_filter.js` | 420 trend lookup; 423 response validation; 427 visible state; 707 failed-report cleanup | Refresh updates adjacent trend text safely, hides absent/invalid/zero values and captions, and hides old trends after a failed full reporting request. No client percentage calculation is introduced. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` | 29 stylesheet cache key; 621 controller cache key | Loads `20261103-kpi-trends-activity`. |
+| `backend/core/modules/reports/test_dashboard_kpi_trends.py` | 21 math cases; 47 database fixtures; 159 equal nonzero visibility | New formula/date/actual-database/API/render/visibility regressions. |
+| `backend/core/modules/reports/test_dashboard_kpi_cards.py` | 41 account-basis assertion | Updates a stale expectation from All-time web accounts to the already-existing All web and mobile accounts wording. Does not change production copy. |
+| `docs/dashboard-analytics-operations-update.md`; `CAMPUSHUB_CONTEXT.md` | This report / newest KPI entry | Records final behavior, calculations, exact source anchors, verification, limitations and safe practice. |
+
+### 3. Changes made
+
+| Current / previous activity | Visible text | Styling |
+| --- | --- | --- |
+| Current > 0, previous = 0 | `↗ New Activity` | Green `#15803D`, plain text |
+| Positive nonzero percentage | `+X%` | Green `#15803D`, plain text |
+| Negative percentage | `−X%` | Red `#B91C1C`, plain text with a true minus sign |
+| Both zero, equal nonzero activity, or percentage rounded to exactly 0.00% | Nothing | Trend and caption use display:none; no flex gap for a hidden item |
+| Missing/null/invalid reporting data or failed full request | Nothing | No N/A or invented percentage; existing stale-data/error behavior remains |
+
+The main number remains large, bold navy `#1A1851`, with Montserrat inherited from the existing Super Admin scope. The trend sits immediately to its right and aligns to its baseline. `vs. previous period` stays below only when a trend is visible. Active Sellers, Total Products, Total Facilities and Pending Approvals receive no percentages or new visibility logic. Main values continue to describe their existing snapshot or selected-period basis.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+`comparison_dates(period)` receives the selected AnalyticsPeriod and returns inclusive prior dates of exactly the same number of days, ending the day before the current range begins. For example, March 1-31 compares against January 29-February 28, rather than comparing 31 days against a 28-day month. Existing non-KPI charts retain their previous comparison metadata. `build_dashboard_data` already runs inside the Asia/Manila timezone override, so account registration, order submission, booking submission and recognized revenue boundaries all use Philippine local dates.
+
+`account_population(..., previous_range=...)` adds prior web `date_joined` and mobile `created_at` counts to its existing two aggregate queries. Orders use `created_at`. Physical bookings use the existing booking population that excludes academic schedule blocks and specialized service requests. Sales reuse the canonical completed AND paid queryset and its existing completed/paid/created timestamp precedence. No stock, payment, approval or booking workflow is changed.
+
+`attach_kpi_trends` receives those current/prior aggregates, including Decimal sales amounts, and makes no database queries. `activity_trend` retains the existing formula `((current - previous) / previous) * 100`, returns a two-decimal numeric `percentage_change` or null for a zero denominator, and prepares the display fields `label`, `direction`, `visible` and an explanation naming the population, actual dates and values. A display rounded to zero is hidden consistently in server HTML and refresh. A zero baseline with positive activity is a labelled first-activity state, never an invented percentage.
+
+```text
+Existing period controls -> authorized Django view/API -> existing aggregates
+  -> equal-length KPI baselines -> four optional metric.trend results
+  -> value partial + plain inline trend + conditional comparison caption
+Refresh -> same API -> validate received trend fields -> show/hide text and caption
+Full request failure -> keep actual last loaded main values/stale message -> hide trends
+```
+
+The browser consumes server-supplied percentages/labels; it does not compute growth. It checks finite current/prior values and a valid nonzero percentage, with the explicit New Activity exception. Hidden elements are retained in the DOM for later refresh but have zero rendered width and no caption/placeholder. Recovery can show a valid indicator again. The final refinement's source hashes confirm `dashboard_periods.py`, `account_metrics.py` and `dashboard_executive.py` were not altered while changing the visibility rules.
+
+Annotated example, documentation/test data only: a lifetime account count of 11 can display `11  +600%` when seven accounts registered in the selected period and one registered in the prior period. The 600% compares 7 with 1; it does not claim the lifetime total grew from 1 to 11. If both periods register seven, the main count remains 11 with no trend/caption. If the prior period has zero and the selected period has seven, show `11  ↗ New Activity`. These example values are not hardcoded into the application.
+
+### 5. Backend / API behavior
+
+The existing Dashboard API URL, authentication, tab-token integration, role gates and refresh/filter requests remain. Only four existing KPI objects gain a nested `trend`; their original value, secondary text, percentage/comparison fields remain for compatibility. The nested trend carries exact current/prior activity values, percentage/null, selected/prior dates, day count, timezone and display fields. The other four KPI objects do not gain trends.
+
+Total Users remains all recorded web/mobile accounts, including disabled records, while growth compares registration events. No web/mobile identities are merged. Active Sellers remains a current approved-access snapshot with recorded approvals; Products remains current catalog plus products added; Facilities retains its current status summary; Pending Approvals retains its current queue count. Green/red indicates activity direction, not an automatic judgement that every operational increase/decrease is beneficial.
+
+### 6. Database / migration impact
+
+None. No models, migrations, working records, business workflows, dependencies or API endpoints changed. New trend baselines reuse existing aggregates rather than adding per-record or extra queries; the existing dashboard query-budget regression passes. PostgreSQL verification runs only in a uniquely named disposable local test database, which is destroyed afterward. No backend restart, production deployment, mobile edit or user-facing app launch was performed.
+
+### 7. Tests performed
+
+- **58/58 Django tests passed** in 23.805 seconds across `test_dashboard_kpi_trends`, `test_dashboard_periods`, `test_dashboard_marketplace_parity` and `test_dashboard_kpi_cards`. Django system checks were clean, and the disposable PostgreSQL database was destroyed. Coverage includes exact current/prior populations, disabled/mobile registrations, lifetime separation, completed-and-paid eligibility, submission versus completion dates, service exclusion, zero/new/equal/declining states, rounded-zero visibility, month-end/leap/custom ranges, Manila midnight, permissions and the unchanged query budget.
+- JavaScript syntax checks passed for the application controller and isolated browser harness. Three upstream reporting-source hashes match the state before the final visibility refinement. The browser harness uses actual isolated Django-rendered pages and JSON; deliberately malformed/missing transport cases are test-only clones used to verify hiding rather than fabricated application data.
+- **1,496/1,496 headless Chrome checks passed across 20 renders**, with screenshot inspection recorded in `scratch/dashboard-kpi-trends-20261103/browser.log`, `browser-results.json` and the actual render PNGs. It checks eight cards, four eligible trend hooks, plain colors/no badge styling, navy main values, inline baseline layout, hidden zero-width indicators/captions, zero/equal/new/declining states, recovery, malformed data, request errors, retained tab auth and responsive layouts from 280 through 1920px. Desktop card geometry and original sizing rules are compared against the saved pre-change presentation; narrow cards may naturally wrap text while retaining the same grid and sizing rules. Actual mixed, equal-growth and New Activity captures were visually inspected.
+- The optional design-kit command was attempted and reported **`RESULT: 0/52 checks passed  =  0%`**. It could not verify its own examples because `python3`, Playwright/modules and example files are unavailable in that kit installation. This is not an application pass or a WCAG score. The complete failure list is in `optional-web-kit-gate.log`; no unrelated kit installation or application-rule suppression was performed.
+
+Reproduce from the project root:
+
+```powershell
+# Disposable local PostgreSQL only; the runner verifies localhost:5432.
+backend/core/venv/Scripts/python.exe -B scratch/operating-schedule-20261029/run_tests.py modules.reports.test_dashboard_kpi_trends modules.reports.test_dashboard_periods modules.reports.test_dashboard_marketplace_parity modules.reports.test_dashboard_kpi_cards
+node --check backend/static/components/js/admin_dashboard_filter.js
+# Set KPI_TREND_REVIEW_DIR to scratch/dashboard-kpi-trends-20261103 before the
+# Django run to regenerate real fixture HTML/JSON, then run the local harness:
+node scratch/dashboard-kpi-trends-20261103/check.cjs
+```
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+No production deployment/live-account write or complete accessibility audit was performed. The optional kit gate remains unavailable. The original card dimensions/minimum sizes, grid, icons and font rules remain; responsive text wrapping can increase natural content height when a currency value and trend cannot fit together. Values are not clipped or reduced to make a misleading fixed-height claim. A missing report hides its trend rather than treating it as zero activity. A failed full refresh preserves the existing last-loaded main numbers with the stale notice and removes their trends until recovery.
+
+If N/A or 0% persists, first check that the latest stylesheet/controller cache key loaded and inspect the server's `trend.visible`; do not change the reporting totals. If a caption remains after hiding a trend, inspect both elements' hidden attributes and the scoped hidden CSS override. If a user-total percentage seems different from the lifetime count, inspect the registration values in the trend explanation. If a month-end comparison differs from another chart, verify its explicitly separate equal-length KPI dates before changing unrelated analytics.
+
+Safe exercise: run the new math test and change its test-only `(150, 100)` pair to `(200, 100)`, updating the expected visible label to `+100%`. Restore it afterward. Then run `test_equal_nonzero_activity_hides_trends_and_captions_without_na` and inspect its saved `steady.html`: all eight values remain, the four trend/caption elements are hidden, and the other summaries remain visible. Refresh between the real `mixed`, `steady`, `empty` and `new` fixture payloads with the harness and verify indicators reappear only for meaningful changes. Do not create working users, orders, bookings or sales for this exercise.
+
+## Current: Dashboard / Marketplace metric reconciliation - November 2, 2026
+
+### 1. Cause / reason and confirmed discrepancies
+
+Read-only reconciliation against the **currently configured Django PostgreSQL connection** confirmed the user's Last 30 Days figures for October 4–November 2, 2026: **3 submitted orders, ₱0.00 recognized revenue, no qualifying completed-paid orders, and 1 low-stock product**. Those records and definitions are preserved.
+
+| Metric | Confirmed previous behavior | Refined behavior |
+| --- | --- | --- |
+| Dashboard Active Sellers | 0: web-only current access; omitted two approved mobile sellers | 2 current web/mobile seller accounts; basis label explicitly describes current access |
+| Marketplace seller KPI | 1: approved sellers with listing activity or completed-paid sales in selected dates | Same 1; renamed **Sellers Active in Period**, preserving the existing period-activity definition |
+| Dashboard Total Users | 4 web records; secondary count 1 new web registration | 11 records = 4 web + 7 mobile; secondary count 7 new registrations = 1 web + 6 mobile |
+| Users Overview / Users Analytics registrations | Already counted 7 registrations across both sources | Unchanged; now agrees with the System Overview secondary count |
+| Average Order Value | Dashboard API returned 0 for no qualifying orders; executive summary hid AOV and repeated Active Sellers | Shared undefined-denominator handling returns null and shows N/A. The existing third Marketplace summary slot now displays AOV; Active Sellers stays in System Overview |
+| View Analytics destinations | Already carried correct module and exact custom dates | Preserved and verified through all four real destinations |
+
+Active seller **access** is a current snapshot, while seller **activity** depends on selected dates; forcing these two values to agree would erase a useful distinction. Total Users is a count of account records, including disabled records, not a deduplicated count of people. New Users means records registered within the applied dates, not currently enabled users. No identities were merged by name, email or equal numeric primary keys.
+
+### 2. Exact files changed, current lines and anchors
+
+| File relative to project root | Current line / anchor | Change and purpose |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/services/reporting_metrics.py` | 5 `average_order_value`; 10 `approved_seller_request_filter`; 17 `seller_access_snapshot` | Shared Decimal AOV and approved-owner predicates; current seller snapshot reuses account aggregates and preserves the Dashboard's legacy enabled Seller-role fallback. These are reporting helpers, not permission grants. |
+| `backend/core/modules/reports/account_metrics.py` | 8 `account_population`; nested `fields` | Two source-aware aggregates supply total/new/enabled records and optional seller counts. Correlated Exists predicates avoid duplicating accounts with multiple requests and keep web/mobile IDs separate. |
+| `backend/core/modules/reports/dashboard_periods.py` | 163 population; 168 seller snapshot; 211 AOV; 246 undefined comparison branch; `marketplace.average_order_value` output | Corrects web/mobile coverage, uses shared AOV, and emits explicit N/A/null without inventing a percentage for a missing average. Keeps the existing query budget. |
+| `backend/core/modules/reports/analytics_sections.py` | 393–396 Super Admin account population | Reuses the same account definitions for Users Analytics, including suspension-aware enabled counts for both sources. Legacy-role branch remains. |
+| `backend/core/modules/marketplace/services/analytics.py` | 384/395 approved-owner helpers; 734 AOV KPI | Reuses approval predicates and AOV. Super Admin refined output uses null with no qualifying orders; legacy non-refined formatting remains compatible. |
+| `backend/core/modules/reports/superadmin_analytics.py` | 68/69 current/prior AOV | Uses the same helper for the detailed equal-length comparison; actual zero-value qualifying orders remain zero. |
+| `backend/core/modules/reports/templates/reports/partials/marketplace_analytics_cards.html` | 5 seller KPI label | Names the existing metric Sellers Active in Period on Super Admin only, retaining its existing explanatory subtitle. |
+| `backend/templates/dashboard/partials/system_overview_summary.html` | 18 user basis; 33 seller basis | Clarifies web/mobile populations under existing values. |
+| `backend/templates/dashboard/partials/sales_overview.html` | 48 metric loop; 69 comparison; removed executive seller duplicate | Restores the already-calculated AOV in the existing three-card Marketplace summary and supports undefined comparison text. Sales trend and product ranking structures are unchanged. |
+| `backend/static/components/js/admin_dashboard_filter.js` | 439 comparison rendering | Keeps the server's undefined-average explanation through API refresh/filter changes. Existing value/currency rendering shows N/A without a peso prefix. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` | 621 controller cache key | Loads `20261102-metric-parity`. |
+| `backend/core/modules/reports/test_dashboard_marketplace_parity.py` | parity test class and named tests | Tests source collisions, suspension, snapshots versus registrations, undefined/true-zero AOV, date-preserving tab destinations, permissions and Philippine midnight boundaries. |
+| `backend/core/modules/reports/test_dashboard_marketplace.py` | 107 empty-average expectation | Updates the intended undefined-AOV regression expectation to N/A. |
+| This guide, `docs/superadmin-analytics-module.md`, `CAMPUSHUB_CONTEXT.md` | Current parity entries | Documents definitions, verification evidence, troubleshooting and safe learning steps. |
+
+### 3. Changes made
+
+Dashboard retains quick system-wide monitoring, eight System Overview KPIs, compact sales trend and its existing top-five product chart. Its Marketplace summary still contains three cards: sales, completed-paid orders and the existing AOV metric. Detailed category, seller, submission, payment/receiving and prior-period analysis stay in Analytics. The duplicated Marketplace Active Sellers card is removed because that snapshot remains in System Overview.
+
+No CSS, palette, type family, chart dimensions, product-ranking limit, workflow or permission was redesigned. The shared population includes web and Flutter account records. Enabled counts exclude both inactive and suspended records. Dashboard's current seller access now includes eligible mobile sellers; Marketplace's seller performance/ranking remains period-specific and keeps stable account-source IDs.
+
+### 4. Functions, inputs/outputs and data flow
+
+`account_population(period, include_sellers=False)` takes the existing period object and returns separate `web` and `mobile` count dictionaries. Web registration uses `User.date_joined`; Flutter registration uses `CampusHubUser.created_at`. Both use the selected application-local date interval. `total` is a current record snapshot; `new` is selected-period registrations; `active` is currently enabled and not suspended. Users Analytics reuses these dictionaries. Existing `registration_daily_counts()` still feeds Dashboard daily registration trends and Users Analytics monthly buckets, using the same source dates.
+
+Dashboard requests `include_sellers=True`. Each source aggregate uses Exists over approved, nonsuspended requests and active, nonsuspended owners. `approved_seller_request_filter(owner)` is also used by Marketplace Analytics' approved seller-ID helpers, preserving their existing academic/user scope. Web and mobile keys are evaluated in their own tables, so web ID 4 and mobile ID 4 count as two account records. The Dashboard's prior enabled legacy Seller-role fallback remains for compatibility; it does not assign seller status or change account type. Seller approval-date secondary counts remain based only on recorded review timestamps.
+
+`seller_access_snapshot(period, population=...)` reuses those already-loaded counts instead of adding account-by-account queries. Dashboard access remains current even for sellers with no period activity. Analytics `_seller_performance()` retains its listing-update/submission or eligible-sale activity rule and source-prefixed identities; only its KPI label changes. A current idle approved seller is therefore included in Dashboard access but excluded from period activity.
+
+`average_order_value(revenue, qualifying_orders)` returns a Decimal division when the denominator exists, otherwise None. Both pages already share `valid_sales_queryset()` for eligible completed-paid, positive-quantity records and recognized timestamps; that rule is untouched. Dashboard current/prior average formatting and Analytics' comparison reuse the AOV helper. No qualifying orders yields API null / visible N/A; a real completed-paid zero-price order yields a real ₱0.00 average. An empty current period never becomes an invented -100% AOV change. The executive summary reuses its existing AOV card/template and refresh hooks.
+
+Annotated isolated example: a web record and mobile record with the same numeric ID count as two records. Two current seller-access records with no selected-period listing/sale activity produce Dashboard access 2 and Analytics activity 0. Three unpaid submissions produce order volume 3, recognized revenue 0 and AOV N/A. One additional eligible zero-price order makes AOV 0, not N/A. These examples are covered by disposable tests, not hardcoded working figures.
+
+### 5. Backend / API behavior
+
+No endpoint, permission, account type, seller approval workflow, order/payment/delivery lifecycle, inventory calculation, forecast or migration changed. The existing Super Admin Dashboard API now returns null for undefined AOV; its server-rendered and refreshed card handle that value. Existing non-refined Marketplace/legacy formatting remains compatible. All four View Analytics links retain their existing `module`, `date_from` and `date_to` mapping. Global counts remain protected by the existing Super Admin guard; actor-scoped Analytics queries keep existing server enforcement.
+
+The account and seller population work is combined into two aggregate queries. The existing ≤39-query Dashboard regression and constant query count as transaction volume grows still pass; the limit was not relaxed. Initial verification exposed an over-budget draft, which was corrected by folding seller counts into the account aggregates.
+
+### 6. Database / migration impact
+
+No model, schema or migration changes. The configured working PostgreSQL audit uses `SET TRANSACTION READ ONLY` and verifies unchanged row counts for accounts, orders, products, seller requests, bookings, SKUs and movements. It reconciles old web-only definitions against the same unchanged records rather than reconstructing historical status. No production restart, deployment, permanent environment edit or working-record repair was needed.
+
+Regression and real-browser HTTP tests create/destroy disposable **local test databases**. Sessions and fixture records used by that browser belong only to those databases. No real account or order was created to force a screenshot.
+
+### 7. Tests performed
+
+- **148/148 Django regression tests passed** in 75.796 seconds across Super Admin Analytics, Marketplace Analytics, Dashboard periods/marketplace/executive summaries and cross-page parity tests. Covers eligibility, source IDs, suspensions, zero-price versus undefined AOV, grouping/date scopes, records, links, role denial and the existing query budget. A separate added Philippine-midnight regression passed in 0.292 seconds: 00:30 local belongs to today, 23:30 belongs to yesterday, consistently for submitted orders, recognized sales and web/mobile registrations.
+- **54/54 authenticated real HTTP browser checks passed** in a disposable PostgreSQL-backed Django LiveServer test at 1440px and 390px; the test took 24.624 seconds. All application pages, static files and APIs were real server requests; only vendor CDN assets used existing local copies. Checks cover initial N/A, populated AOV, populated-to-empty API filtering, Refresh, actual sales/ranking chart values, current user/seller populations, four real View Analytics destinations and 403 responses for an unrelated admin role. Final desktop/phone screenshots were produced; the desktop render was visually inspected. Evidence: `scratch/dashboard-marketplace-parity-20261102/live-result.json`, `live_browser.cjs`, `test_live_parity.py`, `run_live.py`, and `live-dashboard-*.png`.
+- **Configured working PostgreSQL under READ ONLY:** Dashboard HTML/API and all four linked Analytics views returned HTTP 200. A non-Super Admin Dashboard API request was denied. Today, Last 7 Days and Last 30 Days share user populations/registration counts and matching current submission/revenue cohorts. Last 30 Days preserves 3 submitted orders, zero recognized sales and 1 low-stock product, and now reports 11 accounts, 7 registrations, current seller access 2 and period seller activity 1. Evidence: `audit.py` and `after.json` in the same scratch folder. Unchanged table counts and READ ONLY protection confirm no working writes.
+- Static validation: controller `node --check` and scoped `git diff --check` passed. No CSS change required a new contrast claim; no accessibility certification is claimed.
+
+Run the regression suite from the project root:
+
+```powershell
+backend/core/venv/Scripts/python.exe -B scratch/operating-schedule-20261029/run_tests.py modules.reports.test_superadmin_analytics modules.reports.tests.MarketplaceAnalyticsTests modules.reports.test_dashboard_periods modules.reports.test_dashboard_marketplace modules.reports.test_dashboard_executive modules.reports.test_dashboard_marketplace_parity
+```
+
+For the real HTTP/browser test, run `backend/core/venv/Scripts/python.exe -B scratch/dashboard-marketplace-parity-20261102/run_live.py`. It verifies the disposable database name before fixture writes and uses cascade-aware cleanup for the project's unmanaged test tables. For the current configured database, `audit.py` is read-only and records its explicit November 2 reporting date; update that audit date intentionally for a later reconciliation rather than treating this report's figures as permanent constants.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+Account records are not deduplicated people. There is no verified cross-source identity mapping authorizing an email/name merge. Seller access and period activity intentionally differ; existing legacy enabled Seller-role compatibility is retained on Dashboard. Registration counts describe recorded account creation dates, not daily active people. Current status fields do not reconstruct historical state changes.
+
+The live-browser check used a real disposable server, not the deployed authenticated production site. Configured working data was verified read-only through the actual views/API and metric builders. Future records can legitimately change these dated figures. Deployment was not performed.
+
+If the Dashboard still shows old AOV formatting after Refresh, reload and inspect the `20261102-metric-parity` controller key. If seller totals differ, compare the current-access basis against Sellers Active in Period and verify account source, approval, enabled/suspended status and actual listing/sale dates. For user differences, compare the same exact local dates and both registration fields. Do not change records merely to make two different cohort definitions agree.
+
+Safe exercise: select a read-only custom range on Dashboard and follow each View Analytics link. Verify the tab and exact dates; compare current submissions and completed-paid revenue separately. Inspect Total Users as the current combined account total and New Users as only selected-date registrations. Choose an empty-sales period and confirm AOV N/A, then a populated period and compare revenue / qualifying completed-paid orders. For code practice, trace `include_sellers=True` through `account_population()` into `seller_access_snapshot()`, and trace a None average into the existing card and refresh renderer. Temporarily shorten only the user KPI basis label locally, inspect both widths, then restore it. No working-record edits are necessary.
+
+## Current: Activity row context and semantic status — November 1, 2026
+
+### 1. Cause / reason
+
+The existing compact preview displayed action, time, result and an icon-only details button. Its existing server-provided `module` and responsible `user` fields were validated but omitted from the visible rows. Success/Failed shared a neutral badge reset in the refinement stylesheet. The first and last rows also had different vertical padding from middle rows.
+
+The latest request explicitly permits semantic Success/Failed colors in this card. This narrow exception supersedes the earlier neutral-only badge preference for the activity preview; it does not restyle statuses elsewhere.
+
+### 2. Exact files changed, current lines and nearby anchors
+
+| File and current line | Anchor / change |
+| --- | --- |
+| `backend/templates/dashboard/partials/system_activity_preview.html:10` | `audit-event-icon`: add a decorative audit-record SVG, group action/module/time/responsible user, then render status and the existing details button with a visible View label. Lines 14–18 contain the optional user and permission-gated controls. Existing card location, header, View All, empty/error states and dialog remain. |
+| `backend/static/components/js/admin_dashboard_activities.js:26` | `render(rows)`: build the same row structure for initial JSON rendering and Refresh. Lines 34–50 build the icon and real audit context; lines 51–65 build status and labeled View. Keep text-node rendering and existing validation. |
+| `backend/static/components/css/admin_dashboard_operations.css:12` | Add card-scoped semantic color variables. Lines 24–40 define uniform 13px row padding, dividers, responsive content/controls and scoped green/red badges. Line 45 adds the View label's button sizing; lines 52–56 keep the wide-column row alignment. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:27` | Version operations CSS as `20261101-activity-context`; line 623 versions the matching activity script. |
+| `backend/core/modules/reports/test_dashboard_operations.py:110` | Extend an existing rendering assertion to verify the icon, Services module and resolved actor. Lines 154–156 optionally export each real fixture activity's own protected detail response for browser verification. No new runtime query/API behavior. |
+| `scratch/activity-context-20261101/check.cjs:1` | Browser harness for actual isolated Django fixture exports, row geometry/colors and every View destination/timestamp. |
+| `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Record this current implementation, data flow, tests and safe practice. |
+
+### 3. Changes made
+
+Wide rows read left to right: event icon → action with module/date and responsible user → result badge → View action. The neutral clipboard icon means a recorded audit event; it does not invent an event category or result. The responsible user comes from the existing server-resolved actor field, not the affected account's name. Empty or `Unknown` identities are omitted from the preview's By line; their original data remains in the response/details.
+
+Every row has 13px top/bottom padding, including the first and last. Resting backgrounds are uniform and transparent against the card surface, with subtle separators. Hover/focus uses the existing quiet neutral highlight. Success uses dark green text on a pale green surface; Failed uses dark red on pale red. Result text stays explicit, and an unrecorded result retains the neutral Not recorded state. The high-specificity color rules are restricted to this card and override the shared neutral reset without changing that shared stylesheet.
+
+At a card content width of at least 480px, icon, content, badge and View align across the row. Narrow cards place controls below the text, with wrapping when needed. No fields are hidden to fit. The existing card remains directly below Users by Type with its existing external 16px gap and View All Activities route.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Unchanged server flow: permission-checked dashboard view/API → `executive_overview()` in `backend/core/modules/reports/dashboard_executive.py:98` → selected-period `AccountActivity` query → `format_activities()` allowlist → `executive.activities` → initial Django template / refreshed JavaScript list. The query still returns up to five eligible actual events, newest first, and retains the existing routine sign-in/sign-out exclusion from this oversight preview. Full history remains in the existing activity table.
+
+`render(rows)` takes the unchanged fields `time`, `user`, `activity`, `module`, `result` and `details_url`. It creates DOM elements with text nodes, shows the available server-resolved actor and appends the same recorded result. Neither the renderer nor CSS writes audit data or infers a missing actor.
+
+```javascript
+// Values already resolved and allowlisted by Django.
+const module = element('span', row.module); // Existing module, e.g. Services.
+const user = element('span', `By ${row.user}`); // Only for an available identity.
+time.dateTime = row.time; // Original timestamp, unchanged.
+button.dataset.activityDetailUrl = row.details_url; // Exact existing record URL.
+```
+
+`timeLabel()` still formats the same recorded timestamp in the section's application timezone. `detailURL()` still validates the same-origin protected audit endpoint and attaches the existing tab token. `showDetails(button)` still fetches that particular button's record, renders allowlisted details, handles failures and restores focus when closed. Only the button's visible label and surrounding row presentation changed.
+
+### 5. Backend / API behavior
+
+No runtime Python, audit projection, sorting, selected-period, authentication, permission, endpoint or audit-writing change. The existing `can_view_user_monitoring` condition still gates View All, View buttons and the dialog, while the detail API independently enforces authorization. Full activity-table behavior is unchanged. The two semantic outcomes are presentation of existing recorded values, never a recalculation of success/failure.
+
+### 6. Database / migration impact
+
+None. No PostgreSQL records, models or migrations changed. Tests used the existing disposable local PostgreSQL runner and destroyed its test database afterward. Browser responses came from those isolated ORM fixtures; all non-GET browser requests were blocked. No live events, environment, deployment or application server restart were changed.
+
+### 7. Tests performed
+
+- **17/17 Django tests passed in 7.679 seconds**: existing `modules.reports.test_dashboard_operations` and `modules.reports.test_dashboard_services`, run with `backend/core/venv/Scripts/python.exe -B scratch/operating-schedule-20261029/run_tests.py`. Django system checks were clean. Coverage includes newest-first five-event limits, preserved history, responsible actor resolution, application-local timestamps, allowlisted detail fields, denied unauthorized requests and read-only detail methods.
+- **845/845 Chromium checks passed across 12 renders**, run with `node scratch/activity-context-20261101/check.cjs`, at widths 280, 320, 390, 768, 1024, 1280, 1440 and 1920px. Checked exact record values/order/URLs, module/responsible user, event icon and View label, uniform 13px padding, dividers, consistent resting surfaces, semantic badge colors, measured badge text contrast of at least 4.5:1, hover, wide-row alignment, narrow wrapping, no page overflow, populated/empty states, Refresh/error/retry and no-JavaScript rendering.
+- Opened **all five** View actions by keyboard at desktop and phone widths. For each, checked the exact requested detail URL and its own real actor/action/module/result/timestamp, then verified focus returned on close. No browser writes or page errors occurred. The harness waits for each matching detail response and dialog cleanup to avoid treating a prior dialog's content as the next record.
+- Inspected final desktop/phone activity screenshots. Evidence: `scratch/activity-context-20261101/browser-result.json`, `activities-populated-1440.png`, `activities-populated-390.png`, isolated `activity-details.json` and the harness. Screenshots contain test-fixture records, not production examples.
+- JavaScript syntax and scoped whitespace checks passed. Generic skill-kit gates/full accessibility certification and other browsers/devices were not verified.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The preview retains the existing selected-period eligibility rules and five-record maximum. Narrow rows grow vertically to keep all available text and controls readable. A missing/unknown actor cannot be reconstructed by presentation code. The generic event icon deliberately avoids guessing an event subtype.
+
+If the old icon-only layout or neutral badges persist, reload and verify both operations CSS and activity JavaScript URLs use `20261101-activity-context`. Inspect the actual computed card-scoped badge styles because the shared refinement stylesheet still has its older neutral reset. If View fails, inspect that row's `data-activity-detail-url`, tab session and the existing API error; preserve authorization failures instead of bypassing them. Never modify an audit record to fix a display problem.
+
+Safe practice: choose a period with existing events, compare each visible action/module/time/By line with the full activity table, and open the first and last View buttons. Verify each detail timestamp and result matches its own row. Close using the keyboard and confirm focus returns, then resize to phone width and Refresh. These checks require no saved data changes.
+
+## Current: Recent System Activities in the Users column — October 31, 2026
+
+### 1. Cause / reason
+
+Confirmed in the template: `system_activity_preview.html` was included after the entire two-column domain grid. This placed a full-width activity table below both Services and Users, leaving the shorter Users column empty beside Services. Its six-column table was also too dense for the requested right-column position.
+
+The preview now follows Users by Type inside the existing Users stack. This reuses the available right-column space without changing the Services cards, Marketplace, Facilities, chart sizes or domain-grid structure. The existing horizontal Services/Users gap was already 16px and remains 16px; no claim is made that this already-small gutter was reduced. The relocated preview removes the separate full-width section and its extra section spacing. Both columns keep natural content heights.
+
+### 2. Exact files changed, current lines and nearby anchors
+
+| File and current line | Anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/partials/executive_dashboard.html:43` | After the Services and Users includes, remove the old standalone activity include. |
+| `backend/templates/dashboard/partials/super_users_overview.html:40` | Add the existing `system_activity_preview.html` include immediately after the Users by Type article. |
+| `backend/templates/dashboard/partials/system_activity_preview.html:7` | Keep `data-activities-table` as the existing visibility hook; replace its table with an ordered `audit-preview-list`. Lines 9–12 render action, date/time, result and the existing permission-gated detail button. The header, View All route, empty/error states and dialog remain. |
+| `backend/static/components/js/admin_dashboard_activities.js:26` | `render(rows)` now creates matching `li`, `strong`, metadata and result nodes instead of table rows/cells. Lines 33–58 contain the presentation changes; the existing validation, event hooks and detail controller remain. |
+| `backend/static/components/css/admin_dashboard_operations.css:19` | Replace obsolete audit-table rules with wrapping list rows, quiet separators and neutral result text. Line 295 begins the scoped Users-column card rules: 16px padding, zero external margin and the shared border/radius/surface tokens. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:27` | Version the operations CSS as `20261031-activities-list`; line 623 versions the matching activity script. |
+| `backend/core/modules/reports/test_dashboard_operations.py:108` | Update existing presentation expectations to the semantic list and result label; line 127 checks Users by Type precedes Activities. Existing audit/history/permission tests remain. |
+| `scratch/dashboard-activities-column-20261031/check.cjs:1` | Local browser verification harness using actual isolated Django fixture exports; no production records or invented dashboard values. |
+| `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Record this implementation, verification, data flow and current layout decision. |
+
+### 3. Changes made
+
+Each activity shows its readable action first, then recorded local date/time and the recorded result. Success, Failed and Not recorded remain explicit text. The existing eye button opens the same Activity Details dialog; performed-by and module remain in its existing response and detail fields. View All Activities still opens the existing full system activity table for authorized users.
+
+The preview uses one bordered card with compact rows and no fixed-height filler or internal scrolling. Long values wrap. Its header action wraps below the title on narrow screens. The Users stack supplies the existing 16px card gap; the audit card has no additional top/bottom section margin. Services/Users retain equal-width desktop columns and the existing responsive breakpoint. This fills space beside Services rather than stretching either column to match its neighbor.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Unchanged server flow: permission-checked `admin_dashboard_page()` / `admin_dashboard_api()` → `executive_overview()` in `backend/core/modules/reports/dashboard_executive.py:98` → selected-period `AccountActivity` query → existing `format_activities()` allowlist → `executive.activities` → initial Django list or refreshed JavaScript list.
+
+`executive_overview()` still returns at most five eligible records, newest first. Routine successful sign-ins/sign-outs still remain in full history and are excluded from this oversight preview under the existing rule. The selected global reporting period remains authoritative; this change does not turn the preview into an all-time feed.
+
+`render(rows)` takes the existing array containing `time`, `user`, `activity`, `module`, `result` and `details_url`. It validates the same inputs, creates text nodes safely and replaces only `[data-executive-activities]` children. The output is now a semantic ordered list. `timeLabel()` still formats timestamps in the section's application timezone. `fail()` still hides the list/empty state and shows the real error message. `showDetails(button)` still fetches the protected existing detail URL, renders allowlisted fields, and restores keyboard focus when closed.
+
+Annotated example of the existing data mapping:
+
+```javascript
+// row is one real server-provided activity, not a hardcoded dashboard record.
+const action = element('strong', row.activity); // Human-readable recorded action.
+const time = element('time', timeLabel(row.time));
+time.dateTime = row.time; // Preserve the original machine-readable timestamp.
+// The recorded result stays explicit; null displays "Not recorded".
+```
+
+This approach keeps the existing data contract and protected details flow while fitting the narrow column. The legacy `data-activities-table` name is intentionally retained as an internal visibility hook so the change needs no new controller/API contract.
+
+### 5. Backend / API behavior
+
+No runtime Python, queries, endpoint, audit-writing, ordering, reporting-period, authentication or permission changes. The `can_view_user_monitoring` template condition still controls View All, detail buttons and the dialog. The detail API still independently enforces access; hiding controls is not the permission boundary. The full activity table and its functionality are unchanged.
+
+### 6. Database / migration impact
+
+None. No models, fields or migrations changed, and no live audit records were edited/deleted. Django verification used the existing runner's disposable local PostgreSQL test database, which it destroyed after testing. Browser checks served isolated test exports and blocked all non-GET requests. No deployment, environment change or application server restart was performed.
+
+### 7. Tests performed
+
+- **33/33 Django tests passed in 12.491 seconds**: `modules.reports.test_dashboard_operations`, `modules.reports.test_dashboard_executive`, `modules.reports.test_dashboard_empty_states`, run with `backend/core/venv/Scripts/python.exe -B scratch/operating-schedule-20261029/run_tests.py`. Django system checks reported no issues. These cover bounded/newest-first previews, preserved history, timezone formatting, safe detail fields, unauthorized detail requests, read-only detail methods and dashboard rendering.
+- **332/332 Chromium checks passed across 12 renders** using `node scratch/dashboard-activities-column-20261031/check.cjs`. Widths: 280, 320, 390, 768, 1024, 1280, 1440 and 1920px. Checked exact sibling placement, 16px spacing, aligned equal-width desktop Services/Users columns, 16px responsive Services-to-Users gap, actual values/URLs, populated/empty states, Refresh/error/retry, keyboard-open details and restored focus, no-JavaScript initial rendering, no page overflow, no browser errors and no browser writes.
+- Inspected populated desktop/phone activity screenshots and the empty desktop Users stack. Evidence: `scratch/dashboard-activities-column-20261031/browser-result.json`, `activities-populated-1440.png`, `activities-populated-390.png` and `users-empty-1440.png`.
+- `node --check backend/static/components/js/admin_dashboard_activities.js` and scoped `git diff --check` passed. The generic design-skill kit gates are unavailable in this workspace; these results are the measured project checks, not a full WCAG or cross-browser certification.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The columns have natural heights determined by actual records. They are not forced to equal height, so a long Services list can still be taller than Users plus Activities. The preview continues showing at most five eligible activities in the chosen period. Full history remains available through View All Activities. Verification used Chromium and isolated source-rendered fixtures, not production deployment or physical devices.
+
+If the old full-width table persists, reload and confirm both assets use `20261031-activities-list`. Check that `system_activity_preview.html` appears only inside `super_users_overview.html`, after the Users by Type article. If refreshed rows revert to a table, inspect the loaded activity script version. If the preview shows an error, use Refresh/retry and inspect the existing dashboard API response; do not replace missing data with fake records. A denied detail request must remain denied by the server.
+
+Safe practice: open Dashboard, choose a period containing existing activity, and compare one action/date/result with the full activity table. Open and close its eye button using the keyboard, then confirm focus returns. Resize to phone width and verify the activity card stays directly below Users by Type with readable wrapped text. Refresh and confirm the list retains the selected period. These checks require no account, booking or audit-record edits.
+
+## Current: Taller User Registration Trend and compact Users by Type — October 31, 2026
+
+### 1. Cause / reason
+
+The latest request makes User Registration Trend larger like Booking Trend and makes Users by Type smaller so its donut and account table fit the Users column. Inspection confirmed that the shared refinement stylesheet limited the registration drawing area to 200px while Booking Trend used 320px on desktop. The distribution card reserved 240–280px for the donut and only allowed a side-by-side table from 520px of card content width.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Registration drawing area 200px | Matches Booking Trend: 320px at screen widths of 600px and above; 260px below | Give registration trends the same readable vertical space. |
+| Donut 240–280px with a 520px side-by-side threshold | Donut 160–200px beside the table from 400px of card content width | Give the table more room inside the Users column. |
+| Narrow cards used a donut up to 260px | Centered donut up to 180px, shrinking further when necessary | Keep compact cards responsive without overflow. |
+
+### 2. Exact files changed, current lines and nearby anchors
+
+- `backend/static/components/css/admin_dashboard_operations.css:277`, scoped chart-sizing selector: add the existing Users registration wrapper to the 260px base and line 299's 320px desktop rule. Line 288 sets the narrow donut size; lines 294–296 set its 400px container breakpoint and 160–200px side-by-side sizing.
+- `backend/templates/dashboard/pages/admin_dashboard.html:27`, operations stylesheet link: use `20261031-users-chart-balance` so browsers request the updated CSS.
+- `docs/dashboard-analytics-operations-update.md:3`, this current report: record the cause, sizing, inputs/outputs, verification and safe practice.
+- `CAMPUSHUB_CONTEXT.md:3`, current Users sizing decision: preserve the latest request for later work.
+- `docs/web-ui-ux-guidelines.md:23`, latest chart-sizing request: supersede the earlier larger-donut and 200px registration choices.
+
+### 3. Changes made
+
+The registration line chart now has the same drawing height as Booking Trend. The existing title, subtitle, grouping dropdown and chart type remain. Users by Type keeps its own bordered card: its smaller donut sits to the left of the vertically centered table when the card has enough room, and centers above the full-width table on narrow screens. Counts, shares, account-type names and the untyped-account note remain visible.
+
+The outside Users heading, View Analytics action, separate Services/Users columns, 16px card/content gaps and natural card heights remain. Services cards still stack at full width. Sales/Booking heights, neighboring sections and application behavior are unchanged by this follow-up. No fixed-height filler was added.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The unchanged Django projection supplies `executive.users.trend`, `new_registrations`, `distribution` and related totals to `super_users_overview.html` and the existing snapshot response. `renderUsers()` in `admin_dashboard_executive.js` still passes the same records to `chart()` for the registration line and account-type donut. Existing Chart.js responsive sizing reads the CSS wrapper dimensions and resizes each canvas; CSS does not transform data.
+
+```css
+/* Card content width, rather than the whole browser width, decides the layout. */
+@container users-distribution (min-width: 400px) {
+    /* Smaller square chart + flexible table; the existing gap is 16px. */
+    /* grid-template-columns: clamp(160px, 36cqi, 200px) minmax(0, 1fr); */
+}
+```
+
+The input is the unchanged database-derived snapshot plus available screen/card width. The output is the same chart values and table cells in differently sized wrappers. Daily/Weekly/Monthly registration grouping still runs through the existing controller, and global dates/Refresh still use the existing endpoint. Empty/error/fallback handling continues to hide unavailable canvases, so a larger drawing height does not create a blank chart in an empty period. The approach reuses existing scoped rules rather than changing shared chart logic or creating another renderer.
+
+### 5. Backend / API behavior
+
+No changes. Queries, response fields, dates/grouping, routes, permissions, recorded account types, counts/shares and workflows remain. Only CSS and its cache version changed in application code.
+
+### 6. Database / migration impact
+
+None. No model/schema/migration, live record, environment, deployment or runtime restart changes.
+
+### 7. Tests performed, troubleshooting and safe practice
+
+- **1196/1196 Chromium checks passed across 15 renders and nine widths, 280–1920px.** The harness used previously exported actual Django test fixtures, current workspace CSS and read-only intercepted responses. It covered populated/empty data, actual registration canvas height/counts, Daily/Weekly/Monthly grouping, selected dates, Refresh/error/retry, actual donut values and table counts/shares, compact responsive sizing/alignment, unchanged stacked Services cards, missing-library fallbacks and no page overflow/browser writes/page errors.
+- Measured registration/Booking heights were 320px at widths 600px and above, 260px below. Example donut widths: 200px at 1920px, 187.5px at 1440px, 160px at 1280px, and 180px at 390px. At 280px it shrank to 150px to fit its card. Desktop Users-column and phone distribution screenshots were visually inspected.
+- CSS brace balance, intended scoped selectors/container rules, unchanged Services asset versions and source whitespace checks passed. `git diff --check` passed for both application files. No backend tests were rerun for this CSS-only application change.
+- Evidence: `scratch/users-chart-balance-20261031/browser.log`, `browser-result.json`, PNG captures, `file-checks.log` and `whitespace.log`.
+
+Troubleshooting: hard-refresh and confirm the operations stylesheet URL ends with `v=20261031-users-chart-balance`. If registration remains 200px, inspect the loaded version and `[data-user-trend-wrap]` computed height. If the donut/table stack, check the card's content width; below 400px this is intentional. Keep the actual account table and untyped note instead of hiding data to reduce height.
+
+Safe practice: inspect the registration wrapper's height beside Booking Trend, change Group by to Weekly and Monthly, then Refresh and confirm the totals remain correct for the selected range. Narrow the browser to confirm that all account-type columns remain readable and the donut stays square and centered. Temporarily change its 180px cap to 170px in DevTools, observe the layout, then reload to restore the saved value. This exercise changes no account or request records.
+
+### 8. Remaining limitations
+
+Card height follows actual text/table content; the side-by-side dashboard columns are not forced to equal height. Very narrow cards stack chart and table and may use a donut below 160px. Verification used Chromium and Django fixture exports rather than a physical-device or cross-browser certification. This sizing decision supersedes the older large-donut/200px registration notes below and in earlier feature reports.
+
+## Previous: Vertically stacked Services cards — October 31, 2026
+
+The latest request supersedes the empty-panel compaction below: Requests by Service, Recent Service Requests and Service Attention now each fill the Services column and stack vertically with 16px gaps in empty and populated states. Recent Service Requests keeps View All at the top right and all five fields; narrow cards use labelled rows without sideways scrolling. Empty icons/messages are centered with compact padding. The separate, equal-width Services/Users columns, outside Users heading and large responsive Users by Type donut remain.
+
+Only Services CSS, the initial table's labels/roles, matching refresh-rendered labels/roles and paired asset versions changed. Django values, requests, routes, filters, permissions and database schema remain. Verified 24/24 Django tests and 2289/2289 Chromium checks across 22 renders/nine widths. The [Services guide](dashboard-services-overview.md) contains the current eight-part report, exact files/current lines, inputs/outputs/data flow, troubleshooting and safe practice. It supersedes the earlier multi-column CSS references and gap measurements below.
+
+## Previous: Outside Users heading and compact empty service panels — October 31, 2026
+
+### 1. Cause / reason
+
+The screenshot showed Users Overview inside its white surround and a large gap below Users by Type. The user confirmed that the title/subtitle should sit outside the bordered content, like Services Overview, with the action shortened to View Analytics. The gap came from three empty Services panels stacking in the adjacent column.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Users heading inside the content border | Outside heading above a bordered KPI/trend body | Apply the confirmed heading position. |
+| View User Analytics | View Analytics, same URL | Match other overview actions. |
+| Three stacked empty service panels | Responsive compact rows for genuine empty states | Reduce the lower gap without stretching the donut or compressing real tables. |
+
+### 2. Exact files changed
+
+- `backend/templates/dashboard/partials/super_users_overview.html:5`: shorten the link text while preserving its Django URL/hook. Line 7 wraps existing KPI/registration/error nodes in `users-overview-body`; heading and separate donut remain outside that body.
+- `backend/static/components/css/admin_dashboard_operations.css:308`, `Users heading sits outside`: transparent Users section, white bordered content body, 16px gaps and responsive 16px/20px padding.
+- `backend/static/components/css/admin_services_overview.css:85`, `Compact genuine empty service panels`: two empty operations cards can share a row from 480px container width. From 560px, all three empty auxiliary cards can share a row below the full-width summary/trend. Populated request tables stay full width.
+- `backend/templates/dashboard/pages/admin_dashboard.html:26`: Services CSS version `20261031-compact-empty-services`; line 27: operations CSS `20261031-users-header-layout`.
+- `backend/core/modules/reports/test_dashboard_executive.py:308`: update the existing label expectation and check the Users hook and single new body wrapper.
+- `docs/dashboard-analytics-operations-update.md:3`, `docs/dashboard-services-overview.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:27`: preserve this decision, data flow, measured checks and practice. The Services guide's stray Windows-encoded punctuation was normalized to UTF-8 so it could be updated safely. Use code anchors if later edits move lines.
+
+### 3. Changes made
+
+Users Overview's title/subtitle and View Analytics now sit outside its bordered KPI/registration body. Users by Type keeps its separate card and current 240–280px responsive donut/table sizing. No fixed-height filler or enlarged registration chart was added.
+
+Services retains all four cards, headings/actions and DOM/data order. Its summary/trend stays full width. Genuinely empty auxiliary panels compact into two- or three-column rows where space permits; narrow screens stack naturally. Actual request/attention content retains its full-width presentation. This shortens the column that caused the excessive gap below the donut.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The unchanged Django context supplies `executive.users`, `executive.services` and selected-period analytics URLs. The existing `data-users-overview` host, both `data-users-content` regions, chart/table IDs and error hooks remain. `renderUsers()` and registration grouping still find the same nodes after the new wrapper is added.
+
+The existing service renderer sets `hidden` on its actual empty-state messages. CSS `:has(...:not([hidden]))` reads those states to choose the compact layout. When records return after Refresh, the empty marker becomes hidden and that empty-only layout stops applying. `display: contents` flattens only the two structural grid wrappers in the three-empty-panel case; labelled article cards and their content remain intact. No new data calculation or executable application JavaScript was added.
+
+Safe practice: inspect the Users heading above its content border, then follow View Analytics and verify the selected dates and `module=users` remain. Return, change registration grouping and Refresh. Compare an empty Services period with one containing requests; all five table columns and request links must remain. Resize without editing accounts or requests to verify compact rows and mobile stacking.
+
+### 5. Backend / API behavior
+
+Unchanged: protected routes, analytics destination, queries/counts, dates/defaults, permissions, registration/account types, service workflows and response fields. Only the action text and presentation changed.
+
+### 6. Database / migration impact
+
+None. No schema/migrations, live records, credentials, environment, deployment or application restart changes. Verification used disposable localhost PostgreSQL records and intercepted read-only browser requests.
+
+### 7. Tests performed
+
+- **24/24 existing executive/Services Django tests passed in 17.740 seconds**; system checks reported no issues. Coverage includes real counts/date boundaries, account-type rules, role isolation and actual navigation.
+- **808/808 Chromium checks passed across 16 renders/nine widths (280–1920px)**: outside heading/border/padding, action text/route, actual chart/count/request data and five columns/URLs, empty-only compaction, unchanged populated layouts, grouping/dates/Refresh/error/retry, narrow screens, fallbacks and no overflow/writes/page errors. Desktop/phone screenshots were inspected.
+- Temporarily restoring the old stacked empty-service layout in the test browser measured the difference: the gap fell from about **262px to 0px at 1920px** and **303px to 18px at 1440px** in the actual fixture data, without stretching the donut card.
+- Evidence: `scratch/users-header-service-spacing-20261031/django.log`, `browser.log`, `browser-result.json` and PNG captures. Final scoped checks are in `file-checks.log` and `whitespace.log`.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh to load both versioned stylesheets. If the old surround remains, inspect `users-overview-body` and the parent section reset. If panels do not compact, inspect their real `hidden` states and container width. Keep actual tables/data intact. Populated panels retain natural content height; small screens stack. Verification used Chromium/source-rendered fixtures, not production records, other browsers or physical devices. No accessibility certification is claimed.
+
+## Current: Larger donut, Booking Trend and Sales Trend — October 31, 2026
+
+### 1. Cause / reason
+
+The user explicitly reverted the interrupted Services/Users height-balancing attempt and requested sizing changes for only three charts. That attempt's stretching, taller registration chart and remaining-space allocation were removed. The existing shared chart reset limited Booking/Sales drawing areas to 200px, while Users by Type used a 190px donut.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Forced Services/Users height matching from the interrupted attempt | Original intrinsic column/card sizing and registration-chart height restored | Apply the user's explicit revert. |
+| 200px Booking/Sales drawing areas | Matching 320px areas at 600px and wider, 260px below | Improve readability while keeping proportional charts. |
+| 190px donut | 240–280px beside the table when space permits; centered, responsive stacking otherwise | Enlarge the actual chart without a fixed-height empty card. |
+
+### 2. Exact files changed
+
+- `backend/static/components/css/admin_dashboard_operations.css:276`, `Super Admin chart sizing only`: replace the interrupted balance block with scoped chart sizing. Lines 277–281 enlarge Booking/Sales and keep their controls right aligned. Lines 282–297 size/center the donut and keep its table responsive. Lines 298–300 set the matching desktop trend heights.
+- `backend/templates/dashboard/pages/admin_dashboard.html:27`: version this existing stylesheet as `20261031-chart-sizing`. No script or template data hook changed.
+- `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:23` and `docs/booking-overview-implementation.md:3`: preserve the latest sizing/revert, exact inputs/outputs, measured checks and safe practice. Use the named source anchors if subsequent edits move a line.
+
+### 3. Changes made
+
+Booking Trend and Sales Trend have equal drawing heights: 320px on desktop/tablet and 260px on narrow phones. Their existing period/grouping controls remain at the right edge of each header, wrapping naturally when needed. Booking keeps its vertical bars; Sales keeps its existing line chart.
+
+Users by Type has a larger square donut. When its actual card content is at least 520px wide, a container query places the donut left and the account-type table right, vertically centered. Its width clamps between 240px and 280px. Narrow cards stack the chart/table with a 16px gap; the centered chart uses up to 260px and shrinks to the available width on very narrow screens. The table still includes Type, Accounts and Share, plus the existing untyped-account note.
+
+Card heights remain natural; no stretching or minimum-height filler was added. The body gap is 16px and its top margin is 12px to keep space around the donut compact. The previous registration chart height and Services/Users column sizing are restored. Other sections, white cards, navy/gold colors and existing spacing remain.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Only CSS and its cache version changed. Existing Chart.js renderers already use `responsive: true` and `maintainAspectRatio: false`, so they respond to the new wrapper dimensions. The donut wrapper's `aspect-ratio: 1` keeps the canvas square. A card-width container query chooses side-by-side versus stacked presentation, rather than assuming that a wide viewport always gives each dashboard card enough room.
+
+The data flow stays Django/PostgreSQL → existing context/API → existing chart datasets. `marketplace.sales_trend.sales` supplies numeric sales values, `executive.booking_overview.trend` supplies integer booking counts, and `executive.users.distribution` supplies recorded account-type counts/shares. CSS never recalculates these values. Form IDs, grouping/date handlers, global Refresh, retry and navigation remain unchanged.
+
+```css
+/* Presentation input: available screen width. Output: matching plot height. */
+height: 260px;
+/* At the existing 600px screen breakpoint: height: 320px. */
+```
+
+Safe practice: select a real reporting period and compare all three plots with their API values. Change Sales/Booking grouping, then Refresh; counts and selected values should remain correct. Resize to phone width and inspect the centered donut/table stack. In DevTools, temporarily change only a plot's height to 300px and observe the chart resize; reload to restore the saved rule. This needs no account, order or booking edits.
+
+### 5. Backend / API behavior
+
+Unchanged. No executable JavaScript, Python, query, response field, permission, filter/default, registration, order or booking workflow changed. Existing `[hidden]` behavior keeps empty/failed charts from reserving an enlarged blank drawing area; existing empty/fallback messages and actual tables remain available.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, live records, environment, credentials, deployment or user-controlled application restart changed. Verification used disposable localhost PostgreSQL databases and intercepted read-only browser requests.
+
+### 7. Tests performed
+
+- **57/57 existing Django executive, booking-overview and marketplace dashboard tests passed in 26.222 seconds**. Includes actual date/status/ranking/account-type values and existing permissions/data boundaries. System checks reported no issues. No new application test was written for this reversible CSS change.
+- **653/653 Chromium checks passed across 17 renders/nine widths (280–1920px)** using current ORM-backed fixture HTML/JSON. Verified plot/canvas sizes, square responsive donut, side-by-side vertical centering or centered stacking, no surplus card-bottom space, right-aligned controls, actual chart/table values, restored registration height and column sizing, grouping/selected dates/Refresh/error/retry, empty/no-library states and no page overflow. No browser write requests or page errors occurred. Populated desktop/phone and empty renders were inspected.
+- Evidence: `scratch/dashboard-chart-sizing-20261031/django.log`, `browser.log`, `browser-result.json` and chart PNG captures. Scoped file/whitespace/reference checks are recorded in `file-checks.log` and `whitespace.log`.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh to load `20261031-chart-sizing`. If an old size remains, inspect the stylesheet version and the scoped chart-sizing block. On cards narrower than 240px, the donut shrinks to avoid overflow; it remains square. Empty data stays an honest empty state. Verification used Chromium and isolated source-rendered data, not production records, other browsers or physical devices. No measured accessibility certification is claimed.
+
+## Current: Users by Type Side-by-Side (Pie Chart Left, Table Right) — October 31, 2026
+
+### 1. Cause / reason
+The user provided a screenshot of the "Users by Type" card and requested: `"arrange this left is piechart then toight is the table just move the layout position"`. Previously, the doughnut chart and table rendered vertically stacked because `.users-type-layout` did not have explicit flex row styling inside the standalone `.users-by-type-card`.
+
+### 2. Exact files changed
+| File / line | Anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/partials/super_users_overview.html:26` | Inside `.users-by-type-card`, grouped `.users-data-table` and `[data-user-untyped-note]` in `.users-type-table-wrap` beside `.users-chart` within `.users-type-layout`. |
+| `backend/static/components/css/admin_executive_refinement.css:1091` | Configured `.users-by-type-card .users-type-layout` as a flex row with `gap: 24px; align-items: center;`. Left `.users-chart` given `flex: 0 0 190px; width: 190px; height: 190px;`. Right `.users-type-table-wrap` given `flex: 1 1 0; min-width: 0;`. Added column alignments (Type left, Accounts center, Share right). Responsive stacking below 640px. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:29` | Bumped CSS cache version to `?v=20261031-users-by-type-pie-table`. |
+
+### 3. Changes made
+Inside the standalone "Users by Type" card, the doughnut/pie chart is positioned on the LEFT (190px square) and the accounts breakdown table (`Type`, `Accounts`, `Share`) is positioned on the RIGHT. The unavailable accounts note sits directly under the table. On screens narrower than 640px, the layout smoothly stacks vertically.
+
+### 4. How it works
+The existing Chart.js initialization in `admin_dashboard_executive.js` attaches to `#usersByTypeChart` inside `.users-chart`. With `maintainAspectRatio: false` and responsive options enabled, Chart.js conforms to the 190px square container on the left. The table fills the remaining width on the right. Data hooks, queries, and empty states remain untouched.
+
+### 5. Backend / database impact
+None. No views, models, permissions, or migrations were modified.
+
+### 6. Tests performed
+Ran 48 dashboard tests across `test_dashboard_executive`, `test_dashboard_empty_states`, and `test_dashboard_marketplace`; all 48 tests passed in 25.582s.
+
+### 7. Remaining limitations
+Requires a hard browser refresh if the previous stylesheet is cached in the browser.
+
+## Current: Booking Summary inside Booking Trend and Recent Orders fit — October 31, 2026
+
+### 1. Cause / reason
+
+The latest request puts Booking Summary inside the same card as Booking Trend, following Marketplace's summary-then-trend arrangement. The supplied Recent Orders screenshot shows its ID running into Buyer. Confirmed causes were a 14% ID column with unbroken text, visible overflow, and a header rule targeting every `th`, including body row headers. Narrow widths also could not fit seven unbroken values without clipping.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Summary outside the trend card | Three existing summary KPIs above the chart inside one bordered card | Match the requested Marketplace arrangement. |
+| ID text overflows into Buyer; body IDs inherit a header background | Rebalanced columns, contained text and transparent body row headers | Keep each field distinct without sideways scrolling. |
+| Fixed columns become unreadable on compact cards | Labelled responsive rows retaining every field and action | Preserve data without ellipses, hidden fields or an internal scrollbar. |
+
+### 2. Exact files changed
+
+Paths are relative to the project root. Line numbers describe this update; use the named anchor if subsequent edits move them.
+
+| File / current line | Nearby anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/partials/super_facilities_overview.html:8` | Start the existing `.facilities-trend` article before `data-booking-content`, so Booking Summary/KPIs are inside it. Keep all IDs, the separate ranking and existing operations content. |
+| `backend/static/components/css/admin_booking_overview.css:325` | Executive-only combined-card spacing, 12px below the summary title, 16px before the trend heading, retained independent ranking/operations borders and consistent metric-link styling. |
+| `backend/templates/dashboard/partials/recent_orders.html:7` | Preserve all seven headers/cells. Add explicit table roles and `data-label` values to executive rows for responsive presentation. Other-role markup stays unchanged. |
+| `backend/static/components/css/dashboard_recent_orders.css:54` | Scoped no-scroll table widths/wrapping and body-header correction. Line 128 starts compact labelled rows; line 184 uses four columns on medium cards, with extra width for IDs; line 189 starts the very narrow single-column refinement. |
+| `backend/static/components/js/admin_dashboard_filter.js:303` | `renderRecentOrders()`: read existing header labels once; line 365 adds matching roles/labels to refreshed executive cells. Existing text values, URLs, filtering, tokens and eye action remain. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:19` | Version booking CSS as `20261031-summary-in-trend`; line 621 versions the existing filter renderer as `20261031-booking-summary-orders`. Other dashboard asset versions remain current. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_order_modals.html:3` | Version its existing Recent Orders stylesheet as `20261031-no-scroll`; modal markup/controllers are unchanged. |
+| `backend/core/modules/reports/test_dashboard_executive.py:125` | Existing layout test now checks that the trend article begins before Booking Summary and that summary precedes the trend heading. |
+| `backend/core/modules/reports/test_dashboard_marketplace.py:241`, `backend/core/modules/marketplace/test_orders_admin.py:143` | Keep existing header/plain-reference/eye expectations while allowing additional accessible attributes. The Marketplace reference may retain its existing small date after the code. |
+| `docs/dashboard-analytics-operations-update.md:30`, `docs/booking-overview-implementation.md:3`, `CAMPUSHUB_CONTEXT.md:8`, `docs/web-ui-ux-guidelines.md:21` | Record this latest arrangement, functions/data flow, real checks and safe practice. |
+
+The task's scoped rules were consolidated into the existing booking/order component styles. The shared executive stylesheet retains current unrelated dashboard work; it is no longer responsible for this task's new responsive row rules.
+
+### 3. Changes made
+
+Booking Summary and its three real KPI cards are inside Booking Trend, above its existing heading, Daily/Weekly/Monthly control and navy vertical bar chart. Most-Booked Facilities stays separate. The outside section headings, 32px overview separation and existing booking/ranking/operations data remain.
+
+Recent Orders retains **Order ID, Buyer, Order Date, Total, Order Status, Payment Status and Actions** in the same order. Wide tables use 20/17/15/11/15/13/9 percent sizing, smaller horizontal padding and natural text wrapping. Status words remain intact. Body IDs no longer look like separate header blocks. No value is replaced with ellipses.
+
+At card widths up to 680px, each record uses labelled fields instead of squeezing seven columns across a narrow card. Cards from 520–680px use four grid columns, with Order ID spanning two; smaller cards use two columns, then one at 260px or less. Every original field and eye action remains visible, with no internal horizontal or vertical table scrolling. The page can still scroll normally.
+
+### 4. How it works / inputs, outputs and data flow
+
+The unchanged Django context supplies `executive.booking_overview` and `operations.recent_orders`. Moving the existing summary node inside the article leaves the unbordered `#bookingOverviewCard` controller host and all summary/chart IDs intact. The booking renderer still updates the same counters, period labels, chart, empty/error/retry state and links.
+
+Initial order markup now carries each column's existing label in `data-label`. On Refresh, `renderRecentOrders(orders)` gets those labels from `thead th`, appends the same seven actual cells, and sets their labels and table roles. For example, an actual saved code remains `reference.textContent = order.code`; its responsive label is `Order ID`. No data is inferred from the visual layout.
+
+Component-scoped container queries change only presentation. The native headers remain available to assistive technology while their labels appear beside the same data in compact rows. Explicit table/rowgroup/row/header/cell roles preserve relationships when CSS changes their display. Current row URLs still pass the same same-origin validation and tab-token handling; the eye still opens the existing authorized Django fragment/modal.
+
+Safe practice: reload Dashboard, confirm Booking Summary is inside the chart card, and change grouping/Refresh without changing dates. Compare one order's six values and eye destination with `operations.recent_orders`. Resize from a wide table to compact labelled rows and confirm all seven fields remain visible without sideways scrolling. Open/close the eye to verify saved details and restored focus; do not approve, pay or edit an order. No record changes are needed.
+
+### 5. Backend / API behavior
+
+Unchanged: existing Django/PostgreSQL values, queries, endpoints, selected/default filters, date bases, rankings, permissions and order/booking workflows. The only executable renderer additions are labels/roles; values continue using safe `textContent` assignments. No new button, filter or API was added.
+
+### 6. Database / migration impact
+
+None. No migrations, schema, live records, credentials, environment, deployment or application restart changed. Tests used disposable localhost PostgreSQL databases; browser non-GET requests were blocked.
+
+### 7. Tests performed
+
+- **85/85 focused Django tests passed in 34.088 seconds** across executive, booking, marketplace, ranking, upcoming-reservation and existing order-fragment/modal/permission checks. Initial strict HTML assertions were updated to tolerate added accessible attributes while retaining their original content/action checks. No application behavior was changed to satisfy those assertions.
+- **3902/3902 Chromium checks passed across 22 renders/nine widths (280–1920px)**. Checks compare actual ORM-backed values, all seven fields/labels, text bounds, no internal scroll, responsive layouts, combined-card nesting, dates/grouping/Refresh/retry, keyboard/chart/text fallbacks and canonical order-detail open/close/focus. Desktop/phone booking and order screenshots were inspected. Results are in `scratch/booking-summary-orders-20261031/browser.log` and `browser-result.json`.
+- **708/708 additional targeted browser checks passed across four renders** after refreshing populated orders in wide/compact layouts and opening the refreshed eye action. Saved customer details and returned focus remain correct. Results are in `refresh.log` and `refresh-result.json` in the same evidence folder.
+- Evidence also includes actual desktop/phone PNG captures and `django-final.log`. Component/renderer syntax and scoped whitespace/reference checks are in `file-checks.log` and `whitespace.log`.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh to load booking CSS `20261031-summary-in-trend`, Recent Orders CSS `20261031-no-scroll` and filter JS `20261031-booking-summary-orders`. If old markup remains in a user-controlled local Django process, restart that process and refresh. If labels disappear only after Refresh, inspect the new renderer version and `data-label` on the refreshed cells.
+
+Compact layouts deliberately use labelled rows, so their height can grow rather than clipping data or adding internal scrolling. Very long values can wrap naturally. Full Orders navigation and ordinary page scrolling remain. Verification uses Chromium/source-rendered fixtures rather than production records, other browsers or physical devices; no cross-browser accessibility certification is claimed.
+
+## Current: Users by Type moved out of the Users Overview container - October 31, 2026
+
+### 1. Cause / reason
+Request: "Users by Type ... move down, not belong to the big container." It was an inner card of the bordered `executive-users` section, so it shared the big container's border.
+
+### 2. Exact files changed
+| File / line | Anchor | Change |
+| --- | --- | --- |
+| `backend/templates/dashboard/partials/super_users_overview.html` (whole file) | `executive-users-stack` | New unbordered wrapper that keeps `data-users-overview` and `aria-busy`. Inside: the bordered `<section class="executive-users">` (header, KPI cards, User Registration Trend, error message) and, after it, the standalone `<article class="users-by-type-card" data-users-content>`. IDs, data hooks, charts and Django variables are unchanged. |
+| `backend/static/components/js/admin_dashboard_executive.js` ~lines 44 and 57 | `[data-users-content]` | `querySelector(...).hidden` became `querySelectorAll(...).forEach(...)` because two elements now carry `data-users-content` (trend grid and Users by Type), so both hide/show together on error/success. |
+| `backend/static/components/css/admin_executive_refinement.css` ~lines 1051-1062 | comment `Users Overview: bordered container...` | Wrapper = column with 16px gap; section and Users by Type card each have border, radius, 16px padding (20px at 1280px+); trend grid is one column. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` | CSS and `admin_dashboard_executive.js` links | Version `?v=20261031-users-by-type-card`. |
+
+### 3. Changes made / how it works
+The JS still finds everything through `users = root.querySelector('[data-users-overview]')`; that element is now the wrapper, so the distribution chart, table and untyped note are still inside it. Data flow is unchanged: `executive.users` -> template/JSON -> `renderUsers()` fills metrics, chart and rows. Layout is Users Overview card on top, Users by Type card 16px below it, both in the same grid column.
+
+Practice: in DevTools, set `display:none` on `.users-by-type-card` and confirm the Overview still works; revert. Change the period and check Users by Type values update.
+
+### 4. Backend / database
+None.
+
+### 5. Tests performed
+`test_dashboard_executive`, `test_dashboard_empty_states`, `test_dashboard_marketplace`: 48 ran, all OK. `node -c` on the executive JS passed. Not checked in a browser.
+
+### 6. Remaining limitations
+Hard refresh if the old CSS/JS is cached. If you wanted Users by Type to leave the Users section entirely (separate dashboard section), say so.
+
+
+## Current: Super Admin Users Overview inner containers - October 31, 2026
+
+### 1. Cause / reason
+`[data-global-dashboard] .dashboard-executive .executive-domain-grid :is(.dash-card, .marketplace-chart-card)` in `admin_executive_refinement.css` (~line 155) strips border, radius and side padding (`padding: 12px 0; border: 0`) from every `.dash-card` in the domain grid. In Users Overview this removed the boundaries of User Registration Trend and Users by Type, so they looked like loose content instead of separate inner containers. Confirmed from the CSS cascade; the HTML in `super_users_overview.html` already had the correct order (header inside the section, KPI row, then two chart articles), so no markup or data hooks changed.
+
+### 2. Exact files changed
+| File / line | Anchor | Change |
+| --- | --- | --- |
+| `backend/static/components/css/admin_executive_refinement.css` ~315-327 | comment `Users Overview: header + KPI row...` | New scoped `.executive-users` rules: section is a flex column with 16px gap; header margin 0; KPI cards and both chart cards get 1px `--executive-border`, `--executive-radius`, 16px padding, white surface; chart grid gap 16px. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` line 29 | `admin_executive_refinement.css` link | Cache version `?v=20261031-users-overview-containers`. |
+
+### 3. Changes made
+Users Overview header (title, subtitle, View User Analytics) stays inside the bordered section. New Users and Verified Users cards sit below it in two equal columns. User Registration Trend and Users by Type are each their own bordered inner card, 16px apart, equal height on desktop, stacked on narrow screens (existing 800px breakpoint). No other section selector was touched; every rule is prefixed with `.executive-users`.
+
+### 4. How it works / data flow
+`executive.users` (Django context) fills the same template hooks (`data-user-metric`, `data-user-trend-wrap`, `userRegistrationView`, `data-user-distribution-*`). `admin_dashboard_executive.js` still finds the same IDs and data attributes, so charts, Group-by filter, Refresh and empty states work unchanged. CSS only changes boundaries and spacing. Selectors use `.executive-users .users-chart-grid > .dash-card`, which is more specific than the generic domain-grid reset, so the reset no longer wins here.
+
+Practice: in DevTools, uncheck `border` on `.executive-users .users-chart-grid > .dash-card` and watch the boundary disappear; re-enable it. Reload the dashboard with Last 7 Days and confirm values are unchanged.
+
+### 5. Backend / API behavior
+Unchanged.
+
+### 6. Database / migration impact
+None.
+
+### 7. Tests performed
+`test_dashboard_marketplace`, `test_dashboard_executive`, `test_dashboard_empty_states`: 48 run, 47 passed, 1 failed (`test_analytics_operations_layout_and_removed_chart_tables`, expects `<th scope="col">Order Status</th>`). That failure comes from a separate, concurrent edit to `dashboard/partials/recent_orders.html` that adds `role="columnheader"` to the headers; it is unrelated to Users Overview and was left untouched. Visual result was not checked in a browser here.
+
+### 8. Remaining limitations
+Needs a hard refresh if the old stylesheet is cached. Fix for the failing Recent Orders test belongs with whoever owns that `role` change (update the test expectation or the markup).
+
+
+## Current: Space above Marketplace and Facilities Overview — October 31, 2026
+
+### 1. Cause / reason
+
+The user clarified that the extra space belongs above **Marketplace Overview and Facilities Overview**, not inside Booking Summary or between its cards. The existing gap from Attention/Bundles into the overview row was 16px; stacked Facilities also followed Marketplace by 16px.
+
+| Before | After | Why |
+| --- | --- | --- |
+| 16px above the overview row and stacked Facilities | 32px above the requested sections | Make the section boundaries clearer while preserving internal card spacing. |
+
+### 2. Exact files changed
+
+- `backend/static/components/css/admin_executive_refinement.css:308`, `.executive-priority-grid`: double the existing 16px spacing token below the priority row. Line 309 adds 16px above stacked Facilities; line 311 resets that margin at the existing 1280px two-column breakpoint.
+- `backend/templates/dashboard/pages/admin_dashboard.html:29`: version CSS as `20261031-overview-spacing`.
+- `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:19`: save this clarification, data flow, checks and practice steps.
+
+### 3. Changes made
+
+Marketplace and Facilities have 32px separation from the preceding content. Desktop headings remain aligned on their shared row. On tablet/phone widths, Facilities gets 32px above it after Marketplace. Internal cards and the gaps leading to other domain sections retain their existing spacing. No heading, card, filter, data or action was added or removed.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+This changes two scoped CSS margins only. The existing `--executive-gap: 16px` supplies the input: the priority row's margin becomes twice that token. Stacked Facilities adds one token to the domain grid's existing 16px row gap, yielding 32px. At 1280px and wider its extra margin returns to zero so both headings align.
+
+No runtime function or data mapping changed. Existing Django context/API values still flow through the same templates and JavaScript renderers. Safe practice: use DevTools to measure the bottom of Attention/Bundles to Marketplace, then resize below 1280px and measure Marketplace's bottom to Facilities. Both should be 32px. Temporarily change the token multiplier, inspect the gap, then reload to restore the saved value. This needs no record edits.
+
+### 5. Backend / API behavior
+
+Unchanged: no query, endpoint, response, permission, date/grouping, Refresh or workflow changes.
+
+### 6. Database / migration impact
+
+None. No migrations, live writes, environment, runtime restart or deployment changes.
+
+### 7. Tests performed
+
+**2147/2147 Chromium checks passed across 11 renders/eight widths (280–1920px)** using the preceding implementation's actual Django fixture exports and the current stylesheet. New geometry checks verify both 32px gaps, aligned desktop headings and unchanged 16px domain-grid gaps. Existing independent cards, real chart/summary/reservation/attention values, dates/grouping/Refresh/retry, keyboard inspection and empty/text fallbacks also passed. No browser writes occurred. This CSS-only follow-up did not rerun Django tests or create new application tests.
+
+Evidence: `scratch/overview-heading-spacing-20261031/browser.log`, `browser-result.json` and captures; final scoped file/whitespace checks are in `file-checks.log` and `whitespace.log`.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh Dashboard to load `20261031-overview-spacing`. If the old gap persists, inspect the loaded CSS version and computed priority-row margin. Keep the Facilities margin reset at the existing desktop breakpoint to avoid misaligned headings. Verification used Chromium/source-rendered fixtures, not a production deployment or other-browser/device certification.
+
+## Previous: Super Admin Recent Orders Visual Alignment & Header Separation — October 31, 2026
+
+### 1. Cause / reason
+
+The user provided a screenshot demonstrating three visual issues in the Recent Orders table on the Super Admin dashboard:
+1. **Header Collision (`Payment StatusActions`)**: The "Payment Status" and "Actions" headers were colliding into `Payment StatusActions` with zero spacing between them because `orders-col-payment` was only allocated 13% width, which was too narrow for the 14-character header text.
+2. **Buyer Name Vertical Misalignment & Rogue Underline**: `td.recent-orders-person` was previously styled with `display: block;`. In HTML tables, applying `display: block` on a `<td>` breaks table-cell layout, collapsing the cell height and creating an awkward gray underline right below the buyer's name, while rendering it higher than the rest of the row.
+3. **Disproportionate Gaps**: Giant whitespace gaps separated Buyer from Order Date and Order Date from Total, while the rightmost status columns were compressed together.
+
+### 2. Exact files changed
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/static/components/css/admin_executive_refinement.css:227` | Removed `display: block` from `.recent-orders-person` and applied `vertical-align: middle !important;` to ensure native table-cell baseline alignment and eliminate the rogue underline. Increased padding to `10px 8px` on `th` and `12px 8px` on `td`. Rebalanced column percentages to: Order ID 14%, Buyer 18%, Order Date 14%, Total 11%, Order Status 14%, Payment Status 17%, Actions 12% (100% total). Centered headers and cells for columns 5, 6, and 7. |
+| `backend/static/components/css/admin_marketplace_overview.css:381` | Updated `.recent-orders-table` th to `padding: 10px 8px; font-size: 12px; vertical-align: middle !important;` and td to `padding: 12px 8px; font-size: 13px; vertical-align: middle !important;`. Centered columns 5, 6, and 7. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:17, 29, 621` | Bumped cache version query strings to `?v=20261031-recent-orders-balanced`. |
+
+### 3. Changes made
+
+1. **Header Separation**: Increased `Payment Status` column to 17% and `Actions` to 12%, centering both headers and cells. "Payment Status" and "Actions" now have a wide, distinct margin with zero collision.
+2. **Proper Table-Cell Baseline Alignment**: Removed `display: block` from `.recent-orders-person`. The buyer's name now aligns perfectly on the exact vertical middle baseline with the Order ID, Date, Amount, and Badges. The rogue horizontal line under the buyer's name is completely eliminated.
+3. **Harmonious Column Distribution (100% total)**:
+   - `Order ID`: 14% (left-aligned)
+   - `Buyer`: 18% (left-aligned, comfortable spacing)
+   - `Order Date`: 14% (left-aligned)
+   - `Total`: 11% (right-aligned)
+   - `Order Status`: 14% (centered pill)
+   - `Payment Status`: 17% (centered pill, ample room)
+   - `Actions`: 12% (centered action icon)
+4. **Single-Row & Zero Scroll**: All rows remain strictly on a single line per order without horizontal scrollbars.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Table rendering continues to draw from `operations.recent_orders` through `recent_orders.html`. The updated `<col>` percentage distribution and `vertical-align: middle !important;` rule enforce balanced spacing and cell alignment across the entire table.
+
+### 5. Backend / API behavior
+
+Unchanged: permissions, data retrieval, serialization, and order status transitions remain identical.
+
+### 6. Database / migration impact
+
+None. No database migrations or model schema alterations.
+
+### 7. Tests performed
+
+1. `backend/core/modules/reports/test_dashboard_marketplace.py`: All 24 tests passed.
+2. `backend/core/modules/reports/test_dashboard_executive.py`: All 16 tests passed.
+3. Verified 40/40 tests in 17.099s with `--keepdb`.
+
+### 8. Remaining limitations
+
+On very narrow viewports (< 480px), columns compress proportionally without scrolling. Buyer names with extreme character length (> 25 characters) truncate gracefully with an ellipsis (`...`) and reveal the full name on hover or in modal inspection.
+
+## Previous:  Super Admin Recent Orders Column Arrangement & Ellipsis Fix — October 31, 2026
+
+### 1. Cause / reason
+
+The user reported: `"Order ID Buyer Order Date Total Order Status Payment Status AcFIX THE .... OR ARRANGE"`.
+When the 7 columns were previously fitted into the Super Admin executive layout with `table-layout: fixed`:
+1. Cell padding was set to `padding: 10px 12px;` (24px horizontal padding per cell * 7 columns = 168px consumed purely by whitespace).
+2. Table headers (`th`) inherited `overflow: hidden; text-overflow: ellipsis;`. With the Actions column allocated only 7% width, the word "Actions" was truncated to "Ac...".
+3. Status badges and cells were constrained by the remaining width, causing excessive ellipses ("....") across multiple columns.
+4. Additionally, a template string interpolation issue in `admin_dashboard_filter.js` line 363 (`cell(\u20b1, 'text-end')`) caused a client-side JavaScript syntax error during dynamic updates.
+
+### 2. Exact files changed
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/static/components/css/admin_executive_refinement.css:227` | Removed ellipsis truncation from `th`; set `th` to `padding: 8px 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: visible; text-overflow: clip;`. Reduced cell padding to `padding: 8px 6px; font-size: 12px; line-height: 1.4;`. Rebalanced column percentages to 15%, 21%, 15%, 12%, 14%, 13%, 10% summing to 100%. Compacted status badges with `padding: 2px 6px; font-size: 11px;`. |
+| `backend/static/components/css/admin_marketplace_overview.css:381` | Updated `.recent-orders-table th` to `overflow: visible; text-overflow: clip; padding: 8px 6px; font-size: 11.5px; font-weight: 600;` and cells to `padding: 8px 6px; font-size: 12px;`. Added center alignment for columns 5, 6, and 7. |
+| `backend/templates/dashboard/partials/recent_orders.html:8` | Preserved clean `<th>Actions</th>` header and added `text-center` class on status and action cells. |
+| `backend/static/components/js/admin_dashboard_filter.js:340, 363` | Fixed JavaScript syntax error on line 363 (`cell(`₱${order.total}`, 'text-end')`). Added `text-center` alignment to dynamically rendered status, payment, and action cells. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:17, 29, 621` | Updated cache-busting version strings to `?v=20261031-recent-orders-arranged`. |
+
+### 3. Changes made
+
+1. **Header Truncation Eliminated**: "Actions" header now has 10% width with `overflow: visible`, completely preventing any cutoff to "Ac...". All 7 column headers are fully visible and readable.
+2. **Reclaimed 84px Usable Width**: Reduced horizontal cell padding from 24px to 12px per cell (8px 6px), recovering 84px of space across the 7 columns.
+3. **Ellipsis Removal on Known Values**: Order ID, Order Date, Total, and Status Badges render their complete values cleanly without `....`. Only unusually long buyer names retain ellipsis protection with tooltip discovery on hover.
+4. **Clean Column Proportions (100% total)**:
+   - `Order ID`: 15% (e.g. `ORD-202610-001`)
+   - `Buyer`: 21% (e.g. `Lester Bulay`)
+   - `Order Date`: 15% (e.g. `Oct 31, 2026`)
+   - `Total`: 12% (e.g. `₱1,250.00`, right-aligned)
+   - `Order Status`: 14% (e.g. `Completed`, centered)
+   - `Payment Status`: 13% (e.g. `Paid`, centered)
+   - `Actions`: 10% (Centered view icon button)
+5. **No Horizontal Scrollbar**: Retained `overflow-x: hidden; scrollbar-width: none;` on the wrapper. Every row strictly renders on a single line.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The Django view passes recent orders to `recent_orders.html`. The table uses `table-layout: fixed` with calibrated `<col>` percentage widths. By reducing cell padding and setting `th` overflow to visible, all headers and values fit comfortably in the available space. On client-side refresh or date filtering, `admin_dashboard_filter.js` renders the table body dynamically, formatting amounts with `₱${order.total}` and assigning centered classes to status and action cells.
+
+### 5. Backend / API behavior
+
+No backend logic, models, serializers, permissions, or database queries were modified.
+
+### 6. Database / migration impact
+
+None. No database migrations or schema alterations.
+
+### 7. Tests performed
+
+1. `backend/core/modules/reports/test_dashboard_marketplace.py`: All 24 tests passed.
+2. `backend/core/modules/reports/test_dashboard_executive.py`: All 16 tests passed.
+3. Total: 40/40 tests passed in 14.417s.
+4. Node syntax validation on `admin_dashboard_filter.js`: Passed with 0 errors.
+
+### 8. Remaining limitations / safe practice
+
+On viewports below 480px, fixed table layout will compress column space proportionally while keeping single-line alignment without horizontal scrollbars. Exceptionally long buyer names continue to provide full name discoverability via hover tooltip and modal details.
+
+## Previous:  Super Admin Recent Orders One-Row Fit and No-Scroll Layout — October 31, 2026
+
+### 1. Cause / reason
+
+The user requested: `"Order ID Buyer Order Date Total Order Status Payment Status Actions IT ASHOULD ONE ROW FROM ASUPER ADMIN THEN REMOVE SCROLLUNG"`.
+Previously on the Super Admin Executive Dashboard (`data-global-dashboard`):
+1. `.recent-orders-table` had `min-width: 800px;` with `overflow-x: auto;` on its container (`.recent-orders-table-wrap`), causing horizontal scrollbars to appear.
+2. Cells allowed multi-line text wrapping (`white-space: normal; overflow-wrap: anywhere;`), so buyer names and status pills wrapped onto 2 or 3 lines instead of staying on a clean single line per order.
+
+Confirmed presentation cause: table layout was dynamic with minimum pixel threshold and wrapped typography.
+
+### 2. Exact files changed
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/static/components/css/admin_executive_refinement.css:180` | Scoped `#recentOrdersSlot .recent-orders-table-wrap` to `overflow-x: hidden; overflow-y: hidden; scrollbar-width: none;` and webkit scrollbar hidden. |
+| `backend/static/components/css/admin_executive_refinement.css:222` | Configured `.recent-orders-table` with `min-width: 0; width: 100%; table-layout: fixed;` and all `th, td` with `padding: 10px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;`. Set proportional column distribution: 16%, 22%, 16%, 12%, 16%, 11%, 7% summing to 100%. |
+| `backend/static/components/css/admin_marketplace_overview.css:377` | Updated `.marketplace-operations-row .recent-orders-table` to `min-width: 0; width: 100%; table-layout: fixed;` and nowrap ellipsis on cells. |
+| `backend/templates/dashboard/partials/recent_orders.html:8` | Added `title="{{ order.buyer_name }}"` to `<td class="recent-orders-person">` so full buyer names are accessible on hover. |
+| `backend/static/components/js/admin_dashboard_filter.js:360` | Added `buyerCell.title = order.buyer_name;` for dynamically rendered filtered orders. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:17, 29, 621` | Bumped asset versions for `admin_marketplace_overview.css`, `admin_executive_refinement.css`, and `admin_dashboard_filter.js` to `?v=20261031-recent-orders-one-row`. |
+
+### 3. Changes made
+
+1. **One-Row Row Layout**: Every order row now strictly occupies exactly one line. Multi-line wrapping of buyer names, dates, or badges is prevented with `white-space: nowrap`. Long names cleanly truncate with ellipsis and provide full name tooltip via `title`.
+2. **Horizontal Scrolling Removed**: Removed horizontal scrollbars on `#recentOrdersSlot .recent-orders-table-wrap` (`overflow-x: hidden; scrollbar-width: none; display: none;`).
+3. **Calibrated Column Widths**:
+   - `Order ID`: 16% (e.g. `ORD-202610-001`)
+   - `Buyer`: 22% (Buyer name with ellipsis + tooltip)
+   - `Order Date`: 16% (e.g. `Oct 31, 2026`)
+   - `Total`: 12% (e.g. `₱1,250.00`)
+   - `Order Status`: 16% (Badge, single line)
+   - `Payment Status`: 11% (Badge, single line)
+   - `Actions`: 7% (Centered view icon button)
+   Total: 100% fixed table width fitting the container edge-to-edge.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The Django view `backend/core/modules/reports/views.py` passes `operations.recent_orders` to the dashboard template. When the template renders `backend/templates/dashboard/partials/recent_orders.html`, each row emits the 7 cells. With `table-layout: fixed` and `width: 100%`, the browser computes exact column widths based on the `<colgroup>` percentages without measuring inner cell text widths, ensuring instant layout calculation without horizontal overflow.
+
+When date filters are updated via `admin_dashboard_filter.js`, `renderRecentOrders(orders)` generates row elements and sets `buyerCell.title = order.buyer_name;`, preserving tooltips and single-line layout dynamically.
+
+### 5. Backend / API behavior
+
+No backend views, models, permissions, or API endpoints were changed. All existing order retrieval logic, security scopes, and modal action bindings remain identical.
+
+### 6. Database / migration impact
+
+None. No database migrations or model schema alterations.
+
+### 7. Tests performed
+
+1. `backend/core/modules/reports/test_dashboard_marketplace.py`: Ran 24 tests; all 24 passed in 11.366s.
+2. `backend/core/modules/reports/test_dashboard_executive.py`: Ran 16 tests; all 16 passed in 5.148s.
+3. Verified table rendering and column percentage sum (16% + 22% + 16% + 12% + 16% + 11% + 7% = 100%).
+
+### 8. Remaining limitations / safe practice
+
+In extremely narrow viewports (e.g. under 600px width), fixed layout will truncate longer buyer names or order IDs with ellipses (`...`). The full buyer name is always accessible via the hover tooltip or by clicking the action button to open the full order details modal.
+
+## Previous:  Independent Recent Orders and Inventory Alerts — October 31, 2026
+
+### 1. Cause / reason
+
+Both tables were inside one `marketplace-operations-card` surround. Shared executive styles removed the inner cards' borders and padding, so they did not read as two independent containers. The older column-position rule also right-aligned Order Date, and the Inventory table hid its horizontal scrollbar. These are confirmed presentation causes; no missing data or backend failure was found.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Shared outer card around both tables | Two white bordered cards, each filling the existing Marketplace column | Give Recent Orders and Inventory Alerts independent boundaries without changing the adjacent Facilities section. |
+| Different header spacing | Internal title, subtitle and existing View All with 16px padding and divider | Keep a consistent compact card header. |
+| Narrow columns and hidden Inventory scrollbar | Planned column widths, aligned values and native horizontal scrolling | Preserve every field and action on narrow screens. |
+
+### 2. Exact files changed
+
+Paths are relative to the project root. Use the nearby anchor if subsequent edits move a line.
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/partials/executive_dashboard.html:35` | `marketplace-operations-row`: remove only its shared outer card; keep Recent Orders first and `lowStockSlot` second. |
+| `backend/templates/dashboard/partials/recent_orders.html:3` | Executive `marketplace-operation-header`; line 6 adds seven named columns for sizing. All existing headers, values, row actions and non-executive markup remain. |
+| `backend/templates/dashboard/partials/low_stock_card.html:2` | Add the shared header class only for `global_dashboard`; line 9 adds three global-only sizing columns. Keep product/variant details, availability, statuses, destinations and empty/error hooks. |
+| `backend/static/components/css/admin_executive_refinement.css:167` | Scope independent cards, 16px gaps, 16px headers and visible native scrolling to Super Admin. Line 222 starts the Orders sizing/alignment rules; line 237 starts Inventory sizing. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:29` | CSS cache version becomes `20261031-operation-cards`; executable scripts and their versions remain unchanged. |
+| `backend/core/modules/marketplace/test_orders_admin.py:68` | Existing canonical-fragment comparison now compares every `data-*` attribute used by the controller, rather than unrelated structural attributes. Line 85 optionally exports actual test-rendered dashboard/API/order detail fixtures via `DASHBOARD_OPERATIONS_REVIEW_DIR`. Keep the existing no-write assertions. |
+| `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:13` | Record this layout, data flow, checks and safe practice. Related ranking/priority guides receive a current-layout note or shifted-line-reference maintenance only. |
+
+### 3. Changes made
+
+Recent Orders and Inventory Alerts now have separate full-width cards within the existing Marketplace Overview column, with exactly 16px between them. Marketplace remains beside Facilities at wide desktop sizes; unrelated sections retain their layout. Each card has the existing white surface, navy text, subtle border, 10px radius, and its own title/subtitle/View All inside the header.
+
+All seven Recent Orders columns remain: **Order ID, Buyer, Order Date, Total, Order Status, Payment Status, Actions**. All three Inventory Alerts columns remain: **Product, Available, Status**. No column, value, image, variant detail, action or link was removed.
+
+Orders uses an 800px minimum table width with relative column widths of 18/20/15/12/15/12/8 percent. References and dates remain on one line, buyer names can wrap, totals align right, and the existing eye action is centered. Inventory uses a 420px minimum and 60/16/24 percent columns; quantity and status align right. These are automatic-layout width hints, so long content can expand the table. Native horizontal scrolling stays inside each focusable, labelled table region. Preview rows remain vertically visible; no nested vertical table scrolling was added.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The same Django context supplies `recent_orders` and `dashboard_low_stock.products` to the existing partials. Named `<col>` elements control presentation without adding cells or changing data. The parent grid stacks two independent cards; each table wrapper contains its own horizontal overflow.
+
+On date changes/Refresh, the unchanged dashboard API supplies `operations.recent_orders` and `low_stock`. Existing `renderRecentOrders(orders)` (`admin_dashboard_filter.js:299`) and `renderLowStock(snapshot)` (`:246`) rebuild the table bodies from these actual records. Their existing header, column group, caption and scroll-region nodes stay in place. Empty/error/retry behavior still uses the original hooks.
+
+```text
+Actual Django records -> existing dashboard context/API
+  operations.recent_orders -> seven existing cells + canonical order eye
+  low_stock.products       -> three existing cells + inventory destination
+  CSS column hints         -> alignment and contained horizontal scrolling
+```
+
+The delegated listener in `dashboard_recent_orders.js` still fetches the authorized `format=dashboard-order` fragment for the clicked order. The existing canonical order controller opens the saved details and restores focus when closed. No business-action request is needed to view an order. The test export writes only disposable test output files when its explicit environment variable is set; normal test/application behavior does not export files.
+
+Safe practice: open Dashboard, select Last 30 Days and Refresh. Compare one displayed order's six values and eye URL with `operations.recent_orders`, and one alert's product/quantity/status/URL with `low_stock.products` in Network. Resize to phone width, focus each table region and scroll right to Actions or Status. Open and close an order's eye action without confirming any operation; verify the saved customer details and restored focus. Follow View All to the existing Orders/Inventory pages, then return. This exercise does not change application records.
+
+### 5. Backend / API behavior
+
+No application backend, API contract, query, ranking/count, filter/default, authentication, permission or order/inventory workflow changed. The existing latest-five previews, selected-period Orders behavior and current Inventory snapshot remain. Full Orders and scoped Inventory destinations are unchanged.
+
+### 6. Database / migration impact
+
+None. No migrations, schema changes, live record writes, environment changes or deployment. Django verification used disposable localhost PostgreSQL databases. Browser non-GET requests were blocked. The user-controlled Django/app runtime was not restarted.
+
+### 7. Tests performed
+
+- **70/70 focused Django tests passed in 26.675 seconds**: existing marketplace, executive, empty-state and low-stock dashboard suites plus existing canonical order-fragment, view-only permission, modal integration and seven-column/eye-template checks. System checks reported no issues. Actual fixture HTML/JSON was exported for browser verification.
+- The initial run exposed an existing test assumption: full Orders rows include `role="row"`, while the canonical detail fragment omits that structural attribute. The comparison now verifies every controller-consumed `data-*` attribute; no production row semantics were changed. The final run passed with the original no-write checks retained.
+- **2740/2740 Chromium checks passed across 20 actual Django fixture renders and eight widths (280–1920px)**. Checks cover separate full-column cards, exact 16px spacing, internal headers, all seven/three columns, actual row values and URLs, matching header/cell alignment, horizontally reachable final columns, vertically visible rows, Refresh/error/recovery and the actual canonical order-details modal with restored focus. Existing surrounding dashboard behavior also passed. Desktop and phone table screenshots were inspected; order references stay on one line. No browser write request occurred. No claim of a full cross-browser accessibility gate is made.
+- Evidence folder: `scratch/dashboard-operation-cards-20261031/`; results are `django-final.log`, `browser.log` and `browser-result.json`, with desktop/phone Orders and Inventory captures. Browser fixtures come from ORM-backed tests, not invented sales/alert data. Final scoped syntax/whitespace/reference checks are recorded in `file-checks.log` and `whitespace.log`.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh Dashboard to load stylesheet `20261031-operation-cards`. If a user-controlled Django process caches old templates, restart it locally and refresh. If the cards still appear joined, check that the old outer `marketplace-operations-card` is gone and each card has its own border. If columns seem absent, scroll inside the table region: the design intentionally retains all columns rather than hiding fields at phone widths. Do not remove a `<th>`/`<td>` to make the table fit.
+
+Full width means the width of the existing Marketplace column; changing the overall Marketplace/Facilities grid would be unrelated scope. Width hints may expand for unusually long content, which remains reachable through the table's native scroll area. Verification uses source-rendered Django fixtures and Chromium, not a deployed site, other browsers or physical devices. No live production records were exercised.
+
+Latest Top-Selling Products follow-up: one independent bordered ranking card is a direct Marketplace Overview child, outside Sales Overview, with 16px separation from the sales and existing operations containers. Keep its single internal title/subtitle, actual rankings or compact empty state, with no accordion/duplicate heading. Ranking queries, refresh and other dashboard sections are unchanged. Exact files, eight-part report, functions/data flow, measured tests, troubleshooting and safe practice are in the [ranked-sales guide](dashboard-marketplace-ranked-sales.md).
+
+Latest priority-card refinement: Attention Required and Suggested Product Bundles have matching internal headers, subtitles, optional action and subtle dividers with 16px padding. Their cards share the taller content height when side by side; warning rows keep 12px padding, 8px spacing and actual name/count/action values. Marketplace and Facilities headings are outside separately bordered white content bodies. No backend data rule or unrelated section changed. The complete eight-part report, exact files/lines, renderer/data flow, measured verification, troubleshooting and safe practice are in the [Attention Required guide](dashboard-attention-required-4.md). The Welcome/toolbar reports below remain the current reference for those unchanged sections.
+
+## Previous: Reduced Welcome and restored System Overview — October 31, 2026
+
+### 1. Cause / reason
+
+The latest user request reduces the enlarged Welcome container and brings back the visible System Overview heading. The previous follow-up used a 160px minimum height/28px padding and kept the KPI heading visually hidden.
+
+### 2. Exact files changed
+
+- `backend/static/components/css/admin_executive_refinement.css:50`: `.executive-toolbar` now uses a 120px minimum height and 20px padding, retaining its border, white surface, centered content and 16px bottom spacing.
+- `backend/templates/dashboard/partials/system_overview_summary.html:3`: remove the conditional `visually-hidden` utility so the existing System Overview heading and subtitle are visible above the unchanged KPI cards.
+- `backend/templates/dashboard/pages/admin_dashboard.html:29`: version the stylesheet as `20261031-welcome-compact`.
+- `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3` and `docs/web-ui-ux-guidelines.md:9`: persist the latest layout, superseding the prior height/hidden-heading choice.
+
+### 3. Changes made
+
+Welcome is 40px shorter at its minimum desktop height, with less internal padding. Long names/text can still increase its height naturally. System Overview and its original supporting description are visible again. The inline right-aligned date/Refresh row, selected values, 12px control gap and other dashboard sections remain unchanged. The 16px gap now leads into the visible System Overview section; its heading sits before the cards.
+
+### 4. How it works / inputs, outputs and data flow
+
+The same authenticated Django context renders Welcome text and the existing KPI partial. Removing a presentation utility changes the heading's visibility without changing its id, accessible region label, KPI values or JavaScript hooks. CSS changes only minimum height/padding. Existing `load()`/`render()` functions continue passing selected periods to the same API and displaying its actual data.
+
+Safe practice: select Last 30 Days, Refresh, and verify the selected value persists. Resize to phone width and confirm Welcome text wraps without clipping and System Overview remains visible. Temporarily adjust `min-height` in DevTools, then reload to restore the saved 120px minimum. No data edits are required.
+
+### 5. Backend / API behavior
+
+Unchanged: no JavaScript logic, request/response, date default, permissions, aggregate or business-rule changes.
+
+### 6. Database / migration impact
+
+None. No live writes, migrations, environment changes, server/app restart or deployment. Test records were confined to disposable localhost PostgreSQL databases.
+
+### 7. Tests performed
+
+- **24/24 focused Django executive/empty-state tests passed in 10.912 seconds**, exporting actual current-template fixtures.
+- **385/385 Chromium checks passed across ten renders/eight widths (280–1920px)**. Verified visible System Overview, Welcome's minimum height of 120px/reduced desktop height, preserved border/spacing, inline desktop toolbar, Last 30 Days, Refresh/custom dates, loading/error/retry, menus, responsive layout and no browser writes. Desktop rendering was inspected.
+- Evidence: `scratch/dashboard-welcome-compact-20261031/django.log`, `browser.log`, `browser-result.json` and `last30-1440.png`. Scoped file/whitespace checks accompany these results.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh Dashboard to load `20261031-welcome-compact`; restart the user-controlled Django process if it retains the older template. If System Overview remains absent, check that its header no longer has `visually-hidden`. On phones, long text can make Welcome taller than 120px; the height is deliberately a minimum. Verification used Chromium/source-rendered tests, not a live deployment or physical-device certification.
+
+## Previous: Single-row controls and taller Welcome — October 31, 2026
+
+### 1. Cause / reason
+
+The user's screenshot shows the selected range and update time on separate lines beneath the controls. The latest follow-up asks for one row and more Welcome container height. The scoped controls wrapper was still a single-column grid, while Welcome used only 20px padding without a minimum height.
+
+### 2. Exact files changed
+
+- `backend/static/components/css/admin_executive_refinement.css:38`: `.dashboard-global-controls` becomes a right-aligned, vertically centered flex row with a 12px gap. At line 41 the existing form follows the metadata, keeping the selector/Refresh at the far right. At line 50, `.executive-toolbar` gains a 160px minimum height, 28px padding and centered content.
+- `backend/templates/dashboard/pages/admin_dashboard.html:29`: change only the CSS version to `20261031-controls-inline`.
+- `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3` and `docs/web-ui-ux-guidelines.md:9`: record this follow-up and its verification. Earlier reports below are history.
+
+### 3. Changes made
+
+The selected date range, update time, period selector and Refresh now share one desktop row. The existing controls remain far right, outside the header and Welcome. Their 12px gap and the 16px spacing before Welcome/KPIs remain. Welcome is taller, with its text centered vertically inside the same bordered white container. Content can increase its height naturally; no fixed height clips long names or enlarged text. Other dashboard sections remain unchanged.
+
+### 4. How it works / inputs, outputs and data flow
+
+CSS flex alignment replaces the grid that previously placed each child on a new line. The existing form is visually ordered last; the two preceding text nodes are not keyboard controls, so the selector/Refresh keyboard order remains natural. Responsive wrapping prevents narrow-screen page overflow.
+
+The existing Django period/update-time values still render the same form IDs and metadata. The existing `load()` request and `render()` callbacks continue updating those values; CSS changes only their position. Example: selecting Last 30 Days still submits `period=last_30_days`, and the response's dates/update time appear alongside the same selector and Refresh button.
+
+Safe practice: select Last 30 Days, click Refresh and inspect the existing Network request. Resize from desktop to phone width; verify one desktop row, natural phone wrapping and no page overflow. In DevTools, temporarily increase Welcome's `min-height`, then reload to restore 160px. No data changes are needed for this exercise.
+
+### 5. Backend / API behavior
+
+Unchanged. No JavaScript behavior, selected value, default period, endpoint, permission, query, request or response changes.
+
+### 6. Database / migration impact
+
+None. No live writes, schema changes, migrations, environment changes, server restart or deployment.
+
+### 7. Tests performed
+
+**380/380 Chromium checks passed across ten renders and eight widths (280–1920px)** using existing actual Django fixture exports with the current stylesheet. Checks include vertically aligned single-row desktop metadata/controls, Welcome height of at least 160px, retained 12px/16px spacing, right alignment, borders, no page overflow, Last 30 Days, Refresh, custom dates, keyboard cancel/focus, loading/error/retry and navigation. Browser writes were blocked. Desktop and phone renders were inspected. Evidence is in `scratch/dashboard-controls-inline-20261031/browser.log`, `browser-result.json` and `last30-1440.png`/`last30-390.png`.
+
+No new backend test run was needed for this two-file CSS/cache-version change. The preceding follow-up's 24 focused Django results remain historical, not a claim of rerunning them. Scoped whitespace/file checks are recorded with this follow-up.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh the dashboard to load `20261031-controls-inline`. On narrow screens the toolbar wraps to preserve readability rather than forcing horizontal page scrolling. Long Welcome content can make the container taller than 160px. Verification used Chromium and existing server-rendered fixtures; no server deployment or physical-device certification is claimed. If the metadata remains stacked on desktop, confirm the new stylesheet version and computed `display: flex` on the controls wrapper.
+
+## Previous: Controls row and bordered Welcome Back — October 31, 2026
+
+### 1. Cause / reason
+
+The latest request moves the existing period selector and Refresh out of the main header into their own far-right row above Welcome Back. Previously the controls were in the header, their gap was 8px, Welcome had no border, and its bottom margin was 20px. This update supersedes those positions in the earlier report below.
+
+### 2. Exact files changed
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/templates/partials/admin_header.html:26` | Remove only the global date-controls include; retain title, notification/chat/profile and session components. |
+| `backend/templates/dashboard/partials/executive_dashboard.html:2` | Add `executive-controls-row` containing the existing `global_date_filter.html` include. Welcome stays in its own sibling `executive-toolbar` at line 5; its copy now refers to the controls above. |
+| `backend/templates/dashboard/partials/system_overview_summary.html:3` | Keep the existing System Overview heading/id for screen readers using the shared `visually-hidden` utility on Super Admin. This allows the actual KPI cards to begin exactly 16px below Welcome. No KPI values, labels, links or grid rules change. |
+| `backend/static/components/css/admin_executive_refinement.css:35` | New controls-row positioning, 12px control gap and retained right-aligned date/update metadata. Line 49 gives Welcome the existing white surface, neutral border, 10px radius, 20px inner padding and 16px bottom spacing. Remove obsolete header-control placement rules; preserve other section styles. Controls wrap to the right only when the available width cannot fit both. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:29` | CSS cache version becomes `20261031-controls-row` so the revised layout loads. |
+| `backend/static/components/js/admin_dashboard_filter.js:4` | Correct the layout comment; executable filtering/Refresh/custom-range/token/request logic is unchanged. |
+| `backend/core/modules/reports/test_dashboard_executive.py:201` | Update the existing layout expectation: one date/Refresh component outside the header and before Welcome. Line 274 optionally exports a real Last 30 Days fixture for browser verification. |
+| `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:9` | Record the latest layout and verification. Earlier implementation reports are retained as history. |
+
+### 3. Changes made
+
+The existing date selector (including Last 30 Days) and Refresh sit at the content area's far-right edge, outside both the main header and Welcome card. Their gap is 12px. The row ends 16px above the bordered Welcome card, and the first KPI cards start 16px below it. Welcome's text stays inside the white bordered container. The System Overview heading still names the KPI region for assistive technology while taking no visible layout space. Selected period, date options and default behavior remain unchanged.
+
+Other dashboard sections, KPIs, permissions, typography, navigation and backend calculations retain the earlier implementation. The controls remain usable on narrow screens; date-range/update metadata is preserved below them and custom dates remain clear of the sidebar.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+This is a template/CSS placement change. `executive_dashboard.html` includes the same `global_date_filter.html` once, using the existing `dashboard_period` and `dashboard_updated_at` inputs. It outputs the same form, select, Refresh button, metadata and custom-date IDs. The existing `load()` controller in `admin_dashboard_filter.js` continues sending period/grouping parameters to the existing dashboard endpoint. The response goes to the same `render()` functions and dashboard data listeners. Moving the form does not change these inputs or outputs because the controller finds `[data-global-dashboard]` independently of the form's position.
+
+The row uses flex alignment to the end; its action group uses `gap: 12px`. Margins of 16px separate the row, Welcome and KPI group. The shared hidden-heading utility removes the extra visual heading height while preserving its accessible label.
+
+Safe practice example: select Last 30 Days and inspect Network for `period=last_30_days`; click Refresh and confirm the same selected period is requested without a page reload. Then resize to a phone width and use Custom Range, Cancel/Escape and Apply. Verify that the controls remain outside Welcome and do not cover the sidebar. To practice styling locally, change only the controls' gap in browser DevTools, measure the changed distance, then reload to restore the saved 12px value. This exercise writes no application records.
+
+### 5. Backend / API behavior
+
+No executable JavaScript, endpoint, query, authentication, date validation, default period, Refresh, abort/retry, tab-token or business-rule change. Existing Django API responses and actual data sources remain in use. No new button or filter was added.
+
+### 6. Database / migration impact
+
+None. No schema/migration, live data, environment or remote deployment changes. Verification used disposable localhost test databases and intercepted read-only browser requests; non-GET browser requests were blocked. No server/app/device was launched or restarted.
+
+### 7. Tests performed
+
+- **24/24 focused Django tests passed in 8.352 seconds**: existing executive/empty-state suites, including the updated placement expectation, saved-bundle refresh, selected dates, role isolation and real-data rendering.
+- **364/364 Chromium checks passed across ten actual Django fixture renders**, at widths 1920, 1440, 1280, 1024, 768, 390, 320 and 280. Measurements verify the 12px control gap, right alignment, separate containers, all four Welcome borders, 16px row-to-Welcome spacing and 16px Welcome-to-actual-KPI spacing. Existing Refresh, duplicate-request prevention, Last 30 Days, custom dates, keyboard cancel/focus, error/retry, charts, menus, selected-period URL and narrow-screen behavior also passed. Desktop/phone screenshots were inspected. No browser write requests occurred.
+- Changed JavaScript syntax and scoped whitespace checks are recorded alongside the results.
+- Evidence: `scratch/dashboard-controls-row-20261031/django.log`, `browser.log`, `browser-result.json`, `last30-1440.png` and `last30-390.png`. The browser harness consumes the environment-gated ORM exports from the existing tests, not fabricated dashboard values.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh the dashboard to load the versioned CSS; restart the user-controlled Django process if its template loader retains the old markup. If controls still appear in the header, confirm the old include has been removed and only one `dashboardGlobalControls` exists. If the gap is wrong, inspect the computed `.dashboard-global-actions` gap and the versioned refinement asset. On exceptionally narrow widths the controls wrap with the same gap and right alignment. Existing KPI comparison text can make individual cards taller, but the measured distance above the first KPI row remains 16px.
+
+This task was verified in Chromium and source-rendered Django tests; it does not claim a deployment or other-browser/device certification. The earlier broad Bundle Monitoring test expectation mismatches are documented in the previous report; that unrelated suite was not rerun for this layout-only follow-up.
+
+## Previous: Super Admin minimalist SaaS dashboard — October 31, 2026
+
+### 1. Cause / reason
+
+The user approved using the written dashboard brief and existing CampusHub styling because no reference image was supplied. Inspection confirmed that the existing backend already calculates the eight KPIs, paid marketplace sales, physical bookings, service requests, users and audit activity. The main presentation problem was full-width stacked domain sections, with global date controls below the header. Confirmed integration gaps were that Recent Orders ignored the reporting period and the saved bundle preview did not participate in AJAX Refresh. Routine successful sign-ins could also crowd administrative work out of the five-row activity preview.
+
+The rendered review found two further concrete causes: an old sales metric grid still reserved an empty icon column, splitting short currency values; and narrow custom-date/notification panels could extend underneath the persistent sidebar. The changes below address those causes within the Super Admin dashboard. Existing Products, other administrator dashboards and Flutter are outside this change.
+
+### 2. Exact files changed
+
+Paths below are relative to the project root. Line numbers refer to this implementation; use the named anchor if later edits move them.
+
+| File / current line | Nearby anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/pages/admin_dashboard.html:29` | Version the changed refinement stylesheet and four changed scripts with `20261031-saas-dashboard`; line 34 adds `super-admin-dashboard` only for the global dashboard. |
+| `backend/templates/partials/admin_header.html:26` | `header-dashboard-controls`: render the existing global date filter only when `global_dashboard` is true. Notification, chat, profile and authentication components remain the existing shared components. |
+| `backend/templates/dashboard/partials/executive_dashboard.html:1` | Welcome stays first; remove its duplicate date-control include. `executive-priority-grid` at line 13 holds Attention and Bundles; `executive-domain-grid` at line 25 holds Marketplace, Facilities, Services and Users. Activities remain outside that grid. Bundle loading/error hooks are at lines 16–20. |
+| `backend/templates/dashboard/partials/system_overview_summary.html:1` | Remove the old left/right summary wrapper and nested Attention/Bundles includes. The eight cards now occupy the available width. Basis labels begin at line 18; Facilities/Bookings precede Marketplace Sales, and Pending Approvals links to Attention. Canonical values and secondary comparison hooks remain. |
+| `backend/templates/dashboard/partials/recent_orders.html:1` | Executive branch uses Order ID, Buyer, Order Date, Total, Order Status, Payment Status and the existing Details action. Seller/item details remain in the existing authorized detail flow. Selected-submission-period wording replaces the all-date snapshot wording. The non-executive branch remains. |
+| `backend/templates/dashboard/partials/super_marketplace_sales.html:16` | Describe completed, paid sales precisely; keep all three actual sales metrics and the line chart. Line 36 puts the existing Top Selling Products chart inside an expandable summary. |
+| `backend/templates/dashboard/partials/super_facilities_overview.html:6` | Add existing Facilities/Bookings/Calendar destinations. Line 29 retains Most Booked Facilities inside an expandable summary. Selected-submission counts and all-date upcoming reservations retain their distinct meanings. |
+| `backend/templates/dashboard/partials/super_services_overview.html:30` | Existing Requests by Service and Service Attention content become expandable summaries; line 50 starts the latter. Summary metrics, request trend and recent requests remain immediately visible. All existing renderer IDs/data hooks remain. |
+| `backend/templates/dashboard/partials/system_activity_preview.html:9` | Rename Time to Date and Time. Existing five-row preview, result, permission-gated detail dialog and full-history link remain. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:5` | Explain the current saved snapshot and link View All to `bundle_monitor_list`. Keep two eligible stored pairs, actual seller responses, photos/fallbacks, error and empty states. |
+| `backend/static/components/css/admin_executive_refinement.css:1` | Replace this dashboard-only refinement layer with local Montserrat and scoped navy/gold/neutral tokens. Header starts at line 23, KPI grid at 56, priority/domain grids at 79, currency icon-space fix at 105, table containment/intact amounts at 130, neutral audit results at 136, and responsive rules at 146. Other pages do not receive the body scope or this stylesheet. |
+| `backend/static/components/js/admin_dashboard_filter.js:5` | Find the live main region independently of the controls' new header position. `positionCustomRange` at 148 clamps the panel to the content area. `renderRecentOrders` at 296 matches the seven-column executive table. `render` at 390 replaces the escaped server bundle fragment and retains tab authentication on its links. Existing abortable request/date/refresh/retry controller remains. |
+| `backend/static/components/js/admin_dashboard_executive.js:2` | Scope Chart.js default Montserrat to this dashboard. Existing user chart font at line 84 also uses Montserrat; registration grouping/data calculations remain. |
+| `backend/static/components/js/admin_services_overview.js:56` | Read chart tick font from the page's computed font so the dashboard uses Montserrat and existing other pages retain their own font. |
+| `backend/static/components/js/admin_marketplace_products_chart.js:54` | Same computed-font approach for the existing product ranking chart. |
+| `backend/core/modules/reports/dashboard_periods.py:321` | `build_dashboard_data`: apply the selected campus-local submission dates before taking the latest five Recent Orders. Canonical paid-sales, inventory, booking/service and KPI calculations remain. |
+| `backend/core/modules/reports/dashboard_executive.py:115` | `executive_overview`: exclude routine `login_success`/`logout` events from the bounded preview, retaining newest-first ordering and failed authentication. Full `AccountActivity` history remains stored and accessible. |
+| `backend/core/modules/reports/views.py:1359` | Existing `admin_dashboard_api`: preserve GET/authentication/Super Admin gate/date/error handling; line 1376 adds `bundle_preview_html` using the same permission-checked saved-pair getter and escaped template as the first render. Import at line 17. |
+| `backend/core/modules/reports/test_dashboard_executive.py:201` | New header placement, layout hooks, saved-fragment/no-Apriori and role-isolation regression. Update earlier layout assertions for the requested View All link. |
+| `backend/core/modules/reports/test_dashboard_marketplace.py:137` | Change the old all-date Recent Orders assertion to the new selected-period requirement. Line 212 verifies Manila midnight boundaries, unpaid-order inclusion in recent activity, paid-sales exclusion, and unchanged orders/stock. |
+| `backend/core/modules/reports/test_dashboard_operations.py:79` | Verify meaningful admin work and failed authentication survive a flood of routine sign-ins without deleting history. |
+| `backend/core/modules/reports/test_dashboard_empty_states.py:70` | Explicitly set the isolated order's submission date to the fixture date; required now that recent orders correctly filter by submission. |
+| `backend/core/modules/reports/test_dashboard_kpi_cards.py:19` | Update requested KPI ordering, actual destinations, approval anchor and basis labels; keep large-currency and no-mining checks. |
+| `backend/core/modules/marketplace/test_bundle_monitoring.py:798` | Update preview wording/View All expectations; line 811 verifies API Refresh returns two saved pairs without mining or changing records. Existing image, response and error/empty checks remain. |
+| `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:9` | Record this implementation, data definitions, verification, current layout and scoped typography choice. Historical reports below remain as history. |
+
+### 3. Changes made
+
+Desktop uses four KPI columns/two rows, Attention beside saved bundle suggestions, then Marketplace beside Facilities and Services beside Users. Activities use the full content width. Tablet stacks the domain panels; phones stack all main sections and adapt KPIs to the available width. Native expandable summaries keep the secondary product ranking, most-booked ranking, service distribution and service attention available without extending every panel on first load.
+
+The header contains the existing period choices, Refresh, notification/chat controls and profile. The same existing custom-date form still supports Apply, Cancel and Escape. Its panel now fits to the right of the sidebar. Narrow header dropdowns also anchor within that content area. Controls retain keyboard focus feedback, reduced-motion behavior and suitable touch heights. Tables scroll within focusable regions on narrow screens rather than causing page overflow. Currency values no longer lose width to an unused icon column.
+
+The palette is navy `#1A1851`, gold `#FCB316`, white, `#F7F8FC`, `#E8EAF0` borders and existing readable text colors. Audit result chips use neutral navy/surface styling with their actual result words. Bundled Montserrat applies only to the Super Admin dashboard, including its shared shell while this page is open. The CampusHub wordmark remains SugarPie. No new framework, dependency, image generation or replacement asset was introduced.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Initial page: existing authenticated `admin_dashboard_page(request)` resolves the period, obtains actual Django ORM projections and saved recommendation rows, then renders the existing partials. `global_dashboard` determines the scoped layout and header controls.
+
+AJAX: changing a preset, submitting custom dates or clicking Refresh calls the existing `load()` controller. It preserves the tab token, aborts superseded requests, disables Refresh while active and updates loading feedback. The protected dashboard endpoint calls `build_dashboard_data(params)`, adds the saved bundle HTML when authorized, and returns the established JSON plus that one additional property. `render(payload)` updates the same KPIs/tables/charts, replaces only the bundle preview's contents and dispatches the existing dashboard data event. Existing chart/user/service/activity listeners consume that event. Date/grouping choices, selected-range text, update time and URL remain synchronized. Errors show retry/stale feedback; they are not interpreted as successful empty results.
+
+`positionCustomRange()` receives current element/viewport geometry and outputs CSS `maxWidth` and `left` values. It uses the main wrapper's left edge, which matters because the sidebar occupies usable screen width. Moving the filter to the header also required changing the old `controls.closest(...)` lookup: the controls are no longer descendants of the live main region.
+
+`build_dashboard_data()` receives existing period/grouping query parameters and returns read-only aggregates. Recent orders now filter `MarketplaceOrder.created_at` by that period before sorting/limiting. Sales still use canonical `valid_sales_queryset()` and its recognized sales date. Submission date and paid-sales date therefore remain different concepts.
+
+Metric definitions are intentionally different:
+
+| Region | Population / time basis |
+| --- | --- |
+| Total Users KPI | All recorded web `accounts.User` rows, including administrators. No joins to duplicate profiles. |
+| Active Sellers KPI | Current eligible active, unsuspended web seller access under the existing rules. Seller is permission status, not a new account type. |
+| Total Products KPI | Current non-archived product catalog, under the existing counting rule. |
+| Total Facilities KPI | All recorded Facility rows under the existing rule; the supporting availability text is current. |
+| Orders / Bookings KPIs | Selected submission period; physical bookings exclude service requests and schedule blocks. |
+| Marketplace Sales / Completed Orders / AOV | Actual eligible completed, paid transactions recognized in the selected sales period. AOV is sales divided by those eligible orders; no platform-profit claim. |
+| Pending Approvals / Attention / Inventory | Current queues/snapshots independent of the reporting period. Low stock remains positive available stock at/below the configured threshold; zero is out of stock. Virtual bundles do not become independent physical inventory. |
+| Upcoming Reservations | Next approved scheduled reservations across dates. Submission counts, scheduled use and recorded payment remain distinct; approval does not imply full payment. |
+| Services | Selected submission-period request counts/trend/recent rows; Active Services and Service Attention are current snapshots. |
+| Users Overview | New registrations combine recorded web/mobile account rows within the period. Verified Users combines recorded verified accounts as a current snapshot. Type distribution uses current typed mobile accounts and reports untyped records separately. These populations need not match the web-only Total Users KPI. |
+| Activity preview | Latest five non-routine recorded events in the selected period. Full audit history, details permissions and sanitization remain. |
+| Suggested Bundles | At most two current eligible saved pairs. This dashboard does not run Apriori, create/send/approve bundles, mix synthetic research into a live result or invent missing original evidence. Actual Support/Confidence/Lift and unavailable provenance remain in the existing detailed/research workflows. |
+
+Safe annotated request example:
+
+```text
+GET /api/admin/dashboard/?period=custom&start_date=2026-10-01&end_date=2026-10-04
+1. Existing session/Super Admin checks run.
+2. Recent Orders uses submission dates in this inclusive Manila-local range.
+3. Sales uses eligible completed/paid sales recognition dates in that range.
+4. Current inventory/approval queues keep their snapshot meaning.
+5. The existing browser renderers consume actual returned values.
+```
+
+Safe practice exercise: sign in locally as an authorized Super Admin, open browser Network tools, choose Last 7 Days, then Refresh. Inspect the existing `/api/admin/dashboard/` request and compare `period` with the Recent Orders caption and KPI basis labels. Expand Top Selling Products and switch Users grouping to Weekly; grouping reuses the already returned daily registration series. Verify no order, stock, booking or recommendation action was submitted. To practice a visual edit, change only `--executive-gap` in this scoped CSS on a local branch, refresh at phone/desktop widths, inspect the diff, then revert that exercise edit.
+
+### 5. Backend / API behavior
+
+Reused endpoint: GET `/api/admin/dashboard/`. Its existing Django JSON response remains the integration point; no duplicate DRF endpoint or business service was created. Unauthenticated users receive 401; unauthorized/inactive users receive 403; invalid ranges receive 400; database failures receive the existing non-sensitive 503 response. Existing no-cache/session behavior remains. The additive `bundle_preview_html` property is present only when `can_view_bundle_suggestions(user)` allows it. Django escapes record values in that server fragment; links reuse the existing tab-token helper.
+
+The only aggregate behavior change is period-filtered recent transactions and the non-routine audit preview. Stored orders, approvals, stock/FIFO, bundle ownership/eligibility, payment/fulfillment, service/laboratory workflows, booking conflict rules, notifications and role permissions are preserved. Saved-pair refresh is read-only and does not invoke Apriori. Synthetic research remains a separate explicitly identified workflow; incomplete stored provenance is not reconstructed.
+
+### 6. Database / migration impact
+
+No model or migration changes. No data backfill, live order/inventory/booking/user/recommendation write, environment change, remote deployment or Kamatera action. Tests created/destroyed disposable localhost PostgreSQL test databases. An additional source-level localhost render/API check used `SET TRANSACTION READ ONLY`; actual counts, recent transactions and eligible sales matched their database queries. No server/app/device was launched or restarted.
+
+### 7. Tests performed
+
+- Full affected dashboard and bundle exploration: **264 Django tests run in 60.856 seconds; 262 passed, two unrelated existing expectation mismatches remained**. All 140 dashboard tests passed within this run. Covered period presets/validation, Manila boundaries, role gates, actual paid-sales calculations, physical/service separation, inventory/variants/bundles, empty states, bounded query behavior, saved-preview/no-mining behavior and audit privacy/order/detail permissions.
+- Two remaining failures are in untouched behavior: `BundleMonitoringTests.test_source_tabs_dataset_never_mines_or_reads_live_recommendations` compares the exact ordering of equivalent Cache-Control directives; existing `accounts/middleware.py:26` emits the same directives in another order. `test_workspace_empty_saved_and_filtered_states_ignore_incidental_parameters` supplies `__at=irrelevant` while expecting authenticated content; existing middleware at line 39 correctly treats an invalid explicit token as anonymous and redirects. No authentication/cache behavior was weakened to satisfy these assertions.
+- Chromium: **286/286 checks passed across ten actual Django fixture renders**, covering widths 1920, 1440, 1280, 1024, 768, 390, 320 and 280, populated/one/empty states, loaded local font, no duplicate IDs/page overflow, requested desktop pairings and responsive KPIs, actual chart initialization, order columns/intact amounts, expanders, loading/duplicate Refresh prevention, token preservation, preset/custom Apply/Cancel/Escape, weekly/monthly user grouping, 503/stale/retry recovery, bundle/activities/services errors, notification/profile menus and preserved Logout navigation. All non-GET requests were blocked. Source screenshots were inspected at desktop and phone sizes. These are isolated database fixtures, not production example numbers.
+- Actual localhost source render/API: both 200 under a PostgreSQL read-only transaction; counts, selected-period Recent Orders, eligible paid sales and saved bundle preview matched actual source queries. No running-server reload was assumed.
+- All four changed JavaScript files passed `node --check`. Python syntax and trailing whitespace checks passed across all 27 intentionally edited application/test/guide files; all 27 documented file/line references exist. Scoped Git whitespace checking passed with CRLF line endings recognized (`core.whitespace=cr-at-eol`); no bulk line-ending conversion was performed. Results: `file-checks.json` and `whitespace.log` alongside the browser/database evidence.
+
+Reproducible local test command (uses the existing disposable PostgreSQL runner):
+
+```powershell
+backend/core/venv/Scripts/python.exe -u -B scratch/operating-schedule-20261029/run_tests.py modules.reports.test_dashboard_periods modules.reports.test_dashboard_executive modules.reports.test_dashboard_operations modules.reports.test_dashboard_marketplace modules.reports.test_dashboard_bookings modules.reports.test_dashboard_services modules.reports.test_dashboard_low_stock modules.reports.test_dashboard_empty_states modules.reports.test_dashboard_kpi_cards modules.marketplace.test_bundle_monitoring modules.marketplace.test_bundle_suggestions
+node scratch/super-admin-saas-20261031/check.cjs
+backend/core/venv/Scripts/python.exe -B scratch/super-admin-saas-20261031/verify_local.py
+```
+
+Artifacts: `scratch/super-admin-saas-20261031/django-verified.log`, `browser-result.json`, `browser.log`, `localhost-result.json` and actual rendered screenshots. The browser harness requires the environment-gated Django fixture exports and existing local Chromium/Playwright support. The generic design-skill kit scripts are not installed in this workspace; no kit-gate, full WCAG conformance or cross-browser/device certification is claimed.
+
+### 8. Remaining limitations / troubleshooting
+
+Restart the user-controlled Django process, then refresh the Super Admin dashboard to load changed Python and versioned assets. No restart/deployment was performed automatically. If controls seem inactive, inspect the browser's first JavaScript error and confirm the new filter asset version loaded; the live region lookup must be independent of the header. If Apply is covered, inspect `positionCustomRange()` and the main wrapper's left edge rather than hiding the sidebar. If amounts split unnecessarily, check that `.sales-overview__metric-value` has one content column and the new refinement stylesheet loaded.
+
+The two unrelated Bundle Monitoring test expectation mismatches described above remain. Existing unknown bundle provenance is still unknown; missing data remains an honest empty/unavailable state. Charts retain the existing Chart.js CDN dependency and existing fallback text. Verification used Chromium and source renders; physical mobile devices, other browser engines, notification delivery and live deployment were not exercised. The large pre-existing worktree was preserved; only the files/anchors listed for this implementation were intentionally edited.
+
 ## Current: Daily / Weekly / Monthly registration grouping - October 24, 2026
 
 ### 1. Cause / reason
@@ -1486,3 +2765,71 @@ Manual testing:
 - The shared Sales Overview partial retains its visible data table for non-Super-Admin domain dashboards, outside this request's scope.
 - Rejected and Cancelled remain one booking segment. The existing Bookings page has no combined filter, so that KPI remains informational. View All does not carry the analytics creation-date range.
 - Existing Sales and Booking weekly bucket conventions differ as described above; their selected overall range and totals remain consistent.
+
+---
+
+# Upcoming Reservations Single-Row Layout & Scrollbar Removal (October 31, 2026)
+
+## 1. Problem & Root Cause
+On the Super Admin Dashboard (`super_admin_dashboard.html` / `executive_dashboard.html`), the **Upcoming Reservations** card (`#upcomingReservationsCard` inside `.executive-facilities .facilities-operations-grid`) exhibited two issues:
+1. **Unwanted Scrollbar**: `.facilities-table-scroll` had `overflow-x: auto;` with `min-width: 520px;` on the table. In CSS standards, setting `overflow-x: auto` automatically calculates `overflow-y` to `auto`. When combined with flex/grid containers, a native vertical scrollbar with arrows rendered along the right edge of the card, even for single or few rows.
+2. **Multi-line Wrapping ("Straight One Row" failure)**: In `admin_facilities_overview.css`, table cells used `overflow-wrap: anywhere;` and lacked column widths. This caused long booking numbers such as `BK-2026-2786ED550F1C4A57` to wrap across 3 lines (`BK-2026-` / `2786ED550F1C4` / `A57`) and date/time strings like `Nov 06, 2026 · 7:00 AM – 5:00 PM` to break across 2 lines.
+
+## 2. Changes Made
+1. **Markup (`backend/templates/dashboard/partials/upcoming_reservations.html`)**:
+   - Added a dedicated `<colgroup>` defining 5 column classes: `.upcoming-col-id`, `.upcoming-col-facility`, `.upcoming-col-client`, `.upcoming-col-when`, and `.upcoming-col-status`.
+   - Added `title` attributes on the booking link and data cells to provide accessible, native hover tooltips when text is truncated.
+2. **CSS Foundations (`backend/static/components/css/admin_facilities_overview.css`)**:
+   - Replaced `overflow-x: auto;` on `.facilities-table-scroll` with `overflow: hidden; max-width: 100%; scrollbar-width: none;` and `::-webkit-scrollbar { display: none; width: 0; height: 0; }`.
+   - Changed `.facilities-reservations-table` from `min-width: 520px;` to `min-width: 0; width: 100%; table-layout: fixed; border-collapse: collapse;`.
+   - Replaced `overflow-wrap: anywhere;` with `white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle !important;` on all table headers and cells.
+   - Assigned proportional column widths ($25\%$, $20\%$, $17\%$, $26\%$, $12\%$).
+   - Centered column 5 (Status) and styled `.upcoming-reservation-status` with institutional neutral styling (`#1A1851` Navy text, `#F7F8FC` surface, `#E8EAF0` border).
+3. **Executive Scope Refinement (`backend/static/components/css/admin_executive_refinement.css`)**:
+   - Enforced `#upcomingReservationsCard { height: auto; min-height: 0; overflow: visible; }`.
+   - Applied specific `.dashboard-executive #upcomingReservationsCard` rules ensuring priority over global table defaults.
+4. **Dynamic JavaScript Updates (`backend/static/components/js/admin_upcoming_reservations.js`)**:
+   - Updated DOM generation in `render()` so dynamically fetched reservations via API/date-filter include `title` tooltips and wrap `status_label` in `<span class="upcoming-reservation-status">`.
+5. **Cache Invalidation (`backend/templates/dashboard/pages/admin_dashboard.html`)**:
+   - Bumped CSS query version strings to `?v=20261031-upcoming-reservations-one-row`.
+
+## 3. Data Flow & Verification Exercise
+- **Data Flow**: `upcoming_reservations()` helper in `dashboard_bookings.py` queries future approved bookings $\rightarrow$ passed into context as `facility_analytics.upcoming_reservations` $\rightarrow$ rendered server-side via `upcoming_reservations.html` $\rightarrow$ dynamic date updates delivered via `campushub:dashboard-data` event $\rightarrow$ handled in `admin_upcoming_reservations.js`.
+- **Safe Practice Exercise**:
+  1. Navigate to `/admin-dashboard/`.
+  2. Inspect the **Upcoming Reservations** card.
+  3. Verify that all cells (`Booking No.`, `Facility`, `Client`, `Date / Time`, `Status`) fit horizontally on a single unbroken row.
+  4. Confirm that no scrollbar (horizontal or vertical) appears on the table container.
+  5. Hover over a long booking code to verify that the native browser tooltip displays the complete ID.
+
+---
+
+# Super Admin Registration Trend: "View chart data" Removal (October 31, 2026)
+
+## 1. Problem & Root Cause
+In the Super Admin Dashboard (`super_admin_dashboard.html`), the **User Registration Trend** card within **Users Overview** contained an expandable disclosure widget `<details><summary>View chart data</summary>...</details>`.
+Consistent with previous decisions on the executive dashboard (e.g., in Booking Overview and Marketplace Sales where `<details><summary>View chart data</summary>` was removed to eliminate redundant visual clutter), the user requested that "View chart data" be removed from the Super Admin registration trend.
+
+## 2. Changes Made
+1. **Markup (`backend/templates/dashboard/partials/super_users_overview.html`)**:
+   - Replaced `<details><summary>View chart data</summary>...</details>` with `<div class="visually-hidden"><table class="users-data-table" id="userRegistrationData">...</table></div>`.
+   - The interactive disclosure toggle (`<summary>View chart data</summary>`) is completely eliminated from the visual UI.
+   - Screen readers and assistive tools continue to have access to the tabular data structure (`id="userRegistrationData"`), preserving accessibility and `aria-controls="userRegistrationTrendChart userRegistrationData"`.
+   - Simplified the canvas `aria-label` to omit `"Exact values follow in the chart data table."`.
+2. **Client-side Scripting (`backend/static/components/js/admin_dashboard_executive.js`)**:
+   - Updated dynamic `aria-label` formatting on `#userRegistrationTrendChart` to omit `Exact values follow in the chart data table.`.
+   - Maintained DOM updates for `data-user-trend-rows`, `data-user-trend-date-column`, `data-user-trend-column`, and `data-user-trend-caption`.
+3. **Automated Testing (`backend/core/modules/reports/test_dashboard_executive.py`)**:
+   - Added `self.assertNotContains(page, 'View chart data')` to `test_executive_dashboard_populated_and_empty_views()`.
+4. **Cache Invalidation (`backend/templates/dashboard/pages/admin_dashboard.html`)**:
+   - Bumped `admin_dashboard_executive.js` version to `?v=20261031-remove-user-trend-view-chart-data`.
+
+## 3. Data Flow & Verification
+- **Data Flow**: Executive dashboard API / SSR passes `executive.users.trend` $\rightarrow$ rendered in `super_users_overview.html` $\rightarrow$ Chart.js renders the trend line chart $\rightarrow$ background tabular data remains available to screen readers via `.visually-hidden`.
+- **Verification**:
+  1. Navigate to `/admin-dashboard/`.
+  2. Scroll to the **Users Overview** section and locate the **User Registration Trend** card.
+  3. Verify that the line chart renders cleanly without any "View chart data" dropdown or button beneath it.
+  4. Change the grouping (`Daily`, `Weekly`, `Monthly`) and verify the chart updates smoothly with zero JavaScript console errors.
+
+

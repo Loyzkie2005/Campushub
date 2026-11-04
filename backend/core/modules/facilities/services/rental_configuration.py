@@ -40,6 +40,7 @@ def booking_slip_label(facility, quote=None, workflow_snapshot=None):
 
 FEE_UNITS = {"item": "Per Item", "hour": "Per Hour", "booking": "Per Booking", "day": "Per Day", "night": "Per Night", "person": "Per Person", "fixed": "Fixed", "custom": "Custom"}
 RULE_FIELDS = ("requires_approval", "requires_pre_use_inspection", "requires_post_use_inspection", "damage_deposit_applicable")
+ELIGIBLE_CLIENTS = {"both": "Both (Internal & External)", "internal": "Internal Clients Only", "external": "External Clients Only"}
 DISCOUNT_CLIENTS = {"internal": "Internal Client", "immediate_family": "Immediate Family", "student": "USTP Student", "other": "Other"}
 DISCOUNT_TYPES = {"percentage": "Percentage", "fixed": "Fixed Amount"}
 DISCOUNT_SCOPES = {"rental_fee": "Rental Fee", "base_rate": "Base Rate", "additional_hour_rate": "Additional Hour Rate", "individual_rate": "Individual Rate", "partner_rate": "Partner / Shared Room Rate", "entire_rental_rate": "Entire Rental Rate", "custom": "Custom"}
@@ -57,6 +58,7 @@ def validate_discount_rules(rules, *, price_type, errors, pricing=None):
         errors["discount_rules"] = "Use a list with at most 30 discount rules."
         return []
     cleaned = []
+    seen_active = set()
     for index, rule in enumerate(rules):
         key = f"discount_rules.{index}"
         if not isinstance(rule, dict):
@@ -84,6 +86,11 @@ def validate_discount_rules(rules, *, price_type, errors, pricing=None):
                 errors[key] = "Describe the custom discount application in plain text (up to 200 characters)."
             else:
                 item["custom_scope"] = detail.strip()
+        if active and isinstance(client, str) and isinstance(scope, str):
+            signature = (client, scope, item.get("custom_scope", "").lower())
+            if signature in seen_active and key not in errors:
+                errors[key] = "Duplicate active discount rule for the same client type and scope."
+            seen_active.add(signature)
         cleaned.append(item)
     return cleaned
 
@@ -118,6 +125,21 @@ def validate_rental_options(raw, *, mode, rate, price_type, capacity, errors, fa
         if not capacity or minimum > capacity:
             errors["capacity_min"] = "Minimum capacity must not exceed maximum capacity."
         result["capacity_min"] = minimum
+    if "eligible_clients" in raw and raw.get("eligible_clients") not in (None, ""):
+        eligible_clients = str(raw.get("eligible_clients")).strip().lower()
+        if eligible_clients not in ELIGIBLE_CLIENTS:
+            errors["eligible_clients"] = "Select Internal Clients Only, External Clients Only, or Both."
+        else:
+            result["eligible_clients"] = eligible_clients
+    if "weekend_only" in raw and raw.get("weekend_only") not in (None, ""):
+        if not isinstance(raw.get("weekend_only"), bool):
+            errors["weekend_only"] = "Choose Yes or No for weekend-only restriction."
+        elif raw.get("weekend_only"):
+            result["weekend_only"] = True
+    if "advance_payment_days" in raw and raw.get("advance_payment_days") not in (None, ""):
+        adv_days = number(raw.get("advance_payment_days"), "advance_payment_days", errors, integer=True, maximum=Decimal("365"))
+        if adv_days is not None and adv_days > 0:
+            result["advance_payment_days"] = adv_days
     for key in RULE_FIELDS:
         default = key == "requires_approval" or (not legacy and facility_type in FORM_DEFAULTS
             and key in ("requires_pre_use_inspection", "requires_post_use_inspection"))
@@ -153,6 +175,13 @@ def validate_rental_options(raw, *, mode, rate, price_type, capacity, errors, fa
             cleaned_pricing["base_duration"] = str(hours)
         if extra is not None:
             cleaned_pricing["additional_hour_rate"] = str(extra)
+        if pricing.get("hourly_rate") not in (None, ""):
+            hourly_opt = number(pricing.get("hourly_rate"), "hourly_rate", errors, required=False)
+            if hourly_opt is not None:
+                if hourly_opt <= 0:
+                    errors["hourly_rate"] = "Optional hourly rate must be greater than zero."
+                else:
+                    cleaned_pricing["hourly_rate"] = str(hourly_opt)
     if price_type == "custom":
         notes = str(pricing.get("notes") or "").strip()
         if not notes or len(notes) > 2000:
@@ -227,6 +256,55 @@ def capacity_label(facility):
     return "Not specified"
 
 
+def eligible_clients_label(facility):
+    code = str((facility.workflow_config or {}).get("eligible_clients") or "both").strip().lower()
+    return ELIGIBLE_CLIENTS.get(code, ELIGIBLE_CLIENTS["both"])
+
+
+def compact_pricing_label(facility):
+    """Short primary rate summary for the Facilities List Rate column."""
+    rate = facility.rate or Decimal("0")
+    money = f"₱{rate:,.2f}".removesuffix(".00")
+    method = facility.price_type
+    pricing = (facility.workflow_config or {}).get("pricing", {})
+    if method == "base_hour" and isinstance(pricing, dict):
+        try:
+            _ = Decimal(str(pricing["additional_hour_rate"]))
+            return f"{money} / {pricing['base_duration']} hrs"
+        except (KeyError, InvalidOperation):
+            return "Pricing needs review"
+    if method == "person_night":
+        return f"{money} / pax / night"
+    if method == "session":
+        return f"{money} fixed"
+    return pricing_label(facility)
+
+
+def pricing_sub_label(facility):
+    """Concise secondary pricing note for the Facilities List Rate column."""
+    method = facility.price_type
+    pricing = (facility.workflow_config or {}).get("pricing", {})
+    if method == "base_hour" and isinstance(pricing, dict):
+        try:
+            extra = Decimal(str(pricing["additional_hour_rate"]))
+            sub = f"+ ₱{extra:,.2f}/hr".replace(".00/hr", "/hr")
+            if pricing.get("hourly_rate") not in (None, ""):
+                hourly = Decimal(str(pricing["hourly_rate"]))
+                sub += f" · ₱{hourly:,.2f}/hr opt".replace(".00/hr", "/hr")
+            return sub
+        except (KeyError, InvalidOperation, ValueError, TypeError):
+            return ""
+    if method == "person_night" and isinstance(pricing, dict) and pricing.get("partner_rate") is not None:
+        try:
+            partner = Decimal(str(pricing["partner_rate"]))
+            occupancy = int(pricing["partner_occupancy_required"])
+            if partner.is_finite() and partner >= 0 and occupancy >= 2:
+                return f"Shared: ₱{partner:,.2f}".removesuffix(".00") + f" ({occupancy} pax)"
+        except (InvalidOperation, KeyError, ValueError, TypeError):
+            return ""
+    return ""
+
+
 def pricing_label(facility):
     rate = facility.rate or Decimal("0")
     money = f"₱{rate:,.2f}".removesuffix(".00")
@@ -260,7 +338,7 @@ def pricing_label(facility):
     return f"{money} / {suffix}" if suffix else "Pricing needs review"
 
 
-def slot_base_amount(facility, hours, *, include_configured_adjustments=False):
+def slot_base_amount(facility, hours, *, include_configured_adjustments=False, use_hourly_rate=False):
     """One rate calculation used by the existing mobile rental quote."""
     if facility.price_type == "base_hour":
         pricing = (facility.workflow_config or {}).get("pricing", {})
@@ -269,9 +347,15 @@ def slot_base_amount(facility, hours, *, include_configured_adjustments=False):
             extra = Decimal(str(pricing["additional_hour_rate"]))
             if not base.is_finite() or not extra.is_finite() or base <= 0 or extra < 0:
                 raise ValueError
+            hourly_opt = Decimal(str(pricing["hourly_rate"])) if pricing.get("hourly_rate") not in (None, "") else None
+            if hourly_opt is not None and (not hourly_opt.is_finite() or hourly_opt <= 0):
+                raise ValueError
         except (KeyError, InvalidOperation, ValueError, TypeError):
             raise ValidationError("The rental pricing configuration needs review by Facilities Admin.")
-        amount = facility.rate + max(hours - base, Decimal("0")) * extra
+        if use_hourly_rate and hourly_opt is not None:
+            amount = hourly_opt * hours
+        else:
+            amount = facility.rate + max(hours - base, Decimal("0")) * extra
     elif facility.price_type in ("hour", "session"):
         amount = facility.rate * (hours if facility.price_type == "hour" else 1)
     else:

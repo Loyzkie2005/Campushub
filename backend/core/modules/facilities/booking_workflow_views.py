@@ -76,7 +76,7 @@ def listing(request):
 
 def without_attachments(value):
     if isinstance(value, dict):
-        return {k: without_attachments(v) for k, v in value.items() if k not in ('attachment', 'data')}
+        return {k: without_attachments(v) for k, v in value.items() if k not in ('attachment', 'data', '_signing_private')}
     if isinstance(value, list):
         return [without_attachments(v) for v in value]
     return value
@@ -119,6 +119,7 @@ def detail_data(request, booking):
     """One authorized booking payload reused by the existing API and full page."""
     from .services.job_order import ensure_job_order_draft, job_order_available
     ensure_job_order_draft(booking)
+    from .services.job_order_signatures import status_data
     details = metadata(booking)
     activity = AccountActivity.objects.filter(module='Facility Bookings', metadata__booking_id=booking.pk).order_by('-created_at')[:50]
     staff = []
@@ -154,6 +155,8 @@ def detail_data(request, booking):
         'payments': payments, 'documents': documents_for(booking), 'staff': staff, 'booking_form_html': slip_html,
         'job_order_document': job_document, 'job_order_form': job_order_form_data(booking, row=row),
         'job_order_status': 'Draft' if job_document else '',
+        'job_order_signing': {**status_data(booking, request.user),
+            'endpoint': f'/api/bookings/{booking.pk}/job-order/sign/'} if job_document else None,
         'completion': {**completion_readiness(booking, summary=row),
                        'can_manage': has_permission(request.user, 'can_manage_bookings')},
         'inspection_actions': inspection_actions(booking) if 'inspection' in row['actions'] else [],
@@ -219,6 +222,8 @@ def update(request, booking_id):
                 get_object_or_404(Facility.objects.select_for_update(), pk=original.facility_id)
             booking = get_object_or_404(Booking.objects.select_for_update(), pk=booking_id)
             require_writable_booking(booking, action)
+            from copy import deepcopy
+            previous_job = deepcopy(metadata(booking).get('job_order') or {})
             if action == 'edit':
                 if action not in allowed_actions(booking, request.user):
                     raise ValidationError('Only active unpaid bookings can be edited.')
@@ -246,6 +251,9 @@ def update(request, booking_id):
                 from .services.booking_workflow import completion_issues
                 previous_issues = completion_issues(metadata(booking)) if action == 'inspection' else {}
                 event = transition(request, booking, data)
+            if event and action in ('edit', 'job_order'):
+                from .services.job_order_signatures import reconcile_edit
+                reconcile_edit(booking, previous_job)
             if event:
                 audit(request, booking, event)
                 if action == 'inspection' and data.get('kind') == 'post':

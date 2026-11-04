@@ -63,6 +63,15 @@ class JobOrderPreviewTests(SimpleTestCase):
                 document.job_order_pdf(self.data)
             self.assertEqual(convert.call_count, 2)
 
+    def test_obsolete_renderer_cache_is_not_reused(self):
+        from hashlib import sha256
+        old_key = 'job-order-docx-v1-' + sha256(document.job_order_docx(self.data)).hexdigest()
+        cache.set(old_key, b'%PDF-obsolete-renderer')
+        with patch.object(document.subprocess, 'run', side_effect=self.converted) as convert:
+            result = document.job_order_pdf(self.data)
+            self.assertNotEqual(result, b'%PDF-obsolete-renderer')
+            self.assertEqual(convert.call_count, 1)
+
     def test_prepared_pdf_survives_memory_cache_reset_without_reconverting(self):
         with patch.object(document.subprocess, 'run', side_effect=self.converted) as convert:
             first = document.job_order_pdf(self.data)

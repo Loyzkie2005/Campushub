@@ -1,5 +1,5 @@
 {% load tz %}
-{% if fifo_ready and inventory_section != 'overview' %}
+{% if inventory_section != 'overview' %}
 <div class="offcanvas offcanvas-end inventory-details-drawer" tabindex="-1" id="inventoryDetailsDrawer" aria-labelledby="inventoryDetailsTitle">
     <div class="offcanvas-header">
         <h2 id="inventoryDetailsTitle">Inventory Details</h2>
@@ -27,6 +27,7 @@
     <h3>Stock Balance</h3>
     <dl class="inventory-drawer-fields">
         <div><dt>Batch Quantity</dt><dd>{{ batch.initial_quantity }}</dd></div>
+        <div><dt>Remaining Quantity</dt><dd>{{ batch.physical_remaining_quantity }}</dd></div>
         <div><dt>Available Quantity</dt><dd>{{ batch.remaining_quantity }}</dd></div>
         <div><dt>Reserved Quantity</dt><dd>{{ batch.reserved_quantity }}</dd></div>
         <div><dt>Consumed Quantity</dt><dd>{{ batch.consumed_quantity }}</dd></div>
@@ -37,6 +38,7 @@
     <section class="inventory-drawer-section inventory-batch-section" aria-label="Related Transactions">
         <h3>Related Transactions</h3>
         {% if batch.receipt_movement %}<p>{{ batch.receipt_movement.get_kind_display }}: {{ batch.receipt_movement.quantity_change }}{% timezone 'Asia/Manila' %}<small>{{ batch.receipt_movement.created_at|date:'M d, Y g:i A' }}</small>{% endtimezone %}</p>{% endif %}
+        {% if perms.accounts.can_manage_products %}<a class="inventory-product-link" href="{{ batch.product_url }}">Manage Product Stock</a>{% endif %}
         <ul class="inventory-drawer-allocations">{% for allocation in batch.allocations.all %}
             <li><strong>{% if allocation.order_reference %}{{ allocation.order_reference }}{% elif allocation.state == 'adjustment' %}Stock adjustment{% else %}Reference not recorded{% endif %}</strong><span>{{ allocation.quantity }} — {{ allocation.get_state_display }}</span>{% if allocation.movement %}<small>{{ allocation.movement.get_kind_display }}</small>{% endif %}{% timezone 'Asia/Manila' %}<small>Recorded {{ allocation.created_at|date:'M d, Y g:i A' }}</small>{% if allocation.resolved_at %}<small>Updated {{ allocation.resolved_at|date:'M d, Y g:i A' }}</small>{% endif %}{% endtimezone %}{% if allocation.legacy %}<small>Existing reservation at starting stock</small>{% endif %}</li>
         {% empty %}{% if not batch.receipt_movement %}<li>No related transactions recorded.</li>{% endif %}{% endfor %}</ul>

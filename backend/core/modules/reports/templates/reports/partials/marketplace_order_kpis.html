@@ -1,0 +1,20 @@
+<div class="marketplace-operational-kpis marketplace-performance-kpis">
+    <article class="analytics-kpi dashboard-stat-card">
+        <span>Order Completion Rate</span>
+        <div class="dashboard-stat-icon" aria-hidden="true"><svg data-kpi-icon="check-circle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></div>
+        <strong>{% if analytics.operations.completion_rate != None %}{{ analytics.operations.completion_rate }}%{% else %}N/A{% endif %}</strong>
+        <small>{{ analytics.operations.completed }} completed / {{ analytics.operations.total }} submitted orders.</small>
+    </article>
+    <article class="analytics-kpi dashboard-stat-card">
+        <span>Cancellation Rate</span>
+        <div class="dashboard-stat-icon" aria-hidden="true"><svg data-kpi-icon="x-circle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/></svg></div>
+        <strong>{% if analytics.operations.cancellation_rate != None %}{{ analytics.operations.cancellation_rate }}%{% else %}N/A{% endif %}</strong>
+        <small>{{ analytics.operations.cancelled }} cancelled / {{ analytics.operations.total }} submitted orders.</small>
+    </article>
+    <article class="analytics-kpi dashboard-stat-card">
+        <span>Average Fulfillment Time</span>
+        <div class="dashboard-stat-icon" aria-hidden="true"><svg data-kpi-icon="clock" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <strong>{% if analytics.operations.processing_hours != None %}{{ analytics.operations.processing_hours }} hours{% else %}N/A{% endif %}</strong>
+        <small>{{ analytics.operations.timed }} timed / {{ analytics.operations.completed }} completed orders. Submission to completion.</small>
+    </article>
+</div>

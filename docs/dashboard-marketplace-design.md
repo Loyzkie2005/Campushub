@@ -1,6 +1,382 @@
+# Marketplace Admin Dashboard: Super Admin Layout & Inventory Alerts Alignment
+
+## Current: Marketplace Overview inline KPI trends, November 4, 2026
+
+### 1. Cause / reason
+
+The user requested Super Admin-style trend text beside the Marketplace Admin order/revenue values, selected-period product additions and a subtle pending-review indicator. Previously Products said Current catalog, Orders had no comparison, and Revenue put its percentage in a secondary line. Confirmed calculation distinction: Total Orders counts all scoped submitted orders, whereas Sales Overview's order comparison counts completed, paid orders. Reusing that completed-order baseline would misrepresent Total Orders.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/reports/marketplace_kpi_trends.py` |8 `marketplace_kpi_trends`;17 equivalent dates;19 transaction;20 submitted-order count;21 recognized-revenue sum;27 New Orders;31 revenue denominator | New Marketplace-only read-only projection. Reuse Super Admin's existing formatter/date helper without editing them. |
+| `backend/core/modules/reports/views.py` |511 helper import;522 added-products aggregate;523 separate addition value;535 KPI comparison call;678 added context | Extend only `_marketplace_operational_dashboard_data`, called by the dedicated Marketplace branch. Keep existing product-summary keys and all current main values/other sections unchanged. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` |16 stylesheet version;95 product additions;111 pending dot;125 orders value/trend;127 order caption;142 revenue value/trend;145 revenue caption | Keep the four original cards, icons, labels, permission-gated destinations and grid. Add inline text and conditional captions; use `20261104-kpi-trends`. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_kpi_trend.html` |1 visible-trend condition | Small presentation partial, no duplicate card/page. Omit the entire span when no trend is visible. Native title/accessible label explain its actual basis. |
+| `backend/core/modules/marketplace/static/marketplace/css/admin_marketplace_dashboard.css` |1593 value row;1598 plain trend;1603/1604 green/red;1605 amber marker | Baseline-aligned wrapping row,11px text, transparent/no badge, exact requested green/red and6px gold/amber dot. Keep existing card minimum height, padding, width, border/radius and4/2/1 grid. |
+| `backend/core/modules/reports/test_marketplace_admin_dashboard.py` |52 card extractor;57 scoped/date-boundary regression;107 real-record state matrix;142 unavailable comparison;267 preset/grouping regression | Verify actual stored records, strict scope, recognition versus submission, equivalent dates, zero states, pending/catalog snapshots, optional query failure and all existing presets/groupings. |
+| `docs/dashboard-marketplace-design.md`; `CAMPUSHUB_CONTEXT.md` |Newest Marketplace KPI entries | Record functions/data flow, checks, limits and safe exercise. |
+
+### 3. Changes made
+
+- **Total Products:** Same current, non-archived, authorized catalog count. Secondary copy shows the actual number of those products submitted in the selected period, including `+0 added in selected period` when appropriate. Archived and foreign-scope products are excluded consistently with the main catalog.
+- **Pending Product Approvals:** Same current pending count and existing copy. A decorative6px amber `#FCB316` dot appears only when the count is positive.
+- **Total Orders:** Same scoped selected-period submitted-order count, now beside a small green/red percentage or green **↗ New Orders** when current orders are positive and the preceding period contains none.
+- **Marketplace Revenue:** Same completed-and-paid recognized amount. Green/red percentage appears beside it only with a positive previous revenue denominator. A zero previous revenue value never produces a fabricated percentage or New Revenue label.
+
+Main values remain navy `#1A1851`; positive text is `#15803D`, negative text `#B91C1C`. Unchanged, both-zero, rounded-zero and unavailable comparisons produce no trend span or badge. A zero current value with a positive previous value can still show a valid negative100% trend. **vs. previous period** appears only for visible trends; otherwise the existing Created in selected period / Completed and paid orders notes remain. Only these KPI cards receive new CSS selectors. Super Admin templates, styles, controllers and formatter implementation are unchanged.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The existing Marketplace GET resolves the selected date filter under Asia/Manila, then builds the same `scope_products(nonarchived, user)`, `admin_order_queryset(user)` and `valid_sales_queryset(user)` populations. An additional conditional `Count` in the existing product aggregate supplies `products_added`; that temporary key is removed before passing the unchanged `product_approval_summary` dictionary to other sections.
+
+`marketplace_kpi_trends(orders, revenue_orders, period, current_orders=..., current_revenue=..., available=...)` accepts the canonical scoped querysets, validated AnalyticsPeriod and existing numeric current values. It calls the unchanged `comparison_dates(period)`: previous end is the day before the selected start; previous start gives exactly the same inclusive number of days. For example, March1–31,2026 compares with January29–February28,2026, not a shorter February calendar month. Daily/weekly/monthly chart grouping does not change this KPI comparison.
+
+The helper makes two bounded aggregate reads: previous orders by `created_at` and previous revenue by the existing `analytics_at` recognition timestamp (completed/paid/created precedence). Pending/unpaid/cancelled orders remain part of the existing submitted-order population but do not become recognized sales. Both previous populations retain academic scope and the legacy multi-owner-order guard. Previous reads run inside a transaction/savepoint; an optional comparison database failure rolls back cleanly and returns unavailable trends without replacing the already-computed main values with zero.
+
+The unchanged `activity_trend` formatter supplies decimal rounding, signed percentages, direction and explanatory date/basis metadata. Marketplace changes only the zero-baseline order display label to ↗ New Orders. Revenue uses the formatter only when its previous denominator is positive. The output is `kpi_trends = {orders, revenue, available}`; the template renders only `trend.visible` and its matching caption. An invalid selected custom range preserves the existing HTTP400/error behavior, hides comparisons and falls back to Current catalog rather than claiming a known period-addition count.
+
+Annotated example using disposable regression values, not working marketplace totals:
+
+```text
+3 submitted orders vs2 previous -> +50% beside Total Orders
+₱300 recognized revenue vs₱100 -> +200% beside Marketplace Revenue
+1 submitted order vs0 -> ↗ New Orders; no invented percentage
+₱100 recognized revenue vs₱0 -> no revenue trend/caption
+equal values -> no trend/caption
+```
+
+The existing date controls and Refresh load the authorized page again, so the values recalculate from PostgreSQL. No client percentage calculation, poll or new JavaScript is introduced. Existing Sales Overview AJAX payloads and all other sections retain their original contracts and presentation.
+
+### 5. Backend / API behavior
+
+Marketplace-only context gains `products_added` and `kpi_trends`. No endpoint, permission, destination, order/payment/stock rule, revenue formula, Super Admin field or public API shape changes. The optional aggregates read actual existing records; no transaction, revenue or product count is hardcoded. Other dashboard data and existing Sales Overview comparisons remain independent.
+
+### 6. Database / migration impact
+
+None. No models, migrations, working-record updates, data seeding, recommendation generation or deployment. Fixture writes and timestamp updates occur only in Django's disposable local PostgreSQL test database. Runtime additions are reads and transaction control only.
+
+### 7. Tests performed
+
+- **51/51 tests passed in36.413 seconds** across the dedicated Marketplace dashboard suite and unchanged shared KPI math tests, with no system-check issues. Actual fixtures cover positive/negative/equal/both-zero/new/zero-current states, submitted versus paid-completed counts,31-day previous periods, Manila-midnight additions/orders, foreign-major/archived/legacy mixed-owner exclusion, current pending/catalog snapshots, unavailable comparisons and existing dashboard scopes/navigation/calculations.
+- **6/6 final checks passed in10.295 seconds**, including added KPI baseline assertions across every existing preset/custom range and Daily/Weekly/Monthly grouping, real scoped additions/revenue, optional comparison failure, Manila recognition boundaries and two unchanged Super Admin database regressions. Logs: `scratch/marketplace-kpi-trends-20261104/tests.log` and `final-tests.log`.
+- **1,200 Chromium checks passed across72 state/width renders**, at280/320/414/768/1024/1200/1280/1440/1920px. Compared the original locally rendered card configuration against the updated version: four cards, same responsive columns/widths/minimum-height/padding/border/radius. Verified exact labels, navy main values,11px plain green/red text beside values when space permits, conditional captions, no empty badges,6px pending-only amber dot, actual additions, selected-date Orders link and keyboard focus. No JavaScript errors, missing assets, document overflow or write requests were observed.
+- Inspected actual positive/pending desktop, New Orders phone and negative280px captures. Evidence, fixtures, measurements and screenshots: `scratch/marketplace-kpi-trends-20261104/`. Tracked-file whitespace check passed. Initial invalid-range test incorrectly expected200; corrected it to the existing400 contract rather than changing validation behavior.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Browser checks use current Django-rendered local fixtures/static assets, not a live signed-in deployment or physical device. Card styles/grid remain unchanged; very long values or narrow labels can wrap and require natural height, as before. Decimal changes rounding to zero are hidden using the existing Super Admin formatting rule. Product additions refer to the current catalog's submitted records, not a reconstructed count of products since archived/deleted. An optional comparison failure hides trends; it does not certify that the previous period was empty. No unrelated dashboard or full-project-suite compliance is claimed.
+
+Safe exercise: open an authorized Marketplace dashboard, select Last7 Days, then a custom range. Confirm catalog/pending snapshots remain independent of the date filter while additions/orders/revenue and trends use the chosen dates. Hover a visible trend to inspect its basis/equivalent dates, then follow Total Orders and confirm the existing destination retains the selected dates. Resize to390px and check values/trends remain within their cards. Use the disposable state-matrix regression to compare New Orders with a valid percentage and an unavailable revenue denominator; do not create working sales or alter approvals merely to populate a trend. If old styles remain, verify `20261104-kpi-trends`; if a number seems wrong, inspect the existing academic scope and submission versus revenue recognition dates before changing a formula.
+
+## Current: shared compact Attention Required, November 3, 2026
+
+1. **Cause / reason:** Super Admin reserved a fixed header height while Marketplace used different padding; the user requested one compact treatment for both.
+2. **Exact files:** `backend/static/components/css/admin_dashboard_attention.css:3` (shared compact scope); `backend/templates/dashboard/partials/attention_required.html:1` (opt-in class); `backend/templates/dashboard/pages/admin_dashboard.html:30` and `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:19` (asset includes); existing assertions at `backend/core/modules/reports/test_dashboard_periods.py:401` and `backend/core/modules/reports/test_marketplace_admin_dashboard.py:366`; this guide, the Dashboard guide and project context.
+3. **Changes:** Natural-height compact heading with 12px gap before alerts, no divider, matching white bordered rows, gold warnings, navy Montserrat text, small neutral counts and right-aligned actions. Existing neighboring sections stay unchanged.
+4. **How it works:** Existing authorized `attention_required.items` → shared partial with compact marker → shared CSS. Cards at least 460px wide use horizontal icon/title+count/action; narrower cards wrap the action to the right below the summary. Existing Super Admin `renderAttention` refresh uses the same CSS classes. No function or input data changes. Annotated example and exact style anchors are in [the complete Dashboard implementation report](dashboard-analytics-operations-update.md:3).
+5. **Backend / API:** No endpoint, query, count, scope, permission or navigation changes.
+6. **Database / migrations:** None; tests use a disposable database, with no working-record changes.
+7. **Tests:** 12/12 targeted Django tests passed in 5.213s. 777 browser checks across 32 renders passed for both roles and empty/populated states at 280–1920px, including actual counts/URLs, compact spacing, responsive containment, focus/hover and destination clicks. No browser errors, missing assets or writes. Desktop/phone captures inspected. Evidence: `scratch/attention-compact-20261103/`.
+8. **Limits / troubleshooting / safe exercise:** Local fixtures only; no live deployment/device or full-suite check. Narrow text can wrap, and the existing outer grid can match the neighboring card's height. Open each dashboard, inspect compact spacing, resize to 390px, and follow an existing alert without editing records. If old spacing persists, verify the `20261103-compact` stylesheet loads after older role CSS. The complete linked report explains functions/data flow and troubleshooting.
+
+## Current: Marketplace priority-card alignment, November 3, 2026
+
+### 1. Cause / reason
+
+The user's follow-up screenshot requested matching Attention Required and Suggested Product Bundles to Super Admin as well. Confirmed cause: Marketplace's newer three-column alert grid still received four direct children (icon, count, label, action). The action consequently occupied another grid row, and older layout declarations compounded the alignment. The saved-bundle header also retained the gray description the user wanted removed.
+
+### 2. Exact files changed / current anchors
+
+| File relative to project root | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `backend/templates/dashboard/partials/attention_required.html` |14 `global_dashboard or executive_attention` | Allow this Marketplace include to use Super Admin's label-and-count summary; default callers keep their existing output. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` |16/18 `20261103-priority-cards`;155 `executive_attention=True` | Refresh both existing stylesheet URLs and opt this card into the grouped summary. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_summary.html` |1 `hide_bundle_description=True` | Hide only this Marketplace card's gray header paragraph. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html` |5 `not hide_bundle_description` | Add the optional presentation flag; Super Admin's current default stays unchanged. |
+| `backend/core/modules/marketplace/static/marketplace/css/admin_marketplace_dashboard.css` |1731 body;1739 row;1764 summary;1774 label;1784 count;1796 action;1817 media query | Remove the redundant inner body border, group label/count with a 6px gap, give the count a subtle bordered surface, and explicitly place icon/summary/action. At 640px and wider actions use the right column; below 640px they follow the summary inside the row. Reset inherited action margin and allow necessary wrapping. |
+| `backend/core/modules/reports/test_marketplace_admin_dashboard.py` |94 subtitle assertion;365 summary assertion;408 `BundleRecommendation.objects.all().delete()` | Extend existing regressions and export a no-bundles fixture before the truly empty fixture. Record deletion occurs exclusively inside the disposable test database. |
+| `docs/dashboard-marketplace-design.md`; `CAMPUSHUB_CONTEXT.md` |This entry; latest priority-card entry | Record implementation, verification, data flow and safe exercise. |
+
+### 3. Changes made
+
+Alerts now display warning icon, product/order label with count, and existing action in the intended order. Actions no longer spill into an unintended column. The existing bundle header styles place View All at the right on desktop; refreshing its asset URL avoids retaining the older cached layout. The visible gray header paragraph is omitted for Marketplace. The bundle empty-state explanation remains.
+
+### 4. How it works / functions and data flow
+
+No runtime function was added. `_marketplace_operational_dashboard_data` still supplies permission-filtered `attention_required.items` with `key`, `label`, `count`, `url` and `action`. Django passes these unchanged into the shared partial. For example, a real `Low Stock Product` item with count1 becomes icon → `<span class="dashboard-attention-summary">label + count</span>` → original inventory link. Grouping two related values creates three grid children for the three desktop columns. CSS changes only their placement.
+
+The existing `bundle_analysis.monitor_rows` still supplies the saved product pairs and statuses. `dashboard_bundle_summary.html` passes `hide_bundle_description=True`; the shared preview omits that one paragraph while rendering the same maximum two saved pairs, errors, empty state and named `bundle_monitor_list` destination. Flags are presentation inputs; neither changes query scope or runs Apriori.
+
+### 5. Backend / API behavior
+
+No view, endpoint, query, calculation, permission, refresh controller or navigation destination changed. Existing counts and actions remain scoped to the authenticated Marketplace Admin. Shared Super Admin defaults and the earlier welcome-header implementation are preserved.
+
+### 6. Database / migration impact
+
+None. No schema, migration or working application record changes. Tests create and clean up records only in a separate disposable local PostgreSQL database.
+
+### 7. Tests performed
+
+- Final **8/8 targeted Django tests passed in4.350 seconds**, with no system-check issues: saved summaries/workspace, complete scoped alert counts, destination permissions, empty/missing-scope behavior, current browser-fixture export, Super Admin image/status preview, empty/error distinction and two-row preview limit. Log: `scratch/marketplace-priority-cards-20261103/tests.log`.
+- **290 Chromium checks passed across30 renders**: populated, alerts without saved bundles, and truly empty cards at280/320/390/600/640/768/1024/1280/1440/1920px. Checks covered contained alert elements, ordering, desktop right actions, phone action wrapping, title/View All alignment, equal desktop card heights, removed subtitle, existing links, focus and hover. No JavaScript errors, missing assets or write requests were observed. Evidence: `browser-results.json` in the same directory.
+- Inspected actual1440px populated/no-bundles and390px/280px card captures. Initial browser check correctly revealed that the old empty fixture still had an unshared saved recommendation; corrected the test-only fixture rather than suppressing that legitimate alert. Tracked-file whitespace check passed, with only Git's existing line-ending notice.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Verification used current Django-rendered fixtures and local assets, not a live signed-in deployment or physical device. At extreme280px widths, existing paired product names can wrap within words; no bundle-content redesign was made. The broader unrelated baseline failures below were not rerun or claimed fixed.
+
+Safe exercise: open an authorized Marketplace dashboard and compare one visible alert count with the existing inventory/product destination. Resize to390px: its action should remain inside the row below the label/count. Follow View All to the existing Bundle Suggestions workspace, then return. Do not create or change records. If the old layout remains, reload and confirm both stylesheet URLs end in `20261103-priority-cards`; if counts appear unexpected, inspect the existing academic scope and stored recommendations before changing CSS or backend rules.
+
+## Current: welcome header matches Super Admin, November 3, 2026
+
+### 1. Cause / reason
+
+The user requested that the Marketplace Admin welcome/header shown in the screenshot match the current Super Admin. Marketplace previously combined welcome text and reporting controls in one unboxed horizontal strip with a bottom divider. Super Admin uses a separate right-aligned controls row above a white bordered welcome card. This change applies that header structure only; the existing Marketplace overview, priority/inventory layout and workflows below it remain.
+
+### 2. Exact files changed / current anchors
+
+| File relative to project root | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` |16 CSS version;39 reporting controls;66 welcome copy | Move the existing controls before the existing welcome block and load `20261103-welcome-match`. Retain all IDs/form associations and actual name/date values. |
+| `backend/core/modules/marketplace/static/marketplace/css/admin_marketplace_dashboard.css` |2051 toolbar;2061 welcome card;2075 controls;2080 actions;2087 custom dates | Match Super Admin's120px minimum height,20px padding,1px border,10px radius and white surface;16px gap above the welcome card; right-aligned12px control gaps and44px buttons/select. Custom dates wrap below the control row. |
+| `backend/core/modules/reports/test_marketplace_admin_dashboard.py` |62 reporting-controls/welcome order assertion | Extend the existing header regression to verify accessible DOM order alongside existing escaped name, fields/form, filter and revenue checks. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Records functions/data flow, measured verification, limitations, troubleshooting and safe practice. |
+
+Verification helpers/artifacts: `scratch/marketplace-header-match-20261103/run_checks.py`, `check.cjs`, generated isolated test runner, Django-rendered fixtures, `tests.log`, `tests.json`, `browser-results.json` and header PNGs. They are local QA tools, not application routes.
+
+### 3. Changes made
+
+The selected date range and PHT response timestamp sit beside the period selector and Refresh in their own far-right row, matching Super Admin's arrangement. A16px gap separates that row from the full-width welcome card. The welcome content is vertically centered in the white bordered card; long names and phone text can grow beyond its120px minimum height. Marketplace's greeting, description, actual first name/username fallback and reporting values remain. The old bottom divider is replaced by the welcome card's full border. On smaller screens, controls wrap while staying right-aligned. Existing layout choices below the header are preserved.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No application function or data structure was added. `admin_dashboard_page(request)` still dispatches Marketplace Admin to `_marketplace_operational_dashboard_data(request, user)` and its dedicated template. Existing account, selected period, grouping and update timestamp are the inputs; the output is the same header content in a different layout.
+
+The header's controls retain `form="salesOverviewFilters"`, so they still submit through the existing Sales Overview GET form. CSS orders the non-interactive date/time metadata before the action group, keeping selector/Refresh at the far right. The optional custom-date region is ordered below the row. Existing `admin_sales_overview.js` handles period/grouping changes, and `admin_marketplace_dashboard.js` still implements Refresh by reloading the applied URL. No Super Admin controller or API was copied into Marketplace.
+
+Example: selecting Last7 Days still submits `period=7`; choosing Weekly retains the same grouping data. Refresh reloads that applied query rather than applying unfinished custom-date edits. An account whose actual first name is Lester still sees Welcome back, Lester!; a blank first name still uses its username. Neither the greeting nor KPI values are hardcoded. Scoped CSS was chosen to match the reference without changing the shared header, sidebar or other role's assets.
+
+### 5. Backend / API behavior
+
+Unchanged. The same route, GET parameters, custom-date validation, name escaping, PHT response time, reporting cohorts, KPI calculations, ownership boundaries and permission checks remain. No endpoint, auth/session behavior, inventory/order/payment workflow or recommendation algorithm changed.
+
+### 6. Database / migration impact
+
+None. No model, migration, dependency, font/image asset or working record changed. Existing tests used a uniquely named disposable local PostgreSQL database. No server restart or deployment was performed. Mobile files and Super Admin implementation files were not edited by this header task.
+
+### 7. Tests performed
+
+- **4/4 existing Django header/filter/render checks passed in8.039 seconds**, with no system-check issues. They verify escaped actual first name/username fallback, control-before-welcome DOM order, one period selector/form association, PHT response timestamp, period/grouping changes and stable snapshot counts, and rendered review fixtures. Log: `scratch/marketplace-header-match-20261103/tests.log`.
+- **79 browser checks passed across11 renders**. Chromium compared the Marketplace welcome card with the existing Super Admin fixture and measured matching120px minimum height,20px padding,1px border,10px radius, white surface and border color. Responsive checks at1920/1440/1280/1024/768/390/320/280px verified16px row/card gap, right alignment,44px controls and no document/header overflow. Custom-date submission, Weekly grouping and Refresh retaining the URL passed. No JS exceptions, missing assets or write requests were observed. Evidence: `browser-results.json`.
+- Actual1440px Marketplace/Super Admin welcome images and390px Marketplace header image were inspected. Files: `marketplace-header-1440.png`, `super-reference-welcome.png`, `marketplace-header-390.png` in the verification directory.
+- Tracked-change whitespace check passed; Git emitted only a line-ending conversion notice. No new test case was added for this reversible layout change; the existing regression was extended. Tests used approved execution outside the sandbox because the installed Python runtime is otherwise inaccessible.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Browser transport used current Django-rendered local fixtures and static assets; it did not exercise a live signed-in deployment or physical device. Long text can make the welcome card taller than120px, and narrow controls can occupy several rows. Other sections retain their current spacing/layout. Broader unrelated baseline failures recorded below were not rerun or claimed fixed by this header-only change.
+
+Safe exercise: open an authorized Marketplace dashboard, confirm the controls are above the bordered welcome card, choose Last7 Days and Weekly, then Refresh. Verify the selected dates/grouping remain and the first name is the account's real value. At390px confirm the controls wrap right and the welcome content stays inside its card. Use GET filters only; no product/order creation is needed. If old styling persists, reload and check that the CSS URL uses `20261103-welcome-match`; if filtering fails, inspect the existing form associations before changing any backend query.
+
+## Current: Unified Executive Layout and Inventory Alerts, November 3, 2026
+
+### 1. Cause / Reason
+The user requested copying the design of Super Admin's **Inventory Alerts** and **Suggested Product Bundles**, as well as the **container and layout structure**, to the **Marketplace Admin** dashboard (`/admin/marketplace/dashboard/`).
+Specifically:
+1. **Top Container & Priority Grid**: In Super Admin, Attention Required and Suggested Product Bundles sit side-by-side in a balanced, equal-height container (`minmax(0, 1.15fr) minmax(0, 1fr)` on desktop) with matching pure white surfaces (`#FFFFFF`), outer borders (`#E3E7EF`), radius (`14px`), and zero shadows. In Marketplace Admin, the top container previously had unbalanced `13fr / 7fr` column splits and mixed styling on Attention Required.
+2. **Inventory Alerts Design**: In Super Admin (`low_stock_card.html`), Inventory Alerts features:
+   - Header with title `Inventory Alerts`, subtitle `Products requiring stock attention.`, and `View All →` on the right.
+   - Clean tabular columns: `Product` (featuring a `36x36px` product thumbnail image or placeholder icon, bold name, and variant option subtitle), `Available` stock count, and `Status` pill badge (`Out of Stock` or `Low Stock`).
+   - Centered empty-state with shopping bag icon (`empty_state.html`).
+   - In Marketplace Admin, the inventory table was previously a generic Bootstrap table lacking product thumbnails, subtitles, and matching empty-state presentation.
+3. **Operational Layout**: In Super Admin, Recent Orders and Inventory Alerts sit side-by-side in a balanced operational row (`minmax(0, 1.35fr) minmax(0, 1fr)`) with matching white cards and equal heights. Marketplace Admin required the same operational grid alignment.
+
+### 2. Exact Files Changed / Current Lines / Anchors
+
+| File relative to the project root | Current Lines / Anchor | Change and Reason |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` | Line 157, `marketplace.show_bundle_suggestions` | Ensured `dashboard_bundle_summary.html` is included for backwards-compatible test assertions while rendering the unified white card. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_summary.html` | Lines 1-5 | Includes `super_recommendation_preview.html` and preserves accessible screen-reader labels for test suite expectations. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_order_inventory.html` | Lines 32-60, `<section class="dash-card dash-card-low-stock">` | Copied Super Admin's exact Inventory Alerts presentation: header with title and subtitle, `36x36px` thumbnail photo with fallback icon, bold name, variant small text, right-aligned available quantity, status badge, and centered bag empty-state. |
+| `backend/core/modules/reports/views.py` | Lines 556-565, `_marketplace_operational_dashboard_data` | Added `resolve_product_thumb` helper providing `image_url` for low-stock items from SKU options or `Product.get_image_list()` with zero extra database queries. |
+| `backend/core/modules/marketplace/static/marketplace/css/admin_marketplace_dashboard.css` | Lines 1673-1880, end of file | Implemented Super Admin executive layout styling for `.marketplace-dashboard-top` (`1.15fr / 1fr`), pure white `.dashboard-attention` card, `.marketplace-operational-grid` (`1.35fr / 1fr`), and complete `.low-stock-table` thumbnail/typography/badge styles. |
+| `docs/dashboard-marketplace-design.md` | Top section | Documented cause, exact files, data flow, verification, limitations, and safe learning exercise. |
+
+### 3. Changes Made
+- **Top Priority Grid (`.marketplace-dashboard-top`)**:
+  - Desktop layout uses `grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: stretch; margin-bottom: 24px;`.
+  - Both Attention Required and Suggested Product Bundles stretch to equal height.
+  - Attention Required styled with pure white surface (`#FFFFFF`), subtle `#E3E7EF` border, `14px` border-radius, clean header (`20px 24px 10px 24px`), and modern action links.
+  - Suggested Product Bundles styled with identical pure white surface, top-row `View All ›` link, and centered empty-state bag icon.
+- **Inventory Alerts Card (`.dash-card-low-stock`)**:
+  - Header: Left contains `<h2>Inventory Alerts</h2>` and `<p class="dash-card-subtitle">Products requiring stock attention.</p>`. Right contains `View All →` pointing to `/admin/products/?view=inventory`.
+  - Table: Features `Product` column with thumbnail (`.inventory-alert-thumb` `36x36px` rounded image or SVG placeholder), bold product name, variant subtitle; `Available` column with tabular stock number; `Status` column with pill badge (`Out of Stock` or `Low Stock`).
+  - Empty State: When no low-stock products exist, displays the centered shopping bag outline icon with heading `No Inventory Alerts` and description `Products requiring stock attention will appear here.`.
+- **Operational Grid (`.marketplace-operational-grid`)**:
+  - Desktop layout uses `grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: stretch; margin-bottom: 24px;`.
+  - Recent Orders and Inventory Alerts stretch to matching heights on pure white `#FFFFFF` cards with `#E3E7EF` borders.
+
+### 4. How It Works: Inputs, Outputs, and Data Flow
+
+1. **Backend View Data**:
+   - `_marketplace_operational_dashboard_data(request, user)` in `reports/views.py` queries `low_stock_inventory_rows` for scoped active products.
+   - For each low-stock item, `resolve_product_thumb` checks `row.get("image_url")` or reverses the URL `product_image` if `prod.get_image_list()` is truthy.
+   - The resulting `low_stock_products` list is added to `marketplace_data` and passed to `admin_marketplace_dashboard.html`.
+2. **Template Composition**:
+   - `admin_marketplace_dashboard.html` includes `dashboard/partials/attention_required.html` and `marketplace/partials/dashboard_bundle_summary.html` within `.marketplace-dashboard-top`.
+   - `dashboard_order_inventory.html` renders Recent Orders and Inventory Alerts within `.marketplace-operational-grid`.
+3. **Annotated Example**:
+   ```html
+   <div class="marketplace-operational-grid">
+       <section class="dash-card" aria-labelledby="recentMarketplaceOrdersTitle">...</section>
+       <section class="dash-card dash-card-low-stock" aria-labelledby="inventoryAlertsTitle">
+           <header class="dash-card-header marketplace-operation-header">
+               <div>
+                   <h2 id="inventoryAlertsTitle">Inventory Alerts</h2>
+                   <p class="dash-card-subtitle">Products requiring stock attention.</p>
+               </div>
+               <a href="{% url 'admin_products_page' %}?view=inventory" class="dash-view-all-link">View All &rarr;</a>
+           </header>
+           ...
+       </section>
+   </div>
+   ```
+
+### 5. Backend / API Behavior
+- Database queries remain constant: `resolve_product_thumb` reads in-memory product fields and SKU option dicts; no extra queries are executed.
+- Link destinations and RBAC permission checks remain identical (`can_view_inventory`, `can_manage_products`, `can_view_bundle_suggestions`).
+- No API contracts or business logic modified.
+
+### 6. Database / Migration Impact
+- **0 migrations** and **0 schema changes**.
+- No database records written or altered.
+
+### 7. Tests Performed
+1. `backend/core/manage.py test modules.reports.test_marketplace_admin_dashboard`:
+   - **46/46 tests passed in 29.285s** (`OK`). Verified section ordering, query counts, inventory alert scoping, and bundle card assertions.
+2. `backend/core/manage.py test modules.marketplace.test_bundle_monitoring`:
+   - **11/11 targeted preview/empty tests passed in 3.459s** (`OK`).
+3. `backend/core/manage.py test modules.marketplace.tests`:
+   - **29/29 tests passed in 15.866s** (`OK`).
+4. **Visual & Structural Checks**:
+   - Verified `.marketplace-dashboard-top` 2-column balanced layout matching Super Admin.
+   - Verified pure white `#FFFFFF` cards with `#E3E7EF` borders across Attention Required, Suggested Product Bundles, Recent Orders, and Inventory Alerts.
+   - Verified product thumbnail images, bold titles, variant subtitles, and status pill badges in Inventory Alerts.
+
+### 8. Remaining Limitations, Troubleshooting, and Safe Practice
+- **Browser Cache**: If old gray borders or narrow columns appear, perform a hard refresh (`Ctrl + F5`) to invalidate the browser's cached stylesheet.
+- **Empty State**: When all products have healthy stock (> threshold), the card displays the centered empty state (`No Inventory Alerts`).
+- **Safe Practice Exercise**:
+  1. Log in as a Marketplace Admin and navigate to `/admin/marketplace/dashboard/`.
+  2. Inspect the top grid: verify Attention Required and Suggested Product Bundles have equal heights and balanced widths.
+  3. Inspect the operational grid: verify Recent Orders and Inventory Alerts sit side-by-side on desktop and stack cleanly on mobile (<1000px).
+  4. Create a product with stock ≤ threshold (or 0) in the test database and verify its image thumbnail, available quantity, and status badge appear in the Inventory Alerts table.
+
+---
+
 # Marketplace Admin Dashboard: final flat section layout ? October 23, 2026
 
-## Current: one-row reporting controls and first-name welcome, October 26, 2026
+## Current: Marketplace-only dashboard organization, November 3, 2026
+
+### 1. Cause / reason
+
+The requested seven-section layout supersedes the earlier2-by2 KPI block beside the full recommendation card. Inspection confirmed that Attention Required was inside the KPI column and the dashboard recommendation include exposed seller rates, bundle creation counts and analysis metadata. These presentation choices made the overview narrow and tall. The new layout keeps the existing Django route, reporting form, datasets and authorized workflows.
+
+The latest brief explicitly requests Montserrat. It applies only to the `.marketplace-dashboard` surface using the already bundled font; the shared Inter web system and Super Admin remain as they were. No new image, mockup or external font dependency was introduced.
+
+### 2. Exact files changed / current lines / anchors
+
+| File relative to the project root | Current line / anchor | Change and reason |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` |16 asset version;78 `.marketplace-kpis`;154 `.marketplace-dashboard-top`;167 View All Activities;174 activity time | Full-width KPI region, separate attention/bundle row, compact bundle include, permission-gated activity destination and machine-readable timestamps. Existing header, filters, chart data, order modals and routes remain. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_summary.html` |1 summary section;6 counts;13 destination | New small presentation partial for the existing saved/awaiting counts and existing recommendation workspace. No mining or new data service. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_top_products.html` |5 compact branch;6 ranked list;16 sales details | Compact dashboard shows actual units/revenue directly; retains its existing detailed table and authorized product links. Other callers retain their bar chart. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_order_inventory.html` |3 order destination;13 nine headers;30 order empty state;33 inventory destination;41 inventory empty state | More explicit column labels, existing permission gates for links, readable empty messages outside the horizontally scrolling tables. Existing order eye/modal and inventory values remain. |
+| `backend/core/modules/marketplace/static/marketplace/css/admin_marketplace_dashboard.css` |2 bundled font;1547 scoped layout block;1632 ranking rules |4/2/1 KPI columns, small top-right icons,13:7 desktop content pairs, compact cards, tables with local horizontal scrolling, scoped tokens/font and visible focus. |
+| `backend/core/modules/marketplace/static/marketplace/js/admin_marketplace_dashboard.js` |2 page-scoped Chart.js font plugin | Canvas labels use the page's computed requested font; shared chart controller/data/filters and other pages remain untouched. |
+| `backend/templates/dashboard/partials/sales_overview.html` |66 compact comparisons;109 compact analytics link | Hide unavailable percentage indicators and long per-card notes; use the existing Analytics permission in the compact Marketplace branch. Shared/Executive branches retain their previous rendering. |
+| `backend/core/modules/reports/views.py` |595 `attention_permissions`;657 `date_iso` | Intersect attention actions with the existing destination permissions; expose the existing activity timestamp as ISO text. No KPI query or inventory/sales formula changes. |
+| `backend/core/modules/reports/test_marketplace_admin_dashboard.py` |84 saved summary;99 permission checks;120 scope populations;134 activities;378 browser fixtures;522 section order;706 AOV | Tests actual scoped counts, removed dashboard-only detail, existing navigation, permission reduction, defined versus undefined averages and rendered browser fixtures. |
+| `backend/core/modules/marketplace/test_bundle_monitoring.py` |661 summary;686 rates;1253 history;1330/1350 compact presentation | Update old dashboard presentation assertions while retaining backend rate/history/seller-response/no-write checks. Full recommendation management implementation is unchanged. |
+| This guide and `CAMPUSHUB_CONTEXT.md` | Current entry | Eight-part report, exact anchors, functions/data flow, discrepancy investigation, troubleshooting and safe practice. |
+
+Verification helpers and artifacts are in `scratch/marketplace-dashboard-layout-20261103/`: `audit_local.py`, `run_checks.py`, `check_baseline.py`, `check.cjs`, generated isolated test runner, reports, local Django-rendered fixtures and actual Chromium screenshots. These are verification tools, not new application endpoints.
+
+### 3. Changes made
+
+The page now follows this exact order:
+
+1. Existing welcome and reporting controls, applied dates and PHT response timestamp.
+2. Four equal-height overview cards: Total Products, Pending Product Approvals, Total Orders and Marketplace Revenue. Desktop has four columns, tablet two, phone one. Small icons sit at the top-right; the large values remain navy.
+3. Attention Required beside the compact Suggested Product Bundles card, approximately65/35 on desktop. The summary shows saved recommendations, awaiting responses, an honest empty/error state and View Recommendations. No sidebar entry, mining action, response/creation-rate panel or analysis metadata is added to the dashboard. The existing full workspace remains `/admin-bundle-suggestions/`.
+4. Existing three Sales Overview metrics: Marketplace Sales, Completed Orders and Average Order Value. Real prior-period values remain; unavailable percentage changes are omitted. An undefined average remains a dash; a legitimate zero average remains0.00.
+5. Sales Trend beside Top-Selling Products, approximately65/35. Daily/Weekly/Monthly grouping, actual eligible sales, zero-value buckets within an eligible history and chart data/failure fallback remain. The top five are directly visible as a compact ranking with units/revenue and an expandable detailed table; the existing server ordering remains units descending, sales descending and stable product identity. No pending/unpaid order is promoted into this ranking.
+6. Recent Orders beside Inventory Alerts, approximately65/35. All nine order columns and authorized eye/modal actions remain reachable by local horizontal scrolling. Payment and fulfillment remain separate. Inventory keeps canonical available/reserved values and Low Stock/Out of Stock labels. Empty messages are outside the wide tables so they stay readable on phones.
+7. Five latest scoped marketplace activities at full width, with recorded message/type/actor/date and ISO timestamps. View All Activities opens the existing permission-checked User Monitoring page, which is the current activity-history destination; it is hidden without that permission.
+
+Rows stack below1200px, and KPI cards use two columns from640px. The existing sidebar/header and SugarPie wordmark are preserved. Only the Marketplace page consumes the scoped Montserrat variable; Super Admin's reference templates, CSS and JS were not edited.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`admin_dashboard_page(request)` retains its role dispatch. Marketplace Admin goes to `_marketplace_operational_dashboard_data(request, user)` and its dedicated template; Super Admin continues through its existing global builder and Executive template. The Marketplace helper receives the authenticated account and GET parameters and returns its existing current snapshots, selected-period orders/revenue, chart series, rankings, inventory alerts, saved recommendation projection and scoped audit preview.
+
+`scope_products(queryset, user)` applies the canonical program/major boundary. Explicit product scope takes precedence over inherited seller scope; an unassigned/invalid required scope fails closed. Products use `is_archived=False`. `admin_order_queryset(user)` adds order-view/manage permission and the existing legacy multi-item protection. Total Orders counts submitted rows by `created_at` in the selected dates, without filtering them to only completed orders.
+
+`valid_sales_queryset(user)` requires Completed + Paid + positive quantity and annotates `analytics_at = Coalesce(completed_at, paid_at, created_at)`. Its selected-period cohort feeds revenue, completed-paid count, average, Sales Trend and `top_selling_products`. The average divides that recognized revenue by that same eligible count. `_sales_overview_summary` retains its existing equivalent-length previous period. Presentation now hides a percentage when its baseline/average is undefined, rather than inventing growth or printing the same technical note in every metric.
+
+`low_stock_inventory_rows`, inventory snapshots and active reservations remain the source of alert rows. Available quantities, variant thresholds, expiry handling, reserved quantities and unknown legacy reservations retain their existing meanings. Low Stock remains positive available quantity at/below its applicable threshold; zero is Out of Stock. No stock, movement, receipt or reservation is changed by opening the dashboard.
+
+The new `attention_permissions` map only filters `attention['items']` to destinations the account can open. It does not grant permission or change the server gates on those destinations. Saved bundle counts still come from `dashboard_bundle_suggestions`; Apriori, saved recommendation records, eligibility checks, seller responses, rates and analysis history remain in their existing services and full workspace. Detailed metadata remains available in backend projections, even though the dashboard no longer renders it.
+
+The existing `admin_sales_overview.js` still submits the one GET form, including the external header fields associated through `form="salesOverviewFilters"`. Refresh reloads the applied URL instead of applying unfinished custom-date edits. The Marketplace-only Chart.js plugin reads `getComputedStyle(canvas).fontFamily` and applies it to labels/tooltips; it never changes sales values or runs on Super Admin. Mobile Add Product code is unchanged by this web task.
+
+```text
+Authenticated Marketplace Admin + applied period/grouping
+  -> existing Django scope and eligibility queries
+  -> existing real context + permission-filtered attention links
+  -> dedicated page + compact summary/ranking partials
+  -> CSS layout and existing chart/form/modal controllers
+View Recommendations -> existing saved-recommendation workspace
+Order eye -> existing authorized GET fragment -> existing order modal
+```
+
+Annotated example: empty selected-period eligible sales produces revenue0.00, completed-paid count0, undefined average and both requested no-sales/no-ranking states. A completed-but-unpaid order can appear in Recent Orders but contributes no recognized revenue. That is intentional separation of operational orders and collected sales.
+
+### 5. Backend / API behavior and discrepancy investigation
+
+No endpoint, model, ownership rule, order transition, payment rule, inventory workflow or mining algorithm changed. Only the presentation of action permissions and an ISO timestamp was added. Current non-archived products and pending approvals remain independent of reporting dates; submitted orders and recognized sales use their distinct canonical date fields.
+
+**Confirmed current local evidence:** a PostgreSQL transaction explicitly set to READ ONLY rendered the actual two active Marketplace Admin scopes for October5–November3,2026. There are18 product records:16 non-archived and2 archived. BFPT sees14 non-archived products and2 submitted orders; the campus-wide population is16 products and3 submitted orders for exactly the same dates. Two products and one order are excluded by BFPT academic scope. The order guard excludes zero additional rows in this current comparison. BSIT sees1 product and1 order. BFPT's14 products include12 Approved and2 Pending, so approval-only filtering is not the cause. Its two submitted orders are Pending; recognized completed-and-paid revenue is legitimately0.00.
+
+**Historical limit:** the supplied screenshot's11/13 product totals cannot be reconstructed from today's changed records or an unspecified earlier reporting selection. The investigation confirms the different queryset populations and reproduces the2-versus3 order difference today. It does not claim to recover historical screenshot records. Nothing was hardcoded or broadened to make the dashboards match. Evidence: `scope-audit.json`; working-data renders: `actual-local.html` and `actual-local-1440.png` in the verification folder.
+
+### 6. Database / migration impact
+
+None. The working-data audit executed152 read queries and zero writes under database-enforced READ ONLY. Tests use disposable local PostgreSQL databases; no working account/order/product/recommendation/audit record was created, edited or deleted. No migration, dependency installation, server restart or deployment was performed. Fifteen protected reference/workflow source hashes match `protected-hashes.json`, including Super Admin page/Executive templates and assets, sidebar, shared chart controller, canonical inventory/order/analytics services and recommendation services.
+
+### 7. Tests performed / verification
+
+- Final dashboard/bundle/shared-template regression selection: **140/142 passed in51.668 seconds**. The two failures are existing recommendation-workspace checks: exact Cache-Control directive ordering, and an invalid `__at` token expected to return200 rather than302. Both were independently reproduced using the pre-change shared template in a separate disposable database (**2/2 baseline failures**,0.474 seconds); those unrelated runtime behaviors were not changed. Logs: `final-regressions.log`, `bundle-baseline.log`.
+- After the final Marketplace-only Analytics link gate, **2/2 permission/shared-template checks passed** (0.475 seconds). After moving empty text outside wide tables, **3/3 navigation/empty/ranking/export checks passed** (2.458 seconds). Logs: `final-permissions.log`, `empty-state-final.log`.
+- The earlier broader146-case run also exposed three unrelated existing Super Admin assertions: two expect0.00 for an empty average while the existing implementation returns N/A; one looks for a removed secondary KPI selector. All three reproduced with the pre-change shared template. They are documented as baseline failures, not declared passing and not repaired by altering Super Admin.
+- `node --check backend/core/modules/marketplace/static/marketplace/js/admin_marketplace_dashboard.js` passed. Django system checks reported no issues. The compact dashboard assertions in recommendation tests were deliberately updated to the requested summary; their saved rates/history/no-write assertions still pass.
+- Chromium final responsive/functional measurements: **479 checks passed across30 renders**, with zero JS exceptions, missing assets or write requests. Results are recorded in `browser-results.json`. The matrix covers populated, empty and actual read-only working-data pages at1920/1440/1280/1024/768/390/320/280px, plus the five-product ranking at desktop/phone widths. It checks4/2/1 KPIs,65/35 pairs, section order, no page overflow, table scrolling, unique IDs, retained values, real chart data, empty states, Daily/Weekly/Monthly controls, custom dates, Refresh, order modal open/Escape/focus restoration and missing-Chart.js fallback. All browser requests use local rendered fixtures/static files and block writes; this does not substitute for a live signed-in deployment check.
+- Actual rendered populated desktop/phone, final five-product desktop ranking and final empty tablet screenshots were inspected. The chart library, static assets and computed Montserrat loaded without JS errors. Sampled text contrast in36 resting/hovered states measured a minimum **4.7378:1**; this is scoped text sampling, not a claim of full WCAG certification. Evidence: `contrast-results.json`. JavaScript syntax and tracked-change whitespace checks passed; the Git check emitted only an existing line-ending conversion notice.
+
+Reproduce with the existing project Python environment: `backend/core/venv/Scripts/python.exe -B scratch/marketplace-dashboard-layout-20261103/run_checks.py --label dashboard-regressions modules.reports.test_marketplace_admin_dashboard`. It uses the established unmanaged-table test bootstrap and a uniquely named disposable local database. Run `node scratch/marketplace-dashboard-layout-20261103/check.cjs` after fixtures exist; `--contrast-only` repeats the text sample.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The full unrelated regression surface is not green: the five baseline failures above remain. No real signed-in HTTP session, physical device, non-Chromium engine or deployed server was tested. Browser interaction transport is intercepted with real Django test/view renders; authentication/RBAC/query behavior is independently covered by Django tests and the database read-only audit. The reference screenshot images were not attached with the pasted brief, so consistency was derived from the existing Super Admin implementation and explicit layout requirements.
+
+Wide order tables intentionally scroll locally to retain all nine columns. KPI rows and content pairs stack at the documented breakpoints. A short ranking/alert list may leave space in a paired desktop card so the row stays aligned; empty cards remain compact. View All Activities uses existing User Monitoring, whose own authorization/scoping remains authoritative. Existing unknown historical seller/reservation/receiving data is not invented. Dataset recommendation errors and invalid session-token behavior belong to the existing full workspace and remain outside this presentation change.
+
+During verification, two parallel test runs initially collided because the older helper named databases only to the second. The verification wrapper now adds microseconds; only disposable test databases were involved. Browser harness issues were also corrected: hidden JSON scripts are excluded from row measurements, and modal tests wait for Bootstrap's `shown.bs.modal` before sending Escape. These are harness corrections, not application workflow changes.
+
+Safe practice exercise: open an authorized local Marketplace dashboard and compare its product count to `scope_products(Product.objects.filter(is_archived=False), actor).count()` under READ ONLY. Change the period from30 to7 days: current catalog/approval values should remain stable while submitted orders/sales may change. Switch grouping to Weekly, inspect actual chart data, refresh and confirm applied filters stay. Open one order eye and press Escape, then open View Recommendations. For a permission-reduced test account, assert inaccessible attention/inventory/analytics/monitoring links disappear while direct backend requests remain denied. Use the disposable test fixtures for edits; do not create a working order or recommendation to test spacing. If counts differ, compare scope, archival state, created-versus-recognized dates and eligibility before touching calculations.
+
+## Historical: one-row reporting controls and first-name welcome, October 26, 2026
 
 ### 1. Cause / reason
 

@@ -30,29 +30,43 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const row of rows) {
                 if (![row.time, row.user, row.activity, row.module].every(value => typeof value === 'string') ||
                     ![null, 'Success', 'Failed'].includes(row.result)) throw new Error('Invalid activity row');
-                const tr = element('tr', ''), cell = element('td', ''), time = element('time', timeLabel(row.time));
-                time.dateTime = row.time; cell.append(time); tr.append(cell);
-                const user = element('td', row.user); user.className = 'audit-secondary';
-                const result = element('td', ''), badge = element('span', row.result || 'Not recorded');
+                const item = element('li', ''); item.className = 'audit-preview-item';
+                const icon = element('span', ''); icon.className = 'audit-event-icon'; icon.setAttribute('aria-hidden', 'true');
+                const eventSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                for (const [key, value] of Object.entries({viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.75', 'stroke-linecap': 'round', 'stroke-linejoin': 'round'})) eventSvg.setAttribute(key, value);
+                const rect = document.createElementNS(eventSvg.namespaceURI, 'rect');
+                for (const [key, value] of Object.entries({x: '5', y: '4', width: '14', height: '17', rx: '2'})) rect.setAttribute(key, value);
+                const eventPath = document.createElementNS(eventSvg.namespaceURI, 'path'); eventPath.setAttribute('d', 'M9 3h6v3H9zM9 11h6M9 15h4');
+                eventSvg.append(rect, eventPath); icon.append(eventSvg);
+                const content = element('div', ''); content.className = 'audit-preview-content';
+                const action = element('strong', row.activity); action.className = 'audit-preview-action';
+                const meta = element('div', ''); meta.className = 'audit-preview-meta';
+                const module = element('span', row.module); module.className = 'audit-preview-module';
+                const time = element('time', timeLabel(row.time)); time.dateTime = row.time;
+                meta.append(module, time); content.append(action, meta);
+                if (row.user && row.user !== 'Unknown') {
+                    const user = element('span', `By ${row.user}`); user.className = 'audit-preview-user'; content.append(user);
+                }
+                const controls = element('div', ''); controls.className = 'audit-preview-controls';
+                const badge = element('span', '');
                 badge.className = `audit-result${row.result ? ` audit-result-${row.result.toLowerCase()}` : ''}`;
-                result.append(badge);
-                const module = element('td', row.module); module.className = 'audit-secondary';
-                tr.append(user, element('td', row.activity), module, result);
-                const action = element('td', '');
+                const resultLabel = element('span', 'Result: '); resultLabel.className = 'visually-hidden';
+                badge.append(resultLabel, document.createTextNode(row.result || 'Not recorded'));
+                controls.append(badge); item.append(icon, content, controls);
                 if (dialog && section.hasAttribute('data-can-view-details')) {
                     detailURL(row.details_url);
-                    const button = element('button', ''); button.type = 'button'; button.className = 'audit-detail-button audit-icon-button';
+                    const button = element('button', ''); button.type = 'button'; button.className = 'audit-detail-button audit-icon-button audit-view-button';
                     button.title = 'View Details';
                     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                     for (const [key, value] of Object.entries({viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.75', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true'})) svg.setAttribute(key, value);
                     const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z');
                     const circle = document.createElementNS(svg.namespaceURI, 'circle'); circle.setAttribute('cx', '12'); circle.setAttribute('cy', '12'); circle.setAttribute('r', '3');
-                    svg.append(path, circle); button.append(svg);
+                    svg.append(path, circle); button.append(svg, element('span', 'View'));
                     button.dataset.activityDetailUrl = row.details_url;
                     button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-label', `View details for ${row.activity}`);
-                    action.append(button);
-                } else action.textContent = '\u2014';
-                tr.append(action); fragment.append(tr);
+                    controls.append(button);
+                }
+                fragment.append(item);
             }
             $('[data-executive-activities]').replaceChildren(fragment);
             $('[data-activities-table]').hidden = !rows.length;

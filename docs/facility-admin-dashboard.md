@@ -1,6 +1,95 @@
 # Facility Admin dashboard refinement
 
-Updated October 20, 2026. This guide describes the dedicated Facility Admin dashboard at the existing `admin_dashboard_page` URL. The Super Admin dashboard and Flutter screens are separate and were not redesigned by this change.
+Updated October 27, 2026. This guide describes the dedicated Facility Admin dashboard at the existing `admin_dashboard_page` URL. The Super Admin dashboard and Flutter screens are separate and were not redesigned by this change.
+
+## October 27, 2026 ? compact operational dashboard
+
+This section describes the current implementation and supersedes the historical payment-card/layout notes below. The existing Facility Admin route uses the module template, not the similarly named legacy template under `backend/templates/dashboard/`.
+
+### 1. Cause / reason
+
+Inspection confirmed that `.fd-grid` used `align-items: stretch`, Schedule Overview was a long definition list, payment presentation occupied half a row, and activities used separate horizontal cards. Chart failures and zero data could leave a blank canvas. Grouping requests also discarded an explicit `booking_days` and the existing administrator-tab context, and Retry could retry the restored selection instead of the failed grouping.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Stretched grid cards and payment half-row | Intrinsic card heights; full-width Facility Status | Fit actual content without changing metrics |
+| Long schedule list | Two-by-two metrics and existing Calendar action | Scan four actual operational counts together |
+| Horizontal activity cards | Full-width vertical list with subtle dividers | Keep real references, actors and times readable |
+| Blank zero/error chart | Compact message or recoverable error | Avoid implying zero bookings is a renderer failure |
+| Narrow KPI labels overflow beside icons | Mobile value beside icon, label across card width | Keep two-column KPIs readable down to 320px |
+
+### 2. Exact files changed
+
+Paths are repository-relative; line anchors refer to this revision.
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facilities_dashboard.html` | 30 `.fd-kpis`; 45 `.fd-schedule`; 65 `.fd-pending`; 77 `.fd-facilities`; 85 `.fd-activities` | Preserve four KPIs; rebuild schedule presentation; show booking IDs/actions; remove payment card; vertical real activity references and Manila times |
+| `backend/core/modules/facilities/static/facilities/css/admin_facilities_dashboard.css` | 40 `.fd-grid`; 69 `.fd-schedule-grid`; 115 mobile KPI rules | Content-driven grid, compact schedule, local table scrolling, readable rows and mobile KPI alignment |
+| `backend/core/modules/facilities/static/facilities/js/admin_facilities_dashboard.js` | 12 `announce`; 20 `draw`; 42 `refresh` | Hide empty/failed canvas, retain reporting/authentication context, retry failed grouping, no chart animation on frequent selection changes |
+| `backend/core/modules/reports/dashboard_facilities.py` | 132 `activity_rows` | Read-only projection of validated references and authorized existing detail/calendar URLs |
+| `backend/core/modules/reports/test_facility_admin_dashboard.py` | 128 workflow test; 165 activity test; 188 empty-state test | Retain calculation/payment tests and add presentation/link/fallback coverage |
+| `docs/facility-admin-dashboard.md` | This section | Cause, implementation, verification, troubleshooting and practice |
+| `CAMPUSHUB_CONTEXT.md` | Latest October 27 entry near line 3 | Final role-specific dashboard behavior |
+
+### 3. Changes made
+
+The row order is KPIs; Booking Trend and Schedule Overview; pending and upcoming bookings; full-width Facility Status; full-width Recent Activities. Wide screens retain the twelve-column grid with seven/five chart/schedule proportions. Existing 1200/900/600px breakpoints remain; schedule metrics switch from two columns to one at 520px. KPI cards align within each row; other cards keep independent heights.
+
+Schedule Overview reuses `bookings_today`, `detected_conflicts`, `maintenance_count` and `unavailable_count`. Only maintenance/unavailable have accurate existing filtered facility destinations. Today/conflict metrics remain noninteractive. View Full Calendar uses Django's existing route and its existing schedule-or-booking-read permission gate. The conflict note describes the current next-30-day scope without promising availability. The facility status note still distinguishes operational readiness from free slots.
+
+Pending requests retain Review Queue and Review actions. Upcoming rows add an explicit existing Booking Details action. Empty operational lists render ordinary viewport-width paragraphs outside scrolling tables, so a minimum-width empty table cannot push its message off a phone screen. Populated tables retain local horizontal scrolling and every field.
+
+Payment Overview and its unused card CSS are removed only from this dashboard. `payment_stats`, the existing receipt projection, permissions and financial service remain available unchanged. No receipt/payment records are deleted.
+
+### 4. How it works: functions and data flow
+
+```text
+Authenticated Facility Admin dashboard GET
+  -> facility_admin_dashboard(request, user)
+     -> existing physical-facility / booking / schedule / payment calculations
+     -> latest six existing scoped audit records
+     -> validate references against that same booking/facility scope
+  -> existing module template and dedicated CSS
+  -> saved chart JSON -> draw(data) -> existing Chart.js bar chart
+Grouping change -> refresh() -> same authenticated GET -> same chart instance
+```
+
+`facility_admin_dashboard` accepts the existing request/user and returns the existing context dictionary. Its metric calculations, booking row projection, returned counts and payment calculations are byte-for-byte unchanged. Only activity display fields are enriched: real recorded reference, existing authorized URL and icon type. At most six referenced bookings are fetched together with their facility, avoiding per-row lookups. Deleted/unverified booking IDs never become invented detail links. Missing actor information says **Actor not recorded**; no administrator is invented. Timestamps use the stored instant displayed in `Asia/Manila`.
+
+`draw(data)` accepts the existing labels/values arrays, checks lengths and nonnegative finite values, and reuses the chart. A zero total hides only the chart frame; a positive period retains legitimate zero-value dates. `announce(data)` updates the visible count, accessible label and empty message. `refresh()` preserves explicit `booking_days` and the existing `__at` context, sends the existing role-scoped AJAX GET, and retains AbortController/revision protection against stale responses. On failure it preserves the last successful chart and exposes Retry for the originally requested grouping. No new API or chart algorithm is introduced.
+
+Example: a saved maintenance count of 2 displays **2 Under Maintenance** and links to the existing `?status=maintenance` filter. A zero conflict count still requires checking the requested slot in Calendar; it does not certify availability.
+
+### 5. Backend / API behavior
+
+The activity projection adds bounded read-only reference validation, not a new metric or permission. Existing dashboard AJAX response fields and route compatibility remain. Calendar, approval/cancellation, cashier, reporting, booking creation, document exports and availability validation are unchanged. Nine protected shared dashboard/navigation/permission/workflow files were fingerprinted before and after and remain identical. Super Admin and Marketplace Admin templates/styles are not modified.
+
+### 6. Database / migration impact
+
+No model, migration, working inventory, booking, payment or audit-record changes. Django verification creates and destroys disposable local PostgreSQL test databases. Browser fixtures are rendered by the real Django test client from isolated test records; unrelated session/notification scripts are omitted in that visual harness, and all requests are intercepted so it never sends requests to the working application.
+
+### 7. Tests performed
+
+- Targeted PostgreSQL dashboard/period/status suite: **56 passed** in 17.693s. Final empty-list rendering recheck: **3 passed** in 0.994s.
+- Production chart JavaScript DOM checks: **27 passed**, including empty/positive/error states, actual totals, grouping, period/tab preservation, retry recovery, one reused renderer and integer ticks. Node syntax check passed.
+- Chromium: **14 layouts passed** (populated and empty at 1920, 1536, 1366, 1024, 768, 390 and 320px). Verified section order, 4 KPI alignment, 2/1-column schedule metrics, content-driven sections, actual Chart.js initialization, compact empty charts, local table scrolling, existing Calendar href, visible keyboard focus, no page overflow, no runtime errors and no missing assets. Desktop/phone screenshots inspected.
+- Initial broader run: **535 passed; 2 errors** among 537 tests. Both untouched Super Admin KPI tests lack unmanaged `campushub_booking` in their fresh test setup. This is a fixture/schema preparation issue, not an assertion failure in the changed dashboard. A guarded scratch runner reuses the existing dedicated dashboard fixture DDL only after confirming the disposable test database; it does not migrate the working database. Final guarded recheck: **536 passed; 1 failure** among 537 tests in **248.802s**. The remaining untouched `SystemOverviewCardsTests.test_card_order_real_destinations_and_no_render_time_mining` assertion at `test_dashboard_kpi_cards.py:40` expects Super Admin `marketplace-recommendation-counts`, removed by an earlier approved Super Admin change. Protected-file fingerprints confirm that dashboard was not changed here. The stale assertion is reported, not altered in this Facility Admin task.
+- Explicit `manage.py check` passed with no issues; scoped Git whitespace check passed.
+- Source-preservation checks confirm every existing dashboard metric/payment calculation and return projection is unchanged, along with the nine protected shared files.
+
+Evidence: `scratch/facility-admin-refinement-20261027/` contains targeted logs, `dom-results.json`, `browser-results.json`, screenshots, `preservation-checks.json` and broader-run logs. These are ignored QA artifacts, not application assets or fake dashboard fallbacks.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+- Browser checks use isolated Django-rendered fixtures and real CSS/Chart.js, not a live signed-in administrator session. Physical-device testing was not performed.
+- No authorized scoped facility activity-history destination was confirmed; no artificial View All action was added. Events without stored references/actors retain honest fallbacks. Existing six-record limits remain.
+- Calendar is the authoritative place to inspect actual slots and rules. Dashboard conflict detection still uses its existing horizon and algorithm.
+- The upcoming KPI's existing approved-bookings link is broader than the upcoming time cohort. The Bookings `kpi=upcoming` filter also requires full payment, so substituting it would incorrectly hide unpaid approved reservations. That business rule was preserved.
+- If styling is stale, verify the active module template loads the dedicated `?v=20261027-operations` assets. Do not edit the inactive legacy dashboard template or shared dashboard CSS to repair this role-specific layout.
+- Safe exercise: change only `.fd-schedule-grid` gap from 10px to 12px, compare at 1366px and 390px, then restore 10px. Verify the four values and destination URLs do not change. Separately switch Daily/Weekly/Monthly and inspect the existing GET's `booking_grouping` and explicit `booking_days` in developer tools. Do not create bookings/payments merely to test spacing.
+
+## Earlier implementation notes (historical)
 
 ### Latest correction: Add Reservation belongs in Bookings
 

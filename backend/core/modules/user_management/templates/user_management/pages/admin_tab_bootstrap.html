@@ -7,10 +7,27 @@
 {% include 'partials/web_typography.html' %}
 </head>
 <body>
-    <script src="/static/components/js/admin_session.js?v=20260605-multi-tab"></script>
+    <script src="/static/components/js/admin_session.js?v=20261030-session-recheck"></script>
     <script>
         (function () {
             const QUERY_PARAM = '__at';
+            let isBackForward = false;
+            try {
+                const entries = window.performance && typeof window.performance.getEntriesByType === 'function'
+                    ? window.performance.getEntriesByType('navigation')
+                    : [];
+                if (entries && entries.length > 0 && entries[0].type === 'back_forward') {
+                    isBackForward = true;
+                } else if (window.performance && window.performance.navigation && window.performance.navigation.type === 2) {
+                    isBackForward = true;
+                }
+            } catch (_) {
+                /* ignore */
+            }
+            if (isBackForward) {
+                window.CampusHubAdminSession?.revokeAndRedirectToLogin?.(true);
+                return;
+            }
             const token = window.CampusHubAdminSession?.getTabToken?.() || sessionStorage.getItem('campushub_admin_tab_token');
             if (!token) {
                 window.location.replace('/');

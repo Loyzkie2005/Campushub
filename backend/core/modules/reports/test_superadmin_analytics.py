@@ -12,6 +12,7 @@ Covers:
 
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -276,6 +277,605 @@ class SuperAdminAnalyticsTests(fixtures.DedicatedDomainDashboardTests):
         response = self.client.get(reverse('admin_marketplace_analytics_page'), {'module': module, **params})
         self.assertEqual(response.status_code, 200)
         return response
+
+    def test_marketplace_sections_operational_cohort_and_recorded_variants(self):
+        stamp = timezone.make_aware(datetime(2026, 10, 6, 12))
+        options = {'selections': [{'group': 'Size', 'option': 'Large'}, {'group': 'Color', 'option': 'Navy'}]}
+        records = [
+            self.sale('100', stamp, quantity=2, customization=options, fulfillment_method='pickup'),
+            self.sale('90', stamp + timedelta(hours=2), quantity=3, customization=options, fulfillment_method='seller_delivery'),
+            self.sale('50', None, payment_status='unpaid'),
+            self.sale('60', None, status='processing', payment_status='unpaid', fulfillment_method='seller_delivery', delivered_at=stamp),
+            self.sale('20', None, status='cancelled', payment_status='unpaid', fulfillment_method='pickup'),
+            self.sale('20', None, status='pending', payment_status='legacy'),
+        ]
+        MarketplaceOrder.objects.filter(pk__in=[r.pk for r in records]).update(created_at=stamp - timedelta(hours=2))
+        earlier = self.sale('40', stamp)
+        MarketplaceOrder.objects.filter(pk=earlier.pk).update(created_at=stamp - timedelta(days=40))
+        before = MarketplaceOrder.objects.count()
+        page = self.analytics_page(period='custom', date_from='2026-10-01', date_to='2026-10-19')
+        data = page.context['analytics']; operations = data['operations']
+        self.assertEqual((operations['total'], operations['completed'], operations['cancelled']), (6, 3, 1))
+        self.assertEqual((operations['completion_rate'], operations['cancellation_rate']), (50.0, 16.7))
+        self.assertEqual((operations['timed'], operations['processing_hours']), (2, 3.0))
+        self.assertEqual([r['count'] for r in operations['payment']], [2, 3, 1])
+        self.assertEqual([r['count'] for r in operations['fulfillment']], [2, 2, 2])
+        self.assertEqual(data['kpis']['sales'], '230.00')
+        combined = next(r for r in data['variant_sales'] if 'Size: Large' in r['variant'])
+        self.assertEqual((combined['orders'], combined['units'], combined['sales']), (2, 5, '190.00'))
+        self.assertEqual(data['seller_fulfillment'][0]['completed'], 3)
+        self.assertEqual(MarketplaceOrder.objects.count(), before)
+        for heading in ('Marketplace Overview', 'Sales &amp; Revenue Analysis', 'Orders &amp; Payments Analytics', 'Product &amp; Inventory Analytics',
+                        'Buyers &amp; Sellers Analytics', 'Marketplace Insights &amp; Recommendations'):
+            self.assertContains(page, heading)
+        import re
+        self.assertEqual(re.findall(r'data-marketplace-section="([^"]+)"', page.content.decode()),
+                         ['overview', 'sales', 'orders', 'products', 'people', 'insights'])
+        self.assertContains(page, '<summary>View order volume data</summary>', html=True)
+        self.assertNotContains(page, '>Decision Support<')
+        empty = self.analytics_page(period='custom', date_from='2026-09-01', date_to='2026-09-02').context['analytics']
+        self.assertIsNone(empty['operations']['completion_rate'])
+        self.assertIsNone(empty['operations']['processing_hours'])
+        self.assertEqual(empty['variant_sales'], [])
+        self.assertEqual(empty['kpis']['approved_products'], data['kpis']['approved_products'])
+
+    def test_marketplace_unit_turnover_requires_continuous_observed_history(self):
+        from api.models import InventorySKU, InventoryStockMovement
+        stamp = timezone.make_aware(datetime(2026, 10, 16, 12))
+        order = self.sale('100', stamp, quantity=2)
+        sku = InventorySKU.objects.get(product=self.product, group_name='', variant_name='')
+        opening = InventoryStockMovement.objects.create(sku=sku, kind='opening', balance='on_hand',
+            quantity_change=10, available_before=0, available_after=10)
+        InventoryStockMovement.objects.filter(pk=opening.pk).update(created_at=stamp - timedelta(days=20))
+        movement = InventoryStockMovement.objects.create(sku=sku, order=order, kind='sale', balance='on_hand',
+            quantity_change=-2, available_before=10, available_after=8)
+        InventoryStockMovement.objects.filter(pk=movement.pk).update(created_at=stamp)
+        from .superadmin_analytics import marketplace_stock_turnover
+        from modules.marketplace.services.analytics import AnalyticsPeriod, valid_sales_queryset
+        period = AnalyticsPeriod('custom', 'October', date(2026, 10, 1), date(2026, 10, 31))
+        rows = marketplace_stock_turnover(Product.objects.filter(pk=self.product.pk), valid_sales_queryset(), period)
+        self.assertEqual((rows[0]['average_stock'], rows[0]['units'], rows[0]['turnover']), (9.0, 2, 0.22))
+        self.assertEqual(rows[0]['sell_through'], 20.0)
+        InventoryStockMovement.objects.filter(pk=movement.pk).update(available_before=9)
+        self.assertIsNone(marketplace_stock_turnover(Product.objects.filter(pk=self.product.pk), valid_sales_queryset(), period)[0]['turnover'])
+        InventoryStockMovement.objects.filter(pk=movement.pk).update(available_before=10)
+        ambiguous = InventoryStockMovement.objects.create(sku=sku, kind='adjustment', balance='available',
+            quantity_change=1, available_before=8, available_after=9)
+        InventoryStockMovement.objects.filter(pk=ambiguous.pk).update(created_at=stamp + timedelta(hours=1))
+        self.assertIsNone(marketplace_stock_turnover(Product.objects.filter(pk=self.product.pk), valid_sales_queryset(), period)[0]['sell_through'])
+        InventoryStockMovement.objects.filter(pk=opening.pk).delete()
+        self.assertIsNone(marketplace_stock_turnover(Product.objects.filter(pk=self.product.pk), valid_sales_queryset(), period)[0]['turnover'])
+
+    def test_marketplace_processing_excludes_invalid_completion_and_get_is_read_only(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from api.models import InventorySKU, InventoryStockMovement
+        stamp = timezone.make_aware(datetime(2026, 10, 6, 12))
+        order = self.sale('10', stamp)
+        MarketplaceOrder.objects.filter(pk=order.pk).update(created_at=stamp + timedelta(hours=1))
+        before = (MarketplaceOrder.objects.count(), InventorySKU.objects.count(), InventoryStockMovement.objects.count())
+        self.client.force_login(self.super_admin)
+        with CaptureQueriesContext(connection) as queries:
+            page = self.client.get(reverse('admin_marketplace_analytics_page'),
+                {'period': 'custom', 'date_from': '2026-10-01', 'date_to': '2026-10-19'})
+        self.assertEqual(page.status_code, 200)
+        self.assertIsNone(page.context['analytics']['operations']['processing_hours'])
+        self.assertEqual(before, (MarketplaceOrder.objects.count(), InventorySKU.objects.count(), InventoryStockMovement.objects.count()))
+        self.assertFalse(any(q['sql'].lstrip().upper().startswith(('INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER')) for q in queries))
+
+    def test_marketplace_sections_query_count_does_not_grow_per_order(self):
+        import json, os
+        from pathlib import Path
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from modules.marketplace.services.analytics import build_marketplace_analytics
+        from .superadmin_analytics import enrich_marketplace
+        stamp = timezone.make_aware(datetime(2026, 10, 6, 12))
+        self.sale('10', stamp)
+        params = {'period': 'custom', 'date_from': '2026-10-01', 'date_to': '2026-10-19'}
+        counts = []
+        for size in (1, 51):
+            if size == 51:
+                for _ in range(50):
+                    self.sale('10', stamp)
+            with CaptureQueriesContext(connection) as queries:
+                analytics = build_marketplace_analytics(params, user=self.super_admin, refined=True)
+                enrich_marketplace(analytics, self.super_admin)
+            counts.append(len(queries))
+        self.assertEqual(counts[0], counts[1])
+        directory = os.environ.get('MARKETPLACE_SECTIONS_REVIEW_DIR') or os.environ.get('MARKETPLACE_REFINEMENT_REVIEW_DIR')
+        if directory:
+            target = Path(directory); target.mkdir(parents=True, exist_ok=True)
+            (target/'query-count.json').write_text(json.dumps({'orders': [1, 51], 'queries': counts}), encoding='utf-8')
+
+    def test_marketplace_refinement_keeps_pending_volume_with_zero_recognized_sales(self):
+        stamp = timezone.make_aware(datetime(2026, 10, 6, 12))
+        for _ in range(3):
+            row = self.sale('50', None, status='pending', payment_status='unpaid', fulfillment_method='pickup')
+            MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=stamp)
+        page = self.analytics_page(period='custom', date_from='2026-10-01', date_to='2026-10-19')
+        data = page.context['analytics']
+        self.assertEqual(data['kpis']['sales'], '0.00')
+        self.assertEqual(data['operations']['total'], 3)
+        self.assertEqual(sum(data['order_volume']['chart']['values']), 3)
+        self.assertContains(page, 'id="marketplaceOrderVolumeChart"')
+        self.assertNotContains(page, 'id="marketplaceSalesChart"')
+        self.assertContains(page, 'Product Association Analytics')
+        self.assertNotContains(page, 'Frequently Bought Together')
+        self.assertNotContains(page, 'Seller Sales Ranking')
+        self.assertContains(page, 'Insufficient verified stock history', count=1)
+        self.assertEqual(data['variant_sales'], [])
+
+    def test_order_volume_groupings_fill_zeros_without_changing_cohort(self):
+        for day, status, payment, amount in [
+            (date(2026, 10, 1), 'pending', 'unpaid', '50'),
+            (date(2026, 10, 1), 'cancelled', 'unpaid', '20'),
+            (date(2026, 10, 19), 'completed', 'paid', '100'),
+            (date(2026, 9, 30), 'pending', 'unpaid', '15'),
+            (date(2026, 10, 20), 'completed', 'paid', '200'),
+        ]:
+            stamp = timezone.make_aware(datetime.combine(day, time(12)))
+            order = self.sale(amount, stamp if status == 'completed' else None, status=status, payment_status=payment)
+            MarketplaceOrder.objects.filter(pk=order.pk).update(created_at=stamp)
+        for grouping, expected in [('daily', None), ('weekly', [2, 0, 0, 1]), ('monthly', [3]), ('invalid', None)]:
+            page = self.analytics_page(period='custom', date_from='2026-10-01', date_to='2026-10-19', grouping='weekly', order_grouping=grouping)
+            data = page.context['analytics']; volume = data['order_volume']
+            self.assertEqual((data['operations']['total'], data['operations']['completed'], data['operations']['cancelled']), (3, 1, 1))
+            self.assertEqual((data['operations']['completion_rate'], data['operations']['cancellation_rate']), (33.3, 33.3))
+            self.assertEqual(data['kpis']['sales'], '100.00')
+            self.assertEqual(data['grouping'], 'weekly')
+            self.assertEqual(data['submission_comparison']['rows'][0]['current'], 3)
+            self.assertEqual(sum(volume['chart']['values']), 3)
+            if expected is None:
+                self.assertEqual(volume['grouping'], 'daily')
+                self.assertEqual(len(volume['chart']['values']), 19)
+                self.assertEqual(volume['chart']['values'].count(0), 17)
+            else:
+                self.assertEqual(volume['chart']['values'], expected)
+        monthly = self.analytics_page(period='custom', date_from='2026-08-01', date_to='2026-10-19', order_grouping='monthly').context['analytics']['order_volume']
+        self.assertEqual(monthly['chart']['values'], [0, 1, 3])
+        from .superadmin_analytics import request_demand
+        legacy = request_demand(MarketplaceOrder.objects.filter(created_at__date__range=(date(2026, 10, 1), date(2026, 10, 19))), data['period'])
+        self.assertEqual(legacy['chart']['values'], [2, 1])
+        self.assertNotIn('grouping', legacy)
+        empty = self.analytics_page(period='custom', date_from='2025-01-01', date_to='2025-01-03')
+        self.assertEqual(empty.context['analytics']['order_volume']['chart']['values'], [0, 0, 0])
+        self.assertContains(empty, 'Average Fulfillment Time')
+        self.assertNotContains(empty, 'id="marketplaceOrderVolumeChart"')
+
+    def test_marketplace_refinement_groups_stable_seller_ids_without_collapsing_matching_names(self):
+        now = timezone.now()
+        self.seller_user.first_name = 'Same'; self.seller_user.last_name = 'Seller'
+        self.seller_user.save(update_fields=['first_name', 'last_name'])
+        other = User.objects.create_user(username='same-name-web', first_name='Same', last_name='Seller')
+        mobile = CampusHubUser.objects.create(username='same-name-mobile', email='same-mobile@example.test',
+            password_hash='isolated-test-hash', first_name='Same', last_name='Seller', user_type='student')
+        for seller, key in [(self.seller_user, 'source-a'), (other, 'source-b')]:
+            SellerRequest.objects.create(user=seller, student_id=key, status='approved')
+        SellerRequest.objects.create(mobile_user=mobile, student_id='source-mobile', status='approved')
+        web_product = Product.objects.create(seller=other, name='Other web product', price=20, stock=20, approval_status='approved')
+        first = Product.objects.create(mobile_seller=mobile, name='Mobile first', price=100, stock=20, approval_status='approved')
+        second = Product.objects.create(mobile_seller=mobile, name='Mobile second', price=200, stock=20, approval_status='approved')
+        for product, amount in [(self.product, 10), (web_product, 20), (first, 100), (second, 200)]:
+            row = MarketplaceOrder.objects.create(product=product, product_name=product.name, total_price=amount,
+                quantity=1, status='completed', payment_status='paid', completed_at=now)
+            MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=now - timedelta(hours=1))
+        data = self.analytics_page(period='30').context['analytics']
+        sellers = data['seller_performance']['rows']; fulfillment = data['seller_fulfillment']
+        expected = {f'web:{self.seller_user.pk}', f'web:{other.pk}', f'mobile:{mobile.pk}'}
+        self.assertEqual({r['seller_key'] for r in sellers}, expected)
+        self.assertEqual(len(sellers), 3)
+        self.assertEqual({r['seller_key'] for r in fulfillment}, expected)
+        self.assertEqual(len(fulfillment), 3)
+        row = next(r for r in sellers if r['seller_key'] == f'mobile:{mobile.pk}')
+        self.assertEqual((row['sales'], row['orders'], row['units'], row['rank']), ('300.00', 2, 2, 1))
+        self.assertIn('q=same-name-mobile', row['search_url'])
+        self.assertEqual(next(r for r in fulfillment if r['seller_key'] == row['seller_key'])['total'], 2)
+
+    def test_marketplace_refined_association_panel_uses_existing_detailed_rule_counts(self):
+        from django.template.loader import render_to_string
+        from modules.marketplace.services.analytics import calculate_market_basket
+        # Isolated algorithm inputs; no transaction or synthetic result is injected into a live page.
+        transactions = [[(1, 'A'), (2, 'B')], [(1, 'A'), (2, 'B')], [(1, 'A')]]
+        result = calculate_market_basket(transactions, detailed=True)
+        row = next(r for r in result['rows'] if r['product_a_id'] == 1)
+        self.assertEqual((row['support'], row['confidence'], row['lift']), (66.67, 66.67, 1.0))
+        self.assertEqual((row['together_count'], row['source_count'], row['target_count']), (2, 3, 2))
+        html = render_to_string('reports/partials/marketplace_refined_panels.html', {'card': 'association', 'analytics': {'market_basket': result}})
+        for label in ('Support (%)', 'Confidence (%)', 'Lift', 'Together', 'A Transactions', 'B Transactions'):
+            self.assertIn(label, html)
+
+    def test_forecast_observed_history_exact_moving_average_and_future_exclusion(self):
+        from modules.marketplace.services.analytics import AnalyticsPeriod, _forecast
+        today = self.today
+        for offset in range(14):
+            self.sale('10', timezone.make_aware(datetime.combine(today - timedelta(days=offset), time(12))), quantity=2)
+        # Bad future-dated records must not enter the observed training window.
+        self.sale('999', timezone.make_aware(datetime.combine(today + timedelta(days=1), time(12))), quantity=999)
+        period = AnalyticsPeriod('semester', 'Observed semester', date(2026, 8, 1), date(2026, 12, 31))
+        result = _forecast(self.product, period, 7, 3, user=self.super_admin, today=today)
+        self.assertTrue(result['sufficient'])
+        self.assertEqual((result['history_days'], result['units'], result['eligible_orders']), (14, 28, 14))
+        self.assertEqual((result['forecast_total'], result['suggested_preparation']), (14, 11))
+        self.assertEqual(result['chart']['forecast'][-7:], [2.0] * 7)
+        self.assertEqual(result['observed_end'], today)
+        for offset in range(7):
+            MarketplaceOrder.objects.filter(completed_at__date=today - timedelta(days=offset)).update(quantity=7 - offset)
+        varied = _forecast(self.product, period, 7, 3, today=today)
+        self.assertEqual(varied['chart']['forecast'][-7:-4], [4.0, 4.43, 4.78])
+        self.assertEqual(varied['forecast_total'], 34)
+
+    def test_forecast_rejects_short_observation_and_stale_demand(self):
+        from modules.marketplace.services.analytics import AnalyticsPeriod, _forecast
+        period = AnalyticsPeriod('30', 'Last 30 Days', self.today - timedelta(days=29), self.today)
+        for offset in range(3):
+            self.sale('10', timezone.make_aware(datetime.combine(self.today - timedelta(days=offset), time(12))), quantity=3)
+        result = _forecast(self.product, period, 7, 3, today=self.today)
+        self.assertFalse(result['sufficient'])
+        self.assertEqual(result['history_days'], 3)
+        self.product.submitted_at = timezone.make_aware(datetime.combine(period.start, time(8)))
+        self.assertTrue(_forecast(self.product, period, 7, 3, today=self.today)['sufficient'])
+        for index, order in enumerate(MarketplaceOrder.objects.order_by('pk')):
+            MarketplaceOrder.objects.filter(pk=order.pk).update(completed_at=timezone.make_aware(datetime.combine(self.today - timedelta(days=20 + index), time(12))))
+        result = _forecast(self.product, period, 7, 3, today=self.today)
+        self.assertFalse(result['sufficient'])
+        self.assertEqual(result['recent_units'], 0)
+        self.assertEqual(result['sales_days'], 3)
+
+    def test_restock_separates_historical_threshold_and_expiry_review(self):
+        self.product.stock = 3; self.product.save(update_fields=['stock'])
+        for offset in range(14):
+            self.sale('10', timezone.make_aware(datetime.combine(self.today - timedelta(days=offset), time(12))), quantity=2)
+        with patch('django.utils.timezone.localdate', return_value=self.today):
+            page = self.analytics_page(period='30')
+        data = page.context['analytics']
+        self.assertTrue(data['restock']['forecast_ready'])
+        self.assertEqual((data['forecast']['current_stock'], data['forecast']['suggested_preparation']), (3, 11))
+        self.assertEqual(data['restock']['threshold_alerts'], 1)
+        self.assertContains(page, 'Forecast-based:'); self.assertContains(page, 'Threshold-based:')
+        with patch('django.utils.timezone.localdate', return_value=self.today + timedelta(days=1)):
+            historical = self.analytics_page(period='custom', date_from='2026-10-06', date_to='2026-10-19')
+        self.assertTrue(historical.context['analytics']['restock']['historical'])
+        self.assertFalse(historical.context['analytics']['restock']['forecast_ready'])
+        self.product.category = 'Snacks'; self.product.expiry_date = self.today - timedelta(days=1)
+        self.product.save(update_fields=['category', 'expiry_date'])
+        with patch('django.utils.timezone.localdate', return_value=self.today):
+            expired = self.analytics_page(period='30').context['analytics']
+        self.assertTrue(expired['restock']['inventory_review'])
+        self.assertFalse(expired['restock']['forecast_ready'])
+        self.product.expiry_date = None; self.product.category = 'Uniforms'; self.product.customization_enabled = True
+        self.product.customization_options = [{'name':'Size', 'options':[{'value':'Small', 'stock':1}, {'value':'Large', 'stock':20}]}]
+        self.product.save(update_fields=['expiry_date', 'category', 'customization_enabled', 'customization_options'])
+        with patch('django.utils.timezone.localdate', return_value=self.today):
+            variants = self.analytics_page(period='30').context['analytics']
+        self.assertEqual(variants['forecast']['current_stock'], 21)
+        self.assertTrue(variants['restock']['inventory_review'])
+        self.assertFalse(variants['restock']['forecast_ready'])
+
+    def test_shared_submission_populations_and_comparisons_match_dashboard(self):
+        from uuid import uuid4
+        from api.models import FacilityBookingRequest
+        from modules.marketplace.services.analytics import AnalyticsPeriod
+        from .analytics_sections import build_facility_tab_analytics, build_services_tab_analytics
+        from .dashboard_executive import executive_overview, service_overview
+        period = AnalyticsPeriod('custom', 'Ten days', date(2026, 10, 10), date(2026, 10, 19))
+        for index, (facility, day, status) in enumerate([(self.court, 12, 'approved'), (self.court, 13, 'pending'),
+                (self.court, 2, 'completed'), (self.lab, 12, 'completed'), (self.lab, 2, 'pending')]):
+            row = Booking.objects.create(id=f'cohort-{index}', facility=facility, status=status)
+            Booking.objects.filter(pk=row.pk).update(created_at=timezone.make_aware(datetime(2026, 10, day, 12)))
+        block = Booking.objects.create(id='cohort-block', facility=self.court, status='approved')
+        Booking.objects.filter(pk=block.pk).update(created_at=timezone.make_aware(datetime(2026, 10, 12, 12)))
+        FacilityBookingRequest.objects.create(booking=block, request_key=uuid4(), details={'source':'schedule'})
+        self.court.is_archived = True; self.court.save(update_fields=['is_archived'])
+        facilities = build_facility_tab_analytics(period, {}, user=self.super_admin)
+        services = build_services_tab_analytics(period, {}, user=self.super_admin)
+        comparison = {'previous_start_date': date(2026, 9, 30), 'previous_end_date': date(2026, 10, 9), 'comparison_label':'Previous ten days'}
+        dashboard = executive_overview(period, comparison)
+        service_dashboard = service_overview(period)
+        row = facilities['submission_comparison']['rows'][0]
+        self.assertEqual((row['current'], row['previous'], row['difference'], row['change']), (2, 1, 1, '+100.0%'))
+        self.assertEqual(row['current'], dashboard['booking_overview']['total'])
+        self.assertEqual(sum(facilities['demand']['chart']['values']), row['current'])
+        self.assertEqual(services['submission_comparison']['rows'][0]['current'], service_dashboard['total_requests'])
+        self.assertEqual(sum(services['demand']['chart']['values']), service_dashboard['total_requests'])
+
+    def test_registration_definition_matches_dashboard_and_semester_is_historical(self):
+        from modules.marketplace.services.analytics import AnalyticsPeriod, parse_analytics_period
+        from .analytics_sections import build_users_tab_analytics
+        from .dashboard_executive import users_overview
+        period = AnalyticsPeriod('custom', 'Ten days', date(2026, 10, 10), self.today)
+        stamp = timezone.make_aware(datetime(2026, 10, 12, 12))
+        User.objects.all().update(date_joined=stamp - timedelta(days=100))
+        CampusHubUser.objects.all().update(created_at=stamp - timedelta(days=100))
+        User.objects.create_user(username='shared-register', date_joined=stamp)
+        CampusHubUser.objects.filter(pk=self.ch_user.pk).update(created_at=stamp)
+        data = build_users_tab_analytics(period, {}, user=self.super_admin)
+        summary = users_overview(period)
+        self.assertEqual((data['kpis']['new_registrations'], sum(data['main_chart']['values']), summary['new_registrations']), (2, 2, 2))
+        self.assertEqual(parse_analytics_period({'period':'semester'}, today=self.today).end, self.today)
+        prior = parse_analytics_period({'period':'semester'}, today=date(2026, 5, 1))
+        self.assertEqual((prior.start, prior.end), (date(2025, 8, 1), date(2025, 12, 31)))
+
+    def test_live_associations_never_fall_back_to_synthetic_research(self):
+        for _ in range(4):
+            self.sale('10', timezone.now())
+        with patch('modules.marketplace.services.bundle_suggestions._cached_synthetic', side_effect=AssertionError('Research must stay separate')):
+            data = self.analytics_page(period='30').context['analytics']
+        self.assertEqual(data['market_basket']['eligible_orders'], 4)
+        self.assertEqual(data['market_basket']['multi_item_orders'], 0)
+        self.assertFalse(data['market_basket']['sufficient'])
+
+    def test_revenue_row_uses_paid_categories_zero_intervals_and_equivalent_growth(self):
+        stamp = timezone.make_aware(datetime(2026, 10, 10, 12))
+        for amount, category in [('120', 'Books'), ('80', 'Food'), ('40', 'Books')]:
+            self.sale(amount, stamp, category=category)
+        self.sale('500', stamp, payment_status='unpaid', category='Unpaid category')
+        self.sale('120', stamp - timedelta(days=20), category='Previous category')
+        for grouping in ('daily', 'weekly', 'monthly'):
+            page = self.analytics_page(period='custom', date_from='2026-10-01', date_to='2026-10-19', grouping=grouping)
+            data = page.context['analytics']
+            self.assertEqual(data['kpis']['sales'], '240.00')
+            self.assertEqual(sum(data['sales_chart']['sales']), 240)
+            self.assertEqual([(r['category'], r['sales'], r['percent']) for r in data['category_sales']],
+                             [('Books', '160.00', 66.7), ('Food', '80.00', 33.3)])
+            self.assertEqual(data['comparison']['sales']['percentage_change'], 100.0)
+            self.assertEqual(data['comparison']['previous_sales'], '120.00')
+            self.assertEqual(data['revenue_aov'], {'current': '80.00', 'previous': '120.00', 'percentage_change': -33.33})
+            self.assertContains(page, '<h3>Average Order Value</h3>', html=True)
+            self.assertContains(page, '<dd>-33.3%</dd>', html=True)
+            self.assertContains(page, '<h3>Sales Trend</h3>', html=True)
+            self.assertContains(page, 'id="marketplaceCategorySummary"')
+            self.assertNotContains(page, 'Monthly Sales Performance')
+            if grouping == 'daily':
+                self.assertEqual(len(data['sales_chart']['sales']), 19)
+                self.assertEqual(data['sales_chart']['sales'].count(0), 18)
+        empty = self.analytics_page(period='custom', date_from='2025-01-01', date_to='2025-01-07')
+        self.assertContains(empty, 'aria-label="Revenue percentage change">N/A')
+        self.assertNotContains(empty, 'id="marketplaceCategoryChart"')
+        self.assertNotContains(empty, 'id="marketplaceSalesChart"')
+        self.assertEqual(empty.context['analytics']['revenue_aov'], {'current': None, 'previous': None, 'percentage_change': None})
+
+    def test_slow_moving_excludes_new_recently_approved_and_future_products(self):
+        start = self.today - timedelta(days=29)
+        old_stamp = timezone.make_aware(datetime.combine(start - timedelta(days=15), time(12)))
+        Product.objects.filter(pk=self.product.pk).update(submitted_at=old_stamp, approved_at=old_stamp)
+        aged = Product.objects.create(seller=self.seller_user, name='Established candidate', price=10, stock=10, approval_status='approved')
+        fresh = Product.objects.create(seller=self.seller_user, name='Recent listing', price=10, stock=10, approval_status='approved')
+        reviewed = Product.objects.create(seller=self.seller_user, name='Recent approval', price=10, stock=10, approval_status='approved')
+        Product.objects.filter(pk=aged.pk).update(submitted_at=old_stamp, approved_at=old_stamp)
+        Product.objects.filter(pk=fresh.pk).update(submitted_at=timezone.make_aware(datetime.combine(self.today, time(12))))
+        Product.objects.filter(pk=reviewed.pk).update(submitted_at=old_stamp, approved_at=timezone.make_aware(datetime.combine(self.today, time(12))))
+        for offset in range(5):
+            self.sale('10', timezone.make_aware(datetime.combine(start + timedelta(days=offset), time(12))))
+        for day in (start - timedelta(days=5), self.today + timedelta(days=5)):
+            MarketplaceOrder.objects.create(product=aged, product_name=aged.name, quantity=1, total_price=10,
+                status='completed', payment_status='paid', completed_at=timezone.make_aware(datetime.combine(day, time(12))))
+        data = self.analytics_page(period='custom', date_from=start.isoformat(), date_to=self.today.isoformat()).context['analytics']
+        self.assertTrue(data['slow_moving']['sufficient'])
+        self.assertEqual([row['product'] for row in data['slow_moving']['rows']], ['Established candidate'])
+        self.assertEqual(data['slow_moving']['history_excluded'], 2)
+        self.assertEqual(data['slow_moving']['rows'][0]['last_sale'].date(), start - timedelta(days=5))
+        Product.objects.filter(pk__in=[aged.pk, self.product.pk]).update(submitted_at=timezone.make_aware(datetime.combine(self.today, time(12))))
+        insufficient = self.analytics_page(period='custom', date_from=start.isoformat(), date_to=self.today.isoformat()).context['analytics']['slow_moving']
+        self.assertFalse(insufficient['sufficient'])
+        self.assertEqual(insufficient['rows'], [])
+        self.assertIn('Insufficient product history', insufficient['rule'])
+
+    def test_revenue_aov_distinguishes_missing_orders_from_zero_value_orders(self):
+        params = {'period': 'custom', 'date_from': '2026-10-01', 'date_to': '2026-10-07'}
+        current = timezone.make_aware(datetime(2026, 10, 3, 12))
+        prior = current - timedelta(days=7)
+        current_order = self.sale('100', current)
+        page = self.analytics_page(**params)
+        self.assertEqual(page.context['analytics']['revenue_aov'], {'current': '100.00', 'previous': None, 'percentage_change': None})
+        self.sale('0', prior)
+        page = self.analytics_page(**params)
+        self.assertEqual(page.context['analytics']['revenue_aov'], {'current': '100.00', 'previous': '0.00', 'percentage_change': None})
+        self.assertContains(page, 'Previous AOV is zero')
+        self.sale('100', prior)
+        page = self.analytics_page(**params)
+        self.assertEqual(page.context['analytics']['revenue_aov'], {'current': '100.00', 'previous': '50.00', 'percentage_change': 100.0})
+        empty = self.analytics_page(period='custom', date_from='2026-10-08', date_to='2026-10-14')
+        self.assertEqual(empty.context['analytics']['revenue_aov'], {'current': None, 'previous': '100.00', 'percentage_change': None})
+        self.assertContains(empty, 'aria-label="Current-period average order value">N/A')
+        MarketplaceOrder.objects.filter(pk=current_order.pk).update(total_price=0)
+        zero = self.analytics_page(**params)
+        self.assertEqual(zero.context['analytics']['revenue_aov'], {'current': '0.00', 'previous': '50.00', 'percentage_change': -100.0})
+        self.assertContains(zero, 'aria-label="Current-period average order value">&#8369;0.00')
+
+    def test_optional_marketplace_refinement_exports(self):
+        import json, os
+        from pathlib import Path
+        target = os.environ.get('MARKETPLACE_REFINEMENT_REVIEW_DIR')
+        if not target: return
+        target = Path(target); target.mkdir(parents=True, exist_ok=True)
+        today = date(2026, 10, 19); stamp = timezone.make_aware(datetime.combine(today, time(12)))
+        for state in ('empty', 'pending', 'populated', 'standard'):
+            if state == 'pending':
+                row = self.sale('50', None, status='pending', payment_status='unpaid', fulfillment_method='pickup')
+                MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=stamp)
+            if state == 'populated':
+                SellerRequest.objects.create(user=self.seller_user, student_id='refined-seller', status='approved')
+                # Two approved identities exercise the existing multi-row ranking sort.
+                self.seller_user.first_name = 'Verified'; self.seller_user.last_name = 'Seller'
+                self.seller_user.save(update_fields=['first_name', 'last_name'])
+                other = User.objects.create_user(username='ranking-review-other', first_name='Verified', last_name='Seller')
+                SellerRequest.objects.create(user=other, student_id='ranking-review-other', status='approved')
+                other_product = Product.objects.create(seller=other, name='ZZ Sorting Fixture', price=20, stock=20, approval_status='approved')
+                Product.objects.filter(pk=other_product.pk).update(submitted_at=stamp, updated_at=stamp)
+                for offset in range(7):
+                    row = self.sale('90', stamp - timedelta(days=offset), quantity=3, buyer_user_id=self.ch_user.pk,
+                        fulfillment_method='pickup' if offset % 2 else 'seller_delivery',
+                        customization={'selections': [{'group': 'Size', 'option': 'Large'}]})
+                    MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=stamp - timedelta(days=offset, hours=2))
+                self.product.stock = 3; self.product.save(update_fields=['stock'])
+            if state == 'standard':
+                MarketplaceOrder.objects.update(customization={}, option='')
+            for label, params in [('30', {'period':'30'}), ('7', {'period':'7'}),
+                    ('custom', {'period':'custom', 'date_from':'2026-10-18', 'date_to':'2026-10-19'}),
+                    ('weekly', {'period':'30', 'grouping':'weekly'}), ('horizon', {'period':'30','forecast_horizon':'30'})]:
+                with patch('django.utils.timezone.localdate', return_value=today):
+                    page = self.analytics_page(**params)
+                (target/f'{state}-{label}.html').write_bytes(page.content)
+                (target/f'{state}-{label}.json').write_text(json.dumps(page.context['analytics'], default=str), encoding='utf-8')
+
+    def test_service_demand_completion_and_verified_timing(self):
+        from uuid import uuid4
+        from api.models import FacilityBookingRequest
+        from .analytics_sections import build_services_tab_analytics
+        from modules.marketplace.services.analytics import AnalyticsPeriod
+        start = timezone.make_aware(datetime(2026, 10, 1, 9))
+        for index, status in enumerate(('completed', 'completed', 'pending')):
+            booking = Booking.objects.create(id=f'service-timing-{index}', facility=self.lab, status=status)
+            Booking.objects.filter(pk=booking.pk).update(created_at=start, updated_at=start + timedelta(days=4))
+            if index == 0:
+                FacilityBookingRequest.objects.create(booking=booking, request_key=uuid4(), details={
+                    'approval': {'at': (start + timedelta(hours=2)).isoformat()},
+                    'completion': {'at': (start + timedelta(hours=24)).isoformat()}})
+        period = AnalyticsPeriod('custom', 'Selected dates', date(2026, 10, 1), date(2026, 10, 2))
+        data = build_services_tab_analytics(period, {}, user=self.super_admin)
+        self.assertEqual(data['performance'], {'approval_hours': 2.0, 'approval_timed': 1,
+            'completion_hours': 24.0, 'completion_timed': 1, 'completion_rate': 66.7})
+        self.assertEqual(sum(data['demand']['chart']['values']), 3)
+        self.assertEqual(sum(data['demand']['weekday_chart']['values']), 3)
+        self.assertEqual(len(data['pending']), 1)
+        self.assertIn('q=service-timing-2', data['pending'][0]['url'])
+        empty = build_services_tab_analytics(AnalyticsPeriod('custom', 'Empty', date(2026, 9, 1), date(2026, 9, 2)), {}, user=self.super_admin)
+        self.assertIsNone(empty['performance']['completion_rate'])
+        self.assertIsNone(empty['performance']['completion_hours'])
+
+    def test_facility_approval_submission_scope_and_recorded_timestamps(self):
+        from uuid import uuid4
+        from api.models import FacilityBookingRequest
+        from .analytics_sections import build_facility_tab_analytics
+        from modules.marketplace.services.analytics import AnalyticsPeriod
+        stamp = timezone.make_aware(datetime(2026, 10, 1, 9))
+        for index, status in enumerate(('approved', 'rejected', 'pending')):
+            row = Booking.objects.create(id=f'approval-scope-{index}', facility=self.court,
+                booking_date=date(2026, 10, 6), status=status)
+            Booking.objects.filter(pk=row.pk).update(created_at=stamp)
+            if index == 0:
+                FacilityBookingRequest.objects.create(booking=row, request_key=uuid4(), details={'approval': {'at': (stamp + timedelta(hours=3)).isoformat()}})
+        service = Booking.objects.create(id='exclude-service-demand', facility=self.lab, status='pending')
+        Booking.objects.filter(pk=service.pk).update(created_at=stamp)
+        data = build_facility_tab_analytics(AnalyticsPeriod('custom', 'Two days', date(2026, 10, 1), date(2026, 10, 2)), {}, user=self.super_admin)
+        self.assertEqual(data['kpis']['total_bookings'], 0)
+        self.assertEqual((data['approval']['total'], data['approval']['rate'], data['approval']['pending']), (3, 50.0, 1))
+        self.assertEqual((data['approval']['approval_hours'], data['approval']['approval_timed']), (3.0, 1))
+        self.assertEqual(sum(data['demand']['chart']['values']), 3)
+
+    def test_user_verification_growth_and_observed_engagement(self):
+        from accounts.models import AccountActivity
+        from .analytics_sections import build_users_tab_analytics
+        from modules.marketplace.services.analytics import AnalyticsPeriod
+        old = timezone.make_aware(datetime(2026, 8, 1, 9))
+        stamp = timezone.make_aware(datetime(2026, 10, 2, 9))
+        User.objects.all().update(date_joined=old, email_verified=False)
+        CampusHubUser.objects.all().update(created_at=old, email_verified=False)
+        User.objects.create_user(username='growth-current', date_joined=stamp, email_verified=True)
+        User.objects.create_user(username='growth-previous', date_joined=stamp - timedelta(days=2))
+        for source, account, result in [('admin', self.super_admin, 'success'), ('admin', self.super_admin, 'success'),
+                ('mobile', self.ch_user, 'success'), ('mobile', self.ch_user, 'failed')]:
+            event = AccountActivity.objects.create(account_source=source, account_id=account.pk,
+                activity_type='login_success', activity='Recorded sign-in', result=result)
+            AccountActivity.objects.filter(pk=event.pk).update(created_at=stamp)
+        for index in range(2):
+            row = Booking.objects.create(id=f'engaged-request-{index}', facility=self.lab, user=self.ch_user)
+            Booking.objects.filter(pk=row.pk).update(created_at=stamp)
+        data = build_users_tab_analytics(AnalyticsPeriod('custom', 'Two days', date(2026, 10, 1), date(2026, 10, 2)), {}, user=self.super_admin)
+        self.assertEqual(data['verification']['verified'], 1)
+        self.assertEqual(data['growth']['previous'], 1)
+        self.assertEqual(data['kpis']['new_registrations'], 1)
+        self.assertEqual(data['engagement'], {'signin_accounts': 2, 'signin_events': 3, 'request_accounts': 1})
+
+    def test_optional_complete_analytics_exports(self):
+        import json, os
+        from pathlib import Path
+        from uuid import uuid4
+        from api.models import FacilityBookingRequest, FacilityPayment
+        target = os.environ.get('ANALYTICS_COMPLETE_REVIEW_DIR')
+        if not target:
+            return
+        target = Path(target); target.mkdir(parents=True, exist_ok=True)
+        today = date(2026, 10, 19); stamp = timezone.make_aware(datetime(2026, 10, 18, 10))
+        User.objects.all().update(date_joined=stamp - timedelta(days=100))
+        CampusHubUser.objects.all().update(created_at=stamp - timedelta(days=100))
+        for state in ('empty', 'populated'):
+            if state == 'populated':
+                SellerRequest.objects.create(user=self.seller_user, student_id='complete-analytics-seller', status='approved')
+                for offset in range(14):
+                    row = self.sale('90', stamp - timedelta(days=offset), quantity=3, buyer_user_id=self.ch_user.pk,
+                        fulfillment_method='pickup' if offset % 2 else 'seller_delivery')
+                    MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=stamp - timedelta(days=offset, hours=2))
+                self.product.stock = 3; self.product.category = 'Uniforms'
+                self.product.save(update_fields=['stock', 'category'])
+                # Actual isolated test records cover category ordering, long labels and palette cycling.
+                for index, category in enumerate(('Stationery', 'Books', 'Food', 'Apparel', 'Equipment', 'Artwork',
+                        'Campus Research Materials & Technical Supplies', 'Learning Resources')):
+                    amount = 15 * (index + 1)
+                    product = Product.objects.create(seller=self.seller_user, name=f'Review product {index}',
+                        category=category, price=amount, stock=20, approval_status='approved')
+                    row = MarketplaceOrder.objects.create(product=product, product_name=product.name, category=category,
+                        total_price=amount, quantity=1, status='completed', payment_status='paid', completed_at=stamp)
+                    MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=stamp - timedelta(hours=2))
+                self.court.facility_type = 'covered_court'; self.court.workflow_config = {'operating_hours': 'Daily 08:00-18:00'}
+                self.court.save(update_fields=['facility_type', 'workflow_config'])
+                for index, (facility, status) in enumerate([(self.court, 'approved'), (self.court, 'pending'), (self.lab, 'completed'), (self.lab, 'pending')]):
+                    row = Booking.objects.create(id=f'complete-analytics-{index}', facility=facility, user=self.ch_user,
+                        booking_date=today, start_time=time(8), end_time=time(10), status=status)
+                    Booking.objects.filter(pk=row.pk).update(created_at=stamp)
+                    details = {'approval': {'at': (stamp + timedelta(hours=2)).isoformat()}} if status in ('approved', 'completed') else {}
+                    if status == 'completed':
+                        details['completion'] = {'at': (stamp + timedelta(hours=24)).isoformat()}
+                    FacilityBookingRequest.objects.create(booking=row, request_key=uuid4(), details=details)
+                    if index == 0:
+                        FacilityPayment.objects.create(id='complete-analytics-payment', booking=row, payment_status='paid', paid_amount=125, paid_at=stamp)
+                User.objects.create_user(username='complete-new-user', date_joined=stamp, email_verified=True)
+            for module in ('marketplace', 'facilities', 'services', 'users'):
+                cases = [('30', {'period': '30'}), ('7', {'period': '7'}),
+                        ('custom', {'period': 'custom', 'date_from': '2026-10-18', 'date_to': '2026-10-19'})]
+                if module == 'marketplace':
+                    cases += [('weekly', {'period':'30', 'grouping':'weekly'}), ('monthly', {'period':'30', 'grouping':'monthly'}),
+                              ('orders-weekly', {'period':'30', 'order_grouping':'weekly'}),
+                              ('orders-monthly', {'period':'30', 'order_grouping':'monthly'}),
+                              ('orders-custom-monthly', {'period':'custom', 'date_from':'2026-10-18', 'date_to':'2026-10-19', 'order_grouping':'monthly'}),
+                              ('horizon', {'period':'30', 'forecast_horizon':'30'})]
+                for label, params in cases:
+                    with patch('django.utils.timezone.localdate', return_value=today):
+                        page = self.analytics_page(module, **params)
+                    (target/f'{state}-{module}-{label}.html').write_bytes(page.content)
+                    key = {'marketplace': 'analytics', 'facilities': 'facility_tab', 'services': 'services_tab', 'users': 'users_tab'}[module]
+                    (target/f'{state}-{module}-{label}.json').write_text(json.dumps(page.context[key], default=str), encoding='utf-8')
+
+    def test_optional_marketplace_sections_browser_exports(self):
+        import json, os
+        from pathlib import Path
+        target = os.environ.get('MARKETPLACE_SECTIONS_REVIEW_DIR')
+        if not target:
+            return
+        target = Path(target); target.mkdir(parents=True, exist_ok=True)
+        today = date(2026, 10, 19)
+        for state in ('empty', 'populated'):
+            if state == 'populated':
+                SellerRequest.objects.create(user=self.seller_user, student_id='sections-seller', status='approved')
+                for index in range(7):
+                    stamp = timezone.make_aware(datetime.combine(today - timedelta(days=index), time(12)))
+                    row = self.sale('90', stamp, quantity=3, buyer_user_id=self.ch_user.pk,
+                        fulfillment_method='pickup' if index % 2 else 'seller_delivery',
+                        customization={'selections': [{'group': 'Size', 'option': 'Large'}]})
+                    MarketplaceOrder.objects.filter(pk=row.pk).update(created_at=stamp - timedelta(hours=2))
+                open_order = self.sale('50', None, status='processing', payment_status='unpaid', fulfillment_method='seller_delivery')
+                MarketplaceOrder.objects.filter(pk=open_order.pk).update(created_at=timezone.make_aware(datetime.combine(today, time(9))))
+                self.product.stock = 3; self.product.save(update_fields=['stock'])
+            for label, params in [('30', {'period': '30'}), ('7', {'period': '7'}),
+                    ('custom', {'period': 'custom', 'date_from': '2026-10-15', 'date_to': '2026-10-19'}),
+                    ('weekly', {'period': '30', 'grouping': 'weekly'}),
+                    ('monthly', {'period': '30', 'grouping': 'monthly'}),
+                    ('horizon', {'period': '30', 'forecast_horizon': '30'})]:
+                with patch('django.utils.timezone.localdate', return_value=today):
+                    page = self.analytics_page(**params)
+                (target/f'{state}-{label}.html').write_bytes(page.content)
+                (target/f'{state}-{label}.json').write_text(json.dumps(page.context['analytics'], default=str), encoding='utf-8')
 
     def sale(self, amount, stamp, **fields):
         return MarketplaceOrder.objects.create(product=self.product, product_name=self.product.name,

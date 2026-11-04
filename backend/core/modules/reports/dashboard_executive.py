@@ -13,11 +13,11 @@ from api.models import Booking, Facility
 from modules.facilities.services.booking_workflow import payment_summary_query
 from modules.facilities.services.catalog import service_resources_q
 from modules.facilities.services.schedules import schedule_blocks_q
-from .dashboard_bookings import build_booking_overview
+from .dashboard_bookings import build_booking_overview, booking_request_records
 
 
-def users_overview(period):
-    """Summarize recorded registrations and actual mobile account types, without RBAC inference."""
+def registration_daily_counts(period):
+    """The same web/mobile registration dates for Dashboard and Analytics; two grouped queries."""
     from accounts.models import User
     from api.models import CampusHubUser
     days = {}
@@ -26,6 +26,14 @@ def users_overview(period):
                 .order_by().annotate(day=TruncDate(field)).values('day').annotate(count=Count('pk')))
         for row in rows:
             days[row['day']] = days.get(row['day'], 0) + row['count']
+    return days
+
+
+def users_overview(period):
+    """Summarize recorded registrations and actual mobile account types, without RBAC inference."""
+    from accounts.models import User
+    from api.models import CampusHubUser
+    days = registration_daily_counts(period)
     trend = []
     for offset in range(period.days):
         day = period.start + timedelta(days=offset)
@@ -46,7 +54,7 @@ def users_overview(period):
 
 def service_overview(period, *, current_counts=None, grouping='daily'):
     """Current service capacity/pending queue; submitted-period request performance."""
-    requests = Booking.objects.filter(service_resources_q('facility__')).exclude(schedule_blocks_q())
+    requests = booking_request_records(services=True)
     selected = requests.filter(created_at__date__range=(period.start, period.end))
     from .analytics_sections import service_request_breakdown
     counts = selected.aggregate(
@@ -95,13 +103,14 @@ def service_overview(period, *, current_counts=None, grouping='daily'):
         'pending_current': current_counts['pending_current'] if current_counts is not None else pending.count()}
 
 
-def executive_overview(period, comparison, *, grouping='daily', services_current=None, service_grouping='daily'):
+def executive_overview(period, comparison, *, grouping='daily', services_current=None, service_grouping='daily', kpi_previous_range=None):
     """Physical reservations reuse the booking chart and recorded-payment SQL helper."""
     from .dashboard_periods import comparison_metric
-    physical = Booking.objects.exclude(schedule_blocks_q()).exclude(service_resources_q('facility__'))
+    physical = booking_request_records()
     current = Q(created_at__date__range=(period.start, period.end))
     previous = Q(created_at__date__range=(comparison['previous_start_date'], comparison['previous_end_date']))
     totals = physical.aggregate(current=Count('pk', filter=current), previous=Count('pk', filter=previous),
+        kpi_previous=Count('pk', filter=Q(created_at__date__range=kpi_previous_range) if kpi_previous_range is not None else previous),
         period_pending=Count('pk', filter=current & Q(status=Booking.STATUS_PENDING)),
         period_approved=Count('pk', filter=current & Q(status=Booking.STATUS_APPROVED)),
         period_completed=Count('pk', filter=current & Q(status=Booking.STATUS_COMPLETED)),
@@ -109,10 +118,15 @@ def executive_overview(period, comparison, *, grouping='daily', services_current
     booking = build_booking_overview(period, totals,
         comparison_metric(totals['current'], totals['previous'], comparison['comparison_label']),
         records=physical, grouping=grouping)
+    booking['kpi_previous_total'] = totals['kpi_previous']
     # Matches booking_workflow.status_label: Approved + fully recorded paid payments.
     booking['reserved_confirmed'] = payment_summary_query(physical.filter(current, status=Booking.STATUS_APPROVED)).filter(
         has_paid=True, paid_total__gte=F('total_amount')).count()
-    selected = AccountActivity.objects.filter(created_at__date__range=(period.start, period.end)).order_by('-created_at', '-pk')[:5]
+    # Routine sign-ins/sign-outs remain in full history; the preview favors work
+    # requiring oversight, including failed authentication and administrative actions.
+    selected = AccountActivity.objects.filter(created_at__date__range=(period.start, period.end)).exclude(
+        Q(activity_type__iexact='login_success') | Q(activity_type__iexact='logout')
+    ).order_by('-created_at', '-pk')[:5]
     current_year = timezone.localdate().year
     def activity_time_label(value):
         stamp = timezone.localtime(parse_datetime(value))

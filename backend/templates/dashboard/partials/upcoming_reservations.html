@@ -6,8 +6,18 @@
     {% if executive_mode %}
     <p class="facilities-note">Next 5 approved reservations, across all dates.</p>
     <div class="facilities-table-scroll" tabindex="0" role="region" aria-label="Upcoming reservations table"{% if not facility_analytics.upcoming_reservations %} hidden{% endif %}>
-        <table class="facilities-reservations-table"><caption class="visually-hidden">Upcoming approved reservations. Approval alone does not confirm full payment.</caption><thead><tr><th scope="col">Booking No.</th><th scope="col">Facility</th><th scope="col">Client</th><th scope="col">Date / Time</th><th scope="col">Status</th></tr></thead>
-        <tbody data-upcoming-list{% if not facility_analytics.upcoming_reservations %} hidden{% endif %}>{% for reservation in facility_analytics.upcoming_reservations %}<tr><td><a href="{{ reservation.url }}">{{ reservation.id }}</a></td><td>{{ reservation.facility }}</td><td>{{ reservation.requester }}</td><td>{{ reservation.when }}</td><td><span class="upcoming-reservation-status">{{ reservation.status_label }}</span></td></tr>{% endfor %}</tbody></table>
+        <table class="facilities-reservations-table">
+            <caption class="visually-hidden">Upcoming approved reservations. Approval alone does not confirm full payment.</caption>
+            <colgroup>
+                <col class="upcoming-col-id">
+                <col class="upcoming-col-facility">
+                <col class="upcoming-col-client">
+                <col class="upcoming-col-when">
+                <col class="upcoming-col-status">
+            </colgroup>
+            <thead><tr><th scope="col">Booking No.</th><th scope="col">Facility</th><th scope="col">Client</th><th scope="col">Date / Time</th><th scope="col">Status</th></tr></thead>
+            <tbody data-upcoming-list{% if not facility_analytics.upcoming_reservations %} hidden{% endif %}>{% for reservation in facility_analytics.upcoming_reservations %}<tr><td><a href="{{ reservation.url }}" title="{{ reservation.id }}">{{ reservation.id }}</a></td><td title="{{ reservation.facility }}">{{ reservation.facility }}</td><td title="{{ reservation.requester }}">{{ reservation.requester }}</td><td title="{{ reservation.when }}">{{ reservation.when }}</td><td><span class="upcoming-reservation-status">{{ reservation.status_label }}</span></td></tr>{% endfor %}</tbody>
+        </table>
     </div>
     {% else %}
     <ul class="upcoming-reservations-list" data-upcoming-list tabindex="0" aria-label="Upcoming reservations; scroll for more reservations"{% if not facility_analytics.upcoming_reservations %} hidden{% endif %}>

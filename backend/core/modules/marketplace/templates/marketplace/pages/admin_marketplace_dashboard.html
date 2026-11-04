@@ -13,9 +13,10 @@
     <link rel="stylesheet" href="{% static 'components/css/admin_dashboard.css' %}?v=20260823-facility-analytics" />
     <link rel="stylesheet" href="{% static 'components/css/admin_sales_overview.css' %}?v=20261022-inter" />
     <link rel="stylesheet"
-        href="{% static 'marketplace/css/admin_marketplace_dashboard.css' %}?v=20261026-header-row" />
+        href="{% static 'marketplace/css/admin_marketplace_dashboard.css' %}?v=20261104-kpi-trends" />
     {% if marketplace.show_bundle_suggestions %}
-    <link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261026-compact-card">{% endif %}
+    <link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261103-bundle-empty">{% endif %}
+    <link rel="stylesheet" href="{% static 'components/css/admin_dashboard_attention.css' %}?v=20261103-compact" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     {% include 'partials/web_typography.html' %}
 </head>
@@ -36,10 +37,6 @@
                 <div class="container-fluid py-4 px-4">
 
                     <header class="marketplace-dashboard-toolbar" aria-labelledby="marketplaceWelcomeTitle">
-                        <div class="marketplace-welcome-copy">
-                            <h1 id="marketplaceWelcomeTitle">Welcome back, {{ user.first_name|default:user.username }}!</h1>
-                            <p>Here's what's happening in your marketplace today.</p>
-                        </div>
                         <div class="marketplace-reporting-controls">
                             <div class="marketplace-reporting-actions">
                                 <label class="visually-hidden" for="salesPeriodSelect">Dashboard reporting period</label>
@@ -67,6 +64,10 @@
                             <p class="marketplace-reporting-metadata" id="marketplaceSelectedRange">{{ sales_period.start|date:'M j, Y' }} &ndash; {{ sales_period.end|date:'M j, Y' }}</p>
                             {% timezone "Asia/Manila" %}<time class="marketplace-reporting-metadata" id="marketplaceUpdatedAt" datetime="{{ dashboard_updated_at|date:'c' }}" title="Time this dashboard response was generated, not a live synchronization timestamp">Last Updated: {{ dashboard_updated_at|date:'M j, Y g:i A' }} PHT</time>{% endtimezone %}
                         </div>
+                        <div class="marketplace-welcome-copy">
+                            <h1 id="marketplaceWelcomeTitle">Welcome back, {{ user.first_name|default:user.username }}!</h1>
+                            <p>Here's what's happening in your marketplace today.</p>
+                        </div>
                     </header>
 
                     <section class="marketplace-overview" aria-labelledby="marketplaceOverviewTitle">
@@ -75,8 +76,6 @@
                             </h2>
                             <p class="dash-card-subtitle">Current products in your scope. Orders and sales: {{ marketplace.sales_period.label }}.</p>
                         </header>
-                        <div class="marketplace-dashboard-top">
-                            <div class="marketplace-summary-left">
                                 <div class="marketplace-kpis">
                                     <div>
                                         <div class="dashboard-stats-grid row g-3">
@@ -93,7 +92,7 @@
                                                         {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}<a class="marketplace-kpi-link"
                                                             href="{% url 'admin_products_page' %}">{% endif %}<strong>{{ marketplace.total_products|default:0 }}</strong>
                                                             <span>Total Products</span>
-                                                            {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}</a>{% endif %}<small class="marketplace-kpi-note">Current catalog</small></div>
+                                                            {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}</a>{% endif %}<small class="marketplace-kpi-note">{% if marketplace.products_added != None %}+{{ marketplace.products_added }} added in selected period{% else %}Current catalog{% endif %}</small></div>
                                                 </article>
                                             </div>
                                             <div class="col-12 col-sm-6">
@@ -109,7 +108,7 @@
                                                         {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}<a class="marketplace-kpi-link"
                                                             href="{% url 'admin_products_page' %}?status=pending">{% endif %}<strong>{{ marketplace.pending_listings|default:0 }}</strong>
                                                             <span>Pending Product Approvals</span>
-                                                            {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}</a>{% endif %}<small class="marketplace-kpi-note">Currently awaiting review</small></div>
+                                                            {% if perms.accounts.can_view_products or perms.accounts.can_manage_products %}</a>{% endif %}<small class="marketplace-kpi-note">{% if marketplace.pending_listings %}<span class="marketplace-kpi-pending-indicator" aria-hidden="true"></span>{% endif %}Currently awaiting review</small></div>
                                                 </article>
                                             </div>
                                             <div class="col-12 col-sm-6">
@@ -123,9 +122,9 @@
                                                     </div>
                                                     <div>
                                                         {% if perms.accounts.can_view_orders or perms.accounts.can_manage_orders %}<a class="marketplace-kpi-link"
-                                                            href="{% url 'admin_orders_page' %}?date=custom&amp;date_from={{ marketplace.sales_period.start|date:'Y-m-d' }}&amp;date_to={{ marketplace.sales_period.end|date:'Y-m-d' }}">{% endif %}<strong>{{ marketplace.total_orders|default:0 }}</strong>
+                                                            href="{% url 'admin_orders_page' %}?date=custom&amp;date_from={{ marketplace.sales_period.start|date:'Y-m-d' }}&amp;date_to={{ marketplace.sales_period.end|date:'Y-m-d' }}">{% endif %}<div class="marketplace-kpi-value-row"><strong>{{ marketplace.total_orders|default:0 }}</strong>{% include 'marketplace/partials/dashboard_kpi_trend.html' with key='orders' trend=marketplace.kpi_trends.orders only %}</div>
                                                             <span>Total Orders</span>
-                                                            {% if perms.accounts.can_view_orders or perms.accounts.can_manage_orders %}</a>{% endif %}<small class="marketplace-kpi-note">Created in selected period</small></div>
+                                                            {% if perms.accounts.can_view_orders or perms.accounts.can_manage_orders %}</a>{% endif %}<small class="marketplace-kpi-note">{% if marketplace.kpi_trends.orders.visible %}vs. previous period{% else %}Created in selected period{% endif %}</small></div>
                                                 </article>
                                             </div>
                                             <div class="col-12 col-sm-6">
@@ -140,25 +139,23 @@
                                                     <div>
                                                         {% if perms.accounts.can_view_marketplace_analytics %}<a
                                                             class="marketplace-kpi-link"
-                                                            href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ marketplace.sales_period.start|date:'Y-m-d' }}&amp;date_to={{ marketplace.sales_period.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}">{% endif %}<strong>&#8369; {{ marketplace.total_sales|default:"0.00" }}</strong>
+                                                            href="{% url 'admin_marketplace_analytics_page' %}?period=custom&amp;date_from={{ marketplace.sales_period.start|date:'Y-m-d' }}&amp;date_to={{ marketplace.sales_period.end|date:'Y-m-d' }}&amp;grouping={{ sales_grouping }}">{% endif %}<div class="marketplace-kpi-value-row"><strong>&#8369; {{ marketplace.total_sales|default:"0.00" }}</strong>{% include 'marketplace/partials/dashboard_kpi_trend.html' with key='revenue' trend=marketplace.kpi_trends.revenue only %}</div>
                                                             <span>Marketplace Revenue</span>
                                                             {% if perms.accounts.can_view_marketplace_analytics %}</a>{% endif %}
-                                                            {% with metric=marketplace.sales_overview.metrics.0 %}
-                                                            <small class="marketplace-kpi-comparison">{% if metric.comparison.change == None %}&mdash;{% else %}{{ metric.comparison.change }}{% endif %} vs. previous period</small>
-                                                            {% endwith %}</div>
+                                                            <small class="marketplace-kpi-note">{% if marketplace.kpi_trends.revenue.visible %}vs. previous period{% else %}Completed and paid orders{% endif %}</small></div>
                                                 </article>
                                             </div>
                                         </div>
                                     </div>
 
                                 </div>
-                                {% include 'dashboard/partials/attention_required.html' with attention_required=marketplace.attention_required %}
-                            </div>
-                            {% if marketplace.show_bundle_suggestions %}
-                            {% include 'marketplace/partials/admin_recommendation_summary.html' with recommendation_title='Suggested Product Bundles' dashboard_preview=True %}
-                            {% endif %}
-                        </div>
                     </section>
+                    <div class="marketplace-dashboard-top">
+                        {% include 'dashboard/partials/attention_required.html' with attention_required=marketplace.attention_required executive_attention=True %}
+                        {% if marketplace.show_bundle_suggestions %}
+                        {% include 'marketplace/partials/dashboard_bundle_summary.html' %}
+                        {% endif %}
+                    </div>
                     {{ marketplace.sales_chart|json_script:"revenueChartData" }}
                     {{ marketplace.top_selling_products|json_script:"marketplaceTopProductsData" }}
                     {% include 'dashboard/partials/sales_overview.html' with marketplace_compact=True %}
@@ -166,12 +163,13 @@
                     <section class="dash-card" aria-labelledby="marketplaceActivityTitle">
                         <header class="dash-card-header">
                             <h2 id="marketplaceActivityTitle">Recent Marketplace Activities</h2>
+                            {% if perms.accounts.can_view_user_monitoring %}<a class="dash-view-all-link" href="{% url 'admin_user_monitoring_page' %}">View All Activities</a>{% endif %}
                         </header>
                         <p class="dash-card-subtitle">Latest recorded marketplace activity &middot; All dates.</p>
                         <ul class="marketplace-activity-list">
                             {% for event in marketplace.activities %}
                             <li>
-                                <div><strong>{% if event.url %}<a href="{{ event.url }}">{{ event.message }}</a>{% else %}{{ event.message }}{% endif %}</strong><small>{{ event.type }} &middot; {{ event.performed_by }}</small></div><time>{{ event.date }}</time>
+                                <div><strong>{% if event.url %}<a href="{{ event.url }}">{{ event.message }}</a>{% else %}{{ event.message }}{% endif %}</strong><small>{{ event.type }} &middot; {{ event.performed_by }}</small></div><time datetime="{{ event.date_iso }}">{{ event.date }}</time>
                             </li>
                             {% empty %}<li class="marketplace-activity-empty">No marketplace activities yet.</li>{% endfor %}
                         </ul>
@@ -182,10 +180,11 @@
     </div>
 
     {% include 'partials/admin_logout_modal.html' %}
+    {% include 'marketplace/partials/dashboard_order_modals.html' %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'components/js/admin_notifications.js' %}?v=20260726-empty-messages"></script>
-    <script src="{% static 'marketplace/js/admin_marketplace_dashboard.js' %}?v=20261026-marketplace-header"></script>
+    <script src="{% static 'marketplace/js/admin_marketplace_dashboard.js' %}?v=20261103-dashboard-layout"></script>
     <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20261026-external-period"></script>
 </body>
 

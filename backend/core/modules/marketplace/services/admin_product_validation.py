@@ -34,6 +34,8 @@ def validate_admin_product_input(data):
             raise ProductInputError("Select a valid program or major.", field)
     if "customization_enabled" in data and not isinstance(data["customization_enabled"], bool):
         raise ProductInputError("Select whether variants are enabled.", "customization_options")
+    if "inventory_method" in data and (not isinstance(data["inventory_method"], str) or data["inventory_method"] not in {"simple", "fifo"}):
+        raise ProductInputError("Choose Simple stock or FIFO batches.", "inventory_method")
 
     def amount(value, field):
         try:

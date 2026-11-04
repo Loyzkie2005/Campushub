@@ -15,5 +15,6 @@
             <button type="submit" class="analytics-apply-button" id="analyticsApplyBtn">Apply</button>
         </div>
         {% if analytics.grouping %}<input type="hidden" name="grouping" value="{{ analytics.grouping }}" />{% endif %}
+        {% if super_analytics and analytics_module == 'marketplace' %}<input type="hidden" name="forecast_product" value="{{ analytics.forecast.product_id|default:'' }}" /><input type="hidden" name="forecast_horizon" value="{{ analytics.forecast.horizon }}" />{% endif %}
     </form>
 </section>

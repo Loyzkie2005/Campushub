@@ -2,6 +2,7 @@
 from datetime import time, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
+from urllib.parse import urlencode
 
 from django.db.models import Case, Count, DateField, F, Q, Sum, When
 from django.db.models.functions import Length, Trim
@@ -128,8 +129,26 @@ def facility_admin_dashboard(request, user):
         facility_ref=KeyTextTransform('facility_id', 'metadata'),
         booking_ref=KeyTextTransform('booking_id', 'metadata')).filter(
         Q(facility_ref__in=physical_facilities.values('pk')) | Q(booking_ref__in=records.values('pk')))
-    activities = [{'message': item.activity, 'performed_by': item.full_name or item.username or 'Recorded user',
-                   'date': item.created_at} for item in activity.order_by('-created_at', '-pk')[:6]]
+    activity_rows = list(activity.order_by('-created_at', '-pk')[:6])
+    # Presentation references only: validate the six recorded IDs against the same scope.
+    activity_bookings = {str(b.pk): b for b in records.filter(
+        pk__in=[item.booking_ref for item in activity_rows if item.booking_ref]).select_related('facility')}
+    names = {row['id']: row['name'] for row in facility_list}
+    can_read_bookings = any(user.has_perm('accounts.' + code) for code in
+        ('can_view_bookings', 'can_manage_bookings', 'can_approve_bookings', 'can_record_facility_payment', 'can_book_facilities'))
+    can_read_calendar = user.has_perm('accounts.can_manage_schedules') or user.has_perm('accounts.can_view_bookings')
+    activities = []
+    for item in activity_rows:
+        booking = activity_bookings.get(item.booking_ref)
+        recorded_name = item.metadata.get('facility_name')
+        reference = str(booking.pk) if booking else (
+            recorded_name if isinstance(recorded_name, str) and recorded_name else names.get(item.facility_ref, ''))
+        url = reverse('admin_booking_details_page', args=[booking.pk]) if booking and can_read_bookings else ''
+        if not url and item.facility_ref in names and can_read_calendar:
+            url = reverse('admin_calendar_page') + '?' + urlencode({'facility': item.facility_ref})
+        activities.append({'message': item.activity,
+            'performed_by': item.full_name or item.username or 'Actor not recorded', 'date': item.created_at,
+            'reference': reference, 'url': url, 'is_booking': bool(booking)})
     related = current.select_related('facility', 'user', 'mobile_request').prefetch_related('payments')
     return {'total_facilities': len(facility_list), 'pending_bookings': pending.count(),
             'upcoming_reservations_count': upcoming.count(), 'maintenance_facilities': maintenance,

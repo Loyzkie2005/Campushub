@@ -321,3 +321,41 @@ a.booking-overview__status:hover h3 {
     }
 }
 [data-booking-overview] [aria-disabled="true"] { cursor: default; }
+
+/* Super Admin: summary and trend share one card; existing controller/data hooks stay in place. */
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-facilities #bookingOverviewCard {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-facilities .booking-overview__metrics {
+    gap: 16px;
+    margin-bottom: 0;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-facilities :is(.facilities-chart-grid, .facilities-operations-grid) {
+    gap: 16px;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-facilities .facilities-operations-grid {
+    margin-top: 16px;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-facilities :is(.facilities-trend, .facility-most-booked, .facilities-operations-grid > article) {
+    min-width: 0;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--executive-border);
+    border-radius: var(--executive-radius);
+    background: var(--executive-surface);
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .facilities-trend .facilities-summary-title {
+    margin: 0 0 12px;
+}
+
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .executive-facilities a.booking-overview__metric {
+    text-decoration: none;
+}
+.super-admin-dashboard [data-global-dashboard] .dashboard-executive .facilities-trend > [data-booking-content] { margin-bottom: 16px; }

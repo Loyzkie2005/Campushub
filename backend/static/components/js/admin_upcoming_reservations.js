@@ -30,10 +30,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (url.origin !== location.origin) { state('error'); return; }
                 const token = window.CampusHubAdminSession?.getTabToken() || new URL(location.href).searchParams.get('__at');
                 if (token) url.searchParams.set('__at', token);
-                link.href = url.href; reference.append(link); item.append(reference);
-                for (const text of [row.facility, row.requester || 'Not recorded', row.when, row.status_label]) {
-                    const cell = document.createElement('td'); cell.textContent = text; item.append(cell);
+                link.href = url.href; link.title = row.id; reference.append(link); item.append(reference);
+                for (const text of [row.facility, row.requester || 'Not recorded', row.when]) {
+                    const cell = document.createElement('td'); cell.textContent = text; cell.title = text; item.append(cell);
                 }
+                const statusCell = document.createElement('td');
+                const statusSpan = document.createElement('span');
+                statusSpan.className = 'upcoming-reservation-status';
+                statusSpan.textContent = row.status_label;
+                statusCell.append(statusSpan);
+                item.append(statusCell);
                 fragment.append(item); continue;
             }
             const item = document.createElement('li');

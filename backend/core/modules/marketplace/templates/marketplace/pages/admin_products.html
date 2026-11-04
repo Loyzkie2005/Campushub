@@ -20,7 +20,7 @@
     <meta name="low-stock-threshold" content="{{ low_stock_threshold }}" />
     <meta name="expiry-warning-days" content="{{ expiry_warning_days|default:7 }}" />
 {% include 'partials/web_typography.html' %}
-    <link rel="stylesheet" href="{% static 'components/css/admin_products_refinement.css' %}?v=20261024-product-layout" />
+    <link rel="stylesheet" href="{% static 'components/css/admin_products_refinement.css' %}?v=20261031-product-catalog" />
 </head>
 
 <body class="admin-module-shell products-management">
@@ -36,14 +36,15 @@
                 <section class="products-page-shell container-fluid px-0 admin-page-content">
                     <div class="admin-page-intro">
                         <p class="admin-page-description">Manage and monitor marketplace product listings, approvals, inventory availability, and listing status.</p>
-                        <button type="button" class="admin-page-action" id="addProductButton">
+                        {% if can_manage_products %}<button type="button" class="admin-page-action" id="addProductButton">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                             </svg>
                             Add Product
-                        </button>
+                        </button>{% endif %}
                     </div>
 
+                    <p class="product-kpi-scope">Overall totals for your authorized product scope, including archived listings. Low Stock Alerts counts active listings with low-stock items.</p>
                     <div class="product-stats-grid admin-kpi-grid" id="productStatsGrid" aria-label="Product summary">
                         <button type="button" class="product-stat-card product-stat-card-filter admin-kpi-card" id="totalStatCard"
                             data-stat-filter="all" aria-pressed="false" title="Show all products">
@@ -84,14 +85,14 @@
                             </div>
                         </div>
                         <div class="product-catalog-filters admin-list-filters" data-academic-pair>
-                            <label>Search<input class="form-control" type="search" id="productsSearchInput" placeholder="Search by product, seller, or SKU..."></label>
-                            <label>Approval Status<select class="form-select" id="productsStatusFilter"><option value="">All Approval Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
-                            <label>Listing Status<select class="form-select" id="productsArchiveFilter"><option value="">All Listing Status</option><option value="active" selected>Active</option><option value="archived">Archived</option></select></label>
-                            <label>Program<select class="form-select" id="productsDepartmentFilter" data-program-select><option value="">All Programs</option>{% for program in programs %}<option value="{{ program.pk }}">{{ program.code }}</option>{% endfor %}</select></label>
-                            <label>Major<select class="form-select" id="productsMajorFilter" data-major-select><option value="">All Majors</option>{% for major in majors %}<option data-program="{{ major.program_id }}" value="{{ major.pk }}">{{ major.name }}</option>{% endfor %}</select></label>
-                            <label>Category<select class="form-select" id="productsCategoryFilter"><option value="">All Categories</option>{% for category in product_categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select></label>
-                            <button type="button" class="inventory-product-link catalog-clear-filters" id="productsClearFilters">Clear Filters</button>
+                            <label>Search<input class="form-control" type="search" id="productsSearchInput" placeholder="Search by product, seller, or SKU..." value="{{ product_filters.search }}"></label>
+                            <label>Approval Status<select class="form-select" id="productsStatusFilter"><option value="">All Approval Status</option><option value="pending" {% if product_filters.status == 'pending' %}selected{% endif %}> Pending</option><option value="approved" {% if product_filters.status == 'approved' %}selected{% endif %}> Approved</option><option value="rejected" {% if product_filters.status == 'rejected' %}selected{% endif %}> Rejected</option></select></label>
+                            <label>Listing Status<select class="form-select" id="productsArchiveFilter"><option value="">All Listing Status</option><option value="active" {% if product_filters.listing_status == 'active' %}selected{% endif %}>Active</option><option value="archived" {% if product_filters.listing_status == 'archived' %}selected{% endif %}>Archived</option></select></label>
+                            <label>Program<select class="form-select" id="productsDepartmentFilter" data-program-select><option value="">All Programs</option>{% for program in programs %}<option value="{{ program.pk }}" {% if product_filters.program == program.pk|stringformat:"s" %}selected{% endif %}>{{ program.code }}</option>{% endfor %}</select></label>
+                            <label>Major<select class="form-select" id="productsMajorFilter" data-major-select><option value="">All Majors</option>{% for major in majors %}<option data-program="{{ major.program_id }}" value="{{ major.pk }}" {% if product_filters.major == major.pk|stringformat:"s" %}selected{% endif %}>{{ major.name }}</option>{% endfor %}</select></label>
+                            <label>Category<select class="form-select" id="productsCategoryFilter"><option value="">All Categories</option>{% for category in product_categories %}<option value="{{ category }}" {% if product_filters.category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}</select></label>
                         </div>
+                        <div id="productsCatalogState" role="status" aria-live="polite" hidden><span id="productsCatalogMessage"></span><button type="button" id="productsCatalogRetry" hidden>Retry</button></div>
                         <div class="table-responsive admin-list-table" id="productsTableWrap" tabindex="0" role="region" aria-label="Products list" {% if not seller_products %}style="display:none"{% endif %}>
                             <div class="products-table-container">
                             <table class="seller-products-table" id="productsTable">
@@ -111,83 +112,16 @@
                                         <th>#</th>
                                         <th class="col-product-name">Product</th>
                                         <th class="col-seller">Seller &amp; Program</th>
-                                        <th>Category</th>
+                                        <th class="col-category">Category</th>
                                         <th class="col-price">Price</th>
-                                        <th class="col-inventory">Inventory</th>
-                                        <th class="col-status">Approval Status</th>
+                                        <th class="col-inventory">Available Inventory</th>
+                                        <th class="col-status">Approval &amp; Listing</th>
                                         <th class="col-date">Date Added</th>
                                         <th class="col-action">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody id="productsTableBody">
-                                    {% for product in seller_products %}
-                                    <tr data-product-id="{{ product.id }}"
-                                        data-product-status="{{ product.approval_status|lower }}"
-                                        data-is-archived="{% if product.is_archived %}1{% else %}0{% endif %}"
-                                        data-product-description="{{ product.description|default:''|escapejs }}"
-                                        data-seller-id="{{ product.owner_key }}"
-                                        data-product-image-url="{{ product.image_url|default:''|escape }}"
-                                        data-product-images="{{ product.get_images_json|escapejs }}"
-                                        data-product-expiry="{{ product.expiry_date|date:'Y-m-d'|default:'' }}"
-                                        data-inventory-status="{{ product.get_inventory_status }}"
-                                        data-product-stock="{{ product.admin_total_stock }}"
-                                        data-product-type="{{ product.product_type }}"
-                                        data-bundle="{{ product.admin_bundle_json|escapejs }}"
-                                        data-product-tags="{{ product.admin_tags_json|escapejs }}"
-                                        data-department-id="{{ product.admin_academic.program_id|default_if_none:'' }}" data-major-id="{{ product.admin_academic.major_id|default_if_none:'' }}" data-program-label="{{ product.admin_academic.program }}" data-major-label="{{ product.admin_academic.major }}" data-program-major="{{ product.admin_academic.program_major }}" data-sku="{{ product.admin_sku }}"
-                                        data-low-stock-threshold="{{ product.admin_threshold|default_if_none:'' }}"
-                                        data-product-base-price="{{ product.price }}"
-                                        data-product-submitted-at="{{ product.submitted_at|date:'c' }}"
-                                        data-product-updated-at="{{ product.updated_at|date:'c' }}"
-                                        data-seller-department="{% if product.department_id %}{{ product.department }}{% else %}{{ product.owner.department|default:'' }}{% endif %}"
-                                        data-variant-count="{{ product.admin_variant_count }}"
-                                        data-has-low-stock="{{ product.admin_has_low_stock|yesno:'1,0' }}"
-                                        data-product-category="{{ product.category|default:''|escape }}"
-                                        data-customization-enabled="{% if product.customization_enabled %}1{% else %}0{% endif %}"
-                                        data-customization-options="{{ product.get_customization_json|escapejs }}">
-                                        <td class="col-num">{{ forloop.counter }}</td>
-                                        <td class="col-product-name">
-                                            <div class="product-name-cell">
-                                                <img src="{% url 'product_image' product.id %}{% if request.admin_tab_token %}?__at={{ request.admin_tab_token|urlencode }}{% endif %}" alt="{{ product.name }}"
-                                                    class="product-table-image"
-                                                    referrerpolicy="no-referrer">
-                                                <span class="product-table-image product-table-image-empty" hidden>
-                                                    {{ product.name|slice:":1"|upper }}
-                                                </span>
-                                                <div class="product-name-meta">
-                                                    <strong title="{{ product.name }}">{{ product.name }}</strong>
-                                                    <span class="product-id-label">{{ product.admin_sku }}</span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td class="col-seller"><strong>{{ product.owner.get_full_name|default:product.owner.username }}</strong><span>{{ product.admin_academic.program_major }}</span></td>
-                                        <td>{{ product.category|default:"Uncategorized" }}</td>
-                                        <td class="col-price">&#8369; {{ product.price }}</td>
-                                        <td class="col-inventory">
-                                            <div class="inventory-summary-clean">
-                                                <span class="inventory-number">{{ product.admin_total_stock }} {% if product.product_type == 'bundle' %}bundle{{ product.admin_total_stock|pluralize }} available{% else %}pc{{ product.admin_total_stock|pluralize }}{% endif %}</span>
-                                                {% if product.product_type == 'bundle' %}<span class="inventory-threshold">Derived from components</span>{% endif %}
-                                                {% if product.admin_threshold != None %}<span class="inventory-threshold">Threshold: {{ product.admin_threshold }}</span>{% endif %}
-                                                {% if product.admin_variant_count or product.admin_quantity_status != 'in_stock' %}
-                                                <span class="inventory-secondary{% if product.admin_variant_count %} inventory-secondary--variants{% endif %}">
-                                                    {% if product.admin_variant_count %}<span class="inventory-variant-sub">{{ product.admin_variant_count }} variant{{ product.admin_variant_count|pluralize }}</span>{% endif %}
-                                                    {% if product.admin_quantity_status == 'low_stock' %}<span class="inventory-warning low-stock"><span class="inventory-warning-dot" aria-hidden="true"></span>{% if product.admin_low_stock_variant_count %}{{ product.admin_low_stock_variant_count }} variant{{ product.admin_low_stock_variant_count|pluralize }} Low Stock{% else %}Low Stock{% endif %}</span>
-                                                    {% elif product.admin_quantity_status == 'out_of_stock' %}<span class="inventory-warning out-of-stock"><span class="inventory-warning-dot" aria-hidden="true"></span>Out of Stock</span>{% endif %}
-                                                </span>
-                                                {% endif %}
-                                            </div>
-                                        </td>
-                                        <td class="col-status">
-                                            <span class="status-pill status-{{ product.approval_status|lower }}">{{ product.approval_status|title }}</span>
-                                        </td>
-                        <td class="col-date">
-                                            <strong>{{ product.submitted_at|date:"M d, Y" }}</strong>
-                                            <span>{{ product.submitted_at|date:"g:i A" }}</span>
-                                        </td>
-                                        {% include "marketplace/partials/product_actions.html" %}
-                                    </tr>
-                                    {% empty %}
-                                    {% endfor %}
+                                <tbody id="productsTableBody" data-server-paginated="true">
+{% include 'marketplace/partials/product_rows.html' %}
                                 </tbody>
                             </table>
                         </div>
@@ -199,12 +133,12 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0-3-3m3 3 3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
                                 </svg>
                             </div>
-                            <p id="productsEmptyStateTitle" class="{% if seller_products %}d-none{% endif %}">{% if seller_products %}{% else %}No Products Found{% endif %}</p>
-                            <span id="productsEmptyStateHint" class="d-none"></span>
+                            <p id="productsEmptyStateTitle" class="{% if seller_products %}d-none{% endif %}">{% if product_stats.total %}No matching products{% else %}No products yet{% endif %}</p>
+                            <span id="productsEmptyStateHint">{% if product_stats.total %}Adjust the search or selected filters to see other listings.{% else %}Product listings will appear here once sellers submit them.{% endif %}</span>
                         </div>
                         <div class="products-table-footer admin-list-footer" id="productsTableFooter" {% if not seller_products %}style="display:none"{% endif %}>
-                            <span class="products-showing-text" id="productsShowingText">Showing 1 to 10 of {{ product_stats.total|default:0 }} entries</span>
-                            <div class="products-pagination" id="productsPagination"></div>
+                            <span class="products-showing-text" id="productsShowingText">Showing {{ products_page.start_index }} to {{ products_page.end_index }} of {{ products_page.paginator.count }} matching products</span>
+                            <div class="products-pagination" id="productsPagination">{% include 'marketplace/partials/product_pagination.html' %}</div>
                         </div>
                     </div>
 
@@ -451,7 +385,10 @@
                                     <span class="create-product-help" id="variantPriceHelper" hidden>Use the lowest variant price as the base price. Each variant below shows its full price.</span>
                                 </div>
                                         <div class="create-product-field create-product-field-plain" id="productStockFieldWrap">
-                                            <label for="productStock" class="form-label">Stock Quantity <span class="required-asterisk">*</span></label>
+                                            <label for="productInventoryMethod" class="form-label">Stock Method</label>
+                                            <select class="form-select" id="productInventoryMethod"><option value="simple">Simple stock</option><option value="fifo">FIFO batches</option></select>
+                                            <span class="create-product-help">Simple stock needs no batches. Enabling FIFO identifies existing stock as an undated opening balance without adding units.</span>
+                                            <label for="productStock" class="form-label">Available Stock <span class="required-asterisk">*</span></label>
                                             <input type="number" class="form-control" id="productStock" min="0"
                                                 step="1" required placeholder="0" autocomplete="off">
                                         </div>
@@ -954,6 +891,11 @@
                     <label for="updateStockInput" class="form-label" style="font-size:0.84rem;">New available quantity</label>
                     <input type="number" class="form-control" id="updateStockInput" min="0" step="1" placeholder="0">
                     <p id="updateStockHint" class="mt-2 mb-0" style="font-size:0.75rem;color:#94a3b8;"></p>
+                    <label for="updateStockMethod" class="form-label mt-3">Stock Method</label>
+                    <select class="form-select" id="updateStockMethod"><option value="simple">Simple stock</option><option value="fifo">FIFO batches</option></select>
+                    <p class="create-product-help">FIFO creates an undated opening balance for existing units. Resolve FIFO stock and reservations before switching back to Simple stock.</p>
+                    <label for="updateStockReason" class="form-label mt-3">Adjustment reason (optional)</label>
+                    <textarea class="form-control" id="updateStockReason" maxlength="500" rows="2"></textarea>
                 </div>
                 <div class="modal-footer border-0 justify-content-center gap-2">
                     <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
@@ -1006,7 +948,7 @@
     </div>
 
     <div class="product-save-toast" id="productSaveToast" role="status" aria-live="polite">
-        Product added for testing.
+        Product saved.
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -1023,7 +965,7 @@
     </div>
     <script src="{% static 'components/js/admin_bundle_products.js' %}?v=20261007-component-bundles"></script>
     <script src="{% static 'components/js/admin_academic_controls.js' %}?v=20261008-programs"></script>
-    <script src="{% static 'components/js/admin_products.js' %}?v=20261024-product-layout"></script>
+    <script src="{% static 'components/js/admin_products.js' %}?v=20261031-product-catalog"></script>
 </body>
 
 </html>

@@ -663,7 +663,8 @@ class FacilityRentalAPITests(TestCase):
         self.assertEqual(historical.total_amount, Decimal("250"))
         self.assertEqual(payment.paid_amount, Decimal("250"))
         page = self.client.get(reverse("admin_facility_page"))
-        self.assertContains(page, 'Facility Features')
+        self.assertContains(page, 'Additional Requirements')
+        self.assertNotContains(page, 'Facility Features')
         self.assertNotContains(page, 'Equipment / Additional Requirements')
         self.assertNotContains(page, 'Available Equipment')
         self.assertNotContains(page, 'id="facilityRequirements"')
@@ -779,6 +780,120 @@ class FacilityRentalAPITests(TestCase):
         self.assertEqual(cleared.status_code, 200, cleared.content)
         self.assertNotIn("pricing", cleared.json()["facility"]["workflow_config"])
         self.assertEqual(before, (Room.objects.count(), Booking.objects.count(), FacilityPayment.objects.count()))
+
+    def test_duplicate_active_discount_rules_are_rejected(self):
+        duplicate_rules = [
+            {"eligible_client_type": "internal", "discount_type": "percentage", "discount_value": "50", "applies_to": "entire_rental_rate", "active": True},
+            {"eligible_client_type": "internal", "discount_type": "percentage", "discount_value": "20", "applies_to": "entire_rental_rate", "active": True},
+        ]
+        bad = {**self.payload, "workflow_config": {**self.payload["workflow_config"], "discount_rules": duplicate_rules}}
+        response = self.post(reverse("facilities_create"), bad)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("discount_rules.1", response.json()["errors"])
+
+    def test_client_eligibility_weekend_only_and_hourly_package_options_validate(self):
+        weekend_hours = {
+            "monday": None, "tuesday": None, "wednesday": None, "thursday": None, "friday": None,
+            "saturday": {"open": "08:00", "close": "17:00"},
+            "sunday": {"open": "08:00", "close": "17:00"},
+        }
+        payload = {
+            **self.payload,
+            "facility_type": "covered_court",
+            "workflow_config": {
+                **self.payload["workflow_config"],
+                "eligible_clients": "both",
+                "weekend_only": True,
+                "advance_payment_days": 3,
+                "operating_hours": weekend_hours,
+                "pricing": {"base_duration": "4", "additional_hour_rate": "500", "hourly_rate": "700"},
+            },
+        }
+        created = self.post(reverse("facilities_create"), payload)
+        self.assertEqual(created.status_code, 201, created.content)
+        data = created.json()["facility"]
+        self.assertEqual(data["eligible_clients"], "both")
+        self.assertEqual(data["workflow_config"]["weekend_only"], True)
+        self.assertEqual(data["workflow_config"]["advance_payment_days"], 3)
+        self.assertEqual(data["workflow_config"]["pricing"]["hourly_rate"], "700")
+        self.assertEqual(data["price_compact_label"], "₱3,000 / 4 hrs")
+        self.assertIn("₱700/hr opt", data["price_sub_label"])
+
+    def test_sync_rooms_creates_actual_room_records_when_enabled(self):
+        payload = {
+            **self.payload,
+            "name": "Policy Hostel Sync",
+            "facility_type": "hostel",
+            "mode": "room",
+            "rooms_units": 6,
+            "room_type": "Double",
+            "capacity": 12,
+            "price_type": "person_night",
+            "rate": "800",
+            "sync_rooms": True,
+            "workflow_config": {
+                "booking_form_type": "accommodation",
+                "eligible_clients": "internal",
+                "capacity_per_room": "2",
+                "pricing": {"partner_rate": "500", "partner_occupancy_required": 2},
+            },
+        }
+        created = self.post(reverse("facilities_create"), payload)
+        self.assertEqual(created.status_code, 201, created.content)
+        facility_data = created.json()["facility"]
+        self.assertEqual(facility_data["configured_room_count"], 6)
+        self.assertEqual(facility_data["capacity_label"], "6 Rooms / 12 pax")
+        self.assertEqual(facility_data["eligible_clients"], "internal")
+        self.assertEqual(Room.objects.filter(facility_id=facility_data["id"]).count(), 6)
+
+    def test_booking_enforces_client_eligibility_weekend_only_and_minimum_capacity(self):
+        from modules.facilities.services.admin_reservations import client_details, reservation_schedule
+        from django.core.exceptions import ValidationError
+
+        hostel = Facility(
+            id="CAMFACILHOSTEL1",
+            facility_name="Mock Hotel",
+            facility_type="hostel",
+            booking_mode="room",
+            price_type="person_night",
+            rate=Decimal("800"),
+            capacity=12,
+            rooms_units=6,
+            workflow_config={"eligible_clients": "internal", "booking_form_type": "accommodation"},
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            client_details({"client_type": "walkin", "full_name": "Guest Visitor", "client_affiliation": "external"}, facility=hostel)
+        self.assertIn("internal USTP clients only", " ".join(ctx.exception.messages))
+
+        court = Facility(
+            id="CAMFACILCOURT1",
+            facility_name="Covered Court",
+            facility_type="covered_court",
+            booking_mode="slot",
+            price_type="base_hour",
+            rate=Decimal("3000"),
+            capacity=500,
+            workflow_config={
+                "weekend_only": True,
+                "capacity_min": 300,
+                "booking_form_type": "rental",
+                "pricing": {"base_duration": "4", "additional_hour_rate": "500", "hourly_rate": "700"},
+                "operating_hours": {
+                    "monday": None, "tuesday": None, "wednesday": None, "thursday": None, "friday": None,
+                    "saturday": {"open": "08:00", "close": "17:00"},
+                    "sunday": {"open": "08:00", "close": "17:00"},
+                },
+            },
+        )
+        # 2026-11-02 is a Monday -> rejected by weekend_only / closed weekday schedule
+        with self.assertRaises(ValidationError) as ctx_day:
+            reservation_schedule(court, {"date": "2026-11-02", "start": "08:00", "end": "12:00", "attendees": 350})
+        self.assertTrue(any(w in " ".join(ctx_day.exception.messages).lower() for w in ("weekend", "monday", "closed")))
+
+        # 2026-11-07 is a Saturday, but attendees=100 < capacity_min=300 -> rejected
+        with self.assertRaises(ValidationError) as ctx_cap:
+            reservation_schedule(court, {"date": "2026-11-07", "start": "08:00", "end": "12:00", "attendees": 100})
+        self.assertIn("requires at least 300 participants", " ".join(ctx_cap.exception.messages))
 
     def test_export_unsaved_browser_fixtures(self):
         folder = os.environ.get("RENTAL_FORM_REVIEW_DIR")

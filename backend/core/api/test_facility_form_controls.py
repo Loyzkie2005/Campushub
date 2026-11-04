@@ -50,6 +50,43 @@ class FacilityFormControlsTests(SimpleTestCase):
         facility = Facility(workflow_config=cleaned["workflow_config"])
         self.assertEqual(configured_slots(facility, date(2026, 9, 14)), [])
 
+    def test_all_presets_and_custom_hours_round_trip_without_creating_a_policy(self):
+        for days in (WEEKDAYS[:5], WEEKDAYS[5:], WEEKDAYS, ("tuesday", "saturday")):
+            with self.subTest(days=days):
+                hours = {day: {"open": "08:00", "close": "17:00"} if day in days else None for day in WEEKDAYS}
+                if len(days) == 2 and "tuesday" in days:
+                    hours["tuesday"] = {"open": "08:07", "close": "16:53"}
+                payload = self.payload()
+                payload["workflow_config"]["operating_hours"] = hours
+                facility = Facility(id="SCHEDULE-ROUND-TRIP")
+                _apply_facility_payload(facility, validate_facility_payload(payload))
+                self.assertEqual(serialize_facility(facility)["workflow_config"]["operating_hours"], hours)
+                self.assertFalse(facility.workflow_config.get("weekend_only", False))
+
+    def test_existing_weekend_policy_survives_omission_and_cannot_be_cleared(self):
+        hours = {day: {"open": "08:00", "close": "17:00"} if day in WEEKDAYS[5:] else None for day in WEEKDAYS}
+        payload = self.payload()
+        payload["workflow_config"].update(weekend_only=True, operating_hours=hours)
+        facility = Facility(id="RESTRICTED-SCHEDULE")
+        _apply_facility_payload(facility, validate_facility_payload(payload))
+        kept = validate_facility_payload({"workflow_config": {"operating_hours": hours}}, facility=facility)
+        self.assertIs(kept["workflow_config"]["weekend_only"], True)
+        for value in (False, None, "", "false"):
+            with self.subTest(value=value), self.assertRaises(ValidationError) as failure:
+                validate_facility_payload({"workflow_config": {"weekend_only": value}}, facility=facility)
+            self.assertIn("weekend_only", failure.exception.message_dict)
+        with self.assertRaises(ValidationError) as failure:
+            validate_facility_payload({"workflow_config": {"operating_hours": self.hours()}}, facility=facility)
+        self.assertIn("operating_hours", failure.exception.message_dict)
+
+    def test_repeated_weekday_rows_and_incomplete_day_maps_are_rejected(self):
+        for hours in ([{"day": "monday", "open": "08:00", "close": "17:00"}] * 2,
+                      {day: None for day in WEEKDAYS[:-1]}):
+            payload = self.payload()
+            payload["workflow_config"]["operating_hours"] = hours
+            with self.subTest(hours=hours), self.assertRaises(ValidationError):
+                validate_facility_payload(payload)
+
     def test_legacy_day_range_and_duration_are_normalized(self):
         payload = self.payload()
         payload["workflow_config"] = {"operating_hours": "Monday-Friday, 8:00 AM-5:00 PM", "minimum_booking_duration": "30 minutes"}

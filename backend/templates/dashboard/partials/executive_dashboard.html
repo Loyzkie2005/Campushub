@@ -1,7 +1,9 @@
 <div class="dashboard-executive" data-executive-dashboard>
+    <div class="executive-controls-row">
+        {% include 'dashboard/partials/global_date_filter.html' %}
+    </div>
     <div class="executive-toolbar">
-        <div class="executive-welcome-copy"><h2 class="executive-welcome">Welcome back, {{ user.first_name|default:user.username }}!</h2><p>Here’s what’s happening across CampusHub today.</p></div>
-        <div class="dashboard-overview-controls">{% include 'dashboard/partials/global_date_filter.html' %}</div>
+        <div class="executive-welcome-copy"><h2 class="executive-welcome">Welcome back, {{ user.first_name|default:user.username }}!</h2><p>Here’s what’s happening across CampusHub today. Use the controls above to choose a reporting period.</p></div>
     </div>
     {{ dashboard_period|json_script:'dashboardPeriodData' }}
     {{ executive|json_script:'executiveDashboardData' }}
@@ -11,12 +13,28 @@
 
     {% include 'dashboard/partials/system_overview_summary.html' %}
 
+    <div class="executive-priority-grid">
+        {% include 'dashboard/partials/attention_required.html' %}
+        {% if show_bundle_suggestions %}
+        <aside class="dashboard-summary-aside executive-bundle-panel" data-empty-region="bundles" aria-labelledby="marketplaceRecommendationsTitle">
+            <div data-bundle-preview>
+            {% include 'marketplace/partials/super_recommendation_preview.html' %}
+            </div>
+            <p class="executive-bundle-error" role="alert">Unable to update bundle suggestions. Use Refresh to retry.</p>
+        </aside>
+        {% endif %}
+    </div>
+
+    <div class="executive-domain-grid">
     <section class="dashboard-marketplace executive-section" aria-labelledby="marketplaceOverviewTitle">
         <div class="dashboard-section-heading executive-section-header"><div><h2 id="marketplaceOverviewTitle">Marketplace Overview</h2><p class="marketplace-section-subtitle executive-section-subtitle">Monitor marketplace performance and activity.</p></div><a class="dash-view-all-link" data-executive-analytics="marketplace" href="{{ executive.analytics_urls.marketplace }}">View Analytics <span aria-hidden="true">&rarr;</span></a></div>
+        <div class="executive-overview-body marketplace-sales-card">
             {% include 'dashboard/partials/sales_overview.html' with executive_mode=True %}
+        </div>
+        {% include 'dashboard/partials/super_marketplace_products.html' %}
         <div class="marketplace-operations-row">
             {% include 'dashboard/partials/recent_orders.html' with recent_orders=recent_orders|slice:':5' executive_mode=True %}
-                <div class="dashboard-marketplace-operations" id="lowStockSlot">{% include 'dashboard/partials/low_stock_card.html' %}</div>
+            <div class="dashboard-marketplace-operations" id="lowStockSlot">{% include 'dashboard/partials/low_stock_card.html' %}</div>
         </div>
     </section>
 
@@ -25,6 +43,6 @@
     {% include 'dashboard/partials/super_services_overview.html' %}
 
     {% include 'dashboard/partials/super_users_overview.html' %}
+    </div>
 
-    {% include 'dashboard/partials/system_activity_preview.html' %}
 </div>

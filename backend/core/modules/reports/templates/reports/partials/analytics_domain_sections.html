@@ -1,0 +1,101 @@
+{% with analytics_flat=True %}
+<div class="super-analytics-content super-analytics-sections" data-domain-analytics="{{ analytics_module }}">
+{% if analytics_module == 'facilities' %}
+    <section class="marketplace-analytics-section" aria-labelledby="facilityPerformanceTitle">
+        <header class="marketplace-section-heading"><h2 id="facilityPerformanceTitle">Facilities Booking Performance</h2><p>Reservation counts use selected booking or overlapping stay dates. Submission trends are labeled separately.</p></header>
+        {% include 'reports/partials/analytics_domain_cards.html' with card='facility_kpis' %}
+        {{ facility_tab.main_chart|json_script:'facilityBookingsChartData' }}
+        {{ facility_tab.monthly_trend|json_script:'facilityMonthlyTrendChartData' }}
+        <div class="marketplace-section-grid">
+            {% include 'reports/partials/analytics_domain_cards.html' with card='facility_bookings' %}
+            {% include 'reports/partials/analytics_domain_cards.html' with card='facility_status' %}
+            {% include 'reports/partials/analytics_domain_cards.html' with card='facility_trend' %}
+            {% include 'reports/partials/analytics_domain_cards.html' with card='facility_most' %}
+        </div>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="facilityDemandTitle">
+        <header class="marketplace-section-heading"><h2 id="facilityDemandTitle">Booking Demand &amp; Approval Performance</h2><p>All physical-facility requests submitted in the selected dates; structured schedule blocks and service requests are excluded.</p></header>
+        <div class="marketplace-operational-kpis">
+            <article class="analytics-kpi"><span>Reviewed Approval Rate</span><strong>{% if facility_tab.approval.rate != None %}{{ facility_tab.approval.rate }}%{% else %}Unavailable{% endif %}</strong><small>{{ facility_tab.approval.accepted }} currently approved/completed versus {{ facility_tab.approval.rejected }} rejected. Pending and cancelled requests are outside this denominator.</small></article>
+            <article class="analytics-kpi"><span>Recorded Approval Delay</span><strong>{% if facility_tab.approval.approval_hours != None %}{{ facility_tab.approval.approval_hours }} hours{% else %}Unavailable{% endif %}</strong><small>Submission to saved approval timestamp; {{ facility_tab.approval.approval_timed }} timed records. An updated date is not an approval timestamp.</small></article>
+            <article class="analytics-kpi"><span>Pending Submitted Requests</span><strong>{{ facility_tab.approval.pending }}</strong><small>Of {{ facility_tab.approval.total }} requests submitted in selected dates. These counts differ from booking-date KPIs above.</small></article>
+        </div>
+        {{ facility_tab.demand.chart|json_script:'facilityDemandChartData' }}
+        {% include 'reports/partials/analytics_submission_comparison.html' with comparison=facility_tab.submission_comparison %}
+        <article class="analytics-panel"><header class="analytics-panel-header"><div><h3>Booking Request Demand</h3><p>All submission outcomes by {{ facility_tab.demand.unit|lower }} within the selected dates.</p></div></header>{% include 'reports/partials/analytics_chart.html' with chart_id='facilityDemandChart' label='Physical facility requests by selected submission period' table=facility_tab.demand.table has_data=facility_tab.demand.has_data size='analytics-chart-large' empty_title='No booking requests submitted in selected dates' empty_text='Recorded request demand will appear here when available.' %}</article>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="facilityCapacityTitle">
+        <header class="marketplace-section-heading"><h2 id="facilityCapacityTitle">Utilization &amp; Facility Availability Insights</h2><p>Verified configured capacity and current operational status. Open for Booking does not mean every time slot is free.</p></header>
+        {% include 'reports/partials/analytics_domain_cards.html' with card='facility_utilization' %}
+        <div class="facility-detailed-grid marketplace-section-grid">
+            {% include 'dashboard/partials/facility_utilization.html' %}
+            {% include 'dashboard/partials/facility_status.html' %}
+        </div>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="facilityFinanceTitle">
+        <header class="marketplace-section-heading"><h2 id="facilityFinanceTitle">Facility Revenue &amp; Reports</h2><p>Existing eligible paid facility transactions and their recorded recognition dates.</p></header>
+        <div class="facility-detailed-grid">{% include 'dashboard/partials/facility_revenue.html' %}</div>
+        <p class="analytics-detail-links"><a href="{% url 'admin_generate_reports_page' %}?report_type=facility_payments&amp;date_from={{ analytics_period.start|date:'Y-m-d' }}&amp;date_to={{ analytics_period.end|date:'Y-m-d' }}">View payment breakdown &rarr;</a><a href="{% url 'admin_bookings_page' %}">View Bookings &rarr;</a></p>
+    </section>
+{% elif analytics_module == 'services' %}
+    <section class="marketplace-analytics-section" aria-labelledby="servicePerformanceTitle">
+        <header class="marketplace-section-heading"><h2 id="servicePerformanceTitle">Service Request Performance</h2><p>Current service catalog and actual requests submitted within {{ analytics_period.label }}.</p></header>
+        {% include 'reports/partials/analytics_domain_cards.html' with card='services_kpis' %}
+        {% include 'reports/partials/analytics_submission_comparison.html' with comparison=services_tab.submission_comparison %}
+        <div class="marketplace-operational-kpis">
+            <article class="analytics-kpi"><span>Request Completion Rate</span><strong>{% if services_tab.performance.completion_rate != None %}{{ services_tab.performance.completion_rate }}%{% else %}Unavailable{% endif %}</strong><small>Currently completed / submitted requests in selected dates. Payment and results release are not inferred.</small></article>
+            <article class="analytics-kpi"><span>Recorded Processing Time</span><strong>{% if services_tab.performance.completion_hours != None %}{{ services_tab.performance.completion_hours }} hours{% else %}Unavailable{% endif %}</strong><small>Submission to dedicated completion timestamp; {{ services_tab.performance.completion_timed }} timed completed records. Missing workflow history is excluded.</small></article>
+            <article class="analytics-kpi"><span>Recorded Approval Delay</span><strong>{% if services_tab.performance.approval_hours != None %}{{ services_tab.performance.approval_hours }} hours{% else %}Unavailable{% endif %}</strong><small>Submission to saved approval timestamp; {{ services_tab.performance.approval_timed }} timed records.</small></article>
+        </div>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="serviceDemandTitle">
+        <header class="marketplace-section-heading"><h2 id="serviceDemandTitle">Service Demand &amp; Pending Requests</h2><p>Selected-period submission patterns and current request outcomes.</p></header>
+        {{ services_tab.demand.chart|json_script:'serviceRequestTrendChartData' }}
+        {{ services_tab.distribution_chart|json_script:'serviceRequestDistributionChartData' }}
+        {{ services_tab.demand.weekday_chart|json_script:'serviceWeekdayChartData' }}
+        <div class="marketplace-section-grid">
+            <article class="analytics-panel"><header class="analytics-panel-header"><div><h3>Service Request Trend</h3><p>Submitted requests by {{ services_tab.demand.unit|lower }}.</p></div></header>{% include 'reports/partials/analytics_chart.html' with chart_id='serviceRequestTrendChart' label='Service requests by selected submission period' table=services_tab.demand.table has_data=services_tab.has_activity size='analytics-chart-medium' empty_title='No service requests submitted in selected dates' empty_text='Actual request trends will appear when recorded.' %}</article>
+            <article class="analytics-panel"><header class="analytics-panel-header"><div><h3>Requests by Service</h3><p>Actual selected-period requests, including all recorded statuses.</p></div></header>{% include 'reports/partials/analytics_chart.html' with chart_id='serviceRequestDistributionChart' label='Submitted request counts by campus service' table=services_tab.distribution_table has_data=services_tab.has_activity size='analytics-chart-medium' empty_title='No service distribution yet' empty_text='The chart will use recorded requests rather than sample demand.' %}</article>
+            <article class="analytics-panel"><header class="analytics-panel-header"><div><h3>Service Demand Patterns</h3><p>Philippine-local submission weekday; these are observed counts, not forecasts.</p></div></header>{% include 'reports/partials/analytics_chart.html' with chart_id='serviceWeekdayChart' label='Service requests by local submission weekday' table=services_tab.demand.weekday_table has_data=services_tab.has_activity size='analytics-chart-medium' empty_title='No demand pattern recorded' empty_text='Weekday demand will appear after actual submissions.' %}</article>
+            <article class="analytics-panel"><header class="analytics-panel-header"><div><h3>Pending Service Requests</h3><p>Up to five oldest pending requests submitted within the selected dates.</p></div><a href="{% url 'admin_service_requests_page' %}">View all requests &rarr;</a></header><div class="table-responsive"><table class="analytics-table"><thead><tr><th>Request</th><th>Service</th><th>Submitted</th></tr></thead><tbody>{% for row in services_tab.pending %}<tr><td><a href="{{ row.url }}">{{ row.pk }}</a></td><td>{{ row.facility__facility_name }}</td><td><time datetime="{{ row.created_at|date:'c' }}">{{ row.created_at|date:'M j, Y g:i A' }}</time></td></tr>{% empty %}<tr><td colspan="3">No pending requests submitted in selected dates.</td></tr>{% endfor %}</tbody></table></div></article>
+        </div>
+        {% include 'reports/partials/analytics_domain_cards.html' with card='services_activity' %}
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="serviceCatalogTitle">
+        <header class="marketplace-section-heading"><h2 id="serviceCatalogTitle">Institutional Services &amp; Procedures</h2><p>Registered services, current availability and the verified laboratory procedure.</p></header>
+        {% include 'reports/partials/analytics_domain_cards.html' with card='services_catalog' %}
+        {% include 'reports/partials/analytics_domain_cards.html' with card='services_iso' %}
+    </section>
+{% elif analytics_module == 'users' %}
+    <section class="marketplace-analytics-section" aria-labelledby="userGrowthTitle">
+        <header class="marketplace-section-heading"><h2 id="userGrowthTitle">Account Growth &amp; Registration Trends</h2><p>Selected-period registrations alongside clearly labeled current account snapshots.</p></header>
+        {% include 'reports/partials/analytics_domain_cards.html' with card='users_kpis' %}
+        {{ users_tab.main_chart|json_script:'userMonthlyChartData' }}
+        <div class="marketplace-section-grid">
+            {% include 'reports/partials/analytics_domain_cards.html' with card='users_registrations' %}
+            <article class="analytics-panel"><header class="analytics-panel-header"><div><h3>Account Growth</h3><p>New registrations compared with the immediately preceding {{ analytics_period.days }} days.</p></div></header><div class="marketplace-growth"><strong>{{ users_tab.growth.comparison_text }}</strong><dl><div><dt>Selected-period registrations</dt><dd>{{ users_tab.kpis.new_registrations }}</dd></div><div><dt>Previous-period registrations</dt><dd>{{ users_tab.growth.previous }}</dd></div><div><dt>Previous dates</dt><dd>{{ users_tab.growth.start|date:'M j, Y' }} – {{ users_tab.growth.end|date:'M j, Y' }}</dd></div></dl><p class="analytics-method-note">A zero previous count has no percentage-growth baseline. Counts are account records, not deduplicated people.</p></div></article>
+        </div>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="userIdentityTitle">
+        <header class="marketplace-section-heading"><h2 id="userIdentityTitle">Account Types &amp; Verification</h2><p>Current recorded identities and email verification. Seller access remains independent of account type.</p></header>
+        {{ users_tab.distribution_chart|json_script:'userAccountTypeChartData' }}
+        <div class="marketplace-section-grid">
+            {% include 'reports/partials/analytics_domain_cards.html' with card='users_distribution' %}
+            <article class="analytics-panel"><header class="analytics-panel-header"><div><h3>Email Verification Rate</h3><p>Current web and mobile account snapshot; this is not a selected-period verification event count.</p></div></header><div class="marketplace-growth"><strong>{% if users_tab.verification.rate != None %}{{ users_tab.verification.rate }}% verified{% else %}No account records{% endif %}</strong><dl><div><dt>Verified accounts</dt><dd>{{ users_tab.verification.verified }}</dd></div><div><dt>Total accounts</dt><dd>{{ users_tab.verification.total }}</dd></div><div><dt>Enabled accounts</dt><dd>{{ users_tab.kpis.active_users }}</dd></div><div><dt>Inactive / disabled</dt><dd>{{ users_tab.inactive_users }}</dd></div></dl><p class="analytics-method-note">Enabled accounts describe account status and do not imply recent use.</p></div></article>
+        </div>
+    </section>
+    <section class="marketplace-analytics-section" aria-labelledby="userParticipationTitle">
+        <header class="marketplace-section-heading"><h2 id="userParticipationTitle">Observed Engagement &amp; Account Governance</h2><p>Only recorded sign-ins and request submissions within the selected dates are counted.</p></header>
+        <div class="marketplace-operational-kpis">
+            <article class="analytics-kpi"><span>Accounts with Successful Sign-ins</span><strong>{{ users_tab.engagement.signin_accounts }}</strong><small>Distinct current web/mobile account identities with successful sign-in audit records. This does not measure every active session.</small></article>
+            <article class="analytics-kpi"><span>Recorded Successful Sign-ins</span><strong>{{ users_tab.engagement.signin_events }}</strong><small>Actual successful authentication events. Failed sign-ins, unknown identities and unrecorded history are excluded.</small></article>
+            <article class="analytics-kpi"><span>Accounts Submitting Requests</span><strong>{{ users_tab.engagement.request_accounts }}</strong><small>Distinct recorded mobile users submitting facility or service requests. Structured schedule blocks and missing identities are excluded.</small></article>
+        </div>
+        <div class="marketplace-section-grid">
+            {% include 'reports/partials/analytics_domain_cards.html' with card='users_sellers' %}
+            {% include 'reports/partials/analytics_domain_cards.html' with card='users_governance' %}
+        </div>
+    </section>
+{% endif %}
+</div>
+{% endwith %}

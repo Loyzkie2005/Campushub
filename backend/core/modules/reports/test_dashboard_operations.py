@@ -76,6 +76,18 @@ class DashboardOperationsTests(fixtures.DedicatedDomainDashboardTests):
         self.client.logout()
         self.assertEqual(self.client.get(url).status_code, 401)
 
+    def test_preview_favors_admin_work_and_authentication_failures_without_deleting_history(self):
+        action = self.event()
+        failed = self.event(1, 'failed')
+        AccountActivity.objects.filter(pk=failed.pk).update(activity_type='login_failed')
+        for index in range(2, 8):
+            routine = self.event(index)
+            AccountActivity.objects.filter(pk=routine.pk).update(activity_type='login_success')
+        rows = self.snapshot()['executive']['activities']
+        self.assertEqual([row['details_url'] for row in rows], [
+            reverse('activity_log_detail', args=[failed.pk]), reverse('activity_log_detail', args=[action.pk])])
+        self.assertEqual(AccountActivity.objects.count(), 8)
+
     def test_preview_dates_keep_other_year_and_use_application_timezone(self):
         self.event()
         previous = self.event(-1)
@@ -93,8 +105,11 @@ class DashboardOperationsTests(fixtures.DedicatedDomainDashboardTests):
         self.assertContains(page, 'audit-result-success')
         self.assertContains(page, 'audit-icon-button')
         self.assertContains(page, 'title="View Details"')
-        self.assertContains(page, '<th scope="col">Result</th>')
-        self.assertContains(page, '<th scope="col" class="audit-secondary">Module</th>')
+        self.assertContains(page, 'class="audit-preview-list"')
+        self.assertContains(page, '<span class="visually-hidden">Result: </span>')
+        self.assertContains(page, 'class="audit-event-icon" aria-hidden="true"')
+        self.assertContains(page, 'class="audit-preview-module">Services</span>')
+        self.assertContains(page, f'class="audit-preview-user">By {self.super_admin.get_full_name() or self.super_admin.username}</span>')
         # Existing reports explicitly use Manila, independent of a caller override.
         with timezone.override('UTC'), patch('django.utils.timezone.localdate', return_value=self.today):
             utc = self.client.get(reverse('admin_dashboard_api'), params)
@@ -112,7 +127,7 @@ class DashboardOperationsTests(fixtures.DedicatedDomainDashboardTests):
             self.assertEqual(page.status_code, 200)
             html = page.content.decode()
             anchors = ['systemOverviewTitle', 'dashboardAttentionTitle', 'marketplaceRecommendationsTitle',
-                       'marketplaceOverviewTitle', 'facilitiesOverviewTitle', 'servicesOverviewTitle', 'recentActivitiesTitle']
+                       'marketplaceOverviewTitle', 'facilitiesOverviewTitle', 'servicesOverviewTitle', 'usersByTypeTitle', 'recentActivitiesTitle']
             self.assertEqual([html.index('id="'+key+'"') for key in anchors], sorted(html.index('id="'+key+'"') for key in anchors))
             for anchor in ('recentActivitiesTitle',):
                 self.assertEqual(html.count('id="'+anchor+'"'), 1)
@@ -137,3 +152,6 @@ class DashboardOperationsTests(fixtures.DedicatedDomainDashboardTests):
                 if payload['executive']['activities']:
                     detail = self.client.get(payload['executive']['activities'][0]['details_url'])
                     (target/'activity-detail.json').write_bytes(detail.content)
+                    details = {row['details_url']: self.client.get(row['details_url']).json()
+                               for row in payload['executive']['activities']}
+                    (target/'activity-details.json').write_text(json.dumps(details), encoding='utf-8')

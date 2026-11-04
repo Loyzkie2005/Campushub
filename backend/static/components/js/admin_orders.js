@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const canManageOrders = document.body.dataset.canManageOrders === 'true';
+    const canManageOrders = document.getElementById('orderDetailModal')?.dataset.canManageOrders === 'true';
     const searchInput = document.getElementById('ordersSearchInput');
     const statusFilter = document.getElementById('ordersStatusFilter');
     const fulfillmentFilter = document.getElementById('ordersFulfillmentFilter');
@@ -484,6 +484,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     });
 
+    // Dashboard callers supply only the server-authorized single-order fragment.
+    window.CampusHubOrders = {
+        openSelectedRow(row, trigger) {
+            detailTrigger = trigger;
+            openOrderDetail(row);
+        },
+    };
+
     // Dashboard deep links reuse a row already authorized by the Orders view.
     const requestedOrder = new URLSearchParams(window.location.search).get('order');
     const requestedRow = requestedOrder && [...(tableBody?.querySelectorAll('tr[data-order-id]') || [])]
@@ -519,8 +527,10 @@ document.addEventListener('DOMContentLoaded', () => {
             dateToInput.setCustomValidity('');
         }
     }
-    syncDates();
-    syncMajorLabel();
+    if (filtersForm) {
+        syncDates();
+        syncMajorLabel();
+    }
     searchInput?.addEventListener('input', () => {
         window.clearTimeout(searchTimer);
         searchTimer = window.setTimeout(submitFilters, 300);

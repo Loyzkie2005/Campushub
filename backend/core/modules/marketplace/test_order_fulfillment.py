@@ -14,15 +14,18 @@ from . import test_fifo_inventory as fifo_tests
 
 @override_settings(CAMPUSHUB_FIFO_ENABLED=True, PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class OrderFulfillmentTests(TestCase):
-    setUp = fifo_tests.FIFOInventoryTests.setUp
+    def setUp(self):
+        fifo_tests.FIFOInventoryTests.setUp(self)
+        SellerRequest.objects.create(user=self.admin, status="approved", seller_delivery_enabled=True)
+    create_product = fifo_tests.FIFOInventoryTests.create_product
     receive = fifo_tests.FIFOInventoryTests.receive
     cancel = fifo_tests.FIFOInventoryTests.cancel
 
     def place(self, **extra):
-        payload = {"product_id":self.product.pk, "buyer_user_id":self.admin.pk,
+        payload = {"product_id":self.product.pk, "buyer_user_id":self.buyer.pk,
             "quantity":2, "fulfillment_method":"seller_delivery", "delivery_destination":"Actual isolated test destination"}
         payload.update(extra)
-        return self.client.post(reverse("marketplace_orders"), json.dumps(payload), content_type="application/json")
+        return self.buyer_client.post(reverse("marketplace_orders"), json.dumps(payload), content_type="application/json")
 
     def update(self, order, **data):
         return self.client.post(reverse("admin_order_update", args=[order.pk]), json.dumps(data), content_type="application/json")
@@ -36,8 +39,8 @@ class OrderFulfillmentTests(TestCase):
 
     def order(self, qty, *, product=None, selections=None, key=None):
         headers={"HTTP_IDEMPOTENCY_KEY":str(key)} if key else {}
-        return self.client.post(reverse("marketplace_orders"),json.dumps({"product_id":(product or self.product).pk,
-            "buyer_user_id":self.admin.pk,"quantity":qty,"customization":selections or [],
+        return self.buyer_client.post(reverse("marketplace_orders"),json.dumps({"product_id":(product or self.product).pk,
+            "buyer_user_id":self.buyer.pk,"quantity":qty,"customization":selections or [],
             "fulfillment_method":"seller_delivery","delivery_destination":"Actual isolated destination"}),content_type="application/json",**headers)
 
     def test_seller_delivery_variants_keep_stable_skus_and_original_cancellation(self):
@@ -104,16 +107,16 @@ class OrderFulfillmentTests(TestCase):
     def test_idempotent_delivery_creation_still_authorizes_before_cached_replay(self):
         from uuid import uuid4
         self.receive(4)
-        key=str(uuid4());payload={"product_id":self.product.pk,"buyer_user_id":self.admin.pk,"quantity":1,
+        key=str(uuid4());payload={"product_id":self.product.pk,"buyer_user_id":self.buyer.pk,"quantity":1,
             "fulfillment_method":"seller_delivery","delivery_destination":"Actual isolated destination"}
         url=reverse("marketplace_orders")
         for _ in range(2):
-            response=self.client.post(url,json.dumps(payload),content_type="application/json",HTTP_IDEMPOTENCY_KEY=key)
+            response=self.buyer_client.post(url,json.dumps(payload),content_type="application/json",HTTP_IDEMPOTENCY_KEY=key)
             self.assertEqual(response.status_code,201)
         self.assertEqual(MarketplaceOrder.objects.count(),1)
         self.product.refresh_from_db();self.assertEqual(self.product.stock,3)
-        self.client.logout()
-        response=self.client.post(url,json.dumps(payload),content_type="application/json",HTTP_IDEMPOTENCY_KEY=key)
+        self.buyer_client.logout()
+        response=self.buyer_client.post(url,json.dumps(payload),content_type="application/json",HTTP_IDEMPOTENCY_KEY=key)
         self.assertEqual(response.status_code,401)
 
     def test_invalid_fulfillment_is_rejected_before_stock_write_and_buyer_is_bound(self):
@@ -124,7 +127,8 @@ class OrderFulfillmentTests(TestCase):
             self.assertIn(self.place(**fields).status_code,(400,403))
         self.product.refresh_from_db();self.assertEqual(self.product.stock,10)
         self.assertEqual(MarketplaceOrder.objects.count(),0)
-        self.client.logout();self.assertEqual(self.place().status_code,401)
+        self.buyer_client.logout();self.assertEqual(self.place().status_code,401)
+        self.client.logout()
         self.assertEqual(self.client.get(reverse("marketplace_orders")).status_code,401)
 
     def test_fulfillment_filter_labels_kpi_and_responsive_fixture(self):

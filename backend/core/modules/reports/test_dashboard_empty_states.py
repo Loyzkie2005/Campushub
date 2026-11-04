@@ -67,8 +67,9 @@ class DashboardEmptyStatesTests(fixtures.DedicatedDomainDashboardTests):
         for count, state in [(0, 'empty'), (1, 'one'), (2, 'multiple')]:
             if count:
                 stamp = timezone.make_aware(datetime.combine(self.today, time(12)))
-                MarketplaceOrder.objects.create(product=self.prod_approved, product_name=self.prod_approved.name,
+                order = MarketplaceOrder.objects.create(product=self.prod_approved, product_name=self.prod_approved.name,
                     quantity=1, unit_price=100, total_price=100, status='completed', payment_status='paid', completed_at=stamp, paid_at=stamp)
+                MarketplaceOrder.objects.filter(pk=order.pk).update(created_at=stamp)
                 for resource in (self.fac_court, self.service):
                     booking = Booking.objects.create(id=f'EMPTY-{resource.pk}-{count}', facility=resource,
                         user=self.ch_user, status='approved', booking_date=date(2099, 1, count), start_time=time(9), end_time=time(10))

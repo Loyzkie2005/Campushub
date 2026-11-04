@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{% static 'components/css/admin_layout.css' %}?v=20261022-inter" />
     <link rel="stylesheet" href="{% static 'components/css/admin_header_menus.css' %}?v=20260728-split" />
     <link rel="stylesheet" href="{% static 'components/css/admin_facility.css' %}?v=20260915-multi-image-slots" />
-    <link rel="stylesheet" href="{% static 'facilities/css/facility_form_controls.css' %}?v=20261014-facility-footer" />
+    <link rel="stylesheet" href="{% static 'facilities/css/facility_form_controls.css' %}?v=20261029-schedule-presets" />
     {% if service_catalog %}<link rel="stylesheet" href="{% static 'facilities/css/admin_services.css' %}?v=20261017-service-workflows" />{% endif %}
 {% include 'partials/web_typography.html' %}
 </head>
@@ -89,12 +89,22 @@
                             <section class="facility-table-panel facility-table-panel-inline">
                                 {% if not service_catalog %}
                                 <header class="facility-list-heading">
-                                    <h2>Facilities List</h2>
-                                    <p>Review, filter, and manage campus facilities.</p>
+                                    <div class="facility-list-heading-copy">
+                                        <h2>Facilities List</h2>
+                                        <p>Review, filter, and manage campus facilities.</p>
+                                    </div>
+                                    <button type="button" class="facility-add-btn" id="addFacilityBtn"{% if not can_manage_facilities %} hidden{% endif %}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 4.5v15m7.5-7.5h-15" />
+                                        </svg>
+                                        <span>Add Facility</span>
+                                    </button>
                                 </header>
                                 {% endif %}
                                 <div class="facility-table-toolbar">
-                                    <div class="facility-filter-field"><label for="facilitySearchInput">Search</label>
+                                    <div class="facility-filter-field facility-filter-search"><label for="facilitySearchInput">Search</label>
                                     <div class="facility-table-search">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                                             stroke-width="1.8" stroke="currentColor">
@@ -136,7 +146,6 @@
                                     </select>
                                     </div>
 
-                                    {% if service_catalog %}
                                     <div class="facility-filter-field"><label for="facilityArchiveFilter">Record Status</label>
                                     <select id="facilityArchiveFilter" class="facility-table-filter"
                                         aria-label="Filter facilities by archive state">
@@ -145,16 +154,17 @@
                                         <option value="all">All {% if service_catalog %}Services{% else %}Facilities{% endif %}</option>
                                     </select>
                                     </div>
-                                    {% endif %}
 
+                                    {% if service_catalog %}
                                     <button type="button" class="facility-add-btn" id="addFacilityBtn"{% if not can_manage_facilities %} hidden{% endif %}>
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                                             stroke-width="2" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round"
                                                 d="M12 4.5v15m7.5-7.5h-15" />
                                         </svg>
-                                        <span>Add {% if service_catalog %}Service{% else %}Facility{% endif %}</span>
+                                        <span>Add Service</span>
                                     </button>
+                                    {% endif %}
                                 </div>
 
                                 <div class="table-responsive">
@@ -191,6 +201,10 @@
                                                 data-requirements="{{ f.requirements|default:'' }}"
                                                 data-terms-conditions="{{ f.terms_conditions|default:'' }}"
                                                 data-slots="{{ f.slots|default:'' }}"
+                                                data-price-label="{{ f.pricing_display|default:'' }}"
+                                                data-price-compact-label="{{ f.pricing_compact_display|default:'' }}"
+                                                data-price-sub-label="{{ f.pricing_sub_display|default:'' }}"
+                                                data-eligible-clients-label="{{ f.eligible_clients_display|default:'' }}"
                                                 data-image-url="{{ f.get_first_image_url|default:'' }}"
                                                 data-images="{{ f.get_images_json|escapejs }}">
                                                 <td class="facility-col-name">
@@ -226,10 +240,11 @@
                                                 <td class="facility-col-status"><span class="facility-status facility-status-{{ f.availability_status }}">{{ f.service_status_display }}</span></td>
                                                 {% else %}
                                                 <td class="facility-col-capacity">
-                                                    {{ f.capacity_display|default:'Not specified' }}
+                                                    <span class="facility-cell-primary">{{ f.capacity_display|default:'Not specified' }}</span>
                                                 </td>
-                                                <td class="facility-col-rate">
-                                                    {{ f.pricing_display }}
+                                                <td class="facility-col-rate" title="{{ f.pricing_display }}">
+                                                    <span class="facility-rate-primary">{{ f.pricing_compact_display|default:f.pricing_display }}</span>
+                                                    <span class="visually-hidden">{{ f.pricing_display }}</span>
                                                 </td>
                                                 <td class="facility-col-price-type">{{ f.price_method_display|default:f.price_type }}</td>
                                                 <td class="facility-col-status">
@@ -469,7 +484,7 @@
                                 <div id="facilityOperatingHours" class="facility-hours" role="group" aria-labelledby="facilityOperatingHoursLabel"></div>
                             </div>
                             <div class="facility-form-field facility-form-field-wide" data-facility-field="amenities">
-                                <h3 class="facility-config-heading" id="facilityAmenitiesLabel">{% if service_catalog %}Amenities{% else %}Facility Features{% endif %}</h3>
+                                <h3 class="facility-config-heading" id="facilityAmenitiesLabel">{% if service_catalog %}Amenities{% else %}Additional Requirements{% endif %}</h3>
                                 <div id="facilityAmenityChoices" class="facility-choice-grid" role="group" aria-labelledby="facilityAmenitiesLabel"></div>
                                 <label class="facility-check"><input type="checkbox" id="facilityOtherAmenity">Other</label>
                                 <div id="facilityOtherAmenityField" class="facility-other-field" hidden>
@@ -596,7 +611,7 @@
     {{ service_configuration|json_script:"serviceConfigurationData" }}
     {{ calendar_events|json_script:"facilityCalendarEventsData" }}
     {{ facility_form_configuration|json_script:"facilityFormConfigurationData" }}
-    <script src="{% static 'facilities/js/facility_form_controls.js' %}?v=20261013-shared-schedule-ui"></script>
+    <script src="{% static 'facilities/js/facility_form_controls.js' %}?v=20261029-schedule-presets"></script>
     {% if service_catalog %}<script src="{% static 'facilities/js/service_form.js' %}?v=20261017-service-workflows"></script>{% endif %}
     <script src="{% static 'facilities/js/rental_form_controls.js' %}?v=20261014-auto-booking-slip"></script>
     <script>
@@ -864,7 +879,7 @@
                 });
             });
 
-            document.getElementById('facilityAmenitiesLabel').textContent = rentalControls.physical ? 'Facility Features' : config.amenities_label || 'Amenities';
+            document.getElementById('facilityAmenitiesLabel').textContent = rentalControls.physical ? 'Additional Requirements' : config.amenities_label || 'Amenities';
             document.querySelector('label[for="facilityOtherAmenityText"]').textContent = type === 'food_analysis'
                 ? 'Specify other service' : rentalControls.physical ? 'Specify Other Feature *' : 'Specify other amenity';
             const requirementsLabel = document.getElementById('facilityRequirementsLabel');
@@ -1066,8 +1081,8 @@
 
         const formatBookingMode = (value) => {
             const mode = String(value || 'room').toLowerCase();
-            if (mode === 'slot') return 'Slot-based';
-            if (mode === 'room') return 'Room-based';
+            if (mode === 'slot') return 'Slot-Based';
+            if (mode === 'room') return 'Room / Stay-Based';
             if (mode === 'service' || mode === 'direct') return 'Service Request';
             if (mode === 'assessment') return {% if service_catalog %}'Assessment Registration'{% else %}'Assessment / Schedule-Based'{% endif %};
             if (mode === 'lease') return 'Lease Application';
@@ -1391,34 +1406,36 @@
             pendingFacilityImageRead = null;
             setSelectedFacilityAmenities([]);
             structuredFacilityControls?.setWorkflow({});
+            structuredFacilityControls?.setReadOnly(false);
             rentalControls?.setWorkflow({});
             serviceControls?.reset();
             syncFacilityFormType({ preservePrice: false });
         };
 
-        const getRowMenuHtml = (isArchived = false, status = 'available', id = '') => {
+        const getRowMenuHtml = (isArchived = false, status = 'available', id = '', name = '') => {
             if(serviceControls)return serviceControls.rowMenu({isArchived,status,id},CAN_MANAGE_FACILITIES,{% if can_view_service_requests %}true{% else %}false{% endif %});
+            const labelTarget = escapeHtml(name || id || 'facility');
             return `
             <div class="facility-row-actions">
-                <button type="button" class="facility-action-icon" data-facility-row-action="view" aria-label="View" title="View">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="18" height="18">
+                <button type="button" class="facility-action-icon" data-facility-row-action="view" aria-label="View details for ${labelTarget}" title="View Details">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" width="18" height="18" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                     </svg>
                 </button>
                 ${CAN_MANAGE_FACILITIES ? `
                 <div class="dropdown facility-row-more">
-                    <button type="button" class="facility-action-icon" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-config='{"popperConfig":{"strategy":"fixed"}}' aria-expanded="false" aria-label="More facility actions" title="More actions">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75h.008v.008H12V6.75Zm0 5.25h.008v.008H12V12Zm0 5.25h.008v.008H12v-.008Z" /></svg>
+                    <button type="button" class="facility-action-icon" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-config='{"popperConfig":{"strategy":"fixed"}}' aria-haspopup="menu" aria-expanded="false" aria-label="More facility actions for ${labelTarget}" title="More actions">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75h.008v.008H12V6.75Zm0 5.25h.008v.008H12V12Zm0 5.25h.008v.008H12v-.008Z" /></svg>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end facility-row-dropdown">
+                    <ul class="dropdown-menu dropdown-menu-end facility-row-dropdown" role="menu">
                         ${(!isArchived || !document.body.classList.contains('service-catalog')) ? `
-                        <li><button type="button" class="dropdown-item" data-facility-row-action="edit"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg>Edit {% if service_catalog %}Service{% else %}Facility{% endif %}</button></li>` : ''}
+                        <li role="none"><button type="button" class="dropdown-item" role="menuitem" data-facility-row-action="edit"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" /></svg>Edit {% if service_catalog %}Service{% else %}Facility{% endif %}</button></li>` : ''}
                         ${isArchived ? `
-                        <li><button type="button" class="dropdown-item facility-row-restore" data-facility-row-action="restore"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>{% if service_catalog %}Restore Service{% else %}Reactivate Facility{% endif %}</button></li>
+                        <li role="none"><button type="button" class="dropdown-item facility-row-restore" role="menuitem" data-facility-row-action="restore"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>{% if service_catalog %}Restore Service{% else %}Reactivate Facility{% endif %}</button></li>
                         ` : `
 
-                        <li><button type="button" class="dropdown-item facility-row-archive" data-facility-row-action="archive"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5 19.625 18.132a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m5.25 4.5h6M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>Archive {% if service_catalog %}Service{% else %}Facility{% endif %}</button></li>
+                        <li role="none"><button type="button" class="dropdown-item facility-row-archive" role="menuitem" data-facility-row-action="archive"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5 19.625 18.132a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m5.25 4.5h6M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>Archive {% if service_catalog %}Service{% else %}Facility{% endif %}</button></li>
                         `}
                     </ul>
                 </div>` : ''}
@@ -1442,7 +1459,10 @@
             }
             return {
                 id: row.dataset.facilityId || '',
-                priceLabel: serviceControls ? cells[2]?.textContent.trim() : undefined,
+                priceLabel: serviceControls ? cells[2]?.textContent.trim() : (row.dataset.priceLabel || cells[3]?.textContent.trim() || ''),
+                priceCompactLabel: row.dataset.priceCompactLabel || '',
+                priceSubLabel: row.dataset.priceSubLabel || '',
+                eligibleClientsLabel: row.dataset.eligibleClientsLabel || '',
                 name: cells[0]?.querySelector('strong')?.textContent.trim() || '',
                 facilityType: row.dataset.facilityType || 'other',
                 customFacilityType: row.dataset.customFacilityType || '',
@@ -1495,6 +1515,10 @@
             row.dataset.requirements = facility.requirements || '';
             row.dataset.termsConditions = facility.termsConditions || '';
             row.dataset.slots = facility.slots || '';
+            if (facility.priceLabel != null) row.dataset.priceLabel = facility.priceLabel;
+            if (facility.priceCompactLabel != null) row.dataset.priceCompactLabel = facility.priceCompactLabel;
+            if (facility.priceSubLabel != null) row.dataset.priceSubLabel = facility.priceSubLabel;
+            if (facility.eligibleClientsLabel != null) row.dataset.eligibleClientsLabel = facility.eligibleClientsLabel;
             const workflowConfig = facility.workflowConfig || facility.workflow_config || {};
             row.dataset.workflowConfig = JSON.stringify(workflowConfig);
             const thumb = firstImg
@@ -1504,15 +1528,18 @@
                 </svg>`;
             const units = Math.max(0, parseInt({% if service_catalog %}facility.units || facility.rooms_units{% else %}facility.mode === 'room' ? facility.roomCount : 0{% endif %}, 10) || 0);
             const capacity = Math.max(0, parseInt(facility.capacity, 10) || 0);
-            const capacityLabel = facility.capacityLabel ? escapeHtml(facility.capacityLabel) : units > 0
+            const capacityPrimary = facility.capacityLabel ? escapeHtml(facility.capacityLabel) : units > 0
                 ? `${units} unit${units === 1 ? '' : 's'}`
                 : (capacity > 0 ? `${capacity} pax` : '<span class="facility-muted-value">Not applicable</span>');
+            const capacityLabel = `<span class="facility-cell-primary">${capacityPrimary}</span>`;
             const numericRate = Number(facility.rate || 0);
-            const rateLabel = facility.priceLabel ? escapeHtml(facility.priceLabel) : numericRate > 0
+            const fullRateLabel = facility.priceLabel ? escapeHtml(facility.priceLabel) : numericRate > 0
                 ? `&#8369;${escapeHtml(formatNumberWithCommas(numericRate))}`
-                : '<span class="facility-muted-value">Based on service</span>';
+                : 'Based on service';
+            const compactRate = facility.priceCompactLabel ? escapeHtml(facility.priceCompactLabel) : fullRateLabel;
+            const rateLabel = `<span class="facility-rate-primary">${compactRate}</span><span class="visually-hidden">${fullRateLabel}</span>`;
             {% if service_catalog %}
-            row.innerHTML = `<td class="facility-col-name"><div class="facility-row-name"><div class="facility-row-thumb">${thumb}</div><div><strong>${escapeHtml(facility.name)}</strong><span class="facility-row-sub">${escapeHtml(facility.location || facility.id)}</span></div></div></td><td class="facility-col-type">${escapeHtml(formatFacilityType(facilityType,row.dataset.customFacilityType))}</td><td class="facility-col-rate">${escapeHtml(facility.priceLabel || 'Pricing not configured')}</td><td class="facility-col-bookings">${escapeHtml(formatBookingMode(facility.mode))}</td><td class="facility-col-status"><span class="facility-status facility-status-${escapeHtml(status)}">${escapeHtml(formatStatus(status))}</span></td><td class="facility-col-actions">${getRowMenuHtml(facility.isArchived,facility.status,facility.id)}</td>`;
+            row.innerHTML = `<td class="facility-col-name"><div class="facility-row-name"><div class="facility-row-thumb">${thumb}</div><div><strong>${escapeHtml(facility.name)}</strong><span class="facility-row-sub">${escapeHtml(facility.location || facility.id)}</span></div></div></td><td class="facility-col-type">${escapeHtml(formatFacilityType(facilityType,row.dataset.customFacilityType))}</td><td class="facility-col-rate">${escapeHtml(facility.priceLabel || 'Pricing not configured')}</td><td class="facility-col-bookings">${escapeHtml(formatBookingMode(facility.mode))}</td><td class="facility-col-status"><span class="facility-status facility-status-${escapeHtml(status)}">${escapeHtml(formatStatus(status))}</span></td><td class="facility-col-actions">${getRowMenuHtml(facility.isArchived,facility.status,facility.id,facility.name)}</td>`;
             return;
             {% endif %}
             row.innerHTML = `
@@ -1529,11 +1556,11 @@
                 </td>
                 <td class="facility-col-type">${escapeHtml(formatFacilityType(facilityType, row.dataset.customFacilityType))}</td>
                 <td class="facility-col-capacity">${capacityLabel}</td>
-                <td class="facility-col-rate">${rateLabel}</td>
+                <td class="facility-col-rate" title="${fullRateLabel}">${rateLabel}</td>
                 <td class="facility-col-price-type">${escapeHtml(formatPriceType(facility.priceType))}</td>
                 <td class="facility-col-status"><span class="facility-status facility-status-${escapeHtml(status)}">${escapeHtml(formatStatus(status))}</span></td>
                 <td class="facility-col-bookings"><span class="facility-booking-mode-label">${escapeHtml(formatBookingMode(facility.mode || 'room'))}</span></td>
-                <td class="facility-col-actions">${getRowMenuHtml(facility.isArchived,facility.status,facility.id)}</td>`;
+                <td class="facility-col-actions">${getRowMenuHtml(facility.isArchived,facility.status,facility.id,facility.name)}</td>`;
         };
 
         const fillFacilityFormFromRow = (row) => {
@@ -1590,6 +1617,7 @@
             facilityFormSection?.querySelectorAll('input, select, textarea').forEach((field) => {
                 field.disabled = false;
             });
+            structuredFacilityControls?.setReadOnly(false);
             syncFacilityFormType();
             if (facilityFormTitle) facilityFormTitle.textContent = '{% if service_catalog %}Edit Service{% else %}Edit Facility{% endif %}';
             const label = saveFacilityButton?.querySelector('.save-btn-label');
@@ -1607,7 +1635,8 @@
             facilityFormSection?.querySelectorAll('input, select, textarea').forEach((field) => {
                 field.disabled = true;
             });
-            facilityFormSection?.querySelectorAll('#facilityAddFee, #facilityAddDiscount, .facility-fee-row button, .facility-discount-row button').forEach(button => button.disabled = true);
+            facilityFormSection?.querySelectorAll('#facilityAddFee, #facilityAddDiscount, .facility-fee-row button, .facility-discount-row button, .facility-schedule-preset-btn').forEach(button => button.disabled = true);
+            structuredFacilityControls?.setReadOnly(true);
             if (facilityFormTitle) facilityFormTitle.textContent = '{% if service_catalog %}View Service{% else %}View Facility{% endif %}';
             if (saveFacilityButton) {
                 saveFacilityButton.hidden = true;
@@ -1977,6 +2006,9 @@
                     if (savedFacility?.rate != null) facility.rate = savedFacility.rate;
                     if (savedFacility?.capacity != null) facility.capacity = savedFacility.capacity;
                     facility.priceLabel = savedFacility.price_label;
+                    facility.priceCompactLabel = savedFacility.price_compact_label;
+                    facility.priceSubLabel = savedFacility.price_sub_label;
+                    facility.eligibleClientsLabel = savedFacility.eligible_clients_label;
                     facility.capacityLabel = savedFacility.capacity_label;
                     if (savedFacility?.images) facility.images = savedFacility.images;
                     if (savedFacility?.image_url) {
@@ -2025,6 +2057,7 @@
                         mode: facility.mode,
                         rooms_units: facility.units,
                         room_type: facility.roomType || '',
+                        sync_rooms: facility.mode === 'room' && Number(facility.units) > 0,
                         amenities: facility.amenities,
                         status: facility.status,
                         workflow_config: facility.workflowConfig,

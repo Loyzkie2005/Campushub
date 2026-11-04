@@ -5,26 +5,46 @@
             this.root = root; this.configuration = configuration; this.fields = fields;
             this.customType = root.querySelector('#facilityCustomType');
             this.minimum = root.querySelector('#facilityCapacityMin');
+            this.eligibleClients = root.querySelector('#facilityEligibleClients');
+            this.advancePaymentDays = root.querySelector('#facilityAdvancePaymentDays');
             this.formType = root.querySelector('#facilityBookingFormType');
             this.formDisplay = root.querySelector('#facilityBookingFormDisplay');
             this.base = root.querySelector('#facilityBaseDuration');
             this.extra = root.querySelector('#facilityAdditionalHourRate');
+            this.hourlyRate = root.querySelector('#facilityHourlyRateOption');
             this.notes = root.querySelector('#facilityPricingNotes');
             this.partner = root.querySelector('#facilityPartnerRate');
             this.occupancy = root.querySelector('#facilityPartnerOccupancy');
             this.deposit = root.querySelector('#facilityDepositApplicable');
             this.depositType = root.querySelector('#facilityDepositType');
             this.depositValue = root.querySelector('#facilityDepositValue');
+            this.depositPreview = root.querySelector('#facilityDepositPreview');
             this.fees = root.querySelector('#facilityAdditionalFees');
             this.discounts = root.querySelector('#facilityDiscountRules');
             this.rules = {requires_approval: root.querySelector('#facilityRequiresApproval'),
                 requires_pre_use_inspection: root.querySelector('#facilityPreInspection'),
                 requires_post_use_inspection: root.querySelector('#facilityPostInspection'), damage_deposit_applicable: this.deposit};
             this.populate(this.formType, configuration.booking_form_types, 'Select booking form');
+            if (this.eligibleClients && configuration.eligible_clients) {
+                this.populate(this.eligibleClients, configuration.eligible_clients);
+            }
             this.deposit.addEventListener('change', () => this.sync());
             this.depositType.addEventListener('change', () => this.sync());
+            this.depositValue.addEventListener('input', () => this.syncDepositPreview());
+            fields.rate?.addEventListener('input', () => this.syncDepositPreview());
             fields.priceType.addEventListener('change', () => this.sync());
             this.partner.addEventListener('input', () => this.sync());
+            const autoSyncRoomCapacity = () => {
+                if (this.physical && fields.mode?.value === 'room') {
+                    const u = Number(fields.units?.value || 0);
+                    const c = Number(fields.capacityPerRoom?.value || 0);
+                    if (u > 0 && c > 0 && fields.capacity) {
+                        fields.capacity.value = String(u * c);
+                    }
+                }
+            };
+            fields.units?.addEventListener('input', autoSyncRoomCapacity);
+            fields.capacityPerRoom?.addEventListener('input', autoSyncRoomCapacity);
             root.querySelector('#facilityAddFee').addEventListener('click', () => this.addFee());
             root.querySelector('#facilityAddDiscount').addEventListener('click', () => this.addDiscount());
             root.addEventListener('input', event => event.target.setCustomValidity?.(''));
@@ -57,6 +77,9 @@
                 this.rules.requires_approval.checked = true;
                 this.rules.requires_pre_use_inspection.checked = !!this.configuration.booking_form_defaults[type];
                 this.rules.requires_post_use_inspection.checked = !!this.configuration.booking_form_defaults[type];
+                if (this.eligibleClients) {
+                    this.eligibleClients.value = type === 'hostel' ? 'internal' : 'both';
+                }
             }
             this.sync();
             if (!this.physical) return config;
@@ -79,11 +102,13 @@
             this.customType.disabled = !customVisible;
             this.customType.required = customVisible;
             if (!customVisible) this.customType.value = '';
-            ['rules','form_type','fees','discounts','capacity_min'].forEach(name => this.disclose(name, this.physical));
+            ['rules','form_type','fees','discounts','capacity_min','advance_payment_days'].forEach(name => this.disclose(name, this.physical));
+            this.disclose('eligible_clients', this.physical, true);
             this.disclose('form_type', this.physical, true);
             this.syncBookingForm();
             this.disclose('base_duration', this.physical && method === 'base_hour', true);
             this.disclose('additional_hour_rate', this.physical && method === 'base_hour', true);
+            this.disclose('hourly_rate', this.physical && method === 'base_hour', false);
             this.disclose('pricing_notes', this.physical && method === 'custom', true);
             this.disclose('partner_rate', this.physical && method === 'person_night');
             this.disclose('partner_occupancy', this.physical && method === 'person_night' && this.partner.value.trim() !== '', true);
@@ -91,6 +116,7 @@
             this.disclose('deposit_value', this.physical && this.deposit.checked, true);
             this.depositValue.max = this.depositType.value === 'percentage' ? '100' : '99999999.99';
             this.root.querySelector('#facilityDepositHelp').textContent = this.depositType.value === 'percentage' ? 'Percentage of the applicable rental/base fee.' : 'Fixed amount in Philippine Peso.';
+            this.syncDepositPreview();
             this.root.querySelector('#facilityRoomsNotice').hidden = !this.physical || this.fields.mode.value !== 'room';
             if (this.physical) {
                 const wrap = this.fields.rate.closest('[data-facility-field]');
@@ -100,6 +126,31 @@
             }
             for (const row of this.fees.children) this.syncFee(row);
             for (const row of this.discounts.children) this.syncDiscount(row);
+        }
+
+        syncDepositPreview() {
+            if (!this.depositPreview) return;
+            const visible = this.physical && this.deposit.checked;
+            this.depositPreview.hidden = !visible;
+            if (!visible) {
+                this.depositPreview.textContent = '';
+                return;
+            }
+            const type = this.depositType.value;
+            const val = Number(this.depositValue.value || 0);
+            const rate = Number(this.fields.rate?.value || 0);
+            if (!type || val <= 0) {
+                this.depositPreview.textContent = 'Select a deposit type and enter a positive value to preview the calculation.';
+                return;
+            }
+            if (type === 'fixed') {
+                this.depositPreview.textContent = `Damage Deposit Summary: Fixed refundable deposit of ₱${val.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})} per booking.`;
+            } else if (type === 'percentage') {
+                const sample = rate > 0 ? (rate * val) / 100 : null;
+                this.depositPreview.textContent = sample !== null
+                    ? `Damage Deposit Summary: ${val}% of applicable rental fee (e.g. ₱${sample.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})} on ₱${rate.toLocaleString('en-PH')} base rate).`
+                    : `Damage Deposit Summary: ${val}% of the applicable rental/base fee.`;
+            }
         }
 
         syncBookingForm() {
@@ -122,10 +173,19 @@
         setWorkflow(workflow, {mode = 'slot', physical = true} = {}) {
             this.customType.value = typeof workflow.custom_facility_type === 'string' ? workflow.custom_facility_type : '';
             this.minimum.value = workflow.capacity_min ?? '';
+            if (this.eligibleClients) {
+                this.eligibleClients.value = workflow.eligible_clients || (this.fields.type?.value === 'hostel' ? 'internal' : 'both');
+            }
+            if (this.advancePaymentDays) {
+                this.advancePaymentDays.value = workflow.advance_payment_days ?? '';
+            }
             for (const [key, field] of Object.entries(this.rules)) field.checked = workflow[key] ?? (key === 'requires_approval');
             this.formType.value = this.configuration.booking_form_defaults[this.fields.type.value] || workflow.booking_form_type || '';
             this.base.value = workflow.pricing?.base_duration ?? '';
             this.extra.value = workflow.pricing?.additional_hour_rate ?? '';
+            if (this.hourlyRate) {
+                this.hourlyRate.value = workflow.pricing?.hourly_rate ?? '';
+            }
             this.notes.value = workflow.pricing?.notes ?? '';
             this.partner.value = workflow.pricing?.partner_rate ?? '';
             this.occupancy.value = workflow.pricing?.partner_occupancy_required ?? '';
@@ -219,7 +279,18 @@
             const result = Object.fromEntries(Object.entries(this.rules).map(([key, field]) => [key,field.checked]));
             result.booking_form_type = this.formType.value;
             result.capacity_min = this.minimum.value;
-            if (this.fields.priceType.value === 'base_hour') result.pricing = {base_duration:this.base.value,additional_hour_rate:this.extra.value};
+            if (this.eligibleClients && this.eligibleClients.value) {
+                result.eligible_clients = this.eligibleClients.value;
+            }
+            if (this.advancePaymentDays && this.advancePaymentDays.value !== '') {
+                result.advance_payment_days = this.advancePaymentDays.value;
+            }
+            if (this.fields.priceType.value === 'base_hour') {
+                result.pricing = {base_duration:this.base.value,additional_hour_rate:this.extra.value};
+                if (this.hourlyRate && this.hourlyRate.value.trim() !== '') {
+                    result.pricing.hourly_rate = this.hourlyRate.value.trim();
+                }
+            }
             else if (this.fields.priceType.value === 'person_night' && this.partner.value.trim() !== '') result.pricing = {partner_rate:this.partner.value,partner_occupancy_required:this.occupancy.value};
             else if (this.fields.priceType.value === 'custom') result.pricing = {notes:this.notes.value.trim()};
             else result.pricing = {};
@@ -232,6 +303,27 @@
         validate() {
             if (!this.customType.disabled && !this.customType.value.trim()) this.customType.setCustomValidity(`${this.physical ? 'Specify Facility Category' : 'Specify Facility Type'} is required when Other is selected.`);
             if (this.physical && this.minimum.value && Number(this.minimum.value) > Number(this.fields.capacity.value)) this.minimum.setCustomValidity('Minimum capacity must not exceed maximum capacity.');
+            if (this.physical && this.fields.mode?.value === 'room' && this.fields.capacityPerRoom?.value && Number(this.fields.capacityPerRoom.value) > Number(this.fields.capacity.value)) {
+                this.fields.capacityPerRoom.setCustomValidity('Guests per room must not exceed maximum capacity.');
+            }
+            if (this.physical) {
+                const seenDiscounts = new Set();
+                for (const row of this.discounts.children) {
+                    const active = row.querySelector('[data-discount-field="active"]')?.checked;
+                    const client = row.querySelector('[data-discount-field="eligible_client_type"]')?.value || '';
+                    const scopeEl = row.querySelector('[data-discount-field="applies_to"]');
+                    const scope = scopeEl?.value || '';
+                    const custom = (row.querySelector('[data-discount-field="custom_scope"]')?.value || '').trim().toLowerCase();
+                    if (active && client && scope) {
+                        const key = `${client}|${scope}|${custom}`;
+                        if (seenDiscounts.has(key)) {
+                            scopeEl?.setCustomValidity('Duplicate active discount rules for the same client type and scope are not allowed.');
+                        } else {
+                            seenDiscounts.add(key);
+                        }
+                    }
+                }
+            }
             return [...this.root.querySelectorAll('input, select, textarea')].filter(field => !field.disabled && !field.closest('[hidden]')).every(field => field.reportValidity());
         }
     }

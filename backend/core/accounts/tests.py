@@ -19,6 +19,7 @@ from accounts.models import AccountActivity, AdminTabToken, Department, Role, Us
 from accounts.role_permissions import (
     ADMIN_PERMISSION_CODENAMES,
     BUILTIN_ROLE_PERMISSIONS,
+    get_admin_home_url,
     permissions_for_role,
     set_role_permissions,
     sync_user_admin_permissions,
@@ -142,6 +143,7 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(products, reverse("admin_sellers_page"))
         # Analytics is available under Reports for users with its permission.
         self.assertContains(products, reverse("admin_marketplace_analytics_page"))
+        self.assertContains(products, "Reports & Analytics")
         self.assertContains(products, "Generate Reports")
         self.assertContains(products, "System")
 
@@ -175,6 +177,7 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(facilities_page, reverse("admin_bookings_page"))
         self.assertContains(facilities_page, reverse("admin_calendar_page"))
         self.assertContains(facilities_page, reverse("admin_facility_analytics_page"))
+        self.assertContains(facilities_page, "Reports & Analytics")
         self.assertContains(facilities_page, "Generate Reports")
         self.assertContains(facilities_page, "System")
 
@@ -270,6 +273,7 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(users_page, reverse("admin_notifications_page"))
         self.assertContains(users_page, reverse("admin_settings_page"))
         self.assertNotContains(users_page, reverse("admin_backup_page"))
+        self.assertContains(users_page, "Reports & Analytics")
         self.assertContains(users_page, "Generate Reports")
         self.assertContains(users_page, "System Settings")
 
@@ -546,6 +550,29 @@ class DedicatedDomainDashboardTests(TestCase):
         self.assertContains(response, "Monitor marketplace performance and activity.")
         self.assertContains(response, "topSellingProductsChart")
         self.assertNotContains(response, "dashboard-sales-summary")
+
+    def test_marketplace_and_facilities_admin_login_redirect_to_dashboard(self):
+        self.assertEqual(get_admin_home_url(self.marketplace_admin), reverse("admin_dashboard_page"))
+        self.assertEqual(get_admin_home_url(self.facilities_admin), reverse("admin_dashboard_page"))
+        self.assertEqual(get_admin_home_url(self.super_admin), reverse("admin_dashboard_page"))
+
+        # Marketplace Admin login directs to admin_dashboard_page
+        market_login = self.client.post(
+            reverse("admin_login"),
+            data=json.dumps({"username": self.marketplace_admin.username, "password": self.password}),
+            content_type="application/json",
+        )
+        self.assertEqual(market_login.status_code, 200)
+        self.assertTrue(market_login.json()["redirect_url"].startswith(reverse("admin_dashboard_page")))
+
+        # Facilities Admin login directs to admin_dashboard_page
+        fac_login = self.client.post(
+            reverse("admin_login"),
+            data=json.dumps({"username": self.facilities_admin.username, "password": self.password}),
+            content_type="application/json",
+        )
+        self.assertEqual(fac_login.status_code, 200)
+        self.assertTrue(fac_login.json()["redirect_url"].startswith(reverse("admin_dashboard_page")))
 
 
 class AdminOrderWorkflowTests(TestCase):
@@ -2178,3 +2205,74 @@ class UserDeactivationAndHistoryPreservationTests(TestCase):
         self.assertEqual(order.buyer_user_id, self.student.id)
         self.assertEqual(order.product_id, product.id)
         self.assertEqual(order.status, MarketplaceOrder.STATUS_COMPLETED)
+
+
+class AdminBackForwardLogoutTests(TestCase):
+    password = "CampusHub1!"
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="back-forward-admin",
+            password=self.password,
+            email="back-forward-admin@example.com",
+            role="Super Admin",
+        )
+        sync_user_admin_permissions(self.admin)
+
+    def _login_tab_token(self):
+        response = self.client.post(
+            reverse("admin_login"),
+            data=json.dumps({"username": self.admin.username, "password": self.password}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.json()["tab_token"]
+
+    def test_admin_pages_and_login_set_no_store_headers_and_revoke_stale_tokens_on_back_or_logout(self):
+        token = self._login_tab_token()
+
+        dashboard = self.client.get(
+            f"{reverse('admin_dashboard_page')}?__at={token}",
+            HTTP_ACCEPT="text/html",
+        )
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertIn("no-store", dashboard["Cache-Control"])
+        self.assertEqual(dashboard["Pragma"], "no-cache")
+
+        logout_res = self.client.get(f"{reverse('admin_logout_page')}?__at={token}")
+        self.assertEqual(logout_res.status_code, 302)
+        self.assertEqual(logout_res["Location"], reverse("admin_login_page"))
+        self.assertIn("no-store", logout_res["Cache-Control"])
+        self.assertFalse(AdminTabToken.objects.filter(key=token).exists())
+
+        stale_back_res = self.client.get(
+            f"{reverse('admin_dashboard_page')}?__at={token}",
+            HTTP_ACCEPT="text/html",
+        )
+        self.assertEqual(stale_back_res.status_code, 302)
+        self.assertEqual(stale_back_res["Location"], reverse("admin_login_page"))
+        self.assertIn("no-store", stale_back_res["Cache-Control"])
+
+        session_res = self.client.get(
+            reverse("admin_session_status"),
+            HTTP_X_ADMIN_TAB_TOKEN=token,
+        )
+        self.assertEqual(session_res.status_code, 401)
+        self.assertEqual(session_res.json(), {"authenticated": False})
+
+    def test_returning_to_login_page_with_token_revokes_session_and_blocks_forward_navigation(self):
+        token = self._login_tab_token()
+        self.assertTrue(AdminTabToken.objects.filter(key=token).exists())
+
+        login_back = self.client.get(f"{reverse('admin_login_page')}?__at={token}")
+        self.assertEqual(login_back.status_code, 200)
+        self.assertIn("no-store", login_back["Cache-Control"])
+        self.assertFalse(AdminTabToken.objects.filter(key=token).exists())
+
+        forward_attempt = self.client.get(
+            f"{reverse('admin_dashboard_page')}?__at={token}",
+            HTTP_ACCEPT="text/html",
+        )
+        self.assertEqual(forward_attempt.status_code, 302)
+        self.assertEqual(forward_attempt["Location"], reverse("admin_login_page"))
+

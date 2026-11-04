@@ -1,6 +1,153 @@
 # CampusHub dashboard Improvement #4: Attention Required
 
-Implemented a compact current-operations list for the Super Admin dashboard, between System Overview and System Status. Counts come from Django database records and do not change when a historical reporting period is selected. The latest update below replaces the earlier decision to retain the bottom Pending Approvals card.
+This guide records the Super Admin current-alert summary. Counts come from Django records and remain current snapshots when a historical reporting period is selected. The latest layout is below; older implementation reports follow as history. The previously removed System Status/Health component remains removed.
+
+## Current: Matching priority cards and internal headers — October 31, 2026
+
+### 1. Cause / reason
+
+The latest request keeps Attention Required and Suggested Product Bundles headings inside their containers, adds matching card headers/dividers, and explicitly requires the two adjacent cards to have the same height. This supersedes the earlier natural-height-only choice. It also requires Marketplace Overview and Facilities Overview headings outside their content cards. Previously these sections had a white border around the whole section, making those headings appear inside a card even though they preceded the inner content.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Different priority-header structures and no divider | Shared internal header/body classes, matching padding and subtle divider | Keep title, subtitle and optional action consistent. |
+| Independent priority-card heights | Shared desktop grid-row height based on the taller card | Match the user's reference without clipping real warnings or saved pairs. |
+| Marketplace/Facilities white section surround included headings | Transparent section headings above their own bordered content wrappers | Make the requested outside-heading distinction visible. |
+
+### 2. Exact files changed
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/partials/attention_required.html:2` | Super Admin now uses `header.executive-card-header` with the existing title/subtitle. Line 10 adds `executive-card-body` to the existing alert body. Non-Super Admin branch and existing row/data/error/empty hooks remain. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:2` | Add the same header class; line 7 marks the existing saved-pair/empty/error area as its body. Existing title, subtitle, View All, images, responses and two-pair limit remain. |
+| `backend/templates/dashboard/partials/executive_dashboard.html:31` | Wrap only Marketplace content in `executive-overview-body`, after its heading/action row. The priority-card order, IDs and includes remain. |
+| `backend/templates/dashboard/partials/super_facilities_overview.html:6` | Wrap only Facilities content after its heading. Existing navigation, summary, charts, upcoming reservations and attention content remain inside that wrapper. |
+| `backend/static/components/css/admin_executive_refinement.css:92` | Give the outer Bundles container its border/radius and flexible interior so initial, loading and error states share the same visual boundary. Shared header styles start at line 105, body at 121 and responsive internal action placement at 125. Both headers use 16px padding, 16px titles, 13px subtitles and a one-pixel divider. |
+| `backend/static/components/css/admin_executive_refinement.css:158` | Only Marketplace/Facilities outer sections become transparent and unbordered; their new body wrappers receive the white surface, border/radius and prior inner padding. Services/Users and other sections retain their styles. |
+| `backend/static/components/css/admin_executive_refinement.css:251` | Keep the Bundles heading visible when Refresh fails; hide only its stale body and show the existing error message inside its outer card. Lines 277–285 stretch paired desktop cards and align headers/dividers; medium desktop headers reserve 144px for wrapping, wider ones 112px. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:29` | CSS version becomes `20261031-card-headers`. No script version or executable JavaScript changes. |
+| `docs/dashboard-attention-required-4.md:5`, `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:13` | Preserve this latest height/header decision, implementation report and verification. Older reports below are history. |
+
+### 3. Changes made
+
+Both priority cards contain a matching header with their original title/subtitle and the existing optional View All action. A subtle divider separates header and body. Each area uses 16px padding. Warning rows retain the previous compact icon → name/count → action structure, 12px padding, 8px spacing, real counts and destinations.
+
+When side by side at 1000px and wider, both cards stretch to the height of the taller content. Headers/dividers align for the existing copy at the tested widths. There is no fixed maximum height, hidden warning, forced internal scroll area or fabricated content. A tall warning list can therefore make both cards taller. On narrow screens the cards stack and use their own content heights; titles/actions and long text wrap safely.
+
+Only Marketplace and Facilities headings move visually outside the white card surface. Their original content becomes a separately bordered body directly below each heading. Controls, Welcome, KPI cards, Services, Users, activity logs and business workflows retain their existing implementation.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Initial render still receives real `attention_required.items`, `bundle_analysis`, period and executive projections from Django. The two existing partials now output the same `executive-card-header`/`executive-card-body` structure. Existing IDs and accessible section names remain.
+
+CSS owns the height/alignment change: the existing priority grid stretches both children on desktop; Bundles' preview/inner section use flex layout to fill its outer card. Headers reserve enough space for current subtitle wrapping, and body content remains natural. The outer Bundles border also contains existing loading/error messages. On request failure, the header stays visible while stale content is hidden; recovery restores the normal body.
+
+The existing `load()`/`render()` controller still updates actual alerts and replaces authorized `bundle_preview_html`. Because the refreshed fragment comes from the same updated partial, it retains its internal header, divider and height behavior without a new observer, timer or request. Marketplace/Facilities wrapper divs do not change any query, renderer selector or chart ID.
+
+Safe annotated structure:
+
+```text
+priority grid: equal height on a shared desktop row
+  Attention card: existing heading/subtitle -> divider -> actual warning rows
+  Bundles card: existing heading/subtitle/View All -> divider -> actual saved pairs or empty/error
+
+Marketplace/Facilities section
+  existing section heading/action on the page background
+  bordered executive-overview-body containing the existing summaries/charts/tables
+```
+
+Safe practice: compare the two cards at desktop width, then Refresh and select Last 30 Days. Confirm their borders/heights and internal headers remain aligned. Trigger no business actions. Resize to phone width and confirm the stacked cards show complete titles/actions and all warnings. In DevTools temporarily disable the desktop grid's stretch alignment, observe the difference, then reload to restore the saved layout.
+
+### 5. Backend / API behavior
+
+Unchanged. The current-alert counting/threshold logic, saved-pair eligibility, Apriori separation, permissions, destination filters and protected dashboard API remain. The existing bundle HTML response renders the revised presentation only. No JavaScript behavior or new API was introduced. The header remains visible on the existing error/retry path.
+
+### 6. Database / migration impact
+
+None. No models, migrations, schema, environment, live writes, server/app restart or deployment changes. Test records were confined to disposable localhost PostgreSQL databases, and browser non-GET requests were blocked.
+
+### 7. Tests performed
+
+- **65/65 Django tests passed in 20.711 seconds**: existing dashboard period, executive and empty-state suites, plus four saved-bundle preview/image/error/limit/read-only tests. These verify actual counts, authorization, original destinations, current-period semantics, saved previews without Apriori and preserved records.
+- **1736/1736 Chromium checks passed across 18 actual Django fixture renders/eight widths (280–1920px)**. Cases include zero/one/eight actual warnings, empty/populated/error bundle states and refreshed/error/recovered cards. Measurements verify equal desktop card heights, aligned title/header/divider positions, matching 16px header padding, 16px titles, rounded borders, full warning rows and outside Marketplace/Facilities headings with bordered white content areas. Existing date/Refresh/custom range, navigation, user grouping and menus also passed. No browser writes occurred. Populated/empty desktop and phone renders were inspected.
+- Evidence: `scratch/dashboard-card-headers-20261031/django.log`, `browser.log`, `browser-result.json`, `multiple-1440-top.png`, `bundles-1440-top.png` and narrow-card captures. Static populated/error bundle expectations are projected from the same actual server-rendered fixture JSON, not invented metrics.
+- Scoped file/whitespace checks are recorded with these results. No executable JavaScript was changed.
+
+### 8. Remaining limitations / troubleshooting
+
+Restart the user-controlled Django process if it retains the prior templates, then refresh Dashboard to load `20261031-card-headers`. If a header disappears only after Refresh, inspect the existing response's bundle fragment and confirm it has the new header/body classes. If Marketplace/Facilities still have a surrounding white border, check that only `executive-overview-body` owns the surface and the new CSS is loaded.
+
+Matching desktop heights intentionally leave unused space in the shorter card when its neighbor contains more records. All actual content remains visible; cards are not capped. On phones the stacked cards keep natural individual heights. Verification used Chromium and source-rendered fixtures, not a live deployment or physical-device/screen-reader certification.
+
+## Previous: Compact bordered warning rows — October 31, 2026
+
+### 1. Cause / reason
+
+The user requested individually bordered, horizontally aligned warnings with Icon → Alert Name and Count → View Action, while preserving the section heading/subtitle and actual data. The existing markup placed the count before the name in four separate columns; rows had only a divider and 4px vertical padding. A refresh rebuilt that same old structure, so both initial Django markup and the browser renderer needed the matching presentation update.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Icon, separate count, name, action | Icon, grouped name/count, action | Keep each alert's identity and count together in the requested order. |
+| Plain list with dividers | Full subtle border, 12px padding, 8px between rows | Make individual warnings easy to scan with consistent spacing. |
+| Four-node refresh renderer | Same grouped structure as Django | Keep the requested layout after Refresh/date changes. |
+
+### 2. Exact files changed
+
+| File / current line | Anchor, change and expected result |
+| --- | --- |
+| `backend/templates/dashboard/partials/attention_required.html:8` | `if global_dashboard`: wrap the existing label/count in `dashboard-attention-summary`, name first. Keep the original non-Super Admin markup in the other branch. Title, subtitle, source values, severity, URLs, accessible action names, empty/error/loading hooks and JSON remain. |
+| `backend/static/components/js/admin_dashboard_filter.js:194` | `renderAttention(attention)`: line 231 creates the same summary wrapper; append label, a readable text separator and actual formatted count, then keep the existing icon and action as the row's outer siblings. Continue using `textContent` for record values. |
+| `backend/static/components/css/admin_executive_refinement.css:97` | Scope `dashboard-attention-panel` containment and natural height to Super Admin. Line 98 gives the list 8px spacing. Line 99 sets subtle full borders, 12px padding, 8px radius and a content-sized row. Name/count styles start at 105; action at 111. The container query at 115 uses three horizontal columns when at least 241px of panel content width is available. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:29` | Version the existing refinement CSS as `20261031-attention-rows`; the existing filter JS at line 621 uses the same version. Other assets retain their prior versions. |
+| `docs/dashboard-attention-required-4.md:5`, `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:9` | Current report, discoverable dashboard-guide link and scoped layout policy. |
+
+### 3. Changes made
+
+The existing title **Attention Required** and subtitle **Items requiring administrator review or action.** remain unchanged. Each real warning is a white bordered row with a gold warning icon, its existing name and actual count grouped together, and the existing action at the right. The count uses a small neutral treatment rather than an extra status color. Rows have 12px inner padding and 8px vertical separation.
+
+The surrounding Attention card keeps its existing 16px padding, natural height and top alignment beside Suggested Product Bundles. It does not stretch to the adjacent card's height or acquire a fixed-height scroll area. The adjacent panel is not restyled. On narrow cards the link moves below the name/count so full text and navigation remain accessible. Other dashboard sections are unchanged.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Unchanged server flow: `build_dashboard_data()` obtains existing current counts → `build_attention_required()` applies existing inventory/approval/booking/facility rules → positive-count `items` with `key`, `count`, `label`, `action`, `url`, `severity` → the shared Django partial and safely escaped `dashboardAttentionData` JSON.
+
+Initial output now groups `item.label` and `item.count` in the middle span. The conditional applies only to `global_dashboard`; other roles keep the old layout. The original name/count classes remain available to selectors. A literal space between their text nodes preserves readable text when styling is absent and for assistive technology.
+
+On the existing AJAX refresh, `renderAttention(attention)` still filters positive counts, builds actual links and replaces the same list. It now creates `span.dashboard-attention-summary`, appends the label and formatted count with a separator, and produces `svg → summary → a`. It does not recalculate counts, invent alerts, change destinations or add a request. Existing refresh/loading/error/empty behavior continues.
+
+Annotated structure, with all values still supplied by the real response:
+
+```text
+li[data-attention-key=item.key]
+  svg                         existing decorative warning icon
+  span.attention-summary
+    span.label                item.label
+    strong.count              item.count, same source value
+  a[href=item.url]            item.action, existing accessible name
+```
+
+Safe practice exercise: as an authorized local Super Admin, inspect a warning's label/count and destination, then Refresh. Confirm the same row structure and actual response count remain. Select a historical period; current operational warnings retain their existing snapshot meaning. Resize to phone width and keyboard-focus its action. This exercise requires no inventory/booking/approval edits. For a visual practice change, temporarily change the row padding in DevTools and reload to restore the saved 12px.
+
+### 5. Backend / API behavior
+
+No endpoint, query, threshold, count definition, seller/product scope, permission, approval, FIFO, booking-conflict or navigation change. The existing authenticated dashboard JSON remains the source. Alerts remain current snapshots; date filters do not turn them into historical counts. No fabricated warnings or substitute records are added. The existing complete destination tests still check the actual preselected filters.
+
+### 6. Database / migration impact
+
+None. No models/migrations, schema, environment, live data, remote deployment or runtime restart changed. Verification records were confined to disposable localhost PostgreSQL test databases. Browser non-GET requests were blocked.
+
+### 7. Tests performed
+
+- **61/61 Django tests passed in 26.912 seconds** across existing dashboard period, executive and empty-state suites. These cover actual current warning counts, historical-period independence, positive-only items, creator/ownership exclusions, variant/bundle inventory rules, real overlap/conflict logic, bounded queries, failure/empty distinction, exact destinations and supported filter selection, role isolation and current-template rendering.
+- **1094/1094 Chromium checks passed across 14 current-template fixture renders**, including widths 1920, 1440, 1280, 1024, 768, 390, 320 and 280. A dedicated actual ORM fixture contains eight different warnings. Initial and refreshed rows were checked against its response for key, name, count, URL and action. Measured padding/borders, horizontal icon/action alignment, grouped anatomy, 8px spacing, natural compact height and contained links; checked panel top alignment, narrow cards, empty/one/multiple states, Refresh, Last 30 Days, custom dates, loading/error/retry and existing menus. No browser writes occurred. Desktop and phone panel screenshots were inspected.
+- `node --check` passed for the changed filter JavaScript. Scoped file/whitespace checks are recorded alongside the results.
+- Artifacts: `scratch/dashboard-attention-rows-20261031/django-final.log`, `browser-final.log`, `browser-result.json`, `alerts-1440-panel.png`, `alerts-390-panel.png` and narrow-card captures. They use actual isolated Django records; no live/example records were inserted to populate the application.
+
+### 8. Remaining limitations / troubleshooting
+
+Refresh Dashboard to load both `20261031-attention-rows` assets; restart the user-controlled Django process if it retains the previous template. If the layout changes back after Refresh, check that the new JS and Django partial both output `.dashboard-attention-summary`. If a destination seems wrong, compare `item.url` from the existing response with the rendered link; do not replace it with a generic module URL. Long labels wrap naturally; very narrow cards put the action on the second row. Cards keep content height rather than forcing equal heights beside Bundles.
+
+Verification used Chromium and current source-rendered fixtures, without a live deployment or physical-device/screen-reader certification. Existing backend workflows and data remain unchanged. Historical System Status/backup notes below describe earlier work and do not authorize restoring a removed health section.
 
 ## Latest update: consolidate approvals into Attention Required — 2026-10-07
 

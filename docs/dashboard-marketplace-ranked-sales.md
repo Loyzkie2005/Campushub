@@ -2,6 +2,130 @@
 
 Implemented October 4, 2026 for the CampusHub Super Admin Dashboard.
 
+Latest operations follow-up: Recent Orders and Inventory Alerts now have separate full-width cards within the existing Marketplace column, 16px apart. They follow this unchanged independent ranking card; its placement, title, ranking data and refresh behavior remain. The older shared operations wrapper described below has been removed. Current files, functions/data flow, verification, troubleshooting and safe practice are in the [dashboard operations report](dashboard-analytics-operations-update.md).
+
+## Current: Independent ranking card outside Sales Overview — October 31, 2026
+
+### 1. Cause / reason
+
+The latest follow-up requests a separate Top-Selling Products card under Marketplace Overview, outside Sales Overview. Although its accordion was already removed, its include still lived inside `super_marketplace_sales.html`, making it a descendant of `#sales-overview-card` and the same surrounding content container. This update moves the existing include to the Marketplace section itself.
+
+### 2. Exact files changed
+
+- `backend/templates/dashboard/partials/super_marketplace_sales.html:35`: remove the product-card include from the sales chart row. Keep the existing Sales Summary/Trend and all their hooks.
+- `backend/templates/dashboard/partials/executive_dashboard.html:31`: give Sales Overview its own `marketplace-sales-card` wrapper. Line 34 includes Top-Selling Products as a direct Marketplace Overview child. Line 35 retains Recent Orders/Inventory in `marketplace-operations-card`, preserving their content and original order below rankings.
+- `backend/static/components/css/admin_executive_refinement.css:163`: use the shared 10px radius for the standalone ranking card. Lines 167–168 set 16px between Sales, Rankings and Operations and remove the now-redundant inner operations top margin. Ranking header/body/empty styles remain.
+- `backend/templates/dashboard/pages/admin_dashboard.html:29`: version CSS as `20261031-products-independent`.
+- `docs/dashboard-marketplace-ranked-sales.md:5`, `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:11`: record the independent placement and verification. Prior reports remain history.
+- `docs/dashboard-attention-required-4.md:27`: maintain shifted CSS line references only; its card behavior remains unchanged.
+
+### 3. Changes made
+
+Marketplace Overview now contains its outside section heading, a Sales Overview content card, one independent Top-Selling Products card, and the existing operations content card. Rankings retain their single internal title/subtitle, compact empty state, chart and fallback. No accordion or duplicate heading returns. All three content cards use the existing white surface, subtle border/radius and consistent 16px separation. Other dashboard sections retain their layout.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Only the template include position and container styling change. The same `dashboard_marketplace.top_products` input is available in the Marketplace parent context, so moving the partial does not require a new query or response. It still outputs the same `topSellingProductsData`, canvas, empty/error/retry and accessible-description IDs.
+
+Existing `top_selling_products()` aggregation → existing Django context/API → the same ranking partial → the same chart listener remains the data flow. The global `load()`/`render()` functions and ranking script find their existing IDs in the dashboard, independent of whether the card is inside Sales Overview. Sales grouping continues affecting the sales chart, while global period/Refresh continues supplying actual rankings. No executable JavaScript changes were needed.
+
+Safe structure example:
+
+```text
+Marketplace Overview section
+  section heading
+  marketplace-sales-card: existing Sales Overview
+  #topSellingProductsCard: one independent ranking card
+  marketplace-operations-card: existing Recent Orders and Inventory
+```
+
+Safe practice: inspect `document.getElementById('topSellingProductsCard').closest('#sales-overview-card')` in DevTools; it should return `null`. Its direct parent should be the Marketplace section. Select Last 30 Days and Refresh, then compare chart names/quantities with `marketplace.top_products` in the existing response. Resize to phone width and inspect the independent borders/gaps. No data edits are required.
+
+### 5. Backend / API behavior
+
+Unchanged. Actual completed/paid-sales eligibility, selected-period filtering, top-five ordering, parent grouping, permissions, response fields, query count, keyboard inspection, chart fallback and retry behavior remain. The include still uses the actual Django values once.
+
+### 6. Database / migration impact
+
+None. No live records, schema, migrations, environment, runtime restart or remote deployment changed. Tests used disposable localhost PostgreSQL records and blocked browser non-GET requests.
+
+### 7. Tests performed
+
+- **48/48 existing Django marketplace/executive/empty-state tests passed in 24.200 seconds**, covering actual ranking calculations, sales eligibility/dates, variants, query bounds, destinations/role isolation and current-template rendering.
+- **1560/1560 Chromium checks passed across 14 actual fixture renders/eight widths (280–1920px)**. New measurements verify a direct Marketplace parent, no Sales Overview ancestor, 16px gaps before/after the card and the matching 10px radius. Existing single-heading/no-accordion, actual chart labels/quantities, empty height, keyboard, date/Refresh, product retry, library fallback, priority-card heights and outside overview headings also passed. No browser writes occurred. Full desktop hierarchy and phone ranking screenshots were inspected.
+- Evidence: `scratch/dashboard-independent-products-20261031/django.log`, `browser.log`, `browser-result.json`, `ranked-1440.png` and phone/card captures. Scoped file/whitespace checks accompany the results.
+
+### 8. Remaining limitations / troubleshooting
+
+Restart the user-controlled Django process if templates are cached, then refresh Dashboard to load `20261031-products-independent`. If the card remains nested, confirm the include exists only in `executive_dashboard.html`, after the sales wrapper closes. If spacing doubles above Recent Orders, inspect the operations wrapper's 16px external gap and zero inner row top margin. Long labels and phone text continue to wrap under the existing rules. No deployment or other-browser/physical-device certification is claimed.
+
+## Previous: Always-visible Top-Selling Products card — October 31, 2026
+
+### 1. Cause / reason
+
+The latest request removes the unnecessary Top Selling Products accordion and its duplicate label. The existing inner partial already supplied the correct Top-Selling Products title, subtitle, actual ranking chart, empty/error states and refresh hooks. Shared styles also added more padding than this compact card needs. The implementation therefore reuses that partial directly and adds card-specific spacing; no ranking service is rewritten.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Accordion summary plus inner product heading | One always-visible Top-Selling Products card | Remove duplicate navigation/heading and make rankings immediately available. |
+| Shared chart-card/empty padding | 12px header/body padding, 8px empty-message padding | Keep an empty result compact without a reserved chart area. |
+
+### 2. Exact files changed
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/partials/super_marketplace_sales.html:36` | Include `super_marketplace_products.html` directly. Remove only the Top Selling Products `details`/`summary` wrapper. Other expandable summaries remain. |
+| `backend/templates/dashboard/partials/super_marketplace_products.html:2` | Name the existing internal header `marketplace-products-header`. Line 3 wraps the existing JSON/chart/empty/error/accessibility content in `marketplace-products-body`. Keep the single h3 title, subtitle and all IDs/data hooks. |
+| `backend/static/components/css/admin_executive_refinement.css:163` | Scope the border/radius/natural height to `#topSellingProductsCard`. Header styles at 167 and body at 170 use 12px padding. Empty styles at 171–172 remove extra wrapper spacing and use 8px message padding. Other dashboard cards retain their styling. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:29` | CSS cache version becomes `20261031-products-card`. No executable JavaScript or script version changes. |
+| `docs/dashboard-marketplace-ranked-sales.md:5`, `docs/dashboard-analytics-operations-update.md:3`, `CAMPUSHUB_CONTEXT.md:3`, `docs/web-ui-ux-guidelines.md:9` | Record this presentation decision, data flow, verification and safe practice. Earlier reports remain as history. |
+| `docs/dashboard-attention-required-4.md:27` | Update only shifted CSS line references after the new ranking styles; no priority-card implementation change. |
+
+### 3. Changes made
+
+Marketplace Overview now contains one visible Top-Selling Products card, with its title/subtitle inside a bordered header and rankings or the existing specific empty state below. It has no expand/collapse control or duplicate accordion heading. Empty content uses natural height; the existing hidden chart remains absent when there are no eligible sales. Populated chart sizing and the other dashboard sections remain unchanged.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The unchanged `top_selling_products(orders, limit=5)` service receives the existing selected-period eligible completed/paid sales queryset. It groups variants by parent product identity, sums quantities and recorded sales, orders by units sold, then sales amount and stable identity, and returns up to five actual product projections. Bundles remain sellable transactions rather than being expanded into physical component sales. Current/historical product-name fallbacks and other snapshot rules remain.
+
+Initial Django output passes `dashboard_marketplace.top_products` to the same `topSellingProductsData` JSON script and accessible quantity description. The existing `admin_marketplace_products_chart.js` reads that array, renders the same ordered bar chart, and responds to `campushub:dashboard-data` after the existing global date/Refresh request. Removing `details` changes visibility only; the IDs, payload keys and callbacks remain.
+
+Example flow, without invented numbers:
+
+```text
+Actual eligible orders in selected period
+  -> existing top_selling_products() aggregation and top-five ordering
+  -> marketplace.top_products / initial Django JSON
+  -> existing chart labels and units-sold dataset
+  -> single visible card body, or the existing honest empty state
+```
+
+The chart's existing failure path still shows the actual product quantities as text if Chart.js cannot load. The existing global API error path keeps the header visible and offers the same Top Products Retry button. All record text continues to use Django escaping/JSON script handling and the existing safe client renderer.
+
+Safe practice: open the dashboard and verify Top-Selling Products is visible without expanding anything. Select a reporting period and Refresh, then compare its names/units with `marketplace.top_products` in the existing response. Use the chart's arrow/Home/End keys to inspect full names and quantities. For a local styling exercise, change only this card's empty-message padding in DevTools, then reload to restore the saved 8px. No data edits are required.
+
+### 5. Backend / API behavior
+
+Unchanged. No new endpoint, aggregation, sales eligibility, date default, permissions, query count, ranking order, response field or Apriori behavior. Existing completed/paid-sales rules and Django/PostgreSQL integration remain the source of truth. Refresh, date filters, retry, keyboard inspection and the chart-library fallback retain their implementations.
+
+### 6. Database / migration impact
+
+None. No model/migration, schema, live data, environment, server/app restart or deployment changes. Test fixtures were confined to disposable localhost PostgreSQL databases. Browser non-GET requests were blocked.
+
+### 7. Tests performed
+
+- **48/48 existing Django marketplace, executive and empty-state tests passed in 24.574 seconds**. They cover top-five ranking, quantity/sales tie-breaking, parent variants/renames, actual selected-period eligibility, workflow exclusions, zero/empty sales, bounded queries, permissions and current-template rendering.
+- **1494/1494 Chromium checks passed across 14 actual current-template renders/eight widths (280–1920px)**. Verified one immediately visible card/h3, no surrounding `details`, original internal title/subtitle, 12px header/body padding, borders, no empty chart footprint and a compact empty card below 240px on desktop. Actual five-product chart labels/values match the Django response. Keyboard rank inspection, Refresh/date changes, product-specific retry, visible error headers and library-unavailable quantity fallback passed. Existing priority-card heights/headers and Marketplace/Facilities outside headings remain verified. No browser writes occurred. Empty, populated and phone card screenshots were inspected.
+- Evidence: `scratch/dashboard-products-card-20261031/django.log`, `browser.log`, `browser-result.json`, `products-1440-empty-initial.png`, `products-1440-ranked-initial.png`, phone and fallback captures. Populated quantities come from actual isolated Django fixtures, not live/example application records.
+- Scoped file/whitespace checks accompany the results. No executable JavaScript was changed.
+
+### 8. Remaining limitations / troubleshooting
+
+Restart the user-controlled Django process if it retains the old templates, then refresh Dashboard to load `20261031-products-card`. If the accordion remains, inspect `super_marketplace_sales.html` and confirm the product partial is included directly. If the chart/empty state does not update, inspect the existing `marketplace.top_products` response and preserved element IDs before changing any backend query. Long labels retain the existing chart abbreviation/full-tooltip/keyboard behavior. On very narrow screens explanatory text wraps naturally; no fixed empty height clips it.
+
+Verification used Chromium and source-rendered fixtures, not a live deployment or physical-device certification. Other facility/service expandable summaries were intentionally retained. The older full-Sales-Trend footprint requirement below is history for that separate component; this follow-up changes only Top-Selling Products.
+
 ## Cause / reason
 
 The existing empty sales state hid the chart container, the product summary showed only one leader, and category distribution counted current listings. The requested behavior preserves the full Sales Trend layout, ranks up to five products, and makes categories represent completed, paid sales within the selected date range.

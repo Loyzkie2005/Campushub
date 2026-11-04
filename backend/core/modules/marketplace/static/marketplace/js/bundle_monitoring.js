@@ -36,6 +36,69 @@ document.addEventListener('change', event => {
     if (event.target.matches('.bm-filters select[name="program"]')) updateMajors();
 });
 
+// The same authorized POST powers both the modal and the normal detail form.
+(() => {
+    const modal = document.getElementById('bundleSendModal');
+    const form = modal?.querySelector('[data-bundle-send-form]');
+    if (!form) return;
+    const confirm = form.querySelector('[data-send-confirm]');
+    const cancel = form.querySelector('[data-send-cancel]');
+    const error = form.querySelector('[data-send-error]');
+    const slide = document.querySelector('[data-suggestion-id]');
+    let busy = false;
+    let sent = false;
+    modal.addEventListener('hide.bs.modal', event => { if (busy) event.preventDefault(); });
+    modal.addEventListener('hidden.bs.modal', () => {
+        error.hidden = true;
+        error.textContent = '';
+        if (sent) {
+            const status = slide.querySelector('[data-suggestion-status]');
+            status.tabIndex = -1;
+            status.focus({preventScroll: true});
+        }
+    });
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (busy || sent) return;
+        busy = true;
+        form.setAttribute('aria-busy', 'true');
+        confirm.disabled = cancel.disabled = true;
+        confirm.textContent = 'Sending\u2026';
+        error.hidden = true;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 30000);
+        try {
+            const response = await fetch(form.action, {method: 'POST', body: new FormData(form),
+                credentials: 'same-origin', signal: controller.signal,
+                headers: {Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest'}});
+            const payload = response.headers.get('Content-Type')?.includes('application/json') ? await response.json() : null;
+            if (response.redirected || !response.ok) throw new Error(payload?.error ||
+                (response.status === 403 ? 'Sending is not authorized or your session has expired. Reload and try again.' : 'Unable to send this suggestion. Please try again.'));
+            if (payload?.sent !== true || Number(payload.id) !== Number(slide.dataset.suggestionId) || typeof payload.status !== 'string' || !payload.status.trim()) {
+                throw new Error('Sending was not confirmed. Reload to check the suggestion before trying again.');
+            }
+            sent = true;
+            slide.querySelector('[data-suggestion-status]').textContent = payload.status;
+            slide.querySelector('[data-bundle-send]').hidden = true;
+            const feedback = slide.querySelector('[data-send-feedback]');
+            feedback.textContent = 'Suggestion sent to the seller workspace.';
+            feedback.hidden = false;
+        } catch (failure) {
+            error.textContent = failure.name === 'AbortError' ? 'Sending could not be confirmed in time. Reload to check its status or retry; a recorded send will not be duplicated.' :
+                failure instanceof TypeError ? 'Connection interrupted. Please retry; a recorded send will not be duplicated.' : failure.message;
+            error.hidden = false;
+        } finally {
+            busy = false;
+            window.clearTimeout(timeout);
+            form.removeAttribute('aria-busy');
+            confirm.disabled = sent;
+            cancel.disabled = false;
+            confirm.textContent = 'Confirm Send';
+            if (sent) window.bootstrap.Modal.getInstance(modal)?.hide();
+        }
+    });
+})();
+
 // The normal authorized detail page remains the no-JavaScript fallback.
 (() => {
     const drawer = document.getElementById('bundleDetailsDrawer');

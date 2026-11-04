@@ -1333,7 +1333,7 @@ body {
 .inventory-ledger-empty { text-align: center; padding: 32px !important; }
 .inventory-page-pagination { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 20px; color: #1A1851; font-size: 0.78rem; }
 .inventory-page-pagination nav { display: flex; gap: 12px; }
-.inventory-page-panel .product-list-toolbar { flex-wrap: wrap !important; }
+.inventory-page-panel .product-list-toolbar { flex-wrap: wrap !important; border-bottom: 0 !important; padding-bottom: 6px !important; }
 .inventory-page-panel .product-list-toolbar > a { white-space: nowrap; margin-left: auto; }
 .inventory-page-panel .product-list-heading p { white-space: normal !important; overflow: visible; text-overflow: clip; }
 @media (max-width: 575.98px) {
@@ -4975,11 +4975,15 @@ body {
 .catalog-clear-filters:focus-visible { outline: 2px solid #FCB315; outline-offset: 2px; }
 .academic-form-pair { display: contents; }
 .inventory-monitor-actions { width: 1%; }
-.inventory-workspace-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 20px 0; }
-.inventory-workspace-tabs a, .fifo-receive > summary { color: #1A1851; border: 1px solid #E8EAF0; border-radius: 8px; padding: 10px 14px; background: #FFFFFF; text-decoration: none; cursor: pointer; font-size: .82rem; }
-.inventory-workspace-tabs a[aria-current="page"] { background: #1A1851; color: #FFFFFF; }
-.inventory-workspace-tabs a:hover, .fifo-receive > summary:hover { border-color: #FCB316; }
-.inventory-workspace-tabs a:focus-visible, .fifo-workspace summary:focus-visible { outline: 2px solid #1A1851; outline-offset: 2px; }
+.inventory-workspace-tabs { display: flex; align-items: center; gap: 24px; padding: 0 20px; margin: 0; border-bottom: 1px solid #E8EAF0; background: #FFFFFF; overflow-x: auto; scrollbar-width: none; }
+.inventory-workspace-tabs::-webkit-scrollbar { display: none; }
+.inventory-workspace-tabs a { position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 10px 2px 12px; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; border-radius: 0; background: transparent; color: #667085; font-size: .85rem; font-weight: 500; text-decoration: none; white-space: nowrap; cursor: pointer; transition: color .15s ease, border-color .15s ease; }
+.fifo-receive > summary { color: #1A1851; border: 1px solid #E8EAF0; border-radius: 8px; padding: 10px 14px; background: #FFFFFF; text-decoration: none; cursor: pointer; font-size: .82rem; font-weight: 500; }
+.inventory-workspace-tabs a[aria-current="page"] { background: transparent; color: #1A1851; font-weight: 600; border-bottom-color: #FCB316; }
+.inventory-workspace-tabs a:not([aria-current="page"]):hover { color: #1A1851; border-bottom-color: rgba(252, 179, 22, 0.4); text-decoration: none; }
+.fifo-receive > summary:hover { border-color: #FCB316; }
+.inventory-workspace-tabs a:focus-visible { outline: 2px solid #1A1851; outline-offset: 2px; border-radius: 2px; }
+.fifo-workspace summary:focus-visible { outline: 2px solid #1A1851; outline-offset: 2px; }
 .fifo-workspace { padding: 16px 20px; min-width: 0; }
 .fifo-workspace h3 { font-size: 1rem; color: #1A1851; margin: 0 0 8px; }
 .fifo-receive { margin-block: 16px; }
@@ -5033,6 +5037,12 @@ body {
 .fifo-movements-table .inventory-movement-product { min-width: 180px; overflow-wrap: anywhere; }
 .fifo-movements-table .inventory-movement-action { text-align: center; }
 .fifo-movements-table th:last-child { text-align: center; }
+.inventory-page .fifo-batches-table { min-width: 1600px; }
+.inventory-page .fifo-movements-table { min-width: 1800px; }
+.inventory-page .inventory-page-filters { grid-template-columns: minmax(0, 1.6fr) repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1279px) { .inventory-page .inventory-page-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .inventory-page .inventory-page-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 575px) { .inventory-page .inventory-page-filters { grid-template-columns: minmax(0, 1fr); } }
 .inventory-movement-pagination { align-items: center; }
 .inventory-movement-pagination nav { margin-left: auto; align-items: center; gap: 10px; }
 .inventory-movement-pagination .inventory-page-step { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid #E8EAF0; border-radius: 8px; color: #1A1851; background: #FFFFFF; font: inherit; text-decoration: none; }

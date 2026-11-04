@@ -1,4 +1,7 @@
 /* Compact projections of the same protected dashboard response; no extra data source. */
+if (document.body.classList.contains('super-admin-dashboard') && window.Chart) {
+    window.Chart.defaults.font.family = 'Montserrat, sans-serif';
+}
 document.addEventListener('DOMContentLoaded', () => {
     const root = document.querySelector('[data-executive-dashboard]');
     if (!root) return;
@@ -38,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (trendView) trendView.disabled = true;
         users.setAttribute('aria-busy', 'false');
         users.querySelectorAll('[data-user-metric]').forEach(el => { el.textContent = '\u2014'; });
-        users.querySelector('[data-users-content]').hidden = true;
+        users.querySelectorAll('[data-users-content]').forEach(el => { el.hidden = true; });
         users.querySelector('[data-users-error]').hidden = false;
     }
     function renderUsers(data) {
@@ -51,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 && new Date(`${row.date}T00:00:00Z`).toISOString().slice(0, 10) === row.date)
             || !Number.isSafeInteger(data.trend.reduce((total, row) => total + row.count, 0))) { failUsers(); return; }
         users.setAttribute('aria-busy', 'false');
-        users.querySelector('[data-users-content]').hidden = false;
+        users.querySelectorAll('[data-users-content]').forEach(el => { el.hidden = false; });
         users.querySelector('[data-users-error]').hidden = true;
         users.querySelectorAll('[data-user-metric]').forEach(el => { el.textContent = data[el.dataset.userMetric].toLocaleString('en-PH'); });
         function rows(selector, entries) {
@@ -78,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!hasData) return;
             try {
                 if (typeof Chart === 'undefined') throw new Error('Chart library unavailable');
-                const font = { family: 'Inter, sans-serif', size: 12 };
+                const font = { family: 'Montserrat, sans-serif', size: 12 };
                 userCharts[id] = new Chart(document.getElementById(id), {
                     type: kind,
                     data: { labels: entries.map(row => row.label || row.name), datasets: [{
@@ -114,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             users.querySelector('[data-user-trend-caption]').textContent = grouping === 'daily'
                 ? 'New registrations by date' : `New registrations by ${unit.toLowerCase()} within the selected period`;
             users.querySelector('#userRegistrationTrendChart').setAttribute('aria-label',
-                `Number of new registrations by ${unit.toLowerCase()} within the selected period. Exact values follow in the chart data table.`);
+                `Number of new registrations by ${unit.toLowerCase()} within the selected period`);
             rows('[data-user-trend-rows]', entries.map(row => [row.label, row.count.toLocaleString('en-PH')]));
             chart('userRegistrationTrendChart', 'line', entries, data.new_registrations > 0, grouping);
         };

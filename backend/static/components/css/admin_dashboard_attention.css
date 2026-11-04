@@ -1,0 +1,152 @@
+/* One presentation for the existing Super Admin and Marketplace attention cards.
+   Higher specificity overrides their legacy fixed header heights and row grids. */
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact {
+    --attention-border: #E8EAF0;
+    --attention-surface: #FFFFFF;
+    --attention-subtle: #F7F8FC;
+    --attention-navy: #1A1851;
+    --attention-gold: #FCB316;
+    container: dashboard-attention-panel / inline-size;
+    gap: 0 !important;
+    padding: 0 !important;
+    background: var(--attention-surface) !important;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-section-heading {
+    display: block !important;
+    flex: 0 0 auto;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 16px 12px 12px !important;
+    border: 0 !important;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-section-heading h2 {
+    display: block !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: var(--ch-font-ui) !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+    color: var(--attention-navy) !important;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-body {
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    padding: 0 12px 12px !important;
+    border: 0 !important;
+    background: var(--attention-surface) !important;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-row {
+    display: grid !important;
+    grid-template-columns: 16px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 4px 10px !important;
+    min-width: 0;
+    min-height: 52px !important;
+    margin: 0 !important;
+    padding: 8px 12px !important;
+    border: 1px solid var(--attention-border) !important;
+    border-radius: 12px !important;
+    background: var(--attention-surface) !important;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-icon {
+    grid-column: 1;
+    grid-row: 1;
+    width: 16px !important;
+    height: 16px !important;
+    color: var(--attention-gold) !important;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-summary {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact :is(.dashboard-attention-label, .dashboard-attention-count, .dashboard-attention-action) {
+    font-family: var(--ch-font-ui) !important;
+    color: var(--attention-navy) !important;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-count {
+    flex: 0 0 auto;
+    margin: 0 !important;
+    padding: 2px 7px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--attention-subtle);
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    font-variant-numeric: tabular-nums;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-action {
+    grid-column: 2 !important;
+    grid-row: 2;
+    justify-self: end !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-end;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 32px;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    white-space: normal !important;
+    text-align: right;
+    text-decoration: none !important;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-action:hover {
+    text-decoration: underline !important;
+    text-decoration-color: var(--attention-gold) !important;
+    text-underline-offset: 3px;
+}
+
+:is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-action:focus-visible {
+    outline: 2px solid var(--attention-navy);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+@container dashboard-attention-panel (min-width: 460px) {
+    :is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-row {
+        grid-template-columns: 16px minmax(0, 1fr) auto !important;
+    }
+    :is([data-global-dashboard] .dashboard-executive, .marketplace-dashboard .marketplace-dashboard-top) .dashboard-attention--compact .dashboard-attention-action {
+        grid-column: 3 !important;
+        grid-row: 1;
+    }
+}

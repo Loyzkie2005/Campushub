@@ -19,19 +19,131 @@ class FIFOInventoryTests(TestCase):
     def setUp(self):
         self.program, _ = Department.objects.get_or_create(code="BSIT", defaults={"name": "Information Technology", "is_program": True})
         self.admin = User.objects.create_superuser(username="fifo-admin", role="Super Admin", department=self.program)
-        self.product = Product.objects.create(seller=self.admin, name="FIFO test item", price="10.00", stock=0,
+        # Purchases belong to a different authenticated account than the seller.
+        from django.test import Client
+        self.buyer = User.objects.create_user(username='fifo-buyer', role='Student', department=self.program)
+        self.buyer_client = Client()
+        self.buyer_client.force_login(self.buyer)
+        fifo.initialize(fifo.reconciliation()["fingerprint"])
+        self.product = self.create_product(seller=self.admin, name="FIFO test item", price="10.00", stock=0,
             low_stock_threshold=0, category="Supplies", approval_status="approved")
         self.sku = self.product.inventory_skus.get(group_name="", variant_name="")
-        fifo.initialize(fifo.reconciliation()["fingerprint"])
         self.client.force_login(self.admin)
+
+    def create_product(self, **values):
+        values.setdefault("inventory_method", "fifo" if values.get("product_type") != "bundle" and fifo.enabled() else "simple")
+        return Product.objects.create(**values)
+
+    def activate_legacy(self):
+        # Test fixture only: simulate explicitly configured stock awaiting cutover.
+        self.assertFalse(fifo.enabled())
+        Product.objects.exclude(product_type="bundle").update(inventory_method="fifo")
+        self.product.inventory_method = "fifo"
 
     def receive(self, qty, *, sku=None, key=None):
         return fifo.receive((sku or self.sku).pk, qty, "Actual isolated test receipt", self.admin, key or uuid4())
 
+    def test_receiving_date_orders_older_receipts_before_newer_recordings(self):
+        from datetime import timedelta
+        newer = timezone.now() - timedelta(days=1)
+        older = timezone.now() - timedelta(days=5)
+        fifo.receive(self.sku.pk, 5, "Newer delivery", self.admin, uuid4(), received_at=newer.isoformat())
+        fifo.receive(self.sku.pk, 8, "Older delivery recorded later", self.admin, uuid4(), received_at=older.isoformat())
+        response = self.order(6)
+        self.assertEqual(response.status_code, 201, response.content)
+        allocations = InventoryBatchAllocation.objects.filter(state="reserved")
+        self.assertEqual([(row.batch.transaction_reference, row.quantity) for row in allocations], [("Older delivery recorded later", 6)])
+        self.assertEqual(self.sku.batches.get(transaction_reference="Newer delivery").remaining_quantity, 5)
+
+    def test_equal_receiving_dates_use_a_deterministic_recording_sequence(self):
+        from datetime import timedelta
+        received = timezone.now() - timedelta(days=2)
+        for reference in ("First tie", "Second tie"):
+            fifo.receive(self.sku.pk, 5, reference, self.admin, uuid4(), received_at=received.isoformat())
+        self.sku.batches.update(recorded_at=received)
+        response = self.order(6)
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(list(InventoryBatchAllocation.objects.order_by("batch_id").values_list("quantity", flat=True)), [5, 1])
+
+    def test_receiving_api_date_notes_and_retry_are_atomic(self):
+        from datetime import timedelta
+        received = (timezone.now() - timedelta(days=1)).isoformat()
+        payload = {"sku": self.sku.pk, "quantity": 7, "reference": "Receipt with notes", "received_at": received,
+            "notes": "Verified quantity at delivery", "key": str(uuid4())}
+        first = self.client.post(reverse("admin_receive_stock"), json.dumps(payload), content_type="application/json")
+        self.assertEqual(first.status_code, 200, first.content)
+        retry = self.client.post(reverse("admin_receive_stock"), json.dumps(payload), content_type="application/json")
+        self.assertEqual(retry.json(), first.json())
+        self.assertEqual(self.sku.batches.count(), 1)
+        batch = self.sku.batches.get()
+        self.assertEqual(batch.received_at.isoformat(), received)
+        self.assertEqual(batch.receipt_movement.notes, payload["notes"])
+        payload["notes"] = "Changed retry"
+        self.assertEqual(self.client.post(reverse("admin_receive_stock"), json.dumps(payload), content_type="application/json").status_code, 409)
+        self.product.refresh_from_db(); self.assertEqual(self.product.stock, 7)
+
+    def test_invalid_receiving_date_and_notes_leave_no_batches_or_operations(self):
+        from datetime import timedelta
+        for value in ("not-a-date", "2026-99-99T10:00", (timezone.now() + timedelta(days=1)).isoformat()):
+            with self.subTest(value=value), self.assertRaises(fifo.FIFOError):
+                fifo.receive(self.sku.pk, 4, "Invalid date", self.admin, uuid4(), received_at=value)
+        for notes in ([], "x" * 501):
+            with self.subTest(notes=notes), self.assertRaises(fifo.FIFOError):
+                fifo.receive(self.sku.pk, 4, "Invalid notes", self.admin, uuid4(), notes=notes)
+        self.assertFalse(self.sku.batches.exists())
+        self.assertFalse(InventoryOperation.objects.exists())
+        self.product.refresh_from_db(); self.assertEqual(self.product.stock, 0)
+
+    def test_batch_remaining_is_physical_and_history_is_batch_scoped(self):
+        self.receive(20)
+        other = self.create_product(seller=self.admin, name="Other SKU", price=2, stock=0, approval_status="approved")
+        other_sku = other.inventory_skus.get(variant_name="")
+        fifo.receive(other_sku.pk, 11, "Other receipt", self.admin, uuid4())
+        self.assertEqual(self.order(5).status_code, 201)
+        page = self.client.get(reverse("admin_products_page"), {"view":"inventory", "inventory_section":"fifo", "product_id":self.product.pk})
+        batch = page.context["fifo_batches"][0]
+        self.assertEqual((batch.physical_remaining_quantity, batch.reserved_quantity, batch.remaining_quantity), (20, 5, 15))
+        self.assertContains(page, 'title="View Batch History"')
+        self.assertContains(page, "Remaining Quantity")
+        history = self.client.get(batch.history_url)
+        self.assertEqual(history.status_code, 200)
+        self.assertTrue(all(movement.sku_id == self.sku.pk for movement in history.context["fifo_movements"]))
+        foreign = self.client.get(reverse("admin_products_page"), {"view":"inventory", "inventory_section":"movements", "product_id":self.product.pk, "batch":other_sku.batches.get().pk})
+        self.assertFalse(list(foreign.context["fifo_movements"]))
+
+    def test_movement_history_is_available_when_fifo_receiving_is_disabled(self):
+        fifo.receive(self.sku.pk, 9, "Find this transaction", self.admin, uuid4(), notes="Exact receipt note")
+        with override_settings(CAMPUSHUB_FIFO_ENABLED=False):
+            page = self.client.get(reverse("admin_products_page"), {"view":"inventory", "inventory_section":"movements", "search":"Find this transaction"})
+            self.assertEqual(page.status_code, 200)
+            self.assertEqual(len(page.context["fifo_movements"]), 1)
+            self.assertContains(page, "Exact receipt note")
+            self.assertContains(page, "Previous Quantity")
+            self.assertNotContains(page, 'id="fifoReceiveForm"')
+            if os.environ.get("FIFO_REVIEW_DIR"):
+                (Path(os.environ["FIFO_REVIEW_DIR"])/"movements-disabled.html").write_bytes(page.content)
+
+    def test_stock_adjustment_records_the_supplied_reason(self):
+        self.receive(20)
+        response = self.client.post(reverse("admin_update_product_stock", args=[self.product.pk]), json.dumps({"stock": 17, "reason":"Damaged units removed after inspection"}), content_type="application/json")
+        self.assertEqual(response.status_code, 200, response.content)
+        movement = self.sku.movements.filter(kind="adjustment").get()
+        self.assertEqual(movement.notes, "Damaged units removed after inspection")
+        self.assertEqual((movement.available_before, movement.available_after), (20, 17))
+
+    def test_receiving_with_reservations_records_physical_not_reserved_deduction(self):
+        self.receive(20)
+        self.assertEqual(self.order(5).status_code, 201)
+        receipt = self.receive(10)
+        movement = self.sku.batches.get(pk=int(receipt["batch"].split("-")[1])).receipt_movement
+        self.assertEqual((movement.balance, movement.available_before, movement.available_after), ("on_hand", 20, 30))
+        reservation = self.sku.movements.get(kind="reservation")
+        self.assertEqual((reservation.balance, reservation.available_before, reservation.available_after), ("available", 20, 15))
+
     def order(self, qty, *, product=None, selections=None, key=None):
         headers = {"HTTP_IDEMPOTENCY_KEY": str(key)} if key else {}
-        return self.client.post(reverse("marketplace_orders"), json.dumps({"product_id": (product or self.product).pk,
-            "buyer_user_id": self.admin.pk, "quantity": qty, "customization": selections or []}), content_type="application/json", **headers)
+        return self.buyer_client.post(reverse("marketplace_orders"), json.dumps({"product_id": (product or self.product).pk,
+            "buyer_user_id": self.buyer.pk, "quantity": qty, "customization": selections or []}), content_type="application/json", **headers)
 
     def cancel(self, order):
         return self.client.post(reverse("admin_order_update", args=[order.pk]), json.dumps({"status": "cancelled", "cancellation_reason": "Isolated FIFO verification"}), content_type="application/json")
@@ -64,6 +176,8 @@ class FIFOInventoryTests(TestCase):
         self.assertEqual(self.sku.batches.get().remaining_quantity, 25)
         self.assertEqual(list(order.fifo_allocations.values_list("state", flat=True)), ["consumed"])
         self.assertEqual(order.inventory_movements.filter(kind="sale").count(), 1)
+        sale = order.inventory_movements.get(kind="sale")
+        self.assertEqual((sale.available_before, sale.available_after, sale.balance), (50, 25, "on_hand"))
 
     def test_insufficient_stock_and_reconciliation_mismatch_roll_back(self):
         self.receive(20)
@@ -91,7 +205,7 @@ class FIFOInventoryTests(TestCase):
         self.assertEqual(self.sku.batches.get().remaining_quantity, 25)
 
     def test_variant_batches_use_stable_skus_and_survive_reordering(self):
-        product = Product.objects.create(seller=self.admin, name="Sizes", price=10, stock=0, approval_status="approved",
+        product = self.create_product(seller=self.admin, name="Sizes", price=10, stock=0, approval_status="approved",
             customization_enabled=True, customization_options=[{"name": "Size", "required": True, "selection": "single", "options": [
                 {"name": "Small", "stock": 0, "low_stock_threshold": 0}, {"name": "Large", "stock": 0, "low_stock_threshold": 0}]}])
         small = product.inventory_skus.get(variant_name="Small"); large = product.inventory_skus.get(variant_name="Large")
@@ -106,8 +220,8 @@ class FIFOInventoryTests(TestCase):
 
     def test_bundle_components_and_changed_recipe_restore_recorded_batches(self):
         self.receive(20); self.receive(30)
-        other = Product.objects.create(seller=self.admin, name="Other component", price=2, stock=100, approval_status="approved")
-        bundle = Product.objects.create(seller=self.admin, name="Bundle", price=15, stock=0, product_type="bundle", approval_status="approved")
+        other = self.create_product(seller=self.admin, name="Other component", price=2, stock=100, approval_status="approved")
+        bundle = self.create_product(seller=self.admin, name="Bundle", price=15, stock=0, product_type="bundle", approval_status="approved")
         BundleComponent.objects.create(bundle=bundle, product=self.product, required_quantity=2)
         component = BundleComponent.objects.create(bundle=bundle, product=other, required_quantity=1)
         response = self.order(15, product=bundle); self.assertEqual(response.status_code, 201, response.content)
@@ -136,9 +250,11 @@ class FIFOInventoryTests(TestCase):
 
     def test_legacy_opening_preserves_available_and_active_hold(self):
         InventoryFIFOControl.objects.update(active=False)
+        self.product.inventory_method = "simple"
         self.product.stock = 50; self.product.save()
         response = self.order(5); self.assertEqual(response.status_code, 201)
         order = MarketplaceOrder.objects.get(pk=response.json()["order"]["id"])
+        self.activate_legacy()
         before = fifo.reconciliation(); line = next(row for row in before["rows"] if row["sku"] == self.sku.pk)
         self.assertEqual((line["available"], line["reserved"], line["opening_quantity"]), (45, 5, 50))
         fifo.initialize(before["fingerprint"])
@@ -315,7 +431,7 @@ class FIFOInventoryTests(TestCase):
         other, _ = Department.objects.get_or_create(code="BFPT",defaults={"name":"Food Processing", "is_program":True})
         manager = User.objects.create_user(username="drawer-manager",is_staff=True,role="Marketplace Admin",department=other)
         sync_user_admin_permissions(manager)
-        product = Product.objects.create(seller=manager,name="Authorized other product",price=10,stock=0,approval_status="approved")
+        product = self.create_product(seller=manager,name="Authorized other product",price=10,stock=0,approval_status="approved")
         sku = product.inventory_skus.get(variant_name="")
         self.receive(7,sku=sku)
         self.client.force_login(manager)
@@ -338,7 +454,7 @@ class FIFOInventoryTests(TestCase):
         self.product.save(update_fields=["department", "major"])
         self.receive(20); self.receive(30)
         first, selected = self.sku.batches.order_by("pk")
-        other = Product.objects.create(seller=self.admin, name="Unrelated stock", price=2, stock=0, approval_status="approved")
+        other = self.create_product(seller=self.admin, name="Unrelated stock", price=2, stock=0, approval_status="approved")
         self.receive(7, sku=other.inventory_skus.get(variant_name=""))
         params = {"view":"inventory", "inventory_section":"fifo", "search":selected.code.lower(),
                   "program":self.program.pk, "major":major.pk, "seller":self.admin.pk,
@@ -359,7 +475,7 @@ class FIFOInventoryTests(TestCase):
 
     def test_batch_search_supports_variant_sku_product_and_actual_seller(self):
         seller = User.objects.create_user(username="batch-owner", first_name="Actual", last_name="Owner")
-        product = Product.objects.create(seller=seller, name="Grouped inventory", price=4, stock=0,
+        product = self.create_product(seller=seller, name="Grouped inventory", price=4, stock=0,
             approval_status="approved", customization_enabled=True, customization_options=[{
                 "name":"Color", "selection":"single", "required":True,
                 "options":[{"name":"Crimson", "stock":0}, {"name":"Azure", "stock":0}]}])
@@ -452,10 +568,12 @@ class FIFOInventoryTests(TestCase):
 
     def test_legacy_reconciliation_display_requires_matching_order_and_sku(self):
         InventoryFIFOControl.objects.update(active=False)
+        self.product.inventory_method = "simple"
         self.product.stock=10;self.product.save()
         response=self.order(2);self.assertEqual(response.status_code,201)
         order=MarketplaceOrder.objects.get(pk=response.json()["order"]["id"])
-        other=Product.objects.create(seller=self.admin,name="Unrelated inventory",price=2,stock=4,approval_status="approved")
+        other=self.create_product(seller=self.admin,name="Unrelated inventory",price=2,stock=4,approval_status="approved")
+        self.activate_legacy()
         fifo.initialize(fifo.reconciliation()['fingerprint'])
         other.stock=3;other.save(update_fields=['stock'])
         page=self.client.get(reverse('admin_products_page'),{'view':'inventory','inventory_section':'movements'})
@@ -472,19 +590,19 @@ class FIFOInventoryTests(TestCase):
 
     def test_batch_empty_and_inactive_views_keep_honest_labels(self):
         page = self.client.get(reverse("admin_products_page"), {"view": "inventory", "inventory_section": "fifo"})
-        self.assertContains(page, 'colspan="8"')
-        self.assertContains(page, "No inventory batches match the selected filters.")
+        self.assertContains(page, 'colspan="12"')
+        self.assertContains(page, "No stock batches recorded yet.")
         if os.environ.get("FIFO_REVIEW_DIR"):
             (Path(os.environ["FIFO_REVIEW_DIR"]) / "empty.html").write_bytes(page.content)
         with override_settings(CAMPUSHUB_FIFO_ENABLED=False):
             for section in ("fifo", "movements"):
                 page = self.client.get(reverse("admin_products_page"), {"view": "inventory", "inventory_section": section})
-                self.assertContains(page, "Stock receiving is not available yet.")
+                self.assertContains(page, "Stock receiving is not configured. Contact your system administrator.")
                 self.assertNotContains(page, 'id="fifoReceiveForm"')
                 self.assertNotContains(page, "FIFO receiving")
                 if section == "fifo" and os.environ.get("FIFO_REVIEW_DIR"):
                     (Path(os.environ["FIFO_REVIEW_DIR"]) / "inactive.html").write_bytes(page.content)
-            with self.assertRaisesRegex(fifo.FIFOError, "Stock receiving is not available yet"):
+            with self.assertRaisesRegex(fifo.FIFOError, "Stock receiving is not configured"):
                 self.receive(1)
 
     def test_receiving_endpoint_replays_and_foreign_scope_is_blocked(self):
@@ -500,10 +618,10 @@ class FIFOInventoryTests(TestCase):
         with self.assertRaises(fifo.FIFOError): fifo.receive(self.sku.pk, 10, "Outside scope", manager, uuid4())
 
     def test_shared_variant_bundle_pools_and_retired_variant_guard(self):
-        product = Product.objects.create(seller=self.admin, name="Shared options", price=10, stock=0, approval_status="approved", customization_enabled=True,
+        product = self.create_product(seller=self.admin, name="Shared options", price=10, stock=0, approval_status="approved", customization_enabled=True,
             customization_options=[{"name":"Size", "required":True, "options":[{"name":"Large", "stock":5}]},
                 {"name":"Flavor", "required":True, "options":[{"name":"Vanilla", "stock":10}, {"name":"Chocolate", "stock":10}]}])
-        bundle = Product.objects.create(seller=self.admin, name="Shared bundle", price=20, stock=0, product_type="bundle", approval_status="approved")
+        bundle = self.create_product(seller=self.admin, name="Shared bundle", price=20, stock=0, product_type="bundle", approval_status="approved")
         for flavor, qty in [("Vanilla",2),("Chocolate",1)]:
             BundleComponent.objects.create(bundle=bundle, product=product, required_quantity=qty,
                 selections=[{"group":"Size", "option":"Large"},{"group":"Flavor", "option":flavor}])
@@ -519,9 +637,13 @@ class FIFOInventoryTests(TestCase):
 
     def test_changed_dry_run_fingerprint_blocks_cutover_without_stock_changes(self):
         InventoryFIFOControl.objects.update(active=False)
+        self.product.inventory_method = "simple"
         self.product.stock = 10; self.product.save()
+        self.activate_legacy()
         plan = fifo.reconciliation()
+        self.product.inventory_method = "simple"
         self.product.stock = 11; self.product.save()
+        self.activate_legacy()
         with self.assertRaises(fifo.FIFOError): fifo.initialize(plan["fingerprint"])
         self.assertFalse(InventoryFIFOControl.objects.get(pk=1).active)
         self.assertFalse(InventoryBatch.objects.exists())
@@ -535,7 +657,9 @@ class FIFOInventoryTests(TestCase):
         from django.core.management.base import CommandError
         from django.db import connection
         InventoryFIFOControl.objects.update(active=False)
+        self.product.inventory_method = "simple"
         self.product.stock = 10; self.product.save()
+        self.activate_legacy()
         plan = fifo.reconciliation()
         config = connection.settings_dict
         self.assertTrue(config["NAME"].startswith("test_"))

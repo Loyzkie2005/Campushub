@@ -21,6 +21,87 @@ from .services.bundle_suggestions import (DATASET, DISCLOSURE, analyze_synthetic
 
 
 class AprioriDemonstrationTests(SimpleTestCase):
+    def test_itemset_metadata_preserves_rule_math_and_pair_scope(self):
+        baskets = [[(item, item) for item in row] for row in [('A', 'B'), ('A', 'B'), ('A',), ('C',)]]
+        kwargs = dict(detailed=True, limit=None, minimum_support=.02, minimum_confidence=.30, minimum_lift=1)
+        original = calculate_market_basket(baskets, **kwargs)
+        detailed = calculate_market_basket(baskets, include_itemsets=True, **kwargs)
+        self.assertEqual(original['rows'], detailed['rows'])
+        self.assertNotIn('frequent_itemsets', original)
+        itemsets = {tuple(p['id'] for p in row['products']): (row['supporting_transactions'], row['support'])
+                    for row in detailed['frequent_itemsets']}
+        self.assertEqual(itemsets, {('A',): (3, 75), ('B',): (2, 50), ('C',): (1, 25), ('A', 'B'): (2, 50)})
+        limited = calculate_market_basket(baskets, include_itemsets=True, **{**kwargs, 'minimum_support': .51})
+        self.assertEqual([r['products'][0]['id'] for r in limited['frequent_itemsets']], ['A'])
+        self.assertTrue(all(len(r['products']) <= 2 for r in detailed['frequent_itemsets']))
+
+    def _research_fixture(self, path):
+        fields = ['transaction_id', 'date', 'seller_id', 'product_id', 'product_name', 'category', 'quantity', 'unit_price_php', 'data_origin']
+        with path.open('w', encoding='utf-8', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer.writeheader()
+            for txn, product in [('T1', 'A'), ('T1', 'B'), ('T2', 'A'), ('T2', 'B'), ('T3', 'A'), ('T4', 'C')]:
+                writer.writerow(dict(zip(fields, [txn, '10/20/2026', 'S1', product,
+                    {'A': 'Alpha', 'B': 'Bravo', 'C': 'Other'}[product], 'Test', '1', '10', 'SYNTHETIC'])))
+
+    def _research_user(self, superuser=True):
+        from types import SimpleNamespace
+        return SimpleNamespace(is_authenticated=True, is_superuser=superuser, is_active=True,
+            is_suspended=False, is_staff=True, role='Super Admin' if superuser else 'Marketplace Admin',
+            has_perm=lambda permission: True)
+
+    def test_research_cache_is_explicit_versioned_and_threshold_bound(self):
+        from django.core.cache import cache
+        from .services.bundle_suggestions import research_dataset, execute_synthetic_research, saved_synthetic_research
+        cache.clear()
+        user = self._research_user()
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / 'research.csv'
+            self._research_fixture(path)
+            with override_settings(CAMPUSHUB_SYNTHETIC_ORDER_ITEMS_PATH=str(path)):
+                with patch('modules.marketplace.services.bundle_suggestions.calculate_market_basket', side_effect=AssertionError('Read cannot mine')), patch.object(cache, 'set', wraps=cache.set) as write:
+                    snapshot = research_dataset()
+                    self.assertEqual((snapshot['transaction_count'], snapshot['item_count'], snapshot['unique_product_count']), (4, 6, 3))
+                    self.assertIsNone(saved_synthetic_research(user, snapshot, thresholds()))
+                    write.assert_not_called()
+                saved = execute_synthetic_research(user)
+                self.assertEqual(saved['result']['directional_rows'][0]['together_count'], 2)
+                self.assertEqual(len(saved['result']['frequent_itemsets']), 4)
+                with patch('modules.marketplace.services.bundle_suggestions.calculate_market_basket', side_effect=AssertionError('Read cannot mine')), patch.object(cache, 'set', wraps=cache.set) as write:
+                    self.assertEqual(saved_synthetic_research(user, snapshot, thresholds()), saved)
+                    with override_settings(CAMPUSHUB_BUNDLE_MIN_SUPPORT=.51):
+                        self.assertIsNone(saved_synthetic_research(user, snapshot, thresholds()))
+                    write.assert_not_called()
+                stamp = path.stat()
+                path.write_bytes(path.read_bytes().replace(b'Alpha', b'Omega'))
+                os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+                changed = research_dataset()
+                self.assertEqual(path.stat().st_size, stamp.st_size)
+                self.assertNotEqual(snapshot['version'], changed['version'])
+                self.assertIsNone(saved_synthetic_research(user, changed, thresholds()))
+
+    def test_failed_research_never_publishes_cache_and_manager_cannot_access_it(self):
+        from django.core.cache import cache
+        from django.core.exceptions import PermissionDenied
+        from .services.bundle_suggestions import research_dataset, execute_synthetic_research, saved_synthetic_research
+        cache.clear()
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / 'research.csv'
+            self._research_fixture(path)
+            with override_settings(CAMPUSHUB_SYNTHETIC_ORDER_ITEMS_PATH=str(path)):
+                with patch('modules.marketplace.services.bundle_suggestions.calculate_market_basket', side_effect=ValueError('failed execution')), patch.object(cache, 'set') as write:
+                    with self.assertRaises(ValueError):
+                        execute_synthetic_research(self._research_user())
+                    write.assert_not_called()
+                self.assertIsNone(saved_synthetic_research(self._research_user(), research_dataset(), thresholds()))
+                with patch.object(cache, 'get') as read, patch.object(cache, 'set') as write:
+                    with self.assertRaises(PermissionDenied):
+                        saved_synthetic_research(self._research_user(False), research_dataset(), thresholds())
+                    with self.assertRaises(PermissionDenied):
+                        execute_synthetic_research(self._research_user(False))
+                    read.assert_not_called()
+                    write.assert_not_called()
+
     def mine(self, baskets, **kwargs):
         return calculate_market_basket([[(item, item) for item in basket] for basket in baskets],
             detailed=True, limit=None, minimum_support=.02, minimum_confidence=.30, minimum_lift=1, **kwargs)
@@ -299,7 +380,6 @@ class BundleSuggestionAccessTests(TestCase):
         self.assertNotContains(response, 'id="bundleReviewDialog"')
         self.assertContains(response, 'dashboard-summary-aside', count=1)
         self.assertContains(response, 'id="marketplaceRecommendationsTitle"', count=1)
-        self.assertContains(response, 'Suggested Product Bundles')
         self.assertNotContains(response, 'id="bundleSuggestionsTitle"')
         self.assertNotContains(response, 'id="recommendationActivityTitle"')
         self.assertNotContains(response, 'id="categorySalesCard"')
