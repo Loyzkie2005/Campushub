@@ -145,7 +145,14 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(products, reverse("admin_marketplace_analytics_page"))
         self.assertContains(products, "Reports & Analytics")
         self.assertContains(products, "Generate Reports")
-        self.assertContains(products, "System")
+        products_sidebar = products.content.decode().split('<nav class="sidebar-nav">')[1].split('</nav>')[0]
+        self.assertNotIn(reverse("admin_messages_page"), products_sidebar)
+        self.assertNotIn(reverse("admin_settings_page"), products_sidebar)
+        self.assertNotIn("System Settings", products_sidebar)
+        self.assertNotIn(">System<", products_sidebar)
+        self.assertContains(products, reverse("admin_messages_page"))
+        self.assertContains(products, reverse("admin_settings_page"))
+        self.assertEqual(self.client.get(reverse("admin_settings_page")).status_code, 200)
 
         # Marketplace support links are scoped; facilities, roles and backups remain unavailable.
         self.assertNotContains(products, reverse("admin_facility_page"))
@@ -158,7 +165,8 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertNotContains(products, reverse("admin_backup_page"))
 
         self.assertEqual(self.client.get(reverse("admin_messages_page")).status_code, 200)
-        self.assertEqual(self.client.get(reverse("admin_notifications_page")).status_code, 200)
+        self.assertRedirects(self.client.get(reverse("admin_notifications_page")), reverse("admin_dashboard_page"), fetch_redirect_response=False)
+        self.assertNotContains(products, reverse("admin_notifications_page"))
 
     def test_facilities_admin_routes_and_sidebar_are_permission_scoped(self):
         self.client.force_login(self.facilities_admin)
@@ -179,7 +187,15 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(facilities_page, reverse("admin_facility_analytics_page"))
         self.assertContains(facilities_page, "Reports & Analytics")
         self.assertContains(facilities_page, "Generate Reports")
-        self.assertContains(facilities_page, "System")
+        facilities_sidebar = facilities_page.content.decode().split('<nav class="sidebar-nav">')[1].split('</nav>')[0]
+        self.assertNotIn(reverse("admin_messages_page"), facilities_sidebar)
+        self.assertNotIn(reverse("admin_settings_page"), facilities_sidebar)
+        self.assertNotIn("System Settings", facilities_sidebar)
+        self.assertNotIn(">System<", facilities_sidebar)
+        self.assertContains(facilities_page, reverse("admin_messages_page"))
+        self.assertContains(facilities_page, reverse("admin_settings_page"))
+        self.assertEqual(self.client.get(reverse("admin_messages_page")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("admin_settings_page")).status_code, 200)
 
         # Facilities admin sidebar does NOT have marketplace, users, or backup
         self.assertNotContains(facilities_page, reverse("admin_products_page"))
@@ -270,12 +286,18 @@ class DomainAnalyticsPermissionTests(TestCase):
         self.assertContains(users_page, reverse("admin_calendar_page"))
         self.assertContains(users_page, reverse("admin_generate_reports_page"))
         self.assertContains(users_page, reverse("admin_messages_page"))
-        self.assertContains(users_page, reverse("admin_notifications_page"))
+        self.assertNotContains(users_page, reverse("admin_notifications_page"))
         self.assertContains(users_page, reverse("admin_settings_page"))
         self.assertNotContains(users_page, reverse("admin_backup_page"))
         self.assertContains(users_page, "Reports & Analytics")
         self.assertContains(users_page, "Generate Reports")
-        self.assertContains(users_page, "System Settings")
+        users_sidebar = users_page.content.decode().split('<nav class="sidebar-nav">')[1].split('</nav>')[0]
+        self.assertNotIn(reverse("admin_messages_page"), users_sidebar)
+        self.assertNotIn(reverse("admin_settings_page"), users_sidebar)
+        self.assertNotIn("System Settings", users_sidebar)
+        self.assertNotIn(">System<", users_sidebar)
+        self.assertEqual(self.client.get(reverse("admin_messages_page")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("admin_settings_page")).status_code, 200)
 
         # Final sidebar keeps Sellers and one permission-scoped Reports Analytics link.
         self.assertContains(users_page, reverse("admin_sellers_page"))
@@ -513,7 +535,7 @@ class DedicatedDomainDashboardTests(TestCase):
         self.assertNotContains(response, "components/css/admin_domain_dashboards.css")
 
         # Facilities operational content
-        self.assertContains(response, "Facilities Dashboard")
+        self.assertContains(response, "<title>CampusHub | Dashboard</title>", html=True)
         self.assertContains(response, "Monitor facilities, reservations, schedules, and booking activity")
         self.assertContains(response, "Total Facilities")
         self.assertContains(response, "Pending Bookings")

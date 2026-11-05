@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from api.models import Booking, Facility
-from .operating_schedule import WEEKDAYS, duration_hours, parse_time, parse_time_ranges, weekly_hours
+from .operating_schedule import WEEKDAYS, duration_hours, parse_time, parse_time_ranges, weekly_hours, booking_day_restriction
 from .rental_configuration import slot_base_amount
 
 
@@ -75,8 +75,9 @@ def date_restriction(facility, day, *, now=None):
     now = now or timezone.localtime()
     if day < now.date():
         return "Past date."
-    if (facility.workflow_config or {}).get("weekend_only") and day.weekday() < 5:
-        return "Weekend bookings only (Saturday and Sunday)."
+    restriction = booking_day_restriction(facility.workflow_config or {}, day)
+    if restriction:
+        return restriction
     if not configured_slots(facility, day):
         return "No configured operating periods for this date."
     if facility.is_archived or facility.availability_status not in (Facility.STATUS_AVAILABLE, Facility.STATUS_MAINTENANCE):
@@ -88,7 +89,7 @@ def slot_status(facility, day, start, end, *, exclude_booking=None, conflicts=No
     now = timezone.localtime()
     if day < now.date() or (day == now.date() and start <= now.time().replace(tzinfo=None)):
         return "unavailable"
-    if (facility.workflow_config or {}).get("weekend_only") and day.weekday() < 5:
+    if booking_day_restriction(facility.workflow_config or {}, day):
         return "unavailable"
     if not any(opening <= start < end <= closing for opening, closing in configured_slots(facility, day)):
         return "unavailable"

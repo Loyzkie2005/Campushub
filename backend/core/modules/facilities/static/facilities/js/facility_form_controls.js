@@ -44,8 +44,6 @@
             this.customMinimum = root.querySelector('#facilityCustomDuration');
             this.type = 'covered_court';
             this.readOnly = false;
-            this.weekendOnly = false;
-            this.policyWeekendOnly = false;
             this.buildSchedule();
             this.other.addEventListener('change', () => this.syncOther());
             this.otherInput.addEventListener('input', () => this.otherInput.setCustomValidity(''));
@@ -81,12 +79,8 @@
             presetsBar.append(...this.presetButtons.map(({button}) => button));
             const help = document.createElement('p');
             help.className = 'facility-schedule-help';
-            help.textContent = 'Presets keep configured hours. New days use 8:00 AM–5:00 PM.';
-            this.policyNotice = document.createElement('p');
-            this.policyNotice.className = 'facility-schedule-help';
-            this.policyNotice.textContent = 'This facility’s policy permits weekend bookings only.';
-            this.policyNotice.hidden = true;
-            this.schedule.append(presetsBar, help, this.policyNotice);
+            help.textContent = 'Select the facility\u2019s operating days and hours.';
+            this.schedule.append(presetsBar, help);
             this.rows = this.configuration.weekdays.map((day) => {
                 const row = document.createElement('div');
                 row.className = 'facility-hours-row';
@@ -145,7 +139,7 @@
 
         applyPreset(days) {
             // Presets change the schedule, never the facility's saved policy.
-            if (this.readOnly || (this.weekendOnly && days.some(day => !['saturday', 'sunday'].includes(day)))) return;
+            if (this.readOnly) return;
             this.scheduleDirty = true;
             for (const row of this.rows) {
                 row.active.checked = days.includes(row.day);
@@ -170,8 +164,7 @@
             const visible = !this.schedule.closest('[data-facility-field]').hidden;
             for (const {preset, button} of this.presetButtons) {
                 button.setAttribute('aria-pressed', String(preset.key === (matched ? matched.key : 'custom')));
-                button.disabled = this.readOnly || !visible || Boolean(this.weekendOnly
-                    && preset.days?.some(day => !['saturday', 'sunday'].includes(day)));
+                button.disabled = this.readOnly || !visible;
             }
         }
 
@@ -183,9 +176,7 @@
 
         syncDay(row) {
             const visible = !this.schedule.closest('[data-facility-field]').hidden;
-            const lockedWeekday = this.weekendOnly && !['saturday', 'sunday'].includes(row.day);
-            if (lockedWeekday) row.active.checked = false;
-            row.active.disabled = this.readOnly || !visible || lockedWeekday;
+            row.active.disabled = this.readOnly || !visible;
             row.times.hidden = !row.active.checked;
             row.closed.hidden = row.active.checked;
             for (const field of [row.open, row.close]) {
@@ -233,7 +224,6 @@
             if (!this.physical) return {};
             return {
                 other_feature: this.other.checked ? this.otherInput.value.trim() : null,
-                weekend_only: this.weekendOnly,
             };
         }
 
@@ -241,12 +231,6 @@
             const safeWorkflow = workflow && typeof workflow === 'object' ? workflow : {};
             this.customFeature = this.physical && typeof safeWorkflow.other_feature === 'string' ? safeWorkflow.other_feature : '';
             this.other.checked = Boolean(this.customFeature); this.otherInput.value = this.customFeature; this.syncOther();
-            this.policyWeekendOnly = safeWorkflow.weekend_only === true;
-            // Scope a loaded policy to its category; switching a draft category
-            // must not carry the previous facility's restrictions into it.
-            this.policyType = this.type;
-            this.weekendOnly = this.policyWeekendOnly;
-            this.policyNotice.hidden = !this.weekendOnly;
             const hours = safeWorkflow.operating_hours;
             this.originalHours = hours;
             this.scheduleDirty = false;
@@ -285,6 +269,7 @@
         }
 
         getOperatingHours() {
+            if (this.originalHours == null && !this.scheduleDirty) return this.originalHours;
             if (typeof this.originalHours === 'string' && !this.scheduleDirty) return this.originalHours;
             return Object.fromEntries(this.rows.map((row) => [row.day, row.active.checked
                 ? {open: row.open.value, close: row.close.value} : null]));
@@ -296,8 +281,6 @@
                 const otherChecked = this.other.checked, otherText = this.otherInput.value;
                 this.customFeature = this.physical && otherChecked ? otherText : '';
                 this.type = type;
-                this.weekendOnly = type === this.policyType && Boolean(this.policyWeekendOnly);
-                this.policyNotice.hidden = !this.weekendOnly;
                 this.setAmenities(selected);
                 this.other.checked = otherChecked; this.otherInput.value = otherText;
             }

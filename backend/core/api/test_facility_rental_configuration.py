@@ -825,7 +825,7 @@ class FacilityRentalAPITests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("discount_rules.1", response.json()["errors"])
 
-    def test_client_eligibility_weekend_only_and_hourly_package_options_validate(self):
+    def test_client_eligibility_operating_days_and_hourly_package_options_validate(self):
         weekend_hours = {
             "monday": None, "tuesday": None, "wednesday": None, "thursday": None, "friday": None,
             "saturday": {"open": "08:00", "close": "17:00"},
@@ -847,7 +847,8 @@ class FacilityRentalAPITests(TestCase):
         self.assertEqual(created.status_code, 201, created.content)
         data = created.json()["facility"]
         self.assertEqual(data["eligible_clients"], "both")
-        self.assertEqual(data["workflow_config"]["weekend_only"], True)
+        self.assertNotIn("weekend_only", data["workflow_config"])
+        self.assertEqual(data["workflow_config"]["operating_hours"], weekend_hours)
         self.assertEqual(data["workflow_config"]["advance_payment_days"], 3)
         self.assertEqual(data["workflow_config"]["pricing"]["hourly_rate"], "700")
         self.assertEqual(data["price_compact_label"], "₱3,000 / 4 hrs")
@@ -880,7 +881,7 @@ class FacilityRentalAPITests(TestCase):
         self.assertEqual(facility_data["eligible_clients"], "internal")
         self.assertEqual(Room.objects.filter(facility_id=facility_data["id"]).count(), 6)
 
-    def test_booking_enforces_client_eligibility_weekend_only_and_minimum_capacity(self):
+    def test_booking_enforces_client_eligibility_closed_days_and_minimum_capacity(self):
         from modules.facilities.services.admin_reservations import client_details, reservation_schedule
         from django.core.exceptions import ValidationError
 
@@ -919,7 +920,7 @@ class FacilityRentalAPITests(TestCase):
                 },
             },
         )
-        # 2026-11-02 is a Monday -> rejected by weekend_only / closed weekday schedule
+        # 2026-11-02 is a Monday -> rejected by the closed weekday schedule.
         with self.assertRaises(ValidationError) as ctx_day:
             reservation_schedule(court, {"date": "2026-11-02", "start": "08:00", "end": "12:00", "attendees": 350})
         self.assertTrue(any(w in " ".join(ctx_day.exception.messages).lower() for w in ("weekend", "monday", "closed")))

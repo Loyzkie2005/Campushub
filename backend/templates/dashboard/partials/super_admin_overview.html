@@ -115,7 +115,7 @@
 </div>
 
 <section class="overview-section" aria-labelledby="activityTitle">
-    <div class="overview-heading"><h2 id="activityTitle">Recent Activity</h2>{% if perms.accounts.can_access_notifications %}<a href="{% url 'admin_notifications_page' %}">View All &rarr;</a>{% endif %}</div>
+    <div class="overview-heading"><h2 id="activityTitle">Recent Activity</h2>{% if perms.accounts.can_view_user_monitoring %}<a href="{% url 'admin_user_monitoring_page' %}">View All &rarr;</a>{% endif %}</div>
     <div class="overview-table-wrap">
         <table class="overview-table activity-table">
             <thead><tr><th scope="col">Action</th><th scope="col">User</th><th scope="col">Module</th><th scope="col">Timestamp</th></tr></thead>

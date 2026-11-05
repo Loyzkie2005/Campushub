@@ -1,5 +1,44 @@
 # Shared admin sidebar: white theme and Reports Analytics
 
+## Duplicate Messages and Settings sidebar links removed; header entry points preserved — 2026-11-05
+
+### 1. Cause / reason
+
+1. **Duplicate Sidebar Links & Empty Group**: In `backend/templates/partials/admin_sidebar.html` (around line 200), the `System Settings` (`.nav-group`) section rendered `Messages` (`{% url 'admin_messages_page' %}`) and `Settings` (`{% url 'admin_settings_page' %}`), duplicating the header chat icon dropdown (`backend/templates/partials/admin_chat_dropdown.html`) and profile picture dropdown (`backend/templates/partials/admin_profile_dropdown.html`). Because `Notifications` had already been retired from the sidebar earlier, removing `Messages` and `Settings` left the `System Settings` / `System` group with zero visible items, so the entire empty `.nav-group` was removed.
+2. **Profile Dropdown `Settings` Redirecting to Login**: In `backend/templates/partials/admin_profile_dropdown.html` (line 11), the `Settings` link had `href="#"` instead of `href="{% url 'admin_settings_page' %}"`. In `backend/static/components/js/admin_session.js` (line 218), the click interceptor skips `href.startsWith('#')`, so clicking `Settings` triggered a browser hash change (`#`) and fired the `popstate` listener (`admin_session.js:304–315`). Whenever a page had used `history.replaceState` to update query filters or the URL already ended with `#`, `popstate` invoked `revokeAndRedirectToLogin(true)`—revoking the active admin tab token and redirecting the user to `/admin-login/`. Wiring `href="{% url 'admin_settings_page' %}"` makes `admin_session.js` append the active tab token (`urlWithToken('/admin-settings/')`) and navigate cleanly to `/admin-settings/`.
+
+### 2. Exact files, current lines and nearby anchors
+
+| File | Line / anchor | What changed |
+| --- | --- | --- |
+| `backend/templates/partials/admin_sidebar.html` | Line 199 (immediately after `Reports & Analytics` `.nav-group` and before `</div>` closing `.sidebar-nav-groups`) | Removed the `<!-- System Settings -->` `.nav-group` containing `Messages` (`admin_messages_page`) and `Settings` (`admin_settings_page`), preventing both duplicate links and an empty `System` sidebar group across all admin roles. |
+| `backend/templates/partials/admin_profile_dropdown.html` | Line 11 (`.admin-profile-menu` -> `Settings` anchor) | Changed `href="#"` to `href="{% url 'admin_settings_page' %}"` while keeping the `Logout` item (`{% url 'admin_logout_page' %}`) unchanged. |
+| `backend/core/accounts/tests.py` | Lines 148–155, 190–198, 294–300 (`DomainAnalyticsPermissionTests`) | Updated `Marketplace Admin`, `Facilities Admin`, and `Super Admin` sidebar assertions to confirm `admin_messages_page`, `admin_settings_page`, and `System` are absent from `<nav class="sidebar-nav">` while remaining accessible (`200 OK`) via the header. |
+| `backend/core/accounts/test_admin_notifications.py` | Lines 67–78 (`AdminNotificationsTests`) | Added role checks for `Super Admin`, `Marketplace Admin`, and `Facilities Admin` verifying no sidebar `Messages`/`Settings` links or empty `System` group, header chat dropdown `See all Messages` -> `/admin-messages/`, profile dropdown `Settings` -> `/admin-settings/` and `Logout` -> `/admin-logout/`, and `200 OK` responses on `/admin-messages/` and `/admin-settings/`. |
+| `backend/core/accounts/admin_notification_browser_checks.cjs` | Lines 19–22, 30–36, 63–77 (`verifyPage`) | Updated DOM assertions to verify no `.sidebar-nav` links to `/admin-messages/` or `/admin-settings/`, no `System` `.nav-group-title`, and working header links for `/admin-messages/`, `/admin-settings/`, and `/admin-logout/`. |
+| `backend/core/modules/facilities/test_service_navigation.py` | Lines 74–76 (`test_final_sidebar_structure_and_active_services`) | Updated expected `.nav-group-title` list to `["Marketplace", "User Management", "Facilities", "Services", "Reports & Analytics"]` and asserted `admin_messages_page` and `admin_settings_page` are absent from the sidebar. |
+
+### 3. How it works: functions, inputs, outputs and data flow
+
+```text
+[admin_header.html]
+  ├── Chat button (#adminChatBtn) ──► [admin_chat_dropdown.html]
+  │     ├── Recent conversation item click (`admin_chat_dropdown.js:186`) ──► `/admin-messages/?user_id=<id>`
+  │     └── "See all Messages" link (`{% url 'admin_messages_page' %}`) ──► `/admin-messages/`
+  └── Profile button (#adminProfileBtn) ──► [admin_profile_dropdown.html]
+        ├── "Settings" link (`{% url 'admin_settings_page' %}`) ──► `admin_session.js` attaches `?tab_token=...` ──► `admin_settings_page` (`200 OK`)
+        └── "Logout" link (`{% url 'admin_logout_page' %}`) ──► `/admin-logout/`
+```
+
+- **`admin_chat_dropdown.html` + `admin_chat_dropdown.js`**: Clicking the header chat icon opens the dropdown, fetches `/api/messages/inbox/`, and links each conversation row to `/admin-messages/?user_id=<partnerId>` (with active `tab_token`) while the footer link `"See all Messages"` points to `{% url 'admin_messages_page' %}`.
+- **`admin_profile_dropdown.html` + `admin_session.js`**: Clicking `"Settings"` in the profile picture menu now has a real path (`href="/admin-settings/"`). The global click handler in `admin_session.js` (`line 214–229`) intercepts internal links, calls `urlWithToken(href)` so `AdminTabAuthMiddleware` validates the session + tab token, and opens `/admin-settings/` without triggering the `popstate` logout safeguard.
+
+### 4. Verification and safe practice exercise
+
+- **Django Test Suite**: `venv\Scripts\python.exe manage.py test accounts.tests.DomainAnalyticsPermissionTests accounts.test_admin_notifications accounts.test_marketplace_support modules.facilities.test_service_navigation --noinput` -> **33/33 tests passed in 14.739s**.
+- **JS Syntax Check**: `node --check backend/core/accounts/admin_notification_browser_checks.cjs` -> **Passed**.
+- **Safe Practice Exercise**: Open `backend/core/accounts/test_admin_notifications.py` and inspect `test_EachRole_HasCleanSidebar_AndWorkingHeaderMessagesAndSettings`. Run `venv\Scripts\python.exe manage.py test accounts.test_admin_notifications --noinput` from `backend/core` to confirm that `Super Admin`, `Marketplace Admin`, and `Facilities Admin` all render the header links to `/admin-messages/` and `/admin-settings/` without any duplicate links or empty group in `<nav class="sidebar-nav">`.
+
 Current Services editor (2026-10-13): the catalog shell now selects an independent Add/Edit Service form. `ServiceFormControls` turns selections and actual saved metadata into a service payload; `validate_service_payload` validates it before the existing Facility fields/workflow JSON are saved. See [Service configuration guide](service-configuration.md) for current files/lines, inputs/outputs, validation, tests, troubleshooting and safe practice. Sidebar behavior below remains unchanged.
 
 ## Facilities and Services navigation separation — 2026-10-11

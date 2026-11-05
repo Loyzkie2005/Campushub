@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from accounts.role_permissions import sync_user_admin_permissions
-from api.models import Booking, CampusHubUser, Facility, FacilityPayment, FacilityBookingRequest
+from api.models import Booking, CampusHubUser, Facility, FacilityPayment, FacilityBookingRequest, Room
 from modules.messages.auth import mobile_chat_token
 
 
@@ -20,7 +20,7 @@ class MobileFacilityBookingTests(TestCase):
         # Legacy tables are unmanaged; isolated test databases need their schema.
         tables = set(connection.introspection.table_names())
         with connection.schema_editor() as editor:
-            for model in (CampusHubUser, Facility, Booking, FacilityPayment):
+            for model in (CampusHubUser, Facility, Room, Booking, FacilityPayment):
                 if model._meta.db_table not in tables:
                     editor.create_model(model)
         super().setUpClass()
@@ -57,6 +57,83 @@ class MobileFacilityBookingTests(TestCase):
         self.assertIn("Sound System", booking.purpose)
         self.assertEqual(self.post().status_code, 200)
         self.assertEqual(Booking.objects.filter(facility=self.facility).count(), 1)
+
+    def test_admin_facility_status_refreshes_catalog_and_enforces_mobile_booking(self):
+        from modules.facilities.services.operating_schedule import WEEKDAYS
+
+        self.facility.location = 'Isolated status test campus'
+        self.facility.workflow_config = {'operating_hours': {
+            day: {'open': '08:00', 'close': '17:00'} for day in WEEKDAYS}}
+        self.facility.save()
+        original_rate = self.facility.rate
+        original_workflow = self.facility.workflow_config.copy()
+        admin = User.objects.create_user(username='status-admin-' + uuid.uuid4().hex[:8],
+                                         role='Facilities Admin', is_staff=True)
+        sync_user_admin_permissions(admin)
+        self.client.force_login(admin)
+        for status in ('unavailable', 'maintenance', 'inactive', 'available'):
+            with self.subTest(status=status):
+                edited = self.client.post(f'/api/facilities/{self.facility.pk}/update/',
+                    json.dumps({'status': status}), content_type='application/json')
+                self.assertEqual(edited.status_code, 200, edited.content)
+                self.assertEqual(edited.json()['facility']['status'], status)
+                catalog = self.client.get('/api/facilities/?resource_type=facility').json()['facilities']
+                self.assertEqual(next(row for row in catalog if row['id'] == self.facility.pk)['status'], status)
+                self.facility.refresh_from_db()
+                self.assertEqual(self.facility.availability_status, status)
+                self.assertEqual(self.facility.rate, original_rate)
+                self.assertEqual(self.facility.workflow_config['operating_hours'], original_workflow['operating_hours'])
+                availability = self.read_availability()
+                quote = self.post(f'/api/mobile/facilities/{self.facility.pk}/quote/')
+                if status == 'available':
+                    self.assertTrue(availability['available_slots'])
+                    self.assertEqual(quote.status_code, 200, quote.content)
+                else:
+                    self.assertFalse(availability['available_slots'])
+                    self.assertEqual(quote.status_code, 400, quote.content)
+                    response = self.post()
+                    self.assertEqual(response.status_code, 400, response.content)
+                    self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+        self.assertEqual(self.post().status_code, 201)
+
+    def test_class_and_reservation_availability_do_not_change_catalog_facility_status(self):
+        for kind in ('class', 'reservation'):
+            with self.subTest(kind=kind):
+                booking = Booking.objects.create(facility=self.facility, booking_date=self.day,
+                    start_time=time(13), end_time=time(17), purpose=f'[{kind}] Fixture block', status='approved')
+                self.assertFalse(any(row['status'] == 'available' for row in self.read_availability()['slots']
+                                     if row['start'] == '13:00'))
+                catalog = self.client.get('/api/facilities/?resource_type=facility').json()['facilities']
+                self.assertEqual(next(row for row in catalog if row['id'] == self.facility.pk)['status'], 'available')
+                self.facility.refresh_from_db()
+                self.assertEqual(self.facility.availability_status, 'available')
+                booking.delete()
+
+    def test_month_uses_enabled_days_despite_stale_policy_and_refreshes_after_admin_edit(self):
+        from modules.facilities.services.operating_schedule import WEEKDAYS
+        from api.views import _apply_facility_payload
+        from modules.facilities.services.facility_configuration import validate_facility_payload
+        hours = {day: {"open": "08:00", "close": "17:00"} if day in WEEKDAYS[:5] else None for day in WEEKDAYS}
+        self.facility.slots = None
+        self.facility.location = 'Isolated test campus'
+        self.facility.workflow_config = {"operating_hours": hours, "weekend_only": True, 'allowed_booking_days': []}
+        self.facility.save()
+        month = (self.day.replace(day=28) + timedelta(days=4)).replace(day=1)
+        path = f"/api/mobile/facilities/{self.facility.pk}/availability/?month={month:%Y-%m}"
+        before = self.client.get(path, **self.auth).json()
+        for day in before['days']:
+            self.assertEqual(day['status'], 'available' if datetime.fromisoformat(day['date']).weekday() < 5 else 'not_bookable')
+        hours['monday'] = {'open': '09:15', 'close': '16:45'}
+        _apply_facility_payload(self.facility, validate_facility_payload({
+            'workflow_config': {'operating_hours': hours}}, facility=self.facility))
+        self.facility.save()
+        response = self.client.get(path, **self.auth)
+        for day in response.json()['days']:
+            if datetime.fromisoformat(day['date']).weekday() == 0:
+                self.assertEqual([(r['start'], r['end']) for r in day['available_slots']], [('09:15', '16:45')])
+        self.assertNotIn('weekend_only', self.facility.workflow_config)
+        self.assertNotIn('allowed_booking_days', self.facility.workflow_config)
+        self.assertEqual(response['Cache-Control'], 'private, no-store')
 
     def covered_court_pricing(self, *, deposit=None):
         from modules.facilities.services.operating_schedule import WEEKDAYS
@@ -366,8 +443,7 @@ class MobileFacilityBookingTests(TestCase):
         monday = saturday + timedelta(days=2)
         self.assertEqual(self.read_availability(saturday)["status"], "available")
         result = self.read_availability(monday)
-        self.assertEqual(result["status"], "not_bookable")
-        self.assertIn("Weekend", result["reason"])
+        self.assertEqual(result["status"], "available")
         self.assertEqual(self.read_availability(timezone.localdate() - timedelta(days=1))["status"], "not_bookable")
         month = self.read_availability(month=self.day.strftime("%Y-%m"))
         self.assertEqual(month["timezone"], "Asia/Manila")
@@ -433,6 +509,58 @@ class MobileFacilityBookingTests(TestCase):
         self.facility.save(update_fields=["workflow_config"])
         rows = self.client.get(f"/api/mobile/facilities/{self.facility.pk}/availability/?date={self.day}").json()["slots"]
         self.assertEqual([row["status"] for row in rows], ["unavailable", "class", "available"])
+
+    def test_partial_recurring_class_lifecycle_preserves_minimum_and_approved_reservations(self):
+        from modules.facilities.services.operating_schedule import WEEKDAYS
+        self.day += timedelta(days=(5 - self.day.weekday()) % 7)
+        for category in ('covered_court', 'function_hall', 'hostel', 'other'):
+            with self.subTest(category=category):
+                self.facility.facility_type = category
+                self.facility.slots = ''
+                self.facility.workflow_config = {'operating_hours': self.daily_hours(),
+                    'minimum_booking_duration': '4', 'weekend_only': category == 'covered_court'}
+                self.facility.save(update_fields=['facility_type', 'slots', 'workflow_config'])
+                self.assertEqual([(r['start'], r['end']) for r in self.read_availability()['available_slots']], [('08:00', '17:00')])
+                until = self.day + timedelta(days=14)
+                key, config = self.admin_schedule(start='10:00', end='13:00', repeat='weekly',
+                    weekdays=[self.day.weekday()], until=str(until))
+                for offset in (0, 7, 14):
+                    result = self.read_availability(self.day + timedelta(days=offset))
+                    self.assertEqual([(r['start'], r['end'], r['status']) for r in result['slots']],
+                        [('08:00', '10:00', 'unavailable'), ('10:00', '13:00', 'class'), ('13:00', '17:00', 'available')])
+                    self.assertEqual(result['slots'][1]['reason'], 'Class / Academic Schedule')
+                    self.assertEqual(result['available_slots'][0]['minimum_duration_minutes'], 240)
+                for offset in (1, 21):
+                    self.assertEqual(len(self.read_availability(self.day + timedelta(days=offset))['available_slots']), 1)
+                monday = self.day + timedelta(days=2)
+                self.assertEqual(self.read_availability(monday)['status'], 'available')
+                quote_path = f'/api/mobile/facilities/{self.facility.pk}/quote/'
+                self.assertEqual(self.post(quote_path, {'date': str(self.day), 'start': '08:00', 'end': '10:00', 'availability_only': True}).status_code, 400)
+                self.assertEqual(self.facility.bookings.count(), 1)
+                conflict = self.client.post('/api/bookings/create/', json.dumps({**config,
+                    'type': 'official', 'start': '11:00', 'end': '12:00'}), content_type='application/json')
+                self.assertEqual(conflict.status_code, 409, conflict.content)
+                approved = Booking.objects.create(id='KEEP-APPROVED-' + uuid.uuid4().hex[:8], facility=self.facility,
+                    booking_date=self.day + timedelta(days=7), start_time='13:00', end_time='17:00', status='approved')
+                update_path = f'/api/facility-schedules/{key}/update/'
+                conflict = self.client.post(update_path, json.dumps({**config, 'end': '14:00'}), content_type='application/json')
+                self.assertEqual(conflict.status_code, 409, conflict.content)
+                block = Booking.objects.get(pk=key)
+                self.assertEqual(block.end_time, time(13))
+                self.assertEqual(self.facility.bookings.count(), 2)
+                edited = self.client.post(update_path, json.dumps({**config, 'start': '09:00', 'end': '12:00'}), content_type='application/json')
+                self.assertEqual(edited.status_code, 200, edited.content)
+                self.assertEqual([(r['start'], r['end']) for r in self.read_availability()['available_slots']], [('12:00', '17:00')])
+                cancelled = self.client.post(update_path, json.dumps({'action': 'cancel'}), content_type='application/json')
+                self.assertEqual(cancelled.status_code, 200, cancelled.content)
+                self.assertEqual([(r['start'], r['end']) for r in self.read_availability()['available_slots']], [('08:00', '17:00')])
+                later = self.read_availability(self.day + timedelta(days=7))
+                self.assertEqual([(r['start'], r['end']) for r in later['available_slots']], [('08:00', '13:00')])
+                self.assertEqual(later['slots'][-1]['status'], 'reserved')
+                approved.refresh_from_db()
+                self.assertEqual(approved.status, 'approved')
+                self.assertEqual(FacilityPayment.objects.filter(booking__facility=self.facility).count(), 0)
+                self.facility.bookings.all().delete()  # Isolated fixture cleanup between categories only.
 
     def test_mobile_custom_times_match_web_validation_and_persist_exact_choice(self):
         from modules.facilities.services.admin_reservations import reservation_schedule
@@ -629,17 +757,14 @@ class MobileFacilityBookingTests(TestCase):
         self.assertEqual([(slot['start'], slot['end']) for slot in slots], [('13:00', '17:00')])
         self.assertEqual(self.client.get(f'{path}?date={self.day + timedelta(days=1)}').json()['slots'], [])
 
-    def test_schedule_update_cannot_bypass_existing_weekend_policy(self):
-        from modules.facilities.services.operating_schedule import WEEKDAYS
-        hours = {day: {"open": "08:00", "close": "17:00"} if day in WEEKDAYS[5:] else None for day in WEEKDAYS}
-        self.facility.workflow_config = {"weekend_only": True, "operating_hours": hours}
+    def test_schedule_update_replaces_retired_policy_with_enabled_operating_days(self):
+        self.facility.workflow_config = {'weekend_only': True, 'allowed_booking_days': [], 'operating_hours': self.daily_hours()}
         self.facility.save(update_fields=['workflow_config'])
-        response = self.schedule_update(self.daily_hours(), weekend_only=False)
-        self.assertEqual(response.status_code, 400, response.content)
-        self.assertIn('weekend_only', response.json()['errors'])
+        response = self.schedule_update(self.daily_hours(), weekend_only=True, allowed_booking_days=[])
+        self.assertEqual(response.status_code, 200, response.content)
         self.facility.refresh_from_db()
-        self.assertIs(self.facility.workflow_config['weekend_only'], True)
-        self.assertEqual(self.facility.workflow_config['operating_hours'], hours)
+        self.assertNotIn('weekend_only', self.facility.workflow_config)
+        self.assertNotIn('allowed_booking_days', self.facility.workflow_config)
 
     def test_all_weekly_categories_follow_saved_hours_and_protect_reservations(self):
         from modules.facilities.services.operating_schedule import WEEKDAYS
@@ -676,6 +801,67 @@ class MobileFacilityBookingTests(TestCase):
                     self.assertEqual(booking.status, status)
                     booking.delete()
 
+    def test_enabled_weekday_hours_allow_quote_and_submission_despite_legacy_policy(self):
+        self.facility.slots = ''
+        self.facility.workflow_config = {'weekend_only': True, 'operating_hours': self.daily_hours(),
+            'allowed_booking_days': [], 'minimum_booking_duration': '4'}
+        self.facility.save(update_fields=['slots', 'workflow_config'])
+        monday = self.day + timedelta(days=(0 - self.day.weekday()) % 7 or 7)
+        path = f'/api/mobile/facilities/{self.facility.pk}/'
+        weekday = self.client.get(f'{path}availability/?date={monday}').json()
+        self.assertEqual(weekday['status'], 'available')
+        self.assertTrue(weekday['available_slots'])
+        self.data.update(date=str(monday))
+        quote = self.post(path + 'quote/', self.data)
+        self.assertEqual(quote.status_code, 200, quote.content)
+        self.assertEqual(self.post().status_code, 201)
+        self.assertEqual(self.facility.bookings.count(), 1)
+
+    def test_operating_edits_remove_hidden_rules_and_preserve_active_reservations(self):
+        from modules.facilities.services.operating_schedule import WEEKDAYS
+        self.facility.facility_type = 'function_hall'
+        self.facility.slots = ''
+        day = WEEKDAYS[self.day.weekday()]
+        self.facility.workflow_config = {'operating_hours': self.daily_hours(), 'allowed_booking_days': [day]}
+        self.facility.save(update_fields=['facility_type', 'slots', 'workflow_config'])
+        closed = {**self.daily_hours(), day: None}
+        for status in (Booking.STATUS_PENDING, Booking.STATUS_APPROVED):
+            booking = Booking.objects.create(id='KEEP-' + uuid.uuid4().hex[:10], facility=self.facility,
+                booking_date=self.day, start_time='13:00', end_time='17:00', status=status)
+            self.assertEqual(self.schedule_update(closed).status_code, 400)
+            self.facility.refresh_from_db()
+            self.assertEqual(self.facility.workflow_config['allowed_booking_days'], [day])
+            self.assertEqual(self.facility.workflow_config['operating_hours'], self.daily_hours())
+            booking.delete()
+        self.assertEqual(self.schedule_update(closed).status_code, 200)
+        self.facility.refresh_from_db()
+        self.assertNotIn('allowed_booking_days', self.facility.workflow_config)
+        path = f'/api/mobile/facilities/{self.facility.pk}/availability/'
+        self.assertEqual(self.client.get(f'{path}?date={self.day}').json()['available_slots'], [])
+        self.assertEqual(self.schedule_update(self.daily_hours()).status_code, 200)
+        self.assertTrue(self.client.get(f'{path}?date={self.day}').json()['available_slots'])
+        other_day = self.day + timedelta(days=1)
+        self.assertTrue(self.client.get(f'{path}?date={other_day}').json()['available_slots'])
+        self.facility.refresh_from_db()
+        self.assertNotIn('allowed_booking_days', self.facility.workflow_config)
+
+    def test_retired_day_fields_cannot_close_an_active_reservation(self):
+        self.facility.facility_type = 'function_hall'
+        self.facility.slots = ''
+        self.facility.workflow_config = {'operating_hours': self.daily_hours()}
+        self.facility.save(update_fields=['facility_type', 'slots', 'workflow_config'])
+        booking = Booking.objects.create(id='KEEP-DAY-POLICY', facility=self.facility,
+            booking_date=self.day, start_time='13:00', end_time='17:00', status='approved')
+        result = self.schedule_update(self.daily_hours(), allowed_booking_days=[], weekend_only=True)
+        self.assertEqual(result.status_code, 200, result.content)
+        self.facility.refresh_from_db()
+        self.assertNotIn('allowed_booking_days', self.facility.workflow_config)
+        self.assertNotIn('weekend_only', self.facility.workflow_config)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'approved')
+        result = self.client.get(f'/api/mobile/facilities/{self.facility.pk}/availability/?date={self.day}').json()
+        self.assertTrue(result['available_slots'])
+        self.assertIn('reserved', [row['status'] for row in result['slots']])
 
 class MobileBookingConcurrencyTests(TransactionTestCase):
     """Separate real PostgreSQL transactions must not reserve the same interval."""

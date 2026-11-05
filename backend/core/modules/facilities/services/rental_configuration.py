@@ -131,11 +131,6 @@ def validate_rental_options(raw, *, mode, rate, price_type, capacity, errors, fa
             errors["eligible_clients"] = "Select Internal Clients Only, External Clients Only, or Both."
         else:
             result["eligible_clients"] = eligible_clients
-    if "weekend_only" in raw and raw.get("weekend_only") not in (None, ""):
-        if not isinstance(raw.get("weekend_only"), bool):
-            errors["weekend_only"] = "Choose Yes or No for weekend-only restriction."
-        elif raw.get("weekend_only"):
-            result["weekend_only"] = True
     if "advance_payment_days" in raw and raw.get("advance_payment_days") not in (None, ""):
         adv_days = number(raw.get("advance_payment_days"), "advance_payment_days", errors, integer=True, maximum=Decimal("365"))
         if adv_days is not None and adv_days > 0:

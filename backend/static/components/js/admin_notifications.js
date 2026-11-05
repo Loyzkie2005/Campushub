@@ -58,78 +58,10 @@ document.addEventListener("click", (event) => {
     const filterButton = event.target.closest("[data-notification-filter]");
 
     if (!filterButton) {
-        const pageFilterButton = event.target.closest("[data-page-notification-filter]");
-
-        if (pageFilterButton) {
-            event.preventDefault();
-
-            const pageList = document.querySelector("[data-page-notification-list]");
-            const filterButtons = document.querySelectorAll("[data-page-notification-filter]");
-            const notificationItems = pageList?.querySelectorAll(".notification-row") || [];
-            const filter = pageFilterButton.dataset.pageNotificationFilter;
-
-            filterButtons.forEach((button) => {
-                button.classList.toggle("active", button === pageFilterButton);
-            });
-
-            notificationItems.forEach((item) => {
-                const category = item.dataset.notificationCategory || "system";
-                item.hidden = filter !== "all" && category !== filter;
-            });
-
-            return;
-        }
-
-        const pageMarkAllButton = event.target.closest("[data-page-mark-all-read]");
-
-        if (pageMarkAllButton) {
-            event.preventDefault();
-            document.querySelectorAll(".notification-row.is-unseen").forEach((item) => {
-                item.classList.remove("is-unseen");
-                item.classList.add("is-seen");
-            });
-            return;
-        }
-
-        const pageClearAllButton = event.target.closest("[data-page-clear-all]");
-
-        if (pageClearAllButton) {
-            event.preventDefault();
-            document.querySelectorAll(".notification-row").forEach((item) => {
-                item.hidden = true;
-            });
-            return;
-        }
-
-        const pageFilterToggle = event.target.closest("[data-page-filter-toggle]");
-
-        if (pageFilterToggle) {
-            event.preventDefault();
-            event.stopPropagation();
-            const menu = document.querySelector("[data-page-filter-menu]");
-            const isOpen = menu?.classList.toggle("is-open");
-            pageFilterToggle.setAttribute("aria-expanded", String(Boolean(isOpen)));
-            return;
-        }
-
-        const pageCategoryInput = event.target.closest('input[name="pageNotificationCategory"]');
-
-        if (pageCategoryInput) {
-            const selected = new Set(
-                [...document.querySelectorAll('input[name="pageNotificationCategory"]:checked')].map((input) => input.value)
-            );
-            document.querySelectorAll(".notification-row").forEach((item) => {
-                const category = item.dataset.notificationCategory || "system";
-                item.hidden = !selected.has(category);
-            });
-            return;
-        }
-
         const chatFilterButton = event.target.closest("[data-chat-filter]");
 
         if (!chatFilterButton) {
             closeNotificationMoreMenus();
-            document.querySelector("[data-page-filter-menu]")?.classList.remove("is-open");
             return;
         }
 

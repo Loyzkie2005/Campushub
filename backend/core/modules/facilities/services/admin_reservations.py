@@ -10,7 +10,7 @@ from django.utils import timezone
 from api.models import CampusHubUser, Facility, Room
 from .catalog import SERVICE_MODES, SERVICE_TYPES
 from .mobile_booking import configured_slots, conflicting_bookings, slot_status, conflict_description
-from .operating_schedule import WEEKDAYS, closed_operating_day_messages, parse_time
+from .operating_schedule import WEEKDAYS, closed_operating_day_messages, parse_time, booking_day_restriction
 from .rental_configuration import slot_base_amount, slot_price_components, FORM_TYPES, booking_form_for_category
 
 
@@ -122,6 +122,9 @@ def reservation_schedule(facility, data, *, check_capacity=True, exclude_booking
             raise ReservationUnavailable("The guest count exceeds this room's capacity.")
         for offset in range(nights):
             day = first + timedelta(days=offset)
+            restriction = booking_day_restriction(workflow, day)
+            if restriction:
+                raise ReservationUnavailable(restriction)
             conflict = conflicting_bookings(facility, day, time.min, time(23, 59, 59), room_id=room.pk, exclude_booking=exclude_booking).first()
             if conflict:
                 raise ReservationUnavailable(conflict_description(conflict))
@@ -135,8 +138,9 @@ def reservation_schedule(facility, data, *, check_capacity=True, exclude_booking
         closed_message = closed_operating_day_messages(facility).get(WEEKDAYS[day.weekday()])
         if closed_message:
             raise ReservationUnavailable(closed_message)
-        if workflow.get("weekend_only") and day.weekday() < 5:
-            raise ReservationUnavailable(f"{facility.facility_name} is available only on weekends (Saturday and Sunday).")
+        restriction = booking_day_restriction(workflow, day)
+        if restriction:
+            raise ReservationUnavailable(restriction)
         if facility.slots and (start, end) not in configured_slots(facility, day):
             raise ReservationUnavailable("Select one of the configured time slots.")
         state = slot_status(facility, day, start, end, exclude_booking=exclude_booking)

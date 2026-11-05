@@ -1,5 +1,524 @@
 # Reusable Add/Edit Facility configuration
 
+## Compact Facility Details overview spacing - November 5, 2026
+
+1. **Cause / reason:** After hiding the category label, the status still occupied a separate full-width row above the facility name. `_overview` also retained a 160px minimum height and 16px bottom padding, which could leave surplus space before pricing on short records. The user requested removal of this visible space.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:457` (`_overview`, right-side `controls` at 494) and this guide. No card, model, API or Web Admin code changed.
+3. **Changes made:** Remove the independent status row and its 8px gap above the name. Put the name at the top-left and the existing status/Chat column at the top-right. Remove the fixed minimum overview height and reduce its bottom padding to 8px. Retain readable spacing around the location, capacity/reviews and pricing.
+4. **How it works / inputs and outputs:** `_overview(FacilityDetailInformation information)` still reads the same facility and saved information. Its existing LayoutBuilder returns a Row with expanded title and right-aligned status/Chat controls for ordinary text size; the existing large-text branch stacks them to prevent overlap. Content now determines overview height rather than a minimum-height box. Saved facility data -> overview widgets -> compact rendered header; no new request or state transition occurs.
+5. **Backend / API behavior:** None changed. Chat and Request Booking retain their existing callbacks and eligibility checks; category-specific information remains.
+6. **Database / migration impact:** None. No records, prices, operating hours, dependencies or schema changed.
+7. **Tests performed:** Final `facility_details_test.dart` and `facility_status_test.dart` run with `CAPTURE_FACILITY_DETAILS=true`: **46 tests passed in 18 seconds**, including seven categories, status eligibility, navigation and narrow/large-text rendering. Targeted Dart analysis: **No issues found**. Inspected the regenerated 375px header render: name begins beside the right-side controls, category remains hidden and all other information/actions remain. Whitespace checks passed. An initial sandboxed formatter stalled without output; it was stopped and formatting completed with SDK access.
+8. **Remaining limitations / safe practice:** No phone build/install or live-device verification. Long names can wrap, and large text deliberately stacks the header. Verify with fixture renders at `scratch/facility-details-plain-white-20261029/top-375.0-1.0.png` and the existing enlarged-text cases; do not change working facility names or bookings just to test spacing. This supersedes the separate status-row spacing described in the earlier category-removal note below.
+
+## Hide the category label only in Facility Details - November 5, 2026
+
+1. **Cause / reason:** The user requested removal of the visible Facility Type / Category label from Details while preserving category data, workflows and listing cards.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:457` (`_overview`), `campushub/test/facility_details_test.dart:1171` (seven-category fixture loop) and this guide. No listing-card source, model, Web Admin form or Django file was changed for this task.
+3. **Changes made:** Removed the category chip and its two-column header wrapper. The existing status uses a full-width `Align(alignment: Alignment.topRight)` with an 8px gap before the facility-name/Chat row. Name, status, capacity, pricing, amenities, operating schedule, guidelines, terms, reviews and actions remain.
+4. **How it works / functions, inputs, outputs and data flow:** `_overview` still receives `FacilityDetailInformation` derived from the unchanged `FacilityItem`. It simply stops rendering `facility.facilityTypeLabel` as a Text widget. API JSON -> `FacilityItem.facilityType` / `facilityTypeLabel` -> category/configuration helpers -> existing Details sections and `_requestAction` remain intact. Example: a hostel keeps its `hostel` category and room-based request/contact logic although its category label is no longer printed in the header.
+5. **Backend / API behavior:** None changed. Web Admin still edits Facility Category, and Django still returns it. Booking eligibility, routing, prices and availability validation retain their existing implementation.
+6. **Database / migration impact:** None. No fields, models, migrations or working PostgreSQL records changed.
+7. **Tests performed:** **105 Flutter tests passed in 18 seconds** across `facility_details_test.dart`, `facility_status_test.dart`, `resource_catalog_cards_test.dart`, `facility_booking_flow_test.dart` and `select_schedule_test.dart`, with `CAPTURE_FACILITY_DETAILS=true`. The category loop verifies all seven model categories/labels remain present in data but absent from visible Details text, with saved amenities, Chat and request callbacks retained. Existing hostel/non-slot, status eligibility, form navigation, schedule and responsive tests pass. Targeted Dart analysis: **No issues found**. Inspected the regenerated 375px Details header: status top-right, no category chip, retained name and actions. Whitespace checks passed.
+8. **Remaining limitations / safe practice:** No phone build/install or deployment verification. Run the existing seven-category fixture tests and compare Details with the facility listing: the Details category text should be absent while the card still shows its category. Inspect the screen widget's `facility.facilityType` in a fixture to confirm data retention; do not delete model fields, change Web Admin or modify real facilities to hide a label. The earlier placement report below is historical; its Details category chip is superseded by this change, while its listing-card placement remains current.
+
+## Status at the top-right beside the facility category - November 5, 2026
+
+1. **Cause / reason:** The user requested top-right placement after viewing the status below the name in Details and lower on the card.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facility_details_screen.dart:457` (`_overview`, badge at 495), `campushub/lib/module_app/widgets/facilities/resource_catalog_card.dart:86` (`showFacilityStatus` header row) and this guide.
+3. **Changes made:** Move the existing status badge into the category row, right-aligned above the facility name, on Details and facility cards. Keep Chat, View Details, Request Booking, saved labels, colors and the remaining sections.
+4. **How it works:** Both existing builders receive the same `FacilityItem.status` and pass it to `FacilityStatusBadge`. An expanded category area and a flexible, right-aligned badge share the top row. Text can wrap within its available space at narrow widths or larger text sizes. No status is inferred from placement, category or calendar availability.
+5. **Backend / API behavior:** None changed; this is layout only.
+6. **Database / migration impact:** None.
+7. **Tests performed:** **64 Flutter tests passed in 20 seconds** across `facility_details_test.dart`, `facility_status_test.dart` and `resource_catalog_cards_test.dart`, with both existing real-font capture flags enabled. Targeted Dart analysis of the two changed source files found **No issues**. Inspected the regenerated Details header and facility-card renders: category left, status top-right, original actions retained. Whitespace checks passed.
+8. **Remaining limitations:** No phone build/install or physical-device verification. Safe practice: rerun those fixture suites, inspect `scratch/facility-details-plain-white-20261029/top-375.0-1.0.png` and `scratch/facility-status/available.png`, and use the existing large-text cases to check wrapping. Do not alter working facility records to test placement.
+
+## Facility Details typography and automatic amenity icons - November 5, 2026
+
+### 1. Cause / reason
+
+Inspected current Flutter/Django source and unpushed changes before editing. Django already returns the actual saved `amenities` list through `serialize_facility`; its existing admin validation accepts predefined and custom labels. There was no confirmed API defect requiring a backend change.
+
+The old Flutter `iconForAmenity` used broad substrings such as `air`, `park` and `table`, which could misidentify unrelated words. Fans, Stage and Pickleball Net also lacked appropriate mappings, and Details had a separate substring-based chair exception. The user's latest styling request explicitly selects Montserrat, navy `#1A1851` and gold `#FCB316` for Facility Details; this local decision takes precedence over earlier general typography/gold guidance for this screen.
+
+### 2. Exact files changed
+
+Paths are relative to the project root. Existing working-tree changes outside this task were preserved.
+
+| File and current line | Code anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/models/amenity_icon.dart:4` | `normalizeAmenityName`; `iconForAmenity` at 173 | New deterministic lookup helper, canonical map, aliases, bounded phrase rules and neutral fallback. |
+| `campushub/lib/module_app/models/facility_item.dart:7` | `export 'amenity_icon.dart' show iconForAmenity` | Keep the existing import/call surface while replacing the former substring matcher with the shared helper. |
+| `campushub/lib/module_app/screens/facility_details_screen.dart:17` | `_facilityDetailFont`, `_facilityDetailGold`; `_Amenities` at 1163 | Scoped Montserrat/theme gold, 26px title, 12px amenity labels, status beside main facility information and one matcher call for every configured amenity. |
+| `campushub/lib/module_app/widgets/facilities/facility_status_badge.dart:10` | Optional `fontFamily` | Let Details request Montserrat with its variable-font weight. Other callers keep the existing default font and badge layout. |
+| `campushub/test/amenity_icon_test.dart:5` | `main` | New canonical/alias, normalization, modifier, unknown and false-positive unit tests. |
+| `campushub/test/facility_details_test.dart:1171` | Category loop; empty-amenity test at 1228; render capture at 1268 | Verify original labels and icons for all seven resource categories, empty lists, scoped typography/colors, existing layout/navigation and real-font render fixtures. |
+| `docs/facility-configuration.md:3` | This section | Record the algorithm, input/output/data flow, UI scope, verification, limitations and safe extension exercise. |
+
+### 3. Changes made
+
+The gallery, category, facility name/status, location, real capacity/reviews, pricing accordion, amenities, About, Operating Schedule, Booking Guidelines, Terms, Reviews, Chat and Request Booking remain. Montserrat is scoped to Details, the title is 26px, and amenity labels are 12px with the existing readable line height. The later top-right placement above supersedes this change's original status position under the facility name. The saved-name labels remain below their icons. The existing four-item amenity layout, horizontal overflow for more items or large text, photo controls, pricing calculations and booking destinations are preserved.
+
+| Amenity family | Representative aliases | Flutter Material icon |
+| --- | --- | --- |
+| Fan | Fans, Electric Fan, Electric Fans | `wind_power_outlined` — closest available rotating-blade/airflow symbol without showing a crossed-out fan. |
+| Stage | Platform, Stages, Platforms | `theater_comedy_outlined` |
+| Sound System | Speaker, Speakers, Audio System, PA System | `speaker_outlined` |
+| Pickleball Net | Pickleball Nets, Pickle Ball Net | `sports_tennis_outlined` — closest racket-sports symbol. |
+| Restroom | Restrooms, Toilet, Toilets, CR, C.R., Comfort Room | `wc_outlined` |
+| Parking | Parking Area, Parking Lot | `local_parking_outlined` |
+| Lighting | Light, Lights | `lightbulb_outline` |
+| Air Conditioning | Aircon, AC, A.C., Air Conditioner | `ac_unit_outlined` |
+| Chair | Chairs, Seat, Seats, Seating | `chair_outlined` |
+| Table | Tables | `table_restaurant_outlined` |
+| Projector | Projectors | `present_to_all_outlined` — presentation-screen symbol. |
+| Microphone | Mic, Mics, Microphones | `mic_none_outlined` |
+| Bed | Bedding, Beds, Bed Linen | `bed_outlined` |
+| Bleachers | Bleacher | `stadium_outlined` |
+| Other existing specific amenities | Wi-Fi, Cabinets, Basketball Court | Existing Wi-Fi/storage/basketball symbols with exact aliases. |
+| Unrecognized custom text | No verified match | `widgets_outlined`, a neutral amenity symbol. |
+
+No facility/category/position lookup assigns these icons. Empty or whitespace-only lists keep the existing omitted Amenities section; no fake amenity or new placeholder section is inserted.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+`normalizeAmenityName(String label)` takes an original label and returns a lookup-only string: trimmed, lowercase, with repeated whitespace, underscores, slashes, common punctuation and dash variants standardized to spaces. It does not modify the `FacilityItem.amenities` list or the displayed text.
+
+`iconForAmenity(String label)` returns `IconData` in this order:
+
+1. Exact normalized canonical name in `_icons`.
+2. Exact normalized synonym in `_aliases`, resolved to its canonical entry.
+3. A full-phrase match in `_keywordRules`, allowing only explicit modifiers and complete amenity names.
+4. `Icons.widgets_outlined` when no rule applies.
+
+Keyword expressions use start/end anchors. For example, `Ceiling-mounted electric fans` matches recognized fan modifiers, while `Fan club`, `Chairperson office`, `Air quality monitor`, `Parking policy`, `No parking`, `Projector cable`, `Light refreshments` and ambiguous `Fans and chairs` stay generic. This is intentionally conservative: recognizing one word inside an unrelated sentence is insufficient.
+
+```text
+Existing Admin amenity selection/custom text
+  -> saved Facility.amenities JSON list
+  -> existing Django serialize_facility response
+  -> FacilityItem.fromJson retains the API labels
+  -> Details filters only blank labels
+  -> _Amenities calls iconForAmenity(label) for the icon
+  -> Text(label) displays that same original label below it
+```
+
+Annotated example:
+
+```dart
+final label = '  eLeCtRiC_FaNs  '; // Original API label, kept for Text(label).
+normalizeAmenityName(label);       // 'electric fans': lookup copy only.
+iconForAmenity(label);             // Icons.wind_power_outlined via an alias.
+iconForAmenity('Air quality monitor'); // Icons.widgets_outlined, not aircon.
+```
+
+The optional status-badge font parameter avoids changing card fonts globally just to match Details. This change does not introduce an icon-picker field or store icon names in the database.
+
+### 5. Backend / API behavior
+
+No Django/runtime API change. `backend/core/api/views.py`'s `serialize_facility` already includes the saved list; `validate_facility_payload` in `backend/core/modules/facilities/services/facility_configuration.py` already validates/trims admin labels. Flutter preserves the exact label it receives from that response. Existing status, eligibility, quote and booking validation remain authoritative. No image generation, remote AI call or package dependency is used.
+
+### 6. Database / migration impact
+
+None. No fields, models, migrations, prices, payment processing, operating schedules or working PostgreSQL records changed.
+
+### 7. Tests performed
+
+- **123 Flutter tests passed in 31 seconds:** `flutter test --no-pub --dart-define=CAPTURE_FACILITY_DETAILS=true test/amenity_icon_test.dart test/facility_details_test.dart test/facility_status_test.dart test/facility_booking_flow_test.dart test/select_schedule_test.dart test/resource_catalog_cards_test.dart --reporter expanded`.
+- The matcher has 18 unit tests covering every requested family and synonyms, capitalization, separator normalization, plural forms, qualified phrases, unknown/negated/ambiguous strings and preserved existing specific amenities. The initial test declaration used invalid constant map keys and was corrected before the final successful run.
+- Widget tests verify unchanged original API labels, distinct fixture IDs/categories, each facility's own saved amenities, omitted empty sections, status placement/font, known icons, neutral fallback and the retained request/navigation behavior.
+- Targeted Dart analysis of all six changed Dart files: **No issues found**. Formatting completed without further changes; whitespace check clean.
+- Real-font fixture renders cover 375/390px phones, 320px at 2x text in a dark parent theme, and 844px landscape. Inspected the rendered header and amenity sections, including the normal-width labels and large-text layout. These are actual Flutter renders, not AI-generated mockups. Captures are under `scratch/facility-details-plain-white-20261029/`; the folder's historical date is only its existing fixture path.
+- No new Django tests were run for this Flutter-only change; API compatibility was checked by source inspection. Prior backend test results must not be counted as a new run for this task.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+Material Icons has no exact active electric-fan or pickleball-net glyph in the installed library, so the documented closest existing symbols are used. The matcher recognizes the listed English vocabulary and explicit modifiers; unknown custom labels deliberately stay generic. Composite, negated or unfamiliar descriptions are not interpreted through a language model. No physical phone build/install or deployment verification was performed, and no complete accessibility-audit claim is made. The optional web design-kit gate is not installed here; verification used the project's Flutter tests/analyzer.
+
+If an icon is wrong, inspect the actual API label, then `normalizeAmenityName`, then the exact/alias dictionaries before extending phrase rules. Add a narrow alias rather than a substring such as `contains('air')`. Never rename the visible amenity to make an icon match. If Amenities is absent, first check for an empty saved list rather than inserting default facility amenities. For long labels/large text, check the existing horizontal strip before changing category-specific data or imposing a fixed row height.
+
+Safe exercise: add `Pedestal Fan` as an alias to `fan` and a unit assertion in `amenity_icon_test.dart`, then run that file. Add a nearby negative case such as `Fan club notice` and confirm it remains generic. Use a Details fixture with the original label `Pedestal Fan` and verify its text is unchanged while the rotating-blade symbol appears. Use only fixtures; do not edit working facilities or alter booking/payment rules to test icons.
+
+## Flutter facility status badges and refreshed booking eligibility - November 5, 2026
+
+### 1. Cause / reason
+
+Inspected the current Django and nested Flutter working trees, including unpushed operating-schedule, details and booking-header changes. Django already stores the facility's operational status in `Facility.availability_status`, serializes it through `serialize_facility`, and enforces it during availability/quote/submission checks. The public physical-facility list includes non-archived inactive, maintenance and unavailable records. No backend status system was missing.
+
+Flutter's shared facility cards omitted that existing status; Details displayed a neutral badge. Also, `FacilityItem.fromJson` defaulted a missing API status to `available`, incorrectly implying permission to request booking. Details had no facility-data refresh action. These are confirmed presentation/mapping gaps rather than a pricing or operating-hours defect.
+
+### 2. Exact files changed
+
+Paths are relative to the project root. These are this task's source changes; other pre-existing working-tree edits were preserved.
+
+| File and current line | Code anchor | Purpose |
+| --- | --- | --- |
+| `campushub/lib/module_app/models/facility_item.dart:39` | `FacilityItem.fromJson`; `isOpenForBooking` at 116 | Map existing API codes; missing/unknown data never implies open status; share the booking predicate and status explanation. |
+| `campushub/lib/module_app/widgets/facilities/facility_status_badge.dart:6` | `FacilityStatusBadge` | New small, reusable presentation widget for the existing labels, colors and accessible status description. |
+| `campushub/lib/module_app/widgets/facilities/resource_catalog_card.dart:86` | `showFacilityStatus` | Place the optional badge at the top-right beside the category, without removing its View Details action. |
+| `campushub/lib/module_app/widgets/home/home_preview_cards.dart:375` | `FacilityPreviewCard` | Enable the badge for both home and Facilities listing cards. Service cards retain their separate presentation. |
+| `campushub/lib/module_app/screens/facility_screen.dart:61` | `_openFacilityDetails`; `loadFacilities` | Pass the existing loader to Details and allow pull-to-refresh even for a short list. |
+| `campushub/lib/module_app/screens/facility_details_screen.dart:58` | `_refreshFacility`; `_requestAction` at 127 | Refresh this facility from the existing catalog, update its saved-data presentation, show the same badge/explanation and disable requests for closed, unverified or refreshing data. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:945` | Next/submit `onPressed`; explanation at 960 | Block advancing/submitting a directly opened booking flow when its facility data is not Open for Booking. Existing live server checks still apply. |
+| `campushub/test/facility_status_test.dart:39` | `main` | New status mapping, card/navigation, refresh, closed-booking and optional real-font capture checks. |
+| `campushub/test/resource_catalog_cards_test.dart:188` | `Under Maintenance` expectation | Update the previous assertion that cards hid status; retain its layout/action tests. |
+| `campushub/test/facility_booking_flow_test.dart:135` | Missing Job Order mapping fixture | Explicitly supply `available` so the unrelated mapping test no longer depends on a missing-status default. |
+| `backend/core/api/test_mobile_facility_booking.py:23` | `MobileFacilityBookingTests.setUpClass`; new tests at 61 and 99 | Include the existing unmanaged Room table in isolated test setup; test actual admin status saves, public refresh, mobile enforcement and independence from calendar blocks. |
+| `docs/facility-configuration.md:3` | This section | Explain the cause, functions, data flow, tests, troubleshooting and safe practice. |
+
+### 3. Changes made
+
+| Existing Django code | Display label | Badge color | Request Booking |
+| --- | --- | --- | --- |
+| `available` | Open for Booking | Green | Eligible to enter the existing request flow; operating hours, client eligibility, conflicts and current server availability still apply. |
+| `unavailable` | Temporarily Unavailable | Amber | Disabled, with an explanation that requests are paused. |
+| `maintenance` | Under Maintenance | Red | Disabled, with a maintenance explanation. |
+| `inactive` | Inactive | Gray | Disabled, with an inactive explanation. |
+
+These requested status colors are an explicit exception to the project's earlier general restriction on colored badges. The badge uses text as well as color. It wraps instead of clipping long labels and has a screen-reader description such as `Facility status: Under Maintenance`. View Details remains enabled for every status.
+
+Legacy `reserved`/`occupied` facility codes retain their existing mapping to Temporarily Unavailable. An absent/unknown API code displays the gray **Status unavailable** placeholder and blocks requests. That placeholder describes missing information; it is not a new stored facility status and is never written to PostgreSQL.
+
+The Details screen reuses the badge beside its main facility information (moved from Operating Schedule by the later Details/amenity refinement above) and shows a closed-status explanation near the overview. Pull down to refresh either the Facilities list or the already-open Details screen. A failed Details refresh keeps the previous information visible with a refresh error and disables Request Booking until a successful refresh verifies an open facility. An archived/removed record missing from a successful catalog response also disables requests. A server-only service/accommodation workflow retains its existing office-contact destination; these badges do not implement unsupported online forms.
+
+**Earlier right-alignment follow-up — November 5, 2026 (vertical placement superseded by the top-right update above):**
+
+1. **Cause / reason:** The user requested the status on the card's right side; the card's start-aligned information column previously placed it on the left.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/facilities/resource_catalog_card.dart:96` (`Align` around the existing badge) and this guide's status section.
+3. **Changes made:** Right-align the badge within its existing row below the facility name. Keep the card's photo, text, View Details action and Details-screen badge placement.
+4. **How it works:** `ResourceCatalogCard.build` receives the same resource/status and wraps `FacilityStatusBadge` in `Align(alignment: Alignment.centerRight)`. The column supplies the row's available width, so the badge moves to the right content edge while retaining its wrapping constraints. Data still flows from the saved API status through `FacilityItem` to the existing badge.
+5. **Backend / API behavior:** No change; alignment triggers no request or write.
+6. **Database / migration impact:** None.
+7. **Tests performed:** Existing `facility_status_test.dart` and `resource_catalog_cards_test.dart` suites with real-font status captures: **28 tests passed in 5 seconds**. Targeted Dart analysis: **No issues found**. Inspected the regenerated open-status card screenshot to confirm the right edge and retained View Details. Whitespace check passed.
+8. **Remaining limitations:** No phone build/install or device verification. Safe practice: rerun those two fixture suites, inspect `scratch/facility-status/available.png`, and verify the badge is right-aligned while View Details still opens the same facility. Use the enlarged-text checks for long labels; do not change working facility records to test alignment.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+`FacilityItem.fromJson` accepts the existing `status` string and produces the existing display label. `isOpenForBooking` returns a boolean, and `bookingStatusExplanation` returns text explaining that label. No calendar result is used to overwrite facility status. `FacilityStatusBadge.build` accepts only the display string and returns a colored, labeled widget; it cannot alter eligibility or save records.
+
+`FacilitiesPage._fetchFacilities` already calls `FacilityService.fetchFacilities` and rebuilds the cards. `FacilityDetailsScreen._refreshFacility` now invokes the same injectable loader, finds this facility by its actual ID, maps the returned record and updates its screen state. Failed/missing responses set an error rather than inventing a replacement facility. `_requestAction` returns null while refreshing, after an unverified refresh, or when `isOpenForBooking` is false; otherwise it returns the existing booking/contact action.
+
+```text
+Web Admin saves existing Facility.availability_status
+  -> PostgreSQL record
+  -> existing GET /api/facilities/?resource_type=facility
+  -> FacilityItem.fromJson(status)
+  -> FacilityPreviewCard / shared FacilityStatusBadge
+  -> View Details with the same FacilityItem and loader
+  -> pull-to-refresh updates Details status and request eligibility
+  -> existing Django availability -> quote -> submission validation
+```
+
+Annotated example: an admin changes `available` to `maintenance`. After catalog refresh, `FacilityItem.status` is Under Maintenance, the badge is red and Request Booking is disabled. A class event may instead make one date's returned slots `class`; its facility remains Open for Booking when its stored status is still `available`. Even a cached open screen cannot bypass Django's current status/interval validation during quote or submission.
+
+### 5. Backend / API behavior
+
+No runtime Django view, route or serializer changed. Existing `serialize_facility` in `backend/core/api/views.py:1527` reads `availability_status`; `facilities_list` at 1627 filters archives/service resources, not the four operational statuses. Existing `slot_status` in `backend/core/modules/facilities/services/mobile_booking.py:88` and `rental_quote` at 201 remain authoritative. Date-specific class, reservation or maintenance blocks remain separate from facility-wide status.
+
+The new backend tests send real requests to the existing authorized admin update endpoint and then read the catalog, availability and quote/submission endpoints in an isolated test database. They do not edit production facilities or add a new API.
+
+### 6. Database / migration impact
+
+No new application fields, models, migrations, packages or record rewrites. Prices, policies, operating hours and navigation destinations retain their existing rules. The backend test fixture now creates the already-existing unmanaged `Room` model's table only when missing in the isolated test database; this is not a production schema migration.
+
+### 7. Tests performed
+
+- **97 Flutter tests passed in 33 seconds:** `flutter test --no-pub --dart-define=CAPTURE_FACILITY_STATUSES=true test/facility_status_test.dart test/resource_catalog_cards_test.dart test/facility_details_test.dart test/facility_booking_flow_test.dart test/select_schedule_test.dart --reporter expanded`. Covered all four labels, unknown/legacy mapping, View Details navigation, disabled/enabled request actions, list/Details refresh, refresh failures/removals, direct booking-screen protection, narrow/large-text card layout and existing scheduling/form regressions.
+- **45 Django tests passed in 6.057 seconds:** `venv/Scripts/python.exe manage.py test api.test_mobile_facility_booking.MobileFacilityBookingTests --keepdb --noinput`. Included admin changes through all four statuses, subsequent catalog/availability/quote/submission reads, reopening to a successful request, unchanged prices/hours and class/reservation independence from overall status.
+- Targeted Dart analysis across all changed Dart code/tests: **No issues found**. Nested Flutter whitespace check passed.
+- Rendered and inspected four fixture card PNGs under `scratch/facility-status/` with bundled Poppins/Inter/Material fonts: visible green/amber/red/gray labels and retained View Details. No fixture data is imported into the runtime catalog.
+- Calculated text/background contrast using sRGB relative luminance: green **6.81:1**, amber **6.84:1**, red **7.60:1**, gray **6.92:1**. These are calculations for the badge's opaque colors, not a claim of a complete accessibility audit.
+
+Initial verification exposed a badge wrapper incompatible with the existing Wrap, a missing-status test fixture, the isolated database's missing unmanaged Room table and an unnecessary Dart null assertion. These were corrected before the successful runs above. The optional web design-kit gate is not installed here; no result from that gate is claimed.
+
+### 8. Remaining limitations, troubleshooting and safe practice
+
+No phone/APK installation, deployment or manual Web Admin browser test was performed. Status synchronization was verified through the real Django admin API in test fixtures and Flutter loader-refresh tests, rather than a live phone connected to production. Updates appear on data refresh; this change does not introduce a realtime status subscription or background catalog polling. An offline refresh does not prove that the last visible label is current.
+
+If a badge is wrong, first inspect the existing catalog response's facility ID and raw `status`, then `FacilityItem.fromJson`; do not derive it from a resource name, price or date's slot status. If View Details works but Request Booking is disabled, inspect the facility badge, refresh error and current supported workflow before changing availability rules. If a test database reports missing `campushub_rooms`, check the unmanaged-model fixture setup rather than creating a production migration for an existing model.
+
+Safe exercise: use `record('maintenance')` in `test/facility_status_test.dart`, predict the red label and disabled action, then run that test file. Change only the isolated fixture to `available` and verify the green badge and enabled action; keep a blocked date in the booking-service fixture and confirm server/availability validation still prevents booking that period. Run the backend status test to trace admin update -> saved code -> public response -> rejected/accepted submission without changing working PostgreSQL records.
+
+## Operating days control booking availability for all facilities - November 5, 2026
+
+### 1. Cause / reason
+
+Confirmed against the currently configured database using read-only queries: Covered Court had Monday-Friday operating hours of 08:00-17:00, Saturday/Sunday closed, and an older `weekend_only: true` flag. The previous mobile month endpoint returned all 31 December 2026 dates as `not_bookable`: 23 weekdays failed the old policy and 8 weekend dates had no operating hours. This was a configuration/rule conflict, not evidence of a refresh or network failure.
+
+The user explicitly clarified **Allow bookings on any enabled operating day**, applying this to all facilities and Add/Edit. This supersedes the historical sections below that preserved `weekend_only` or a separate `allowed_booking_days` list. Operating days/hours are now the single day-selection source. A bookable day still needs a valid time period, sufficient minimum duration, an open facility and no blocking reservation/class/maintenance/official schedule. Existing client eligibility and payment/pricing rules remain enforced.
+
+### 2. Exact files changed / current anchors
+
+Paths below are repository-relative. The Flutter app is a nested repository; inspect its changes with `git -C campushub diff`.
+
+| File | Current line / nearby anchor | Change and expected behavior |
+| --- | --- | --- |
+| `backend/core/modules/facilities/services/operating_schedule.py` | 114 `booking_day_restriction`; 133 `validate_schedule_change`; 208 `workflow_for_display` | Determine day eligibility from operating hours; ignore retired day flags immediately; protect active slot reservations and stay nights; omit retired flags from physical-facility display data without writing records. |
+| `backend/core/modules/facilities/services/facility_configuration.py` | 292 `Operating days are authoritative`; 367 `owned` | Remove old day flags from both incoming and merged saved physical-facility configuration on normal Add/Edit saves. |
+| `backend/core/modules/facilities/services/rental_configuration.py` | 120 `validate_rental_options` | Stop recreating `weekend_only` while validating rental settings; retain the other rental options. |
+| `backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` | 223 `getFeatureWorkflow`; 230 `setWorkflow`; 278 `syncType` | Stop loading/submitting the obsolete hidden weekend restriction; all existing operating controls and presets remain editable. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 614 controller script | Cache version `20261105-operating-days-authority` delivers the updated controller. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 1032 `Choose an available date for your booking.` | Remove the obsolete weekend instruction; keep existing server-driven calendar and refresh behavior. |
+| `campushub/lib/module_app/models/facility_detail_information.dart` | 93 `schedule` | Remove separate retired booking-day restrictions from schedule information; actual operating rows remain. |
+| `campushub/lib/module_app/screens/facility_details_screen.dart` | 868 `Operating Days` | Remove the old weekend badge, including for already-loaded facility objects. |
+| `backend/core/api/test_facility_form_controls.py` | 79 `test_all_add_categories_and_modes_use_operating_days_without_retired_flags` | Cover all four physical categories across Slot/Room/Daily/Custom configuration, old flags, closed/reopened days, exact times and legacy compatibility. |
+| `backend/core/api/test_mobile_facility_booking.py` | 61 month refresh test; weekday quote/submission and schedule-update tests | Verify existing raw flags cannot hide open days; updates reach month/day responses, quote and submission; keep conflict/minimum/concurrency coverage. |
+| `backend/core/api/test_facility_rental_configuration.py` | `test_client_eligibility_operating_days_and_hourly_package_options_validate` | Expect operating days instead of the removed flag while checking unchanged package pricing/eligibility. |
+| `backend/core/modules/facilities/test_admin_reservations.py` | 57 `test_room_operating_days_allow_stays_and_protect_active_nights` | Verify room-night operating-day enforcement and protection of existing stays. |
+| `backend/core/api/facility_schedule_browser_checks.cjs`; `backend/core/api/facility_schedule_live_browser_checks.cjs`; `backend/core/api/test_facility_schedule_live_browser.py` | Court save/policy assertions | Replace obsolete policy expectations with absent flags and actual weekday availability after save/reload. |
+| `campushub/test/select_schedule_test.dart` | 143 `ChangingOperatingCalendarService`; 251 category refresh matrix | Verify each physical category can change from weekdays to weekends and revised hours without stale flags hiding dates; clear invalid selections and preserve explicit time choice. |
+| `campushub/test/facility_details_test.dart` | legacy weekend flag / retired client-day tests | Keep actual operating rows and omit the obsolete badge/restriction text. |
+| `docs/facility-configuration.md`; `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | this entry / latest summaries | Record the confirmed cause, revised user rule, implementation, verification and safe practice. |
+
+### 3. Changes made
+
+Existing physical-facility records work immediately with their saved operating schedule even if their raw JSON still contains either retired key. Their next normal authorized Add/Edit save removes those two obsolete keys. There is no bulk database rewrite, new checkbox, separate booking-day list or automatic opening of closed days. The behavior applies to Covered Court, Function Hall, Hostel and Other; configuration normalization covers Slot, Room, Daily and Custom modes. Existing supported booking flows remain in place; this change does not implement a missing Daily/Custom mobile workflow or convert laboratory/lease services into reservations.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+`booking_day_restriction(workflow, day)` takes saved workflow JSON and a civil date. It returns `None` for an open operating day or a readable reason for a closed/invalid schedule. It no longer reads `weekend_only` or `allowed_booking_days`. `weekly_hours` still validates all seven structured days and supported legacy day-range text. Legacy records with only preset slots retain their existing behavior; recognizable time-only daily ranges still work. An explicit malformed schedule remains unavailable.
+
+`validate_facility_payload(data, facility=...)` merges omitted fields with their existing values, strips retired keys for physical facilities, validates the remaining fields and returns a cleaned dictionary. It does not itself save a record. The existing locked update path calls `validate_schedule_change` before applying/saving that dictionary. That guard rejects shortening/closing an affected active slot reservation or closing a night of an active stay. Removing obsolete policy metadata alone does not invalidate a reservation.
+
+`workflow_for_display(facility)` returns a copied, normalized JSON dictionary for catalog/admin rendering. Removing old keys from that copy does not mutate stored JSON. This avoids giving new clients contradictory policy instructions while retaining record history until the next ordinary save.
+
+```text
+Admin Add/Edit operating controls -> existing permission-checked Django create/update
+  -> validate_facility_payload -> validate_schedule_change -> existing save
+  -> availability GET -> configured_slots + booking_day_restriction
+  -> actual conflicts + minimum duration -> day/month slots and status
+  -> Flutter monthSlots -> Select Schedule calendar -> fresh day/quote/submit validation
+```
+
+Annotated example: Monday `{"open":"08:00","close":"17:00"}`, Saturday `null`, and an old `weekend_only:true` value now make Monday eligible and Saturday closed. If an actual class occupies 10:00-13:00 and the minimum rental is four hours, only 13:00-17:00 is bookable. Enabling a day does not bypass that class or the minimum. This approach reuses the existing shared validator so web booking, mobile availability and final submission agree.
+
+### 5. Backend / API behavior
+
+No endpoint, response shape, permission, pricing formula, payment workflow or authentication mechanism is added. Availability remains uncached (`private, no-store`). Existing month/day responses now derive day eligibility from operating hours alone. Internal/external client restrictions, server-side time validation, booking locks and actual schedule blocks remain. Specialized service workflows stay separate. The existing mobile foreground timer, pull refresh, route return and app resume checks continue to fetch actual availability.
+
+### 6. Database / migration impact
+
+No schema/model/migration change and no working-record writes. Read-only current-source endpoint verification changed December's projection from 31 unbookable dates to **23 available weekdays / 8 closed weekend dates**, with the raw stored legacy flag still present. Ordinary future facility saves remove only the obsolete day keys as part of the same workflow JSON save. Tests write only to created/destroyed local PostgreSQL test databases guarded by hostname, port and unique `test_` database name.
+
+### 7. Tests performed
+
+Final **181/181 Django tests passed in 37.868 seconds**, including **111 real Chrome checks** with zero page errors. **73/73 Flutter tests passed in 16 seconds** across `select_schedule_test.dart`, `facility_booking_flow_test.dart`, `covered_court_booking_test.dart` and `facility_details_test.dart`. `flutter analyze --no-pub` reported no issues in 53.4 seconds. JavaScript syntax and both repositories' `git diff --check` passed. Inspected the actual isolated Facilities Admin operating-schedule browser capture; it shows editable per-day controls and the existing layout.
+
+Also verified the already-running local server directly with a read-only GET to `http://127.0.0.1:8000/api/mobile/facilities/CAMFACIL20261013F13A/availability/?month=2026-12`: HTTP 200, `private, no-store`, 23 available dates and 8 closed/not-bookable dates. This confirms the local running server has the fix; no deployed/phone environment is implied.
+
+The Django run used `backend\core\venv\Scripts\python.exe -B scratch/schedule-policy-20261105/run_tests.py --browser api.test_facility_schedule_live_browser api.test_facility_form_controls api.test_mobile_facility_booking api.test_facility_rental_configuration modules.facilities.test_admin_reservations modules.facilities.test_calendar modules.facilities.test_service_configuration`. The suite covers Add/Edit normalization, all 16 category/mode combinations, month/day refresh, weekday quote/submission with stale flags, closed dates, classes/recurrence, minimum duration, existing reservations/stays, role permissions and separate service configuration. Flutter checks cover the four-category operating-day/hour refresh matrix plus booking/details flows. Real Chrome checks use normal login and actual HTTP Add/Edit/save/reload with Super Admin/Facilities Admin; Marketplace Admin remains denied. The saved browser Court fixture is weekday-only; weekend dropdown checks modify an unsaved draft and are discarded. Evidence stays under `scratch/schedule-policy-20261105/live-browser/`.
+
+Earlier runs exposed outdated assertions for the explicitly superseded policy, a new fixture missing its location/full quote input, and a new Other-category fixture missing its required general booking form. Those test inputs/expectations were corrected. One attempted broader run named two nonexistent test modules; the final command uses the actual `api.test_facility_rental_configuration` module. These were verification setup failures, not additional confirmed application defects.
+
+### 8. Remaining limitations / troubleshooting and safe exercise
+
+No physical-phone install, APK rebuild or deployment was performed. Running devices need the Django change on the server they actually use; Flutter text changes require running/rebuilding the updated app. A local source check does not prove a deployed server has updated. In Select Schedule, pull down to refresh or leave/reopen the screen; do not infer failure from a date that is genuinely closed, occupied or too short for the minimum duration. Preset time slots must still fit inside operating hours.
+
+Safe practice: in an isolated test fixture, set Monday 09:15-16:45 and Saturday closed, retain `weekend_only:true`/`allowed_booking_days:[]` in the fixture to simulate an old record, and request that future month's availability. Monday should be available and Saturday closed. Change Monday closing to 12:00 around an existing approved 13:00-16:00 reservation: the normal admin save must fail and preserve both hours and reservation. Remove the isolated reservation, retry the edit, refresh Select Schedule and verify the new hours. Never insert practice bookings into working records. Reproduce using the guarded local runner in `scratch/schedule-policy-20261105/run_tests.py`; pass `--browser` only when the documented existing Playwright/Chrome installation is available.
+
+## Remove the Allowed Booking Days form section safely - November 5, 2026
+
+### 1. Cause / reason
+
+Latest explicit user request removes the redundant Allowed Booking Days section from Add/Edit Facility. Inspection included the unpushed local implementation, not only Git HEAD. The section created checkboxes in `buildSchedule` and serialized a new list in `getFeatureWorkflow`; deleting its HTML alone would leave JavaScript accessing missing elements. A second dependency was confirmed in `validate_facility_payload`: it revalidated the merged saved day list against edited hours even when the form did not submit the list. That could prevent closing an operating day after removing its separate booking checkbox.
+
+This entry supersedes the previous entry's form checklist only. Saved client eligibility and the Covered Court weekend rental policy remain enforced. Operating days are still separate from client rental policy.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change in this task |
+| --- | --- | --- |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 482 `facilityOperatingHoursLabel`; 614 script asset; 1601 `setWorkflow` | Remove heading, help text, policy text and checkbox container; load `20261105-operating-schedule-only`; remove unused existing-record option. |
+| `backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` | 56 `buildSchedule`; 179 `syncDay`; 225 `getFeatureWorkflow`; 233 `setWorkflow`; 279 `getOperatingHours` | Remove booking-checkbox creation, references, listeners, dirty flags and serialization. Preserve operating presets/time controls, original saved hours, read-only transitions and saved weekend policy. |
+| `backend/core/modules/facilities/services/facility_configuration.py` | 290 `booking_days_provided`; 368 ownership; 381 explicit validation | Distinguish an explicitly submitted list from an omitted saved setting; retain omitted saved values exactly. |
+| `backend/core/api/test_facility_form_controls.py` | 119 `test_removed_booking_day_controls_preserve_saved_restrictions_when_hours_change` | Check empty/narrow saved lists survive close/reopen, with no mutation during validation. |
+| `backend/core/api/test_mobile_facility_booking.py` | 700 `test_operating_edits_preserve_hidden_booking_rules_and_mobile_availability` | Check save/reload, Pending/Approved conflict protection, close/reopen and unchanged mobile restrictions. |
+| `backend/core/api/facility_schedule_browser_checks.cjs` | Add absence check; category/mode matrix; saved policy checks | Replace removed-checkbox interactions with absence/payload/policy assertions while retaining all operating-control checks. |
+| `backend/core/api/test_facility_schedule_live_browser.py`; `backend/core/api/facility_schedule_live_browser_checks.cjs` | Court fixture; role loop; mobile availability checks | Use an isolated Court with a narrower saved Sunday-only rule, prove both policies survive actual browser saves and reach mobile responses. |
+| `docs/facility-configuration.md`; `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | current entries | Document function/data flow, dependency handling, checks and safe practice. |
+
+### 3. Changes made
+
+Removed the whole section, its explanatory/policy paragraphs and all seven booking checkboxes. No replacement UI or unrelated text change. Monday-Sunday operating checkboxes, native opening/closing selects, Weekdays/Weekends/Daily/Custom presets and View-to-Edit behavior remain. Specific-date closures continue through the existing Manage Facility Schedule modal; its code and records are untouched. No Flutter source change in this task; earlier unpushed work is preserved.
+
+### 4. How it works: functions, inputs / outputs and data flow
+
+`setWorkflow(workflow)` still loads saved operating hours and `weekend_only`. `getOperatingHours()` returns exact configured hours, or the unchanged legacy value when untouched. `getFeatureWorkflow()` returns the existing feature/policy fields but no longer returns `allowed_booking_days`. The existing save API merges omitted saved JSON from the database, so the removed controls cannot clear a saved restriction or create an invisible empty list on Add.
+
+`validate_facility_payload(data, facility=...)` now captures `booking_days_provided` **before** merging saved JSON. When false, the existing list is retained as an unedited field; when true, the existing explicit-list validator still checks valid distinct day names, open-day subset and weekend policy. This narrow change lets administrators close an operating day without changing hidden saved eligibility. Runtime `booking_day_restriction` still requires both permitted client day and an open operating period, so a stored permitted day that is now closed cannot be booked. Reopening operation restores only its original saved permission, never other restricted days. Explicitly empty saved lists remain empty; absent legacy lists remain absent.
+
+Annotated example: saved `allowed_booking_days: ["sunday"]` plus `weekend_only: true`; form sends only changed `operating_hours`. Django preserves `["sunday"]` exactly. Monday client rentals remain forbidden by the weekend policy, Saturday remains forbidden by the saved list, and Sunday is bookable only if operating hours and existing availability/minimum/conflict validation permit it. Closing Sunday leaves the saved list intact but makes Sunday unavailable. This approach avoids a database rewrite and avoids silently broadening eligibility.
+
+### 5. Backend / API behavior
+
+No endpoint or pricing change. Retain `operating_schedule.py`'s `booking_day_restriction`, `validate_booking_days` and locked `validate_schedule_change`; retain mobile/admin callers and all exact interval, minimum-duration, conflict, quotation and submission checks. Removing saved `weekend_only` remains rejected. Existing reserved periods and specific-date calendar blocks still apply. Super Admin/Facilities Admin retain existing edit access; Marketplace Admin receives no new permission. A failed schedule update does not mutate saved hours/bookings.
+
+### 6. Database / migration impact
+
+No working PostgreSQL writes, model changes, migrations, backfill, new dependencies or reservation changes. The form removal does not delete saved `allowed_booking_days`, `weekend_only` or operating hours. Existing configuration JSON remains readable by Django and Flutter. Test fixtures and browser save operations run only in a generated/destroyed local test database.
+
+### 7. Tests performed
+
+- **236/236 Django tests passed in75.670s**, system checks clean, disposable database destroyed. Includes form/rental validation, mobile quotes/submission and availability, active-reservation schedule protection, calendar blocks, booking workflow and the live browser test. New close/reopen tests verify saved empty/narrow lists remain intact and Pending/Approved reservations prevent an excluding schedule change.
+- Included **111 actual Chrome checks passed**, no page errors: normal Super/Facilities/Marketplace logins, Add/View/Edit, absent section/checkboxes, all presets/seven days/native times, actual save/reload, unchanged Sunday-only plus weekend policy and matching mobile unavailable/available responses. The script served to both authorized browser sessions matched disk SHA256 `65c5fd4af3e4b8ff271a648b883980c5f1be76faa2c3220bb3db982e6cc91999`. The test Court can have campus weekday hours without gaining client weekday/Saturday rentals. Its records are isolated fixtures, not changes to the working Covered Court.
+- **234 exported full-page Chrome checks passed** across four categories x four modes, with no page errors or HTTP writes. Checks include removed element absence, exact saved-hour restoration, operating day close/reopen, presets, View/Edit and policy isolation. This supplements the111 real HTTP checks rather than counting as additional Django tests.
+- **62/62 Flutter tests passed in29s**: `facility_details_test.dart`, `select_schedule_test.dart`, `covered_court_booking_test.dart`. No Flutter source modification or new analysis run was needed for this form removal.
+- JavaScript syntax checks, removed-element reference search across runtime templates/static code, and scoped whitespace checks passed. Inspected the actual Facilities Admin operating-section browser capture: the removed group is absent; all existing operating controls remain. Local test-server navigation logged two broken pipes, but the test suite passed and browser page errors were empty.
+
+Reproduce Django with the existing guarded local runner and `api.test_facility_form_controls api.test_facility_rental_configuration api.test_mobile_facility_booking modules.facilities.test_admin_reservations modules.facilities.test_calendar modules.facilities.test_booking_workflow api.test_facility_schedule_live_browser`. The opt-in live Chrome test uses the existing `CAMPUSHUB_PLAYWRIGHT_MODULE` and external `SCHEDULE_LIVE_OUT`; exported fixtures use `RENTAL_FORM_REVIEW_DIR`. No new package installed. Evidence for this task: `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/remove-booking-day-section/`.
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+No physical-phone run, APK rebuild/install, deployment or working-database form save. Hard-refresh admin to load `20261105-operating-schedule-only`. Saved extra booking restrictions deliberately remain in JSON and are enforced; this task does not provide a replacement editor for them. If a configured operating day is not client-bookable, inspect saved policy and genuine calendar reservations rather than clearing restrictions to make the UI appear available.
+
+Safe practice: open Add, verify only Operating Schedule appears, choose each preset and edit a day's times; cancel. Open existing Covered Court Edit, inspect its unchanged saved hours, then cancel. For save/reload and reservation-conflict practice use the disposable test suite, not demonstration records in the working database. To understand data flow, trace the form's omitted `allowed_booking_days` through `booking_days_provided` to the preserved database value, then the shared runtime eligibility check.
+
+## Separate operating hours and allowed client booking days - November 5, 2026
+
+### 1. Cause / reason
+
+Confirmed: `weekend_only` previously disabled weekday operating checkboxes and Weekdays/Daily presets, and the configuration validator rejected weekday operating hours. That mixed campus operation with client rental eligibility. The latest user request supersedes that coupling: all seven **operating** days are configurable; the saved weekend policy still caps **client booking** days. The existing Covered Court record has not been opened on weekdays or otherwise rewritten.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / code anchor | Purpose |
+| --- | --- | --- |
+| `backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` | 58 `buildSchedule`; 153 `applyPreset`; 168 `syncPresets`; 190 `syncDay`; 246 `getFeatureWorkflow`; 258 `setWorkflow`; 311 `getOperatingHours` | Separate the booking checklist from operating controls; preserve original legacy values and untouched implicit eligibility. |
+| `backend/core/modules/facilities/templates/facilities/pages/admin_facility.html` | 485 `facilityAllowedBookingDaysLabel`; 618 script version; 1605 `setWorkflow(..., {existing: true})` | Add the adjacent checklist using existing styles, explain the saved rental policy, identify existing records, load `20261105-operating-booking-days-v2`. |
+| `backend/core/modules/facilities/services/operating_schedule.py` | 114 `booking_day_restriction`; 136 `validate_booking_days`; 148 `validate_schedule_change` | Share date eligibility, validate open-day subsets and protect active reservations from newly restrictive edits. |
+| `backend/core/modules/facilities/services/facility_configuration.py` | 291 saved policy guard; 367 owned key; 377 `validate_booking_days` | Store the optional JSON setting, permit weekday campus hours, retain the non-removable saved weekend restriction. |
+| `backend/core/modules/facilities/services/mobile_booking.py` | 74 `date_restriction`; 88 `slot_status` | Apply the same client-day restriction to mobile availability. |
+| `backend/core/modules/facilities/services/admin_reservations.py` | 125 room-night restriction; 141 slot-day restriction | Apply shared eligibility to existing validation/quotation/submission paths. |
+| `backend/core/modules/facilities/services/activity.py` | 58 schedule snapshot; 65 detail exclusions | Classify booking-day/policy changes as schedule activity without rewriting history. |
+| `campushub/lib/module_app/models/facility_detail_information.dart` | 68 `operatingDays`; 134 `schedule`; 161 `Allowed booking days` | Display actual campus hours separately from valid client days; retain honest legacy display. |
+| `campushub/lib/module_app/screens/facility_details_screen.dart` | 882 `Weekend bookings` | Clarify the existing policy chip without changing navigation or layout. |
+| `backend/core/api/test_facility_form_controls.py` | 83 explicit-day validation; 103 legacy handling | Reject malformed/closed/forged days and preserve missing legacy settings. |
+| `backend/core/api/test_mobile_facility_booking.py` | 679 campus-versus-client tests | Verify availability, rejected submissions, persistence and active-reservation protection. |
+| `backend/core/modules/facilities/test_admin_reservations.py` | 57 explicit room booking days | Preserve legacy stays and reject changes excluding active occupied nights. |
+| `backend/core/api/facility_schedule_browser_checks.cjs` | category/mode matrix and loaded-policy checks | Extend the existing exported-page regression across four categories and four modes. |
+| `backend/core/api/test_facility_schedule_live_browser.py`; `backend/core/api/facility_schedule_live_browser_checks.cjs` | `FacilityScheduleLiveBrowserTests`; role loop | Extend the opt-in real HTTP browser test for separate eligibility, actual saves, reloads and permissions. |
+| `campushub/test/facility_details_test.dart`; `campushub/test/select_schedule_test.dart` | 339/409 detail tests; 112 `ClientDaysCalendarService`; 219 calendar test | Check separate display and server-controlled selectable dates; optional actual-widget capture. |
+| `docs/facility-configuration.md`; `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | this entry / current contract | Record the new behavior, verification and legacy rules. |
+
+### 3. Changes made
+
+Operating presets now affect only actual opening days/hours. Custom retains existing hours. A separate Allowed Booking Days checklist lets authorized administrators choose which open days clients can request. Closed days cannot be checked. For a record with saved `weekend_only: true`, weekday **booking** boxes stay disabled even when weekday operation is enabled; Saturday and Sunday remain independently configurable. Other facilities receive no new Court policy. View remains read-only; Super Admin/Facilities Admin permissions and Marketplace restrictions are unchanged. New facilities send an explicit selection, initially empty; opening a day does not silently permit client rentals.
+
+### 4. How it works: functions, inputs / outputs and data flow
+
+The form loads existing `workflow_config` into `setWorkflow`. `syncDay` controls operating inputs separately from booking inputs. `getOperatingHours` returns the weekly map (or an untouched legacy value); `getFeatureWorkflow` returns the saved policy and, when appropriate, `allowed_booking_days`. Existing save endpoints pass these through `validate_booking_days` and locked `validate_schedule_change` before saving. The catalog returns the same JSON. Django availability uses `booking_day_restriction`, then the existing period, minimum-duration and conflict checks. Flutter displays campus hours in the details card and uses the existing Django availability response for selectable client dates/periods.
+
+Annotated example, **not an instruction to overwrite any record**:
+
+```json
+{
+  "operating_hours": {
+    "monday": {"open": "08:00", "close": "17:00"},
+    "tuesday": null,
+    "wednesday": null,
+    "thursday": null,
+    "friday": null,
+    "saturday": {"open": "08:00", "close": "17:00"},
+    "sunday": {"open": "08:00", "close": "17:00"}
+  },
+  "weekend_only": true,
+  "allowed_booking_days": ["saturday", "sunday"]
+}
+```
+
+Monday is campus operation only. Clients can request Saturday/Sunday within the actual free periods and minimum duration. Adding `monday` to that list is rejected by Django even if a client bypasses the UI. Reusing the existing JSON and one shared eligibility function avoids separate web/mobile policies and a schema migration.
+
+Legacy safety: a missing key keeps the previous eligibility behavior; an unrelated existing-record edit does not insert the key. The checklist initially reflects implicit eligibility and follows operating edits until the administrator explicitly changes a booking checkbox. An explicit empty list closes client booking days. Invalid explicit values fail closed. Untouched text-based hours or slots-only records retain their original value; configure structured hours before selecting explicit days. Existing room stays retain their legacy date/night rules until an explicit eligibility setting is configured; explicit rules apply per occupied night, with checkout excluded. Active Pending/Approved stays cannot be newly excluded. Historical exceptions are preserved when an unrelated edit does not newly restrict their date; operating-hour edits must still cover active slot reservations.
+
+### 5. Backend / API behavior
+
+No new endpoint or parallel pricing implementation. The existing facility configuration API accepts optional `workflow_config.allowed_booking_days`: a distinct ordered weekday-name list contained in valid open operating days and capped by saved `weekend_only`. Existing catalog JSON exposes it. Both admin and mobile validation share day eligibility; existing availability/conflict, exact interval, minimum-duration, pricing and submission checks remain authoritative. Failed validation creates no booking. The existing facility-row transaction lock is reused for schedule edits and booking creation. Schedule updates cannot remove the saved weekend policy.
+
+### 6. Database / migration impact
+
+No models, migrations, new dependencies or automatic data updates. The optional list uses the existing JSON field when an authorized administrator saves a deliberate selection. No working facility, reservation, account or schedule record was changed during this implementation. Tests used created/destroyed disposable local PostgreSQL databases, not fake records in the working database. No rental/deposit/discount configuration changed.
+
+### 7. Tests performed
+
+- **234/234 Django tests passed in 67.568s** across form controls, rental configuration, mobile booking, admin reservations, calendar, booking workflow and the live-browser suite. Includes conflict/concurrency, minimum duration, client eligibility, failed-write protection, save/reload, room nights and legacy records.
+- The final expanded opt-in live-browser rerun passed **1/1 in 28.053s**, with **103 actual Chrome checks**, no page errors. Normal login and visible Add/View/Edit controls verified Super/Facilities Admin, operating presets/seven-day editing, weekend booking locks, all four Court weekend time selects, independent day checkboxes, deliberate eligibility selection, legacy omission, genuine HTTP saves/reloads/mobile responses and Marketplace read/write restrictions. The actual loaded controller hash matched disk. Test database booking count stayed unchanged. These are separate Chrome sessions, not the user's original tab.
+- **233 exported full-page Chrome checks passed**, zero page errors and zero HTTP mutations, across four categories x four modes and View/Edit transitions. This supplements the real HTTP test; it is not another 233 integration tests.
+- **70/70 Flutter tests passed** across facility details, schedule selection, booking flow, Covered Court and job-order suites. Whole-app `flutter analyze --no-pub` reported **No issues found**. The final optional actual-widget capture rerun passed **1/1** after loading existing bundled fonts; the render was inspected.
+- JavaScript syntax and scoped whitespace checks passed. Initial test corrections included the actual Booking room/date field names, using Dart's weekday getter, and comparing the unchanged starting booking count rather than assuming an empty unmanaged legacy table. Optional capture font loading was corrected; these were test fixes, not production data changes.
+- Evidence is external: `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/operating-booking-days/` (233-check JSON and page capture) and `operating-booking-live/` (103-check JSON, role captures, schedule captures and `flutter-operating-days.png`).
+
+Reproduce backend checks with the established guarded runner for `api.test_facility_form_controls api.test_facility_rental_configuration api.test_mobile_facility_booking modules.facilities.test_admin_reservations modules.facilities.test_calendar modules.facilities.test_booking_workflow api.test_facility_schedule_live_browser`. For real Chrome, set `CAMPUSHUB_PLAYWRIGHT_MODULE` to the existing Playwright install and `SCHEDULE_LIVE_OUT` to an external evidence directory; ordinary runs without that opt-in skip the live browser test. From `campushub/`, run `flutter test test/facility_details_test.dart test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart test/job_order_screen_test.dart`, then `flutter analyze --no-pub`.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-phone test, APK rebuild/install, deployment or working-database form save was performed. Existing Chrome/native host access was unavailable; actual browser verification used separate Chrome test sessions. Hard-refresh the admin page to load script `20261105-operating-booking-days-v2`; restart Flutter to see the updated policy label. Older documentation below describes historical behavior: its locked weekday **operating** controls are superseded by this entry; weekend **client rental** restrictions remain.
+
+Safe exercise: in Add Facility, choose an applicable physical category, click Weekdays and check one open client day. Confirm a closed day's booking box is disabled. Switch to Custom and set different hours; cancel without saving. In existing Covered Court Edit, weekday operation can be enabled in the unsaved draft but weekday client checkboxes must stay disabled. Cancel. For save/reload and active-reservation practice, run the disposable test suite instead of creating demonstration records in the working database.
+
+## Operating Schedule help text simplified - November 5, 2026
+
+1. **Cause / reason**: User asked for simpler Operating Schedule wording. The old helper (`Presets keep configured hours. New days use 8:00 AM–5:00 PM.`) and the weekend-policy note (`Operating hours are separate from client booking eligibility below.`) repeated what the separate **Allowed Booking Days** section already explains.
+2. **Files / anchors**: `backend/core/modules/facilities/static/facilities/js/facility_form_controls.js` — `buildSchedule()` lines 84–87 (`help.textContent`), `setWorkflow()` near line 260 and `syncType()` near line 316 (removed `this.policyNotice.hidden` lines); `admin_facility.html:618` script version `?v=20261105-schedule-help-text`.
+3. **Changes**: Helper now reads `Select the facility’s operating days and hours.` The `policyNotice` paragraph and its two visibility toggles were removed. `bookingPolicyNotice` (`admin_facility.html:487`, Allowed Booking Days) and all its toggles are unchanged.
+4. **Data flow**: Text only. `applyPreset`, `syncPresets`, `syncDay`, `getOperatingHours`, Allowed Booking Days and all validation are untouched, so saved `workflow_config` is identical.
+5. **Backend / database**: No Python, API, model, migration or PostgreSQL change.
+6. **Verification**: `node --check` clean; no remaining `this.policyNotice` references; 47/47 facility form/rental validation tests passed; live `/admin-facility/` Chrome check (saves blocked) confirmed exactly one helper with the new text, the old note absent, Allowed Booking Days present, Weekdays/Weekends/Daily/Custom selecting the correct days, 0 page errors.
+7. **Practice**: Change the string at `facility_form_controls.js:86`, bump the `?v=` value at `admin_facility.html:618`, hard-refresh (`Ctrl+F5`) and open Edit Facility to see it. Cancel without saving.
+
+## Post-push Operating Schedule recheck with real Chrome HTTP clicks - November 5, 2026
+
+### 1. Cause / reason
+
+The user reported that controls still appeared uneditable after commit `58a5aff2`. Investigation did **not** reproduce a new application defect. The user subsequently clarified **Both controls now work normally** in their current Chrome tab. Therefore no additional schedule-controller, template, CSS, permission or business-logic patch was made. Do not describe browser cache as a proven cause: the failing tab's original state was unavailable.
+
+Confirmed repository/server state: local HEAD is `58a5aff2`, clean at investigation start, and `git fetch origin` followed by the ahead/behind check returned `0 0`. Local port 8000 returned HTTP200 for `/static/facilities/js/facility_form_controls.js?v=20261105-all-schedule-controls`, exactly matching disk. SHA256: `a4183a3946478da0571035425488b1e7289de2a699315ef8e22ecc26777a4ba9`. Actual asset responses in the separate Chrome role tests match the same hash. This verifies the server and those browser sessions, not an inaccessible existing tab's earlier cache.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `backend/core/api/test_facility_schedule_live_browser.py` | 19 `FacilityScheduleLiveBrowserTests`; 23 `test_real_form_clicks_roles_and_persistence`; 48 subprocess | New opt-in disposable PostgreSQL live-server test that creates isolated role/facility fixtures, runs real Chrome through normal login and verifies no bookings or Court schedule changes remain. |
+| `backend/core/api/facility_schedule_live_browser_checks.cjs` | 13 role loop; 30 actual asset response; 58 seven-day clicks; 96 Court native dropdown clicks; 120 mobile response; 128 results | Browser test that navigates actual pages and clicks actual Add/View/Edit buttons, presets, day checkboxes and native selects, then saves/reloads test records over HTTP. |
+| `docs/facility-configuration.md` | 3 this report | Record confirmed result, reproducible browser test and limitations. |
+| `CAMPUSHUB_CONTEXT.md` | 3 recheck entry | Record user confirmation and distinguish this test from earlier intercepted fixtures. |
+
+Inspected and **unchanged** in this recheck: `facility_form_controls.js`, `admin_facility.html`, `accounts/role_permissions.py`, `accounts/authentication.py`, `services/operating_schedule.py`, and `services/facility_configuration.py`.
+
+### 3. Changes made
+
+Only retained tests and documentation were added. Unlike the earlier exported-page checks, the new test runs Chrome against a local Django HTTP test server with the real page, static files, Bootstrap behavior, ordinary login, role enforcement and save endpoints. It does not call `openEditFacilityForm()` directly, inject an administrator, force clicks or intercept form responses. Test records exist solely in a generated disposable test database.
+
+### 4. Functions, inputs / outputs and data flow
+
+`FacilityScheduleLiveBrowserTests` creates test Super Admin, Facilities Admin and Marketplace Admin accounts using existing role synchronization. It launches a `StaticLiveServerTestCase` server and passes that local URL plus test-only credentials to the Node test. The script fills and submits the normal login form, lets the normal tab-session flow authenticate, then navigates to the real Facilities page. Each authorized role opens Add, changes all seven day checkboxes, uses the four presets and clicks a native opening dropdown with ArrowDown/Enter. It saves an added Hall, reloads and reopens it through the visible row menu. View -> Back -> Edit tests the real mode transition. The restricted Court's four Saturday/Sunday opening/closing dropdowns are clicked, and its draft is discarded.
+
+The isolated Hall update then saves Tuesday opening09:15, reloads and verifies it. A GET to the same mobile availability endpoint used by Flutter returns the saved09:15-17:00 period. The script records the controller's actual browser response hash and checks that clicking time dropdowns does not toggle the day checkbox. The Marketplace role is tested for absent Add/Edit actions and a server-rejected update. Results contain check counts, role names, the public asset path/hash and page errors, never authentication tokens.
+
+Example: clicking Saturday Opening Time changes the isolated Court draft08:00 ->08:15; Saturday remains checked. Clicking Back discards it. The database assertion confirms the Court's saved weekend map remains08:00-17:00, with weekdays closed.
+
+### 5. Backend / API behavior
+
+No API changes. A READ ONLY transaction against the working database confirmed one active Super Admin and one active Facilities Admin each have `accounts.can_manage_facilities`; both active Marketplace Admin accounts lack it. No grants, role synchronization, login or new session was performed against the working database. Existing middleware/view permissions stay intact. The two existing active-reservation schedule tests were rerun successfully; rejected changes retain the schedule and Pending/Approved bookings.
+
+### 6. Database / migration impact
+
+No working facility/account/booking/schedule records changed, no schema/model/migration/dependency change. Normal test login and save operations write only to the uniquely named local test database created/destroyed by the established guarded runner. No working-server form save was attempted and no production demonstration booking was created.
+
+### 7. Tests performed
+
+- **91 real Chrome checks passed**, zero page errors, in the final live-browser test (**1/1 Django test in18.631s**). Covers both authorized roles, all four presets, seven unrestricted day checkboxes, native dropdown clicks and independent checkbox state, View -> Edit, restricted weekdays/presets, both weekend opening/closing dropdowns, Add/Edit save/reload, mobile HTTP synchronization, actual script hashes, and Marketplace restrictions.
+- The preceding combined run passed **3/3 tests in21.037s**: the then-81-check browser scenario plus `MobileFacilityBookingTests.test_schedule_update_protects_active_reservations_without_writes` and `test_all_weekly_categories_follow_saved_hours_and_protect_reservations`. Ten additional browser assertions then checked that dropdown clicks do not toggle checkbox state; the final91-check run passed. Repeated runs are not added to a fake unique test count.
+- Earlier live-test setup attempts exposed missing app-template discovery from a reduced `available_apps` list and a login-response/body navigation race in the test. The final test retains installed apps for real template/static discovery while using cascading test cleanup; it reads the normal tab session after normal login navigation. These were test setup corrections, not application defects.
+- Node syntax check and scoped whitespace checks passed. Actual `super-court.png` and `facilities-court.png` browser captures inspected. Evidence: external `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/schedule-live-browser/`, including `results.json` and those captures. Native computer/browser access was attempted through both available entry points; both reported the native/browser host unavailable. No claim of inspecting the user's existing Chrome tab or its earlier cache.
+
+Reproduce with an existing Playwright/Chrome install: set `CAMPUSHUB_PLAYWRIGHT_MODULE` to that module path and `SCHEDULE_LIVE_OUT` to an external evidence directory, then use the existing guarded local PostgreSQL runner for `api.test_facility_schedule_live_browser`. No extra packages are installed. Leave the opt-in variable unset for ordinary tests that lack a browser.
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+The exact cause of the earlier post-push observation remains unproven; the user confirmed the controls now work normally. Disabled Court weekdays/Weekdays/Daily and all View-mode controls are intentional. A closed day's time selects become available only after opening that permitted day. If the issue recurs, capture the role, facility, Add/View/Edit heading and exact failing control before refreshing, and note whether it is disabled, looks enabled without opening, or resets after selection. That preserves evidence rather than attributing it to caching without proof.
+
+Safe exercise: run the opt-in live-browser test against its disposable database and inspect the recorded asset hash and native-click results. For unsaved practice on the working page, open Edit, change an allowed weekend time and cancel; do not save policy changes or create fake working bookings merely to test clickability. Physical Flutter verification and direct observation of the original Chrome tab were not performed.
+
 ## Operating Schedule editing in Edit Facility mode and policy isolation - November 5, 2026
 
 ### 1. Cause / reason

@@ -1,5 +1,66 @@
 # CampusHub Dashboards: Analytics and Operations
 
+## Standalone Admin Notifications page retired; header bell retained - November 5, 2026
+
+### 1. Cause / reason and dependency audit
+
+The user requested removing the separate `/admin-notifications/` page and sidebar entry, retaining the existing header bell. Inspected latest local/unpushed source before editing. The page used the same scoped pending seller-request context as the bell, with a larger limit. It was not a persistent notification-history view: it listed pending requests, not an independent stored notification inbox.
+
+Confirmed page-only controls: **Send Notification** had no event handler, form, composer or sending endpoint; category tabs/checklists filtered existing DOM rows; **Mark all as read** changed DOM classes; **Clear all** hid rows without deleting records. The real seller approval/rejection forms also exist in the shared header and Sellers module, where existing application details, filters, status and history remain available. No essential sending/history backend is removed. The optional page-only category filtering is removed with the page; no replacement filter UI is added.
+
+Important existing limitations: the current bell shows pending **seller requests**, not an implemented booking/order notification feed. It has a pending indicator (`notif-dot`) backed by `pending_seller_requests`, not a persistent numeric unread counter. Mark as seen is browser-DOM state and resets on reload; no existing admin read-state API/model was found. Header rows do not have booking/order detail links or a seller detail link; their existing seller action forms are preserved. This task does not invent those missing features, create tables or change mobile/FCM notification logic. Do not report persistent unread behavior or booking/order deep links as verified functionality.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / code anchor | Change |
+| --- | --- | --- |
+| `backend/templates/partials/admin_sidebar.html` | 202 System Settings group | Remove Notifications anchor and its obsolete active-page/empty-group conditions; Messages/Settings retain existing permission gates. |
+| `backend/core/accounts/views.py` | 372 `admin_notifications_page` | Replace rendering with a dashboard redirect; retain login/notification-permission decorators. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` | 453 activity shortcut; 467/478/517 seller shortcuts | Route former notifications links to existing User Monitoring or pending Sellers, retaining text/layout and destination permissions. |
+| `backend/templates/dashboard/partials/super_admin_overview.html` | 118 Recent Activity shortcut | Use existing User Monitoring link and its permission instead of the retired page. |
+| `backend/static/components/js/admin_notifications.js` | 37 mark-seen; 58 filter branch | Remove only old `data-page-*`/category-input handlers. Existing bell and shared chat handlers remain unchanged. |
+| `backend/core/modules/notifications/templates/notifications/pages/admin_notifications.html` | deleted file | Remove unused standalone page after retiring its render path. |
+| `backend/static/components/css/admin_notifications.css` | deleted file | Its only runtime consumer was the removed template; shared header styles remain in `admin_header_menus.css`. |
+| `backend/core/accounts/tests.py` | 161 retired-route assertion; 274 sidebar assertion | Update existing expectations for redirect and absent navigation. |
+| `backend/core/accounts/test_admin_notifications.py` | `AdminNotificationsTests` | Add isolated role-scoped context/render, bookmark/auth, record preservation and existing Sellers API tests; optionally export real role templates for browser checks. |
+| `backend/core/accounts/admin_notification_browser_checks.cjs` | role loop | Check actual Bootstrap dropdown/All/Unread/mark-seen behavior on exported isolated Django fixtures, no HTTP writes. |
+| `docs/dashboard-analytics-operations-update.md`; `CAMPUSHUB_CONTEXT.md` | this entry / current summary | Explain the dependency audit, function/data flow, tests and limits. |
+
+### 3. Changes made
+
+Remove the sidebar item, standalone template, its private stylesheet and unused page-only JS. Keep `core/urls.py`'s named route as a compatibility redirect rather than breaking bookmarks or internal reverse lookups. Requests to the old URL still pass the existing authentication/permission checks and then redirect to the existing role-aware dashboard. No permanent redirect is cached. A final template reference scan found legacy dashboard shortcuts that would otherwise return users to their dashboard: pending seller review now targets the existing Sellers pending filter; activity shortcuts target existing User Monitoring and use its permission. No labels/layouts or backend grants changed. Shared header markup/styles and its bell controls remain intact, as do all notification/FCM models, endpoints, queues, records and automatic generation.
+
+### 4. How it works: functions, inputs / outputs and data flow
+
+`admin_notifications_page(request)` now returns HTTP302 to `admin_dashboard_page`, without querying/rendering the old page. Login-required and `can_access_notifications` checks execute first, preserving the existing denied-user behavior. `get_admin_home_url` and the named route remain compatible; no role grant changes.
+
+Existing bell data flow is unchanged: `get_notification_context(limit=5, user=actor)` in `accounts/views.py:159` -> `scope_seller_requests()` -> pending-request queryset/count -> `partials/admin_header.html`. The header renders up to three of those requests and the existing indicator. Shared JS handles more-menu, mark-as-seen and All/Unread by changing the existing classes/`hidden` attributes. The same JS file is used by many pages and has chat filtering, so it was retained rather than deleted.
+
+Annotated example: two pending requests visible to Super Admin render two unseen rows. Click Unread, then one row's existing Mark as seen: its DOM class changes to `is-seen` and it hides in Unread. Click All: both rows are visible again. This does **not** update PostgreSQL or decrement a persistent unread count. A Marketplace Admin sees only its allowed program's applications; the existing scope function still controls that query. Existing seller form actions point to the exact application ID; no action was submitted during browser verification.
+
+### 5. Backend / API behavior
+
+Only the old HTML page response changes, from200/render to302/dashboard. API routes/behavior, seller review authorization/scoping, automatic notifications, FCM dispatch and messaging remain unchanged. No bookmark can access a removed template. No new booking/order notification source, sending feature or read-state endpoint is added. Sellers remains the existing destination for full application review/history; unrelated booking/order screens are untouched.
+
+### 6. Database / migration impact
+
+No business-record writes, notification deletions, model changes, migrations or new dependencies. Tests use a created/destroyed guarded local PostgreSQL database. Exported bell fixtures contain isolated test applicants only and live outside the repository. Flutter/Firebase/messaging runtime code is unchanged.
+
+### 7. Tests performed
+
+- **29/29 Chrome interaction checks passed**, with no page errors or HTTP mutations. Covers actual Django-exported Super/Marketplace/Facilities header/sidebar partials, real Bootstrap dropdown open/close, All/Unread, mark seen, existing pending indicator, scoped row counts, empty state and exact seller action URLs. This is fixture browser verification, not an external production login or submitted approval. Captures inspected; shared pre-existing bell styling was not redesigned.
+- Initial broader Django run: **135 passed / 137 run in102.133s**, with two failures in unchanged `accounts.test_roles_permissions`. Both reproduced against a separate exported **untouched Git HEAD** in an independently created/destroyed test database: `test_history_reads_existing_role_audit_only_with_pagination_and_no_writes` expects `Cache-Control: no-store` but existing middleware sends `private, no-store, no-cache, must-revalidate, max-age=0`; `test_page_batches_role_permissions_and_admins_and_exports_browser_fixture` expects the group `Reports`, while existing role configuration uses `Reports & Analytics`. Neither source/test was changed for this removal. The isolated baseline lacked its unused static directory and emitted a staticfiles warning; both failures had the same assertions as the working run. Do not claim the complete existing suite passed.
+- Final relevant rerun: **111/111 Django tests passed in74.562s**, system checks clean, test database destroyed. Labels: `accounts.tests accounts.test_admin_notifications accounts.test_marketplace_support modules.notifications.test_product_push`. All five new notification tests passed, including repointed dashboard review/activity links and permission gating. This final selection excludes the separately verified pre-existing Roles-suite failures; it does not erase the broader137-test result. Existing product-push tests use mocked dispatch and include intentional failed/unregistered-delivery logs; no real FCM notification was sent.
+- JavaScript syntax and scoped whitespace checks pass; final reference searches found no runtime consumers of the removed template, stylesheet or `data-page-*` controls and no template link to the retired page. Existing named route/view/home-fallback references deliberately remain for compatibility. Shared header and chat code were retained.
+
+Run the existing guarded local PostgreSQL runner with `accounts.tests accounts.test_admin_notifications accounts.test_roles_permissions accounts.test_marketplace_support modules.notifications.test_product_push`. Optional `ADMIN_BELL_REVIEW_DIR` exports role fixtures externally. Run `node backend/core/accounts/admin_notification_browser_checks.cjs` with that directory and the existing `CAMPUSHUB_PLAYWRIGHT_MODULE`; copied Bootstrap assets must be in the fixture directory. This installs no new packages and never contacts the working database. Evidence directory: `C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/admin-notifications-removal/`.
+
+### 8. Remaining limitations / troubleshooting / safe exercise
+
+Existing missing booking/order feeds, record-opening links, persistent unread count and read-state storage are explicitly outside this removal task's no-new-features restriction. Do not mistake the old Send button for a functioning notification composer. Browser fixture testing exercises real rendered partials/Bootstrap/JS but does not establish a live multi-page read-state backend. No mobile/device testing or production login/send/review is performed.
+
+Safe practice: run the isolated tests/browser fixture, open the bell, switch All/Unread, mark a fixture row seen and switch back. Inspect that no non-GET HTTP request occurs. Test an old bookmark while signed in and verify the dashboard redirect; use the isolated runner, not a real applicant approval, for permission/record experiments. If a stale browser still shows the sidebar item, refresh the server-rendered page; no JavaScript redesign or permission grant is required.
+
 ## Current: compact shared Attention Required styling - November 3, 2026
 
 ### 1. Cause / reason

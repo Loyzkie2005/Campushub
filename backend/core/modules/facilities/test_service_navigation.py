@@ -71,7 +71,9 @@ class ServiceNavigationTests(TestCase):
     def test_final_sidebar_structure_and_active_services(self):
         response = self.client.get(reverse("admin_services_page"))
         sidebar = response.content.decode().split('<nav class="sidebar-nav">')[1].split('</nav>')[0]
-        expected = ["Marketplace", "User Management", "Facilities", "Services", "Reports", "System Settings"]
+        expected = ["Marketplace", "User Management", "Facilities", "Services", "Reports & Analytics"]
+        self.assertNotIn(reverse("admin_messages_page"), sidebar)
+        self.assertNotIn(reverse("admin_settings_page"), sidebar)
         import re
         self.assertEqual(re.findall(r'<span class="nav-group-title">([^<]+)</span>', sidebar), expected)
         self.assertIn(reverse("admin_sellers_page"), sidebar)

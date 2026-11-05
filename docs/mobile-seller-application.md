@@ -3581,3 +3581,99 @@ File: [campushub/test/seller_add_product_page_test.dart](file:///c:/Users/leste/
 2. Locate the `_label('Available Stock *', ...)` widget anchor.
 3. Verify that the label and hint string `'Enter available stock'` are properly synchronized.
 4. Run `flutter test test/seller_add_product_page_test.dart` from the `campushub` folder to verify that widget keys and form flow remain intact.
+
+
+---
+
+## Mobile Seller Dashboard: Banner Repositioned Below Sales Trend
+
+### Cause / Reason
+In the mobile application, approved sellers have seller dashboard sections embedded directly on the Home tab (homeSection: true), as well as full-screen seller workspace navigation. Previously, promotional/informational banners (CampusHomeBanners) were displayed between **Inventory Alerts** and **Suggested Product Bundles** via fterInventoryAlerts.
+The user requested moving the banner in the mobile seller dashboard to appear below **Sales Trend**, allowing sellers to review operational metrics (Overview KPIs, Recent Orders, Inventory Alerts, Suggested Product Bundles, and Sales Trend) continuously before encountering the campus promotional banner.
+
+### Exact Files Changed & Code Anchors
+1. campushub/lib/module_app/screens/seller_workspace_content.dart:
+   - **Constructor & Properties** (lines 30–45): Added fterSalesTrend parameter, retaining fterInventoryAlerts for backwards compatibility.
+   - **State Getter** (lines 50–55): Added Widget? get _banner => widget.afterSalesTrend ?? widget.afterInventoryAlerts;.
+   - **homeHighlights Builder** (lines 1705–1735):
+     - Removed if (widget.afterInventoryAlerts != null) from between Inventory Alerts and Suggested Product Bundles.
+     - Appended the banner directly below the Sales Trend card:
+       `dart
+       card(
+         title: 'Sales Trend',
+         child: SellerSalesTrend(
+           trend: analytics['trend'] is Map ? analytics['trend'] as Map : const {},
+         ),
+       ),
+       if (_banner != null) ...[
+         const SizedBox(height: 16),
+         _banner!,
+       ],
+       `
+2. campushub/lib/module_app/screens/seller_dashboard_page.dart:
+   - **Constructor & Properties** (lines 35–50): Added fterSalesTrend parameter alongside fterInventoryAlerts.
+   - **Workspace Delegations** (lines 280–285 and 442–448): Passed fterSalesTrend: widget.afterSalesTrend ?? widget.afterInventoryAlerts down to SellerWorkspaceContent.
+3. campushub/lib/module_app/screens/dashboard_screen.dart:
+   - **Home Tab Seller Section Wiring** (lines 410–422): Updated SellerDashboardPage invocation to pass CampusHomeBanners via fterSalesTrend.
+4. campushub/test/seller_home_entry_test.dart:
+   - **Layout Expectations** (lines 287–330): Updated responsive tests across 280x844 (scale 2.0), 390x844 (scale 1.0), and 768x844 (scale 1.0) viewports to assert:
+     - suggestions.top > inventory.bottom
+     - salesTrend.top > suggestions.bottom
+     - anner.top > salesTrend.bottom
+
+### Functions & Data Flow
+`
+DashboardScreen (_currentIndex == 0, _sellerApproved == true)
+     │
+     ▼
+SellerDashboardPage(homeSection: true, afterSalesTrend: CampusHomeBanners(...))
+     │
+     ▼
+SellerWorkspaceContent(homeHighlightsOnly: true, afterSalesTrend: ...)
+     │
+     ▼
+homeHighlights(context):
+  1. Sales Overview Header & Period Selector
+  2. 2x2 Overview Metrics Grid (Total Sales, Total Orders, Completed, Pending)
+  3. Recent Orders Table
+  4. Section Header: Inventory Alerts
+  5. Low Stock / Out of Stock alerts
+  6. Section Header: Suggested Product Bundles
+  7. Bundle Suggestions list
+  8. Card: Sales Trend (Interactive chart / zero line)
+  9. CampusHomeBanners (Promotional swipeable carousel) ◄── [NEW POSITION]
+`
+- **Inputs**: Seller analytical data (widget.data), user auth, tab callbacks.
+- **Outputs**: Ordered vertical list in homeHighlights where operational analytics remain contiguous and the promotional carousel anchors the bottom of seller highlights.
+- **Preservation**: Full carousel functionality (auto-rotation, pause, tap deep-links to Marketplace/Services/Facilities, swipe gestures) and seller drawer navigation remain untouched.
+
+### Backend / API Behavior
+- Unchanged. No Django REST Framework endpoints or serialization schemas were modified.
+
+### Database / Migration Impact
+- None. No models, tables, columns, or database migrations were modified.
+
+### Tests Performed
+1. cd campushub; flutter analyze --no-pub lib/module_app/screens/seller_workspace_content.dart lib/module_app/screens/seller_dashboard_page.dart lib/module_app/screens/dashboard_screen.dart test/seller_home_entry_test.dart:
+   - **0 issues found** across all 4 files.
+2. cd campushub; flutter test --no-pub test/seller_home_entry_test.dart:
+   - **25/25 tests passed**, including responsive banner checks at 280px (2x text), 390px, and 768px.
+3. cd campushub; flutter test --no-pub test/campus_home_banners_test.dart test/seller_workspace_test.dart:
+   - **19/19 tests passed**, confirming carousel lifecycle and workspace destinations.
+4. Headless widget screenshot capture:
+   - Generated seller-banner-390.0-1.0.png verifying visual hierarchy, spacing, and vertical alignment below Sales Trend.
+
+### Remaining Limitations
+- When the seller has zero sales or empty inventory alerts, the respective empty states are displayed within their dedicated cards, and the banner still consistently renders below the Sales Trend card.
+
+### Safe Practice Exercise
+1. Open campushub/lib/module_app/screens/seller_workspace_content.dart.
+2. Locate the homeHighlights(BuildContext context) method around line 1585.
+3. Trace the sequential list of widgets down to the card(title: 'Sales Trend', ...) block around line 1720.
+4. Observe the if (_banner != null) block immediately following the Sales Trend card.
+5. In PowerShell, run:
+   `powershell
+   cd campushub
+   flutter test --no-pub test/seller_home_entry_test.dart
+   `
+   Confirm that all 25 tests pass, verifying the vertical ordering programmatically.

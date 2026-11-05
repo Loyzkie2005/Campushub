@@ -611,7 +611,7 @@
     {{ service_configuration|json_script:"serviceConfigurationData" }}
     {{ calendar_events|json_script:"facilityCalendarEventsData" }}
     {{ facility_form_configuration|json_script:"facilityFormConfigurationData" }}
-    <script src="{% static 'facilities/js/facility_form_controls.js' %}?v=20261105-all-schedule-controls"></script>
+    <script src="{% static 'facilities/js/facility_form_controls.js' %}?v=20261105-operating-days-authority"></script>
     {% if service_catalog %}<script src="{% static 'facilities/js/service_form.js' %}?v=20261017-service-workflows"></script>{% endif %}
     <script src="{% static 'facilities/js/rental_form_controls.js' %}?v=20261104-no-deposit-preview"></script>
     <script>

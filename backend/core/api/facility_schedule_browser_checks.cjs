@@ -41,6 +41,8 @@ const check = (condition, label) => { assert.ok(condition, label); checks++; };
         });
         await page.goto('http://schedule.test/review');
         await page.locator('#addFacilityBtn').click();
+        check(await page.locator('#facilityAllowedBookingDays, #facilityAllowedBookingDaysLabel, #facilityBookingPolicyNotice, [id^="facilityBookingDay-"]').count() === 0,
+            'Removed booking-day section and checkboxes are absent');
         const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         const hours = Object.fromEntries(days.map(day => [day, {open: '08:07', close: '16:53'}]));
         const checkbox = day => page.locator('#facilityDay-' + day);
@@ -70,6 +72,11 @@ const check = (condition, label) => { assert.ok(condition, label); checks++; };
                     `${type}/${mode} independent Custom days`);
                 await checkbox('wednesday').check();
                 check(await time('wednesday', 'closing').isEnabled(), `${type}/${mode} reopen day`);
+                await checkbox('monday').uncheck();
+                check((await state()).monday === null, `${type}/${mode} operating day can close`);
+                await checkbox('monday').check();
+                check(!await page.evaluate(() => Object.prototype.hasOwnProperty.call(structuredFacilityControls.getFeatureWorkflow(), 'allowed_booking_days')),
+                    `${type}/${mode} form does not overwrite saved client policy`);
                 await page.evaluate(({type, mode, hours}) => {
                     const row = document.querySelector('#facilityTable tbody tr[data-facility-id]');
                     renderFacilityRow(row, {id: 'ISOLATED-SCHEDULE', name: 'Isolated schedule fixture',
@@ -99,8 +106,11 @@ const check = (condition, label) => { assert.ok(condition, label); checks++; };
             openViewFacilityForm(scheduleTestRow);
             openEditFacilityForm(scheduleTestRow);
         }, {days, hours});
-        check(await preset('Weekdays').isDisabled() && await preset('Daily').isDisabled(), 'Court policy disables forbidden presets');
-        for (const day of days.slice(0, 5)) check(await checkbox(day).isDisabled() && !await checkbox(day).isChecked(), `Court ${day} closed`);
+        check(await preset('Weekdays').isEnabled() && await preset('Daily').isEnabled(), 'Court campus operating presets editable');
+        for (const day of days.slice(0, 5)) check(await checkbox(day).isEnabled() && !await checkbox(day).isChecked(), `Court ${day} legacy operating values preserved`);
+        await preset('Daily').click();
+        check(await checkbox('monday').isChecked() && await page.evaluate(() => !Object.prototype.hasOwnProperty.call(structuredFacilityControls.getFeatureWorkflow(), 'weekend_only')), 'Court operating weekdays do not submit a hidden weekend restriction');
+        check(!await page.evaluate(() => Object.prototype.hasOwnProperty.call(structuredFacilityControls.getFeatureWorkflow(), 'allowed_booking_days')), 'Court form leaves saved booking-day restrictions untouched');
         check(await time('saturday', 'opening').isEnabled() && await time('sunday', 'closing').isEnabled(), 'Court permitted weekend times editable');
         await preset('Custom').click();
         await time('saturday', 'opening').selectOption('09:15');
@@ -112,8 +122,8 @@ const check = (condition, label) => { assert.ok(condition, label); checks++; };
         check(await checkbox('monday').isEnabled() && await preset('Daily').isEnabled(),
             'Changing category does not carry Court-only locks into Hall draft');
         await page.locator('#facilityType').selectOption('covered_court');
-        check(await checkbox('monday').isDisabled() && await preset('Daily').isDisabled(),
-            'Returning to restricted Court restores its policy');
+        check(await page.evaluate(() => !Object.prototype.hasOwnProperty.call(structuredFacilityControls.getFeatureWorkflow(), 'weekend_only')) && await preset('Daily').isEnabled(),
+            'Returning to Court retains enabled operating controls without a hidden policy');
         for (const type of types.slice(1)) {
             await page.evaluate(({type, hours}) => {
                 scheduleTestRow.dataset.facilityType = type;
@@ -133,11 +143,17 @@ const check = (condition, label) => { assert.ok(condition, label); checks++; };
         await page.locator('#facilityType').selectOption('hostel');
         check(await preset('Daily').isEnabled(), 'Hall policy does not leak into Hostel draft');
         await page.locator('#facilityType').selectOption('function_hall');
-        check(await preset('Daily').isDisabled(), 'Returning to Hall preserves its own saved policy');
+        check(await page.evaluate(() => !Object.prototype.hasOwnProperty.call(structuredFacilityControls.getFeatureWorkflow(), 'weekend_only')) && await preset('Daily').isEnabled(), 'Returning to Hall keeps operating controls without a hidden policy');
         await page.evaluate(() => openViewFacilityForm(scheduleTestRow));
         await page.evaluate(() => resetFacilityForm());
         await page.locator('#facilityType').selectOption('function_hall');
         check(await preset('Daily').isEnabled() && await checkbox('monday').isEnabled(), 'View -> Add resets read-only and policy');
+        await page.evaluate(() => structuredFacilityControls.setWorkflow({operating_hours: 'Ask the office'}));
+        check(await page.evaluate(() => structuredFacilityControls.getOperatingHours() === 'Ask the office'
+            && !Object.prototype.hasOwnProperty.call(structuredFacilityControls.getFeatureWorkflow(), 'allowed_booking_days')), 'Unchanged legacy text does not seed booking days');
+        await page.evaluate(() => structuredFacilityControls.setWorkflow({}));
+        check(await page.evaluate(() => structuredFacilityControls.getOperatingHours() === undefined
+            && !Object.prototype.hasOwnProperty.call(structuredFacilityControls.getFeatureWorkflow(), 'allowed_booking_days')), 'Legacy slots-only record preserves absent operating/booking settings');
         for (const type of ['food_analysis', 'training_kitchen', 'lease_space']) {
             await page.evaluate(() => resetFacilityForm());
             // Existing service workflows are not converted to weekly rentals.

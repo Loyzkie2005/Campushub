@@ -1,5 +1,16 @@
 # Facility Admin dashboard refinement
 
+## November 5, 2026: plain Dashboard title
+
+1. **Cause / reason:** The user requested removing “Facilities” from the Facility Admin dashboard title. The active shared header already says Dashboard; its browser tab still said Facilities Dashboard.
+2. **Exact files changed:** `backend/core/modules/facilities/templates/facilities/pages/admin_facilities_dashboard.html:8` (`<title>`); `backend/templates/dashboard/pages/admin_facilities_dashboard.html:9` (`<title>`) and `:35` (`<h2>`); `backend/core/accounts/tests.py:517` (existing dedicated-facilities-dashboard assertion); this guide, starting at line 3.
+3. **Changes made:** Both browser titles now read `CampusHub | Dashboard`. The older template's heading now reads `Dashboard`. Updated the existing test expectation for the new title. The active welcome greeting stays as configured.
+4. **How it works:** `admin_dashboard_page(request)` in `backend/core/modules/reports/views.py:704` receives the authenticated request, uses the existing role branch, and renders the module template at line 768 with its existing context. The template returns HTML; the browser uses `<title>` for the tab and the shared header uses `page_title='Dashboard'`. This is literal presentation text and takes no new inputs or function calls. Example: `<title>CampusHub | Dashboard</title>` sets the tab label without affecting booking counts.
+5. **Backend / API behavior:** Existing endpoints, role permissions, calculations, links and workflows are unchanged.
+6. **Database / migration impact:** None. Verification rendered with empty context and did not require database reads or writes.
+7. **Tests performed:** Rendered the active module template using Django and asserted the new title and absence of the old text: passed. Checked the legacy source title/heading: passed. `git diff --check` passed. Updated the existing integration assertion but did not run the database-backed suite for this text-only change.
+8. **Remaining limitations / troubleshooting:** The first attempt to render both templates exposed an existing syntax error in the unused legacy template (`facilities.booking_days==7`, missing operator spacing). That unrelated error was left unchanged; the active template rendered successfully. No signed-in browser visual check or broad design-kit gate was run. If the active tab still shows the old title, reload the page and confirm the running server uses this checkout. Safe exercise: sign in as Facilities Admin, open the existing Dashboard, verify the tab says `CampusHub | Dashboard` and the shared header says Dashboard, then check that Facilities and Bookings navigation still reach their existing pages without editing records.
+
 Updated October 27, 2026. This guide describes the dedicated Facility Admin dashboard at the existing `admin_dashboard_page` URL. The Super Admin dashboard and Flutter screens are separate and were not redesigned by this change.
 
 ## October 27, 2026 ? compact operational dashboard

@@ -288,9 +288,10 @@ def validate_facility_payload(data, *, facility=None):
         errors["equipment"] = "Use Additional Requirements and Optional Additional Fees instead of separate equipment configuration."
     # Preserve unowned saved settings; validate owned settings after merging.
     raw_workflow = {**existing_workflow, **raw_workflow}
-    if physical and existing_workflow.get("weekend_only") is True and raw_workflow.get("weekend_only") is not True:
-        errors["weekend_only"] = "The existing weekend-only policy cannot be removed through the facility schedule form."
-        raw_workflow["weekend_only"] = True
+    if physical:
+        # Operating days are authoritative for Add, Edit and older API clients.
+        raw_workflow.pop("weekend_only", None)
+        raw_workflow.pop("allowed_booking_days", None)
     if physical:
         amenities, other_feature = validate_features(amenities, raw_workflow, existing_workflow, errors)
     custom_type = ""
@@ -363,7 +364,7 @@ def validate_facility_payload(data, *, facility=None):
                 errors[field] = "Enter a valid time."
     owned = WORKFLOW_CONFIG_FIELDS | set(RULE_FIELDS) | {"capacity_min", "booking_form_type", "pricing", "damage_deposit", "additional_fees", "custom_facility_type", "discount_rules", "eligible_clients", "weekend_only", "advance_payment_days"}
     if physical:
-        owned |= {"other_feature"}
+        owned |= {"other_feature", "allowed_booking_days"}
     workflow_config = {**{key: value for key, value in existing_workflow.items() if key not in owned}, **workflow_config}
     if custom_type:
         workflow_config["custom_facility_type"] = custom_type
@@ -373,9 +374,6 @@ def validate_facility_payload(data, *, facility=None):
         workflow_config.update(validate_rental_options(raw_workflow, mode=booking_mode,
             rate=rate, price_type=price_type, capacity=capacity, errors=errors,
             facility_type=facility_type, legacy=bool(facility)))
-        if workflow_config.get("weekend_only") and isinstance(workflow_config.get("operating_hours"), dict):
-            if any(workflow_config["operating_hours"].get(day) is not None for day in WEEKDAYS[:5]):
-                errors["operating_hours"] = "Weekend-only restriction requires Monday through Friday to be Closed."
     if errors:
         raise ValidationError(errors)
 

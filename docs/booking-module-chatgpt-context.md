@@ -1,5 +1,256 @@
 # CampusHub Bookings: reusable project context
 
+## Non-selected adjacent wheel numbers visibility restored - November 5, 2026
+
+### 1. Cause / reason
+
+The adjacent non-selected numbers in the time picker wheels appeared invisible because of two compounding factors:
+1. **Double opacity reduction**: Flutter's `CupertinoPicker` / `ListWheelScrollView` automatically applies `overAndUnderCenterOpacity: 0.447` to all off-center items above and below the center selection. In our previous widget tree, the children were wrapped in an additional `Opacity(0.38)` widget. This compounded to `0.447 * 0.38 = 0.17` (17% effective opacity), which washed out the text against the white background into near-white `(215, 215, 225)` ghost pixels.
+2. **Tight viewport clipping**: `wheelHeight` was constrained to `extent * 3 = 120px` with `diameterRatio: 2.2`. This pushed the adjacent items right to the cylinder clipping boundary of `RenderListWheelViewport`.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/booking_time_dialog.dart` | Lines 45–130 (`wheelHeight`, `diameterRatio: 1.15`, child `Text` styling) | Increased `wheelHeight` to `(extent * 3.6).clamp(150.0, 196.0)` and set `diameterRatio: 1.15`. Removed the redundant `Opacity(0.38)` wrapper, letting `CupertinoPicker`'s built-in `overAndUnderCenterOpacity: 0.447` provide clear, high-contrast muted text (`(152, 151, 176)`) for adjacent items. Used `FontWeight.w600` on selected item and `FontWeight.w500` on adjacent items. |
+| `campushub/test/select_schedule_test.dart` | Lines 775–783 | Updated assertions to verify both selected and adjacent items (`booking-time-am`, `booking-time-pm`) are present and rendered with `w600` (selected) vs. `w500` (adjacent) weights. |
+| `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | Top section | Document root cause, exact file/line anchors, functions/data flow, verification results, and safe practice exercise. |
+
+### 3. How it works / functions and data flow
+
+```text
+[Stack (height: 150..196px)]
+  ├── Positioned Container (height: extent, color: #F2F4F7, borderRadius: 10)  ◄── Centered gray selection pill
+  └── CupertinoPicker (diameterRatio: 1.15, selectionOverlay: null)
+        └── Children: 01..12, 00..59, AM/PM
+              ├── Item above center: rendered at (152, 151, 176) via native 0.447 dimming, w500 (clearly visible!)
+              ├── Center selected item: rendered at (26, 24, 81) full navy, w600 (crystal clear over gray pill!)
+              └── Item below center: rendered at (152, 151, 176) via native 0.447 dimming, w500 (clearly visible!)
+```
+
+### 4. Tests performed & safe practice exercise
+
+- `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart`: **46/46 passed in 17s**.
+- `flutter analyze --no-pub lib/module_app/widgets/facilities/booking_time_dialog.dart lib/module_app/screens/facilities/facility_booking_screen.dart test/select_schedule_test.dart`: **No issues found (2.1s)**.
+- Pixel verification of exported frame (`dialog_830.png`):
+  - Above center (`Y=325..355`): `darkest = (152, 151, 176)` (crisp, readable muted slate-navy).
+  - Center (`Y=385..400`): `darkest = (26, 24, 81)` (deep primary navy).
+  - Below center (`Y=430..460`): `darkest = (152, 151, 176)` (crisp, readable muted slate-navy).
+- Safe practice: open `booking_time_dialog.dart` and trace `CupertinoPicker`'s `overAndUnderCenterOpacity: 0.447` behavior. Verify that adjacent numbers above and below render with clear contrast against white surfaces without compounding external `Opacity` widgets.
+
+## Time picker wheel visibility fix: selection background behind numbers - November 5, 2026
+
+### 1. Cause / reason
+
+In `BookingTimeDialog` (`campushub/lib/module_app/widgets/facilities/booking_time_dialog.dart`), the subtle light-gray selection background (`#F2F4F7`) was initially supplied to `CupertinoPicker.selectionOverlay`. In Flutter's `CupertinoPicker`, `selectionOverlay` is stacked **on top** of the wheel items (`ListWheelScrollView`). Because `Color(0xFFF2F4F7)` was solid opaque, it covered and completely hid the selected numbers, making only the gray selection container visible to the user.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/booking_time_dialog.dart` | Lines 64–130 (`wheel` widget in `_BookingTimeDialogState`) | Placed the `Positioned` selection background container (`#F2F4F7`, `key: selectionKey`) in a `Stack` **behind** `CupertinoPicker`, and set `CupertinoPicker.selectionOverlay: null` so numbers render directly in front of the background. Increased number font size to `22px` for crisp legibility. |
+| `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | Top section | Record root cause, exact file/line anchors, functions/data flow, verification results, and safe practice exercise. |
+
+### 3. How it works / functions and data flow
+
+```text
+[Stack]
+  ├── Positioned Container (height: extent, color: #F2F4F7, borderRadius: 10)  ◄── BACKGROUND (behind)
+  └── CupertinoPicker (selectionOverlay: null)                                 ◄── FOREGROUND (on top)
+        └── Children: 01..12, 00..59, AM/PM
+              ├── Selected item (center): Opacity 1.0, 22px, #1A1851 (crystal clear in front of gray pill)
+              └── Adjacent items (top/bottom): Opacity 0.38, 22px, #1A1851
+```
+
+- Each wheel column wraps the selection background in a `Stack` behind the `CupertinoPicker`.
+- Because `selectionOverlay` is `null`, no overlay covers or obscures the text.
+- The numbers (`01`–`12`, `00`–`59`, `AM`/`PM`) render directly in the foreground, perfectly centered over the subtle `#F2F4F7` pill with adjacent values visible above and below.
+
+### 4. Tests performed & safe practice exercise
+
+- `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart`: **46/46 passed in 16s**.
+- `flutter analyze --no-pub lib/module_app/widgets/facilities/booking_time_dialog.dart lib/module_app/screens/facilities/facility_booking_screen.dart test/select_schedule_test.dart`: **No issues found (1.6s)**.
+- Pixel verification of exported frame (`time-wheel-390.0-1.0.png`): confirmed `1,966` dark navy pixels present in the wheel center area (`Y=1380` to `1420`), proving numbers are now fully rendered and visible.
+- Safe exercise: open `BookingTimeDialog`, inspect the `Stack` structure in `wheel()`, and verify that the selection background is drawn as child 1 (behind) and `CupertinoPicker` with `selectionOverlay: null` as child 2 (in front).
+
+## Bottom-sheet 3-column time picker layout (Hour / Minute / AM-PM) - November 5, 2026
+
+### 1. Cause / reason
+
+The user requested updating the Flutter **Select Schedule** `Start Time` / `End Time` picker layout (`BookingTimeDialog`) to a bottom-sheet layout with rounded top corners, a top drag handle, centered `Start Time` / `End Time` title, three vertically scrollable columns (`Hour`, `Minute`, `AM/PM`) with centered light-gray selection backgrounds (`#F2F4F7`) and reduced opacity (`0.38`) on adjacent values, and horizontal `Cancel` / `OK` buttons at the bottom while preserving CampusHub branding (`#1A1851` navy, `#FCB316` gold, white, `Montserrat` typography) and all existing time-selection and validation behavior.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 378 `_pickTime` (`showModalBottomSheet<TimeOfDay>`) | Open `BookingTimeDialog` via `showModalBottomSheet<TimeOfDay>` (`isScrollControlled: true`, `useSafeArea: true`, `backgroundColor: Colors.transparent`) instead of `showDialog<TimeOfDay>`. |
+| `campushub/lib/module_app/widgets/facilities/booking_time_dialog.dart` | 24 `_hourIndex`/`_minuteIndex`/`_periodIndex`; 28 `_hours`/`_minutes`/`_periods`; 52 `wheel(...)`; 130 `Align(alignment: Alignment.bottomCenter, ...)`; 150 `booking-time-drag-handle`; 162 `booking-time-title`; 175 three-column `Row`; 232 horizontal `Cancel` / `OK` `Row` | Render a bottom-sheet surface with 24px rounded top corners, drag handle, centered title, three `CupertinoPicker` columns (`Hour`, `Minute`, `AM/PM`) with `#F2F4F7` selection pills and `0.38` adjacent opacity, and horizontal `Cancel` / `OK` buttons. |
+| `campushub/test/select_schedule_test.dart` | 453 `AM/PM wheel preserves and converts hour`; 706 responsive bounds & 3-column wheel/selection/opacity assertions; 1538 Covered Court sheet check | Verify `BottomSheet` presence, drag handle, centered title, 3 side-by-side wheels, centered selection backgrounds, `{1.0, 0.38}` selected vs. adjacent opacity, horizontal `Cancel`/`OK` buttons, and absence of `Confirm`/`Remove` buttons across `390x844`, `280x844` (`200%` text scale), and `320x568`. |
+| `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | Top section | Record root cause, exact file/line anchors, functions/data flow, verification results, and safe practice exercise. |
+
+### 3. How it works / functions and data flow
+
+1. When the user taps **Start Time** or **End Time**, `FacilityBookingScreen._pickTime(bool start)` (`facility_booking_screen.dart:371`) calls `showModalBottomSheet<TimeOfDay>` with `BookingTimeDialog(title: start ? 'Start Time' : 'End Time', initialTime: _clock(initialValue))`.
+2. `_BookingTimeDialogState` initializes three `FixedExtentScrollController` instances: `_hours` (`(initialTime.hour + 11) % 12`, values `01`–`12`), `_minutes` (`initialTime.minute`, values `00`–`59`), and `_periods` (`initialTime.period == DayPeriod.am ? 0 : 1`, values `AM` / `PM`).
+3. Each column uses `CupertinoPicker` with a centered rounded light-gray `selectionOverlay` (`#F2F4F7`, `borderRadius: BorderRadius.circular(10)`). The selected item renders at `Opacity(opacity: 1.0)` with `FontWeight.w600` (`Montserrat`), while adjacent items above and below render at `Opacity(opacity: 0.38)` with `FontWeight.w500`. Each wheel item is also wrapped in a synchronous `GestureDetector(onTap: ...)` so tapping an adjacent item jumps immediately without triggering `CupertinoPicker._handleChildTap`'s async haptic delay.
+4. Tapping **Cancel** (`booking-time-cancel`) pops `null` without mutating booking state; tapping **OK** (`booking-time-ok`) converts the 3 wheel indices back into a 24-hour `TimeOfDay` (`hour: (hourIndex + 1) % 12 + (periodIndex == 1 ? 12 : 0), minute: minuteIndex`) and returns it to `_pickTime()`, which validates the interval via `_applyTime()`.
+
+### 4. Backend / API & database impact
+
+None. No Django, PostgreSQL, API, model, migration, or booking validation changes.
+
+### 5. Tests performed & safe practice exercise
+
+- `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart`: **46/46 passed in 17s**.
+- `flutter analyze --no-pub lib/module_app/widgets/facilities/booking_time_dialog.dart lib/module_app/screens/facilities/facility_booking_screen.dart test/select_schedule_test.dart`: **No issues found (2.9s)**.
+- Safe exercise: run `flutter test --no-pub test/select_schedule_test.dart --plain-name "AM/PM wheel preserves and converts hour"` from `campushub/` to verify all 4 midnight/noon/morning/afternoon 12-hour wheel conversions in isolation.
+
+## Available Hours requires a manual window choice after changing dates - November 5, 2026
+
+1. **Cause / reason:** Confirmed with a failing widget regression: `_syncCustomWindow` automatically assigned `_window`, `_customStart` and `_customEnd` whenever a loaded date had exactly one available custom window. Available Hours therefore displayed a selected check icon without a tap on its hours. This is Flutter selection state, not an API availability error. The latest request supersedes that automatic single-window selection described in older entries below.
+
+2. **Exact files changed:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:362` (`_resetTimeSelection`), with callers at 183/274/319; `campushub/test/select_schedule_test.dart:250` (new date-change regression), 333 (changed-hours refresh), 368 (unchanged draft), plus the four-category refresh cases; this guide and the latest summary in `CAMPUSHUB_CONTEXT.md`.
+
+3. **Changes made:** Loading a date lists its actual hours with an empty selection circle. Start/End controls appear after the user taps a custom booking window. Choosing another date clears the old window and completed interval even if the new date has identical hours; Next stays disabled until the existing time-selection flow is completed again.
+
+4. **How it works / functions and data flow:** `_resetTimeSelection()` takes no arguments and returns no value. It clears the local window, start/end draft, explicit-time flag and selected interval while preserving the fetched availability. `_loadMonth` and `_loadSlots` call it after receiving Django data. The row renderer at line 1181 derives its icon/border from `_window`/`_slot`, and time controls at line 1300 require an explicitly chosen custom window. On same-date refresh, `_refreshAvailability` rebinds an unchanged manually chosen window and preserves unfinished input. Changed/removed bounds clear the choice instead of selecting a replacement. Example: select December 1, tap 08:00-17:00 and confirm a valid interval; choosing December 2 with identical hours lists 08:00-17:00 unselected and disables Next. Availability is data; choosing it is a separate user action.
+
+5. **Backend / API behavior:** Unchanged. Existing month/day reads, race guards, dialog cancellation, actual availability, minimum duration, permissions, quote and final submission validation remain. Selecting a date or window creates no booking.
+
+6. **Database / migration impact:** None. No models, migrations, dependencies or working records changed; tests use isolated Flutter service fixtures.
+
+7. **Tests performed:** The focused regression failed before the fix because a selected icon was already present, then passed afterward. Final four-file run: **74/74 Flutter tests passed in20s**, covering `select_schedule_test.dart`, `facility_booking_flow_test.dart`, `covered_court_booking_test.dart` and `facility_details_test.dart`. `flutter analyze --no-pub` reported no issues in54.4s. Nested-repository whitespace checks passed. A separate focused rerun passed while capturing the actual screen; inspected `scratch/available-hours-choice-20261105/hours-after-date-change.png`, showing an empty hours selection circle, no Start/End controls and disabled Next.
+
+8. **Remaining limitations / troubleshooting and safe practice:** No phone install or APK rebuild was performed. Run/restart the updated Flutter app; refreshing Django cannot update an installed old app. Existing initial date selection and picker defaults after a manual window tap remain. Safe exercise: choose a date, tap hours, confirm a valid interval, then choose another date with the same hours. Verify the empty selection circle and disabled Next; tap hours to reveal time controls. Refresh unchanged hours and confirm a manually chosen draft remains. Use the isolated widget test to practice without creating working bookings. After an admin edit invalidates the window, select the new hours manually.
+
+## Operating days now control client booking dates - November 5, 2026
+
+The user explicitly chose **Allow bookings on any enabled operating day**, for all facilities and Add/Edit. This supersedes the older weekend-only/separate allowed-booking-day policy in historical entries below. Confirmed cause: Covered Court had open weekdays, closed weekends and an old weekend-only flag, yielding no bookable dates. The shared Django `booking_day_restriction` now reads operating hours; Add/Edit cleans retired policy keys and `workflow_for_display` omits them from copied presentation data. Flutter removes obsolete policy instructions/badges and still selects only dates/time periods returned by Django. Existing class/maintenance/reservation conflicts, configured minimums, status, client eligibility, quote/payment and final submission protections remain.
+
+Inputs/data flow: admin's seven-day hours -> existing locked Django validation/save -> actual month/day availability -> Flutter calendar refresh -> exact selected interval -> existing quote/submission revalidation. Example: open Monday 08:00-17:00 is eligible even on an old record with `weekend_only:true`; a closed Saturday remains closed. No working records are rewritten to demonstrate this. Current-source read-only December check: 23 available weekdays and 8 closed weekend dates. Full current file/line anchors, functions, tests, setup corrections, troubleshooting, limitations and safe practice exercise are in [the configuration guide](facility-configuration.md#operating-days-control-booking-availability-for-all-facilities---november-5-2026). Four new category-based Flutter refresh cases verify old flags cannot hide server-enabled dates and that changed operating hours replace old selections. Physical-phone/APK/deployed-server verification remains outside this local check.
+
+## Scheduling integration verification and stale draft-hour refresh fix - November 5, 2026
+
+### 1. Cause / reason
+
+Inspected the latest local source, including unpushed schedule/policy and time-dialog work. Confirmed one Flutter defect with a failing widget regression: when a custom free period changed while no complete interval was selected, `_refreshAvailability()` replaced the calendar rows but retained the old `_window`, `_customStart` and `_customEnd`. Example: the list changed from08:00-17:00 to13:00-17:00 after a10:00-13:00 class, but Start Time still displayed08:00. The backend's availability was correct; no backend runtime defect was reproduced.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / code anchor | Change in this task |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 99 `_refreshAvailability`; 166 unselected-window branch; 362 existing `_syncCustomWindow` | Rebind an unchanged draft window to its fresh server row, or resynchronize draft hours when boundaries/selection type/minimum change. Reuse the existing helper; no new scheduling UI/service. |
+| `campushub/test/select_schedule_test.dart` | 127 `ChangingClassCalendarService`; 235 class add/cancel refresh; 259 unchanged draft test | Reproduce stale hours, verify add/cancel updates, and ensure unchanged windows preserve an unfinished invalid entry and its minimum-duration feedback. |
+| `backend/core/api/test_mobile_facility_booking.py` | 437 `test_partial_recurring_class_lifecycle_preserves_minimum_and_approved_reservations` | Add isolated four-category API coverage for the user's exact partial-day example, recurrence, minimum duration, conflicting edits, cancellation and reservation preservation. |
+| `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | this entry / current summary | Record confirmed cause, inputs/outputs, verification and safe practice. |
+
+Earlier unpushed changes remain intact. No new edits in this task to `mobile_booking.py`, `schedules.py`, `operating_schedule.py`, `admin_booking_views.py`, the admin modal, service endpoints, pricing, payments, permissions or time-dialog layout.
+
+### 3. Changes made
+
+When there is no completed interval, refresh now compares the old draft window's start/end, selection type and minimum duration with fresh available rows. If the same window remains, it uses the fresh row and keeps the user's current draft values. If it changed/disappeared, it calls existing `_syncCustomWindow`: one remaining custom period seeds its new bounds; multiple periods require the existing period selection. It still requires explicit time selection before Next. Existing invalidation of a completed interval that becomes blocked remains unchanged.
+
+Operating Schedule still defines regular weekday hours, independently of Manage Facility Schedule. The latter retains Class / Academic Schedule, Official Campus Use, Maintenance, Administrative Hold / Unavailable and Other, plus existing all-day, effective-date and weekly controls. No duplicate calendar, model or scheduling module was added.
+
+### 4. Functions, inputs / outputs and data flow
+
+Admin `scheduleControls()` / submit logic in `backend/static/components/js/admin_booking_forms.js:278/328` reads the existing modal type, date range, all-day flag, times and weekday numbers. Existing create/update endpoints use `validate_schedule()` and `schedule_days()` in `services/schedules.py:49/35`. `save_schedule()` in `admin_booking_views.py:219` expands occurrences only for conflict checking, then stores one Booking plus its existing JSON sidecar. Facility-first locking protects create/update/cancel, sharing the lock with reservation creation. It rejects an overlap rather than cancelling a reservation.
+
+`configured_slots()` in `services/mobile_booking.py:15` reads saved operating hours/presets. `conflicting_bookings():33` finds active reservations, actual occupied room nights and applicable recurring blocks. `schedule_payload():120` splits flexible operating periods at real conflict boundaries; `slot_status():88` assigns actual block types and enforces minimum duration on free intervals. `day_availability():172` returns status, existing reason, rows and available rows; saved booking policy is checked through `booking_day_restriction`. The existing mobile availability endpoint returns `Cache-Control: private, no-store` for day/month reads.
+
+Flutter's existing `FacilityBookingService.monthSlots`/`slots` consumes that response. The screen refreshes through its existing timer, pull-to-refresh, app resume and return-to-route paths; the small new branch synchronizes draft window state with those fresh rows. The existing time selector, validation, schedule-only check, quotation and final submit still use Django. No price or scheduling decision was moved into Flutter.
+
+Annotated example: operating08:00-17:00, class10:00-13:00, minimum4h -> rows08:00-10:00 **unavailable** (only2h),10:00-13:00 **class**,13:00-17:00 **available**. Django does not advertise the2h fragment as a valid rental. With a1h minimum both free fragments can be offered, retaining the user's original operating period and class record. Recurrence applies only on selected weekdays from the effective start through end, inclusively. Existing Covered Court `weekend_only` can still make an otherwise free weekday not bookable.
+
+### 5. Backend / API behavior
+
+No backend runtime/endpoint change. Existing code and tests confirm all five block types, full-day closures, partial windows, minimum duration, recurring effective bounds, exact conflict detection, cancelled-block release, policy restrictions and failed-submit protection. Existing reasons such as `Class / Academic Schedule` are returned without client names/private titles; no new status, label or UI element was introduced. The added test edits a recurring block into a later approved reservation: HTTP409, original block time preserved and reservation still Approved. Editing to a valid time updates availability; cancelling the block retains its history and releases only its time. An approved reservation remains reserved afterward.
+
+### 6. Database / migration impact
+
+No working PostgreSQL business-record writes in this task. Fixtures, normal browser test logins and API saves ran only in a uniquely named local database created/destroyed by the guarded runner. No new tables, models, migrations, dependencies, booking cancellation or automatic policy/schedule update. The preceding separately requested booking deletion is not repeated by these tests.
+
+### 7. Tests performed
+
+- The new stale-draft regression **failed before the change**, expecting Start Time1:00PM but finding the old8:00AM. It **passed after the change**. The initial targeted combined run passed40 tests; adding the unchanged-draft test exposed a test-only lazy-scroll assertion, corrected by scrolling to the existing error before asserting its text.
+- **237/237 Django tests passed in88.070s**, system checks clean, disposable database destroyed. Suites: `api.test_facility_form_controls`, `api.test_facility_rental_configuration`, `api.test_mobile_facility_booking`, `modules.facilities.test_admin_reservations`, `modules.facilities.test_calendar`, `modules.facilities.test_booking_workflow`, `api.test_facility_schedule_live_browser`. The new lifecycle test runs Court, Hall, Hostel and Other in their existing **slot** mode; separate existing room tests cover actual room/night behavior.
+- Included **111 real HTTP Chrome checks**, no page errors, verify Add/View/Edit, role restrictions, operating hours, policy retention and save/reload/mobile synchronization. This is the retained facility-configuration browser test; it does not claim a fresh manual click-through of every Manage Schedule modal action. Modal wiring was inspected; its create/edit/cancel endpoints were exercised by Django tests.
+- Final **41/41 Flutter tests passed in16s**: `select_schedule_test.dart`, `facility_booking_flow_test.dart`, `covered_court_booking_test.dart`. Covers changed unselected windows, unchanged unfinished entries, selected interval invalidation, foreground/resume/route refresh, exact times, minimums, conflicts and final submission. Whole-app `flutter analyze --no-pub`: **No issues found in14.4s**. Test commands from `campushub/`: `flutter test test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart --reporter expanded`, then `flutter analyze --no-pub`. Scoped whitespace checks passed in both repositories.
+- Backend uses the established external guarded runner and the seven labels above; optional browser variables use existing Playwright and `SCHEDULE_LIVE_OUT=C:/Users/leste/Desktop/CAMPUSHUB-artifacts-20261105/scheduling-integration/`. No extra packages installed. Browser results/captures remain in that external folder.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical phone, APK rebuild/install, deployment or working-database schedule edit. Availability synchronization uses the existing30-second foreground poll, pull refresh, app resume, route return and final server checks; this task adds no push/WebSocket scheduling transport. Preset-slot facilities retain whole configured slots rather than becoming custom-time rentals. Specialized service/lease workflows remain separate.
+
+Safe practice: run the isolated lifecycle test and compare its three rows before edit, after edit and after cancellation. Change only its fixture minimum from4h to1h in a practice branch and verify that08:00-10:00 becomes available while10:00-13:00 stays class; revert the practice change. Do not create fake bookings or change real campus schedules for testing. To debug a stale mobile field, compare the latest API row with the selected window, then reproduce with `ChangingClassCalendarService` rather than clearing real records.
+
+## Time dialog: AM/PM selector moved to top-right header - November 5, 2026
+
+### 1. Cause / reason
+
+The user requested moving the `AM` / `PM` selector in the mobile **Select Schedule** `Start Time` / `End Time` time picker dialog (`BookingTimeDialog`) from below the `Hour` and `Minute` swipe wheels to the **top-right corner** of the dialog header.
+
+### 2. Exact files changed / current anchors
+
+| File | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/booking_time_dialog.dart` | 108 `titlePadding` & `title: Row(...)`; 131 `SegmentedButton<DayPeriod>`; 182 `content` | Move `SegmentedButton<DayPeriod>` (`ValueKey('booking-time-period')`) into the top-right corner of the dialog `title` row opposite `widget.title` (`Start Time` / `End Time`), wrapped in `Flexible` + `FittedBox(fit: BoxFit.scaleDown)` for narrow screens and `200%` text scaling; simplify `content` to the `Hour` / `:` / `Minute` wheel row. |
+| `campushub/test/select_schedule_test.dart` | 567 `periodRect` & `hourWheelRect` in `chooseHour` | Verify that `booking-time-period` sits above the `Hour` wheel (`periodRect.bottom <= hourWheelRect.top`) and in the right half of the dialog (`periodRect.right > dialog.center.dx`) across `390x844`, `280x844` (`200%` scale), and `320x568`. |
+| `docs/booking-module-chatgpt-context.md`; `CAMPUSHUB_CONTEXT.md` | Top section | Document root cause, exact file/line anchors, functions, data flow, verification results, and safe practice exercise. |
+
+### 3. Changes made
+
+- Moved the `AM` / `PM` `SegmentedButton<DayPeriod>` (`key: const ValueKey('booking-time-period')`) from below the swipe wheels in `content` to the top-right corner of the `AlertDialog` `title` row alongside `widget.title` (`Start Time` or `End Time` on the left).
+- Set `titlePadding: const EdgeInsets.fromLTRB(16, 14, 16, 4)` so the left title and top-right `AM` / `PM` toggle align horizontally with the wheel columns below (`contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16)`).
+- Wrapped the top-right `SegmentedButton<DayPeriod>` in `Flexible` → `Align(alignment: Alignment.centerRight)` → `FittedBox(fit: BoxFit.scaleDown)` so narrow `280dp` viewports at `200%` text scaling never overflow horizontally.
+- Preserved all widget keys (`booking-time-dialog`, `booking-time-period`, `booking-time-am`, `booking-time-pm`, `booking-time-hour-wheel`, `booking-time-minute-wheel`, `booking-time-cancel`, `booking-time-ok`), 12-hour `01`–`12` + `00`–`59` wheel behavior, `DayPeriod` conversion to `TimeOfDay`, and Cancel/OK actions.
+
+### 4. How it works / functions and data flow
+
+1. When the user taps **Start Time** or **End Time** in `FacilityBookingScreen._pickTime(bool start)` (`facility_booking_screen.dart:365`), `showDialog<TimeOfDay>` opens `BookingTimeDialog(title: start ? 'Start Time' : 'End Time', initialTime: _clock(initialValue))`.
+2. `_BookingTimeDialogState` initializes `_hours` (`(initialTime.hour + 11) % 12`), `_minutes` (`initialTime.minute`), and `_period` (`initialTime.period`).
+3. In `build()` (`booking_time_dialog.dart:38`), the dialog header (`title`) renders a `Row` with `Expanded(child: Text(widget.title))` on the top left and `SegmentedButton<DayPeriod>` (`AM` / `PM`) in the top-right corner. Tapping `AM` or `PM` updates `_period` via `setState`.
+4. Tapping `OK` (`booking_time_dialog.dart:214`) converts the 12-hour wheel index and `_period` back into a 24-hour `TimeOfDay` (`hour: (_hours.selectedItem + 1) % 12 + (_period == DayPeriod.pm ? 12 : 0), minute: _minutes.selectedItem`) and returns it to `_pickTime()`, which validates the interval via `_applyTime()`.
+
+### 5. Backend / API behavior
+
+No backend or API changes. Django continues to receive 24-hour `HH:MM` strings and enforces operating hours, booking day eligibility, minimum duration, and conflict checks.
+
+### 6. Database / migration impact
+
+No database writes, schema changes, or migrations.
+
+### 7. Tests performed
+
+- `flutter analyze --no-pub lib/module_app/widgets/facilities/booking_time_dialog.dart test/select_schedule_test.dart`: **No issues found** (3.8s).
+- `flutter test --no-pub test/select_schedule_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart`: **39/39 passed** (20s), including top-right header geometry checks (`periodRect.bottom <= hourWheelRect.top` and `periodRect.right > dialog.center.dx`) at `390x844`, `280x844` (`200%` text scale), and `320x568`.
+
+### 8. Remaining limitations / safe exercise
+
+No physical-phone run or APK rebuild/install was performed in this step; hot restart the active Flutter session to load the updated dialog layout. Safe exercise: run `flutter test --no-pub test/select_schedule_test.dart --plain-name "centered swipe time dialog"` in `campushub/` and observe that `booking-time-period` renders in the top-right header above the `Hour` wheel across all tested screen sizes and text scales.
+
+## Remove redundant booking-day form controls; preserve eligibility - November 5, 2026
+
+1. **Cause / reason:** Latest user request removes only the Add/Edit Allowed Booking Days UI; inspected unpushed code depended on its elements and serializer.
+2. **Exact files / anchors:** `admin_facility.html:482/614/1601` removes the section/unused load option and versions the script; `facility_form_controls.js:56/179/225/233` removes checkbox construction, synchronization, serialization and load state. `facility_configuration.py:290/368/381` distinguishes an explicitly submitted list from an omitted saved value. All backend paths are under `backend/core/modules/facilities/`. Complete test/doc file table: [configuration guide](facility-configuration.md#remove-the-allowed-booking-days-form-section-safely---november-5-2026).
+3. **Changes made:** Keep Operating Schedule and Manage Facility Schedule; no replacement UI. No Flutter source change in this task; the existing mobile availability integration remains.
+4. **How it works:** Form sends operating hours without `allowed_booking_days`. `booking_days_provided` is captured before the backend merges saved JSON. Omitted saved lists stay exact while explicit inputs retain validation. Example: saved Sunday-only list plus `weekend_only: true` still permits only Sunday clients after a campus weekday-hours edit. Closing Sunday blocks its runtime period without deleting that list; reopening cannot permit Saturday. This preserves data without migrations or duplicated Flutter policy.
+5. **Backend / API behavior:** Shared eligibility, operating-period, minimum-duration, pricing, interval and conflict checks remain; active Pending/Approved reservations block excluding schedule edits. Specific-date blocks still use existing calendar logic. Permissions and API routes unchanged.
+6. **Database / migration impact:** No working-record writes, migrations, new fields or dependencies. No policy backfill/clearing; tests use disposable PostgreSQL.
+7. **Tests performed:** 236 Django tests passed (including111 real Chrome checks), and62 relevant Flutter tests passed. Browser verifies absent section, actual hours save/reload, preserved narrower policy, mobile availability and Marketplace restriction. Syntax/reference/whitespace checks passed. See the configuration guide for commands/evidence.
+8. **Remaining limitations / safe practice:** No physical phone, APK or deployment verified. Hard-refresh for `20261105-operating-schedule-only`. Inspect unsaved Add/Edit operating controls, then cancel; use disposable tests for persistence/reservation experiments. Saved JSON eligibility remains enforced and has no replacement editor in this task. The previous entry's checklist UI is superseded; server restrictions are preserved.
+
+## Separate campus operation and client booking eligibility - November 5, 2026
+
+1. **Cause / reason:** Operating hours previously doubled as rental eligibility. Latest requirements allow campus weekday operation while retaining Covered Court weekend-only client rentals.
+2. **Exact files / anchors:** Shared backend functions are `operating_schedule.py:114` (`booking_day_restriction`), `:136` (`validate_booking_days`) and `:148` (`validate_schedule_change`); callers are `mobile_booking.py:78/92` and `admin_reservations.py:125/141`. Flutter uses `facility_detail_information.dart:68/134` for separate display and `facility_details_screen.dart:882` for the clarified policy chip. All paths are under the existing facilities service/mobile modules; the complete exact file/test table is in the [configuration guide](facility-configuration.md#separate-operating-hours-and-allowed-client-booking-days---november-5-2026).
+3. **Changes made:** Existing operating presets configure actual hours; a nearby booking-day checklist configures client eligibility. No unrelated layout/navigation/pricing change.
+4. **How it works:** Form inputs produce existing weekly `operating_hours` plus optional JSON `allowed_booking_days`. Django validates distinct day names, open-day subset and saved `weekend_only`, then returns availability. Example: Monday08:00-17:00 with allowed days Saturday/Sunday means campus operation Monday, no Monday client slot. Flutter displays the actual Monday hours while its calendar follows the unavailable server status. This reuses existing scheduling rather than duplicating policy in Dart. Missing list preserves legacy eligibility; explicit empty list closes client dates; existing unrelated saves do not seed it. Room explicit eligibility applies per occupied night, excluding checkout.
+5. **Backend / API behavior:** Shared date eligibility applies before existing interval/minimum/conflict/quote/submission checks. A forged weekday selection cannot bypass saved weekend policy. Active Pending/Approved reservations cannot be newly excluded by a schedule/eligibility change; no new endpoint or independent pricing formula.
+6. **Database / migration impact:** Optional field lives inside existing workflow JSON when deliberately saved. No schema, migrations, dependencies, automatic backfill or working-record changes. Test saves used disposable PostgreSQL only.
+7. **Tests performed:** 234 Django and 70 Flutter tests passed; whole-app Flutter analysis clean. Final separate real HTTP Chrome run passed103 checks with both authorized roles plus Marketplace denial; exported-page matrix passed233 checks. Actual detail widget and browser schedule renders inspected. Complete commands/evidence/setup corrections are in the configuration guide.
+8. **Remaining limitations / safe practice:** No physical-phone run, APK rebuild/install or deployment. Hard-refresh admin for script `20261105-operating-booking-days-v2`. Practice safely in an unsaved Add/Edit draft: enable weekday operation, verify Covered Court weekday booking boxes stay disabled, then cancel. Use disposable tests for persistence/reservation experiments. Earlier entries that require closed weekday campus hours are superseded only in that respect; client weekend policy remains enforced.
+
 ## Time dialog: AM/PM format and plain titles - November 5, 2026
 
 ### 1. Cause / reason
@@ -1621,3 +1872,117 @@ This document was checked by reading current templates, JavaScript controllers, 
 No application behavior, API, database records or schema was changed by creating this guide. It is a dated snapshot; future code can supersede it. Known limits include binary Paid/Unpaid presentation, no new partial-payment recording, no integrated refunds, no separate finalized/signed Job Order stage, and the zero-cost settlement edge described above.
 
 Safe learning exercise: open an existing booking and visit all six tabs without saving. Compare Overview total/paid/balance with Payment, inspect the slip and Job Order labels, note whether inspections are available for the actual schedule, and read Activity. On a cancelled record confirm documents remain viewable and mutation controls are absent. Do not approve, pay, inspect, cancel or complete real records merely to demonstrate the UI. If something differs, check the source-map anchors and existing permission/stage rules before changing code.
+
+## Booking Details app bar matches the schedule arrow - November 5, 2026
+
+### 1. Cause / reason
+
+After selecting a schedule, the Booking Details header showed a gray bottom line and a boxed chevron. Confirmed source: `BookingScaffold` selected its border-free app bar and standard Flutter `BackButton` only when `schedulePresentation` was true. That flag was enabled for Select Schedule (`_step == 0`), so Booking Details (`_step == 1`) used the other header branch.
+
+### 2. Exact files changed
+
+| File and current line | Nearby code anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/facilities/booking_widgets.dart:203` | `BookingScaffold` | Added optional `flatAppBar`, default false, and combined it with the existing schedule flag only for the app bar's back control, elevation and border. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:898` | `flatAppBar: _step == 1` | Enabled that header presentation for Booking Details. |
+| `docs/booking-module-chatgpt-context.md` | This section | Recorded cause, implementation, checks and a safe practice exercise. |
+
+### 3. Changes made
+
+Booking Details now uses the same unboxed standard back arrow as Select Schedule, zero app-bar elevation and no bottom border. Its existing Poppins typography, requester fields, progress indicator and footer remain governed by their existing configuration. Review, Submitted, booking history and booking status screens retain their previous header selection.
+
+### 4. How it works: functions, inputs, outputs and data flow
+
+`FacilityBookingScreen.build` reads the existing `_step` and passes `flatAppBar: _step == 1` into `BookingScaffold`. The scaffold's `build` computes `useFlatAppBar = schedulePresentation || flatAppBar`. A true result chooses `BackButton`, zero elevation and an empty `Border`; false retains the existing boxed-chevron/bottom-border branch. The separate flag avoids enabling schedule typography or footer styling merely to reuse its header.
+
+```dart
+// Existing schedule styling stays specific to step 0.
+schedulePresentation: _step == 0,
+// Only step 1 additionally reuses the flat header and standard arrow.
+flatAppBar: _step == 1,
+```
+
+The standard arrow calls Flutter navigation's existing pop handling. The enclosing `PopScope` still handles returning from Booking Details to the previous schedule step. Request data, availability loading, validation, submission and payment do not flow through the new styling flag.
+
+### 5. Backend / API behavior
+
+None changed. This is a Flutter presentation change. Django continues validating actual schedule availability, quotes and submissions through the existing endpoints.
+
+### 6. Database / migration impact
+
+None. No schema, migration, dependency, working booking, payment or account record changed.
+
+### 7. Tests performed
+
+- Existing Flutter suites: `flutter test --no-pub test/facility_booking_flow_test.dart test/select_schedule_test.dart test/capture_facility_screens_test.dart` — **42 tests passed**, including the requester form/back-navigation flow and captured booking screens.
+- Targeted `dart analyze` on the two changed Dart files — **No issues found**.
+- Inspected generated fixture screenshots `scratch/screenshots/2_select_schedule.png` and `scratch/screenshots/3_booking_details.png`: matching standard arrow, white header and no app-bar divider on Booking Details.
+- Nested Flutter repository `git diff --check` for the two changed files — clean. The initial sandboxed Flutter/analysis commands stalled without results, were stopped, and were rerun successfully with SDK-cache access; those initial attempts are not counted as passing tests.
+
+### 8. Remaining limitations and troubleshooting
+
+No phone build/install or deployed-device verification was performed. The screenshot harness renders text with its test font blocks, so those images confirm the arrow/border layout rather than final device typography. The optional web design-kit token/gate files are not installed here; verification used this project's Flutter suites and analyzer rather than claiming a web gate result.
+
+If the line remains on a running device, hot restart after saving the Dart files and confirm that this is the Booking Details step immediately after Select Schedule. The later transaction details/status screen is a different screen. Keep form field outlines and the footer border separate from the app-bar border when inspecting the result.
+
+Safe practice: on a test facility, manually choose a date/window and continue to Booking Details without submitting. Compare both app bars, tap the standard back arrow and verify you return to Select Schedule. Continue again, enter a draft requester field, return and revisit to confirm the existing draft behavior; inspect `PopScope` rather than adding a second navigation callback. Use fixtures for automated checks and do not create or alter working bookings to test this styling change.
+
+
+---
+
+## 34. Available Hours Selection Indicator: Circle-Dot Redesign
+
+### 1. Cause / Reason
+The mobile facility schedule picker previously rendered Icons.check_circle_outline_rounded (a circle with a checkmark) when an available time slot was selected, and Icons.circle_outlined when unselected. For single-choice slot selection, a circle-dot (radio-dot: an outer circular ring containing a solid centered dot when selected, and an empty circular ring when unselected) provides clearer visual affordance without implying a multi-selection checkbox.
+
+### 2. Exact Files & Current Line Numbers
+- campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:
+  - **Anchor**: inside the _slots.map((slot) { ... }) builder for the Available Hours list (around lines 1285–1325).
+  - Replaced the Icon(selected ? Icons.check_circle_outline_rounded : available ? Icons.circle_outlined : Icons.block) widget with a dedicated circle-dot container:
+    - Blocked/unavailable slots render const Icon(Icons.block, size: 19, color: bookingGreyDot).
+    - Available slots render a 20x20 Container with BoxShape.circle, bordered in ookingNavy (width 2.0) when selected or ookingGreyDot (width 1.5) when unselected.
+    - When selected, the container hosts a centered 10x10 solid circular dot in ookingNavy (ValueKey('available-hours-inner-dot')).
+- campushub/test/select_schedule_test.dart:
+  - **Anchor**: helper declarations (around line 203) and test assertions (lines 254, 264, 268, 282, 320, 351, 363, 1292).
+  - Added Finder selectedSlotDot() => find.byKey(const ValueKey('available-hours-inner-dot'));.
+  - Updated selection assertions from ind.byIcon(Icons.check_circle_outline_rounded) to selectedSlotDot().
+
+### 3. Functions & Data Flow
+`
+User taps slot
+     │
+     ▼
+_pickSlot(slot)  ──>  setState(() { _slot = slot['time']; })
+                             │
+                             ▼
+                    Build Available Hours row
+                             │
+            ┌────────────────┴────────────────┐
+            ▼                                 ▼
+      available == false                available == true
+            │                                 │
+     Icon(Icons.block)              20x20 Circular Container
+                                    (bookingNavy vs bookingGreyDot border)
+                                              │
+                                     selected == true ?
+                                     ┌────────┴────────┐
+                                    Yes                No
+                                     │                 │
+                             10x10 inner dot         null
+                              (bookingNavy)      (empty circle)
+`
+- **Inputs**: slot['time'], slot['available'], _slot state.
+- **Outputs**: Institutional circle-dot selection indicator.
+- **Integrity**: Operating schedule rules, date pickers, validation logic, minimum booking durations, and Django quote requests are completely untouched.
+
+### 4. Verification Results
+- lutter test --no-pub test/select_schedule_test.dart: 36/36 tests passed.
+- lutter test --no-pub test/facility_booking_flow_test.dart test/covered_court_booking_test.dart: 10/10 tests passed.
+- lutter analyze --no-pub lib/module_app/screens/facilities/facility_booking_screen.dart test/select_schedule_test.dart: 0 issues found.
+- Screenshot generation at 390.0/1.0 scale confirmed pixel layout without overflow.
+
+### 5. Beginner Practice Exercise
+1. In acility_booking_screen.dart, locate ValueKey('available-hours-inner-dot').
+2. Inspect the diameter: outer container is 20 px, inner dot is 10 px, outer border is 2.0 px when selected.
+3. Calculate spacing: (20 - 4 - 10) / 2 = 3.0 px padding between inner dot and outer ring.
+4. Verify by running lutter test --no-pub test/select_schedule_test.dart.

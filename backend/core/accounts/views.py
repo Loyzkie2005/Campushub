@@ -370,11 +370,8 @@ def admin_sellers_page(request):
 @login_required(login_url="admin_login_page")
 @permission_required("accounts.can_access_notifications", login_url="admin_dashboard_page")
 def admin_notifications_page(request):
-    return render(
-        request,
-        "notifications/pages/admin_notifications.html",
-        get_notification_context(limit=100, user=request.user),
-    )
+    """Retire the standalone page while keeping old bookmarks permission-checked."""
+    return redirect("admin_dashboard_page")
 
 
 @login_required(login_url="admin_login_page")

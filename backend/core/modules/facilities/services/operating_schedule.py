@@ -111,13 +111,32 @@ def weekly_hours(value):
     return {day: {"open": start.strftime("%H:%M"), "close": end.strftime("%H:%M")} if day in selected else None for day in WEEKDAYS}
 
 
+def booking_day_restriction(workflow, day):
+    """Use admin operating days; retired hidden day policies cannot override them.
+
+    Missing hours retain legacy slots-only compatibility. Explicit invalid hours
+    fail closed, including for room stays, rather than inventing opening days.
+    """
+    raw = workflow.get("operating_hours")
+    if raw in (None, ""):
+        return None
+    schedule = weekly_hours(raw)
+    if schedule is None:
+        if isinstance(raw, str) and parse_time_ranges(raw, strict=True):
+            return None  # Legacy time-only daily ranges remain supported.
+        return "The operating schedule needs Facilities Admin review."
+    if schedule[WEEKDAYS[day.weekday()]] is None:
+        return "No configured operating periods for this booking day."
+    return None
+
+
 def validate_schedule_change(facility, workflow):
     """Do not close or shorten an affected day around an active slot reservation.
 
     Called while the facility row is locked, sharing the booking-create lock.
     Calendar blocks are retained independently and never treated as reservations.
     """
-    if facility.booking_mode != "slot":
+    if facility.booking_mode not in ("slot", "room"):
         return
     from django.utils import timezone
     from api.models import Booking
@@ -126,23 +145,38 @@ def validate_schedule_change(facility, workflow):
     previous_workflow = facility.workflow_config or {}
     previous = weekly_hours(previous_workflow.get("operating_hours"))
     proposed = weekly_hours(workflow.get("operating_hours"))
-    old_policy = bool(previous_workflow.get("weekend_only"))
-    new_policy = bool(workflow.get("weekend_only"))
-    if previous == proposed and old_policy == new_policy:
+    if previous == proposed:
         return
     now = timezone.localtime()
+    from django.db.models import Q
     bookings = facility.bookings.filter(
-        status__in=(Booking.STATUS_PENDING, Booking.STATUS_APPROVED), booking_date__gte=now.date(),
-    ).exclude(schedule_blocks_q()).only("id", "booking_date", "start_time", "end_time")
+        Q(booking_date__gte=now.date()) | Q(check_out_date__gt=now.date()),
+        status__in=(Booking.STATUS_PENDING, Booking.STATUS_APPROVED),
+    ).exclude(schedule_blocks_q()).only("id", "booking_date", "start_time", "end_time", "check_in_date", "check_out_date")
     for booking in bookings:
+        if facility.booking_mode == "room":
+            # Do not close a stay night around an existing active reservation.
+            from datetime import timedelta
+            first, last = booking.check_in_date, booking.check_out_date
+            if not first or not last:
+                continue
+            for offset in range((last - first).days):
+                stay_day = first + timedelta(days=offset)
+                if (stay_day >= now.date() and booking_day_restriction(workflow, stay_day)
+                        and not booking_day_restriction(previous_workflow, stay_day)):
+                    raise ValidationError({"operating_hours": f"Operating days would exclude active reservation {booking.pk}. Reschedule it first."})
+            continue
         if booking.booking_date == now.date() and booking.end_time and booking.end_time <= now.time().replace(tzinfo=None):
             continue
         day = WEEKDAYS[booking.booking_date.weekday()]
         # An unrelated weekday edit must not invalidate historical exceptions.
-        if previous is not None and proposed is not None and previous[day] == proposed[day] and old_policy == new_policy:
+        if (previous is not None and proposed is not None and previous[day] == proposed[day]
+                and booking_day_restriction(previous_workflow, booking.booking_date) == booking_day_restriction(workflow, booking.booking_date)):
             continue
         period = proposed.get(day) if proposed is not None else None
-        allowed = period is not None and not (new_policy and day in WEEKDAYS[:5])
+        newly_restricted = (booking_day_restriction(workflow, booking.booking_date)
+                            and not booking_day_restriction(previous_workflow, booking.booking_date))
+        allowed = period is not None and not newly_restricted
         if allowed:
             allowed = (booking.start_time is not None and booking.end_time is not None
                 and parse_time(period["open"]) <= booking.start_time < booking.end_time <= parse_time(period["close"]))
@@ -173,6 +207,9 @@ def duration_hours(value):
 
 def workflow_for_display(facility):
     workflow = dict(facility.workflow_config or {})
+    if facility.booking_mode in {"slot", "room", "daily", "custom"}:
+        workflow.pop("weekend_only", None)
+        workflow.pop("allowed_booking_days", None)
     hours = weekly_hours(workflow.get("operating_hours"))
     if hours is not None:
         workflow["operating_hours"] = hours

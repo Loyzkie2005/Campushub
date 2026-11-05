@@ -54,6 +54,32 @@ class AdminReservationTests(TestCase):
         self.client.logout()
         self.assertEqual(self.client.get("/api/bookings/clients/?q=Test").status_code, 401)
 
+    def test_room_operating_days_allow_stays_and_protect_active_nights(self):
+        from django.core.exceptions import ValidationError
+        from .services.operating_schedule import WEEKDAYS, validate_schedule_change
+        from .services.admin_reservations import reservation_schedule
+        self.facility.facility_type = 'hostel'
+        self.facility.booking_mode = 'room'
+        self.facility.workflow_config = {'operating_hours': {
+            day: {'open': '08:00', 'close': '17:00'} for day in WEEKDAYS}}
+        self.facility.save(update_fields=['facility_type', 'booking_mode', 'workflow_config'])
+        room = Room.objects.create(id=uuid.uuid4(), facility=self.facility, room_name='Isolated room',
+            capacity=2, status='available')
+        data = {'room_id': str(room.pk), 'check_in_date': str(self.day),
+            'check_out_date': str(self.day + timedelta(days=2)), 'adults': 1, 'attendees': 1}
+        # No explicit booking-day setting leaves existing room/night behavior intact.
+        reservation_schedule(self.facility, data)
+        booking = Booking.objects.create(id='ROOM-BOOKING-DAYS', facility=self.facility,
+            room_id=room.pk, check_in_date=self.day, check_out_date=self.day + timedelta(days=2), status='approved')
+        narrowed = {**self.facility.workflow_config, 'operating_hours': {
+            **self.facility.workflow_config['operating_hours'], WEEKDAYS[self.day.weekday()]: None}}
+        with self.assertRaises(ValidationError):
+            validate_schedule_change(self.facility, narrowed)
+        booking.delete()
+        self.facility.workflow_config = narrowed
+        with self.assertRaises(ValidationError):
+            reservation_schedule(self.facility, data)
+
     def test_manual_quote_and_core_record_reuse(self):
         result = self.post(self.data, "/api/bookings/preview/")
         self.assertEqual(result.json()["quote"]["total_amount"], "2000.00")

@@ -1,5 +1,27 @@
 # Flutter mobile Services tab and live catalog
 
+## Iconsax Add Product navigation icon - November 5, 2026
+
+1. **Cause / reason:** The user rejected the raster icon's appearance and requested Iconsax.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/navigation/add_product_navigation_icon.dart:5` (`AddProductNavigationIcon`), `campushub/test/test_add_icon_test.dart:7` (Iconsax assertion) and this guide. Other unpushed navigation changes were preserved.
+3. **Changes made:** Replace the embedded PNG, base64 decoding and image fallback with the installed `Iconsax.box_add_copy` outline glyph. Keep the current size, navy foreground, gold button, position, labels and action.
+4. **How it works / inputs and outputs:** The widget still accepts optional `size` and reads `IconTheme`. `build` returns a sized Flutter `Icon` using the existing Iconsax font. The navbar retains ownership of its tap callback, tooltip and semantics. No image bytes or network request are needed. Example: the existing 26px IconTheme produces a 26px product box with a small add symbol.
+5. **Backend / API behavior:** None changed; product forms, submission and permissions remain in their existing flow.
+6. **Database / migration impact:** None. No package installation, model or record changes.
+7. **Tests performed:** **15 Flutter tests passed in 4 seconds** across `test_add_icon_test.dart`, `floating_bottom_navbar_test.dart` and `dashboard_center_add_button_test.dart`, with `CAPTURE_FLOATING_NAV=true`. Targeted Dart analysis: **No issues found**. Inspected the regenerated seller navigation render: crisp outline product-add icon, retained gold circle and label. Whitespace checks passed.
+8. **Remaining limitations / safe practice:** No phone build/install performed. The PNG implementation below is historical and superseded. Run the three existing fixture suites and inspect `scratch/floating-navbar-no-selection-20261030/nav-390.0-1.0-true-rest.png`; tap Add Product in a fixture and verify its callback fires without selecting a navigation tab. Do not submit a working product just to verify the icon.
+
+## Supplied PNG for the Add Product navigation icon - November 5, 2026
+
+1. **Cause / reason:** The user supplied a new PNG data URL for Add Product. The current unpushed navigation widget already used an embedded PNG, so only that image and its rendering color needed replacement.
+2. **Exact files changed:** `campushub/lib/module_app/widgets/navigation/add_product_navigation_icon.dart:7` (`_kProductBoxIconBase64`, image tint at 31) and this guide. Existing navigation, dashboard, upload-form icon, asset files and `pubspec.yaml` were not edited in this task.
+3. **Changes made:** Use the exact supplied 24x24 PNG bytes. Its original white silhouette is tinted using the current navigation icon color, keeping it visible on the light/gold action surface. Existing sizing, action placement, tooltip, semantics and tap callbacks remain.
+4. **How it works / inputs, outputs and data flow:** The embedded base64 constant decodes once into the existing exported `kProductBoxIconBytes` (`Uint8List`). `AddProductNavigationIcon.build` accepts its optional size and inherited `IconTheme`, then returns the existing sized `Image.memory`. `BlendMode.srcIn` applies the inherited foreground color through the PNG's alpha mask; missing theme color retains the existing navy fallback. The navbar continues owning the Add Product callback. No image generation, network image request or package is involved.
+5. **Backend / API behavior:** None changed. Rendering or tapping the icon does not change product submission, permissions or API payloads.
+6. **Database / migration impact:** None. No working accounts, products, prices or PostgreSQL records were changed.
+7. **Tests performed:** **15 Flutter tests passed in 5 seconds** with `flutter test --no-pub --dart-define=CAPTURE_FLOATING_NAV=true test/test_add_icon_test.dart test/floating_bottom_navbar_test.dart test/dashboard_center_add_button_test.dart --reporter expanded`. Targeted Dart analysis reported **No issues found**. Decoded the supplied PNG successfully (788 bytes), inspected it and the regenerated seller navbar render, and checked whitespace. Existing tests cover Add Product action behavior and narrow/landscape/large-text navigation. Review output: `scratch/floating-navbar-no-selection-20261030/nav-390.0-1.0-true-rest.png`.
+8. **Remaining limitations and safe practice:** The source is a 24px raster image, so enlarged sizes can appear softer than vector icons. No phone build/install or deployment verification was performed. To practice safely, rerun the existing icon/navbar fixtures and inspect the seller action; verify its Add Product tap callback fires without changing the selected tab. If the icon is invisible, inspect `IconTheme.color` and the image alpha/tint before modifying navigation or submitting a working product.
+
 ## Current Facility Details: pure white, gray controls and labeled Chat - October 29, 2026
 
 This is the current direction. Older blur and frosted-control reports below are historical.
