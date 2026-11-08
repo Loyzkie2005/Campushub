@@ -172,8 +172,11 @@ def _details(data, user):
     from .services.admin_reservations import whole_number
     fields["attendees"] = whole_number(data.get("attendees"), "attendees", 1)
     requirements = data.get("additional_requirements", [])
-    allowed = {"Chairs", "Tables", "Sound System", "Projector", "Others"}
-    if not isinstance(requirements, list) or any(not isinstance(item, str) or item not in allowed for item in requirements):
+    # Basic shape is checked before fingerprinting an idempotent retry. Current
+    # facility choices are checked by the quote engine for a new submission.
+    if not isinstance(requirements, list) or any(
+        not isinstance(item, str) or not item.strip() or len(item) > 200 for item in requirements
+    ):
         raise ValidationError("Select valid additional requirements.")
     if "Others" in requirements and not fields["other_requirements"]:
         raise ValidationError("Specify your other requirements.")

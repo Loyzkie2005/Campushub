@@ -370,6 +370,7 @@ class ServiceConfigurationTests(TestCase):
         service.image_url='data:image/png;base64,'+base64.b64encode(image.read_bytes()).decode()
         service.save(update_fields=['image_url'])
         root.joinpath('configured-services.html').write_bytes(self.client.get('/admin-services/').content)
+        root.joinpath('physical-facilities.html').write_bytes(self.client.get('/admin-facility/').content)
         from api.views import serialize_facility
         root.joinpath('service-saved.json').write_text(json.dumps({'facility':serialize_facility(service)}),encoding='utf-8')
         reader=User.objects.create_user(username='service-fixture-reader',is_staff=True)

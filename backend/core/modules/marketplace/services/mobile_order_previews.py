@@ -27,14 +27,14 @@ def buyer_full_names(orders):
     return result
 
 
-def product_preview(order, items):
-    """Use purchased snapshots, not current prices, names or bundle ingredients."""
-    first = items[0] if items else {}
+def item_thumbnail(order, index=0):
+    """Keep each purchased image with its own item; never reuse item one's image."""
     data = order.customization if isinstance(order.customization, dict) else {}
     raw_items = data.get("items")
-    raw = raw_items[0] if not data.get("bundle_components") and isinstance(raw_items, list) and raw_items and isinstance(raw_items[0], dict) else {}
-    image = raw.get("image_url") or raw.get("thumbnail_url") or order.image_url or ""
-    if not image and order.product_id:
+    snapshots = [row for row in raw_items if isinstance(row, dict)] if isinstance(raw_items, list) else []
+    raw = snapshots[index] if not data.get("bundle_components") and index < len(snapshots) else {}
+    image = raw.get("image_url") or raw.get("thumbnail_url") or (order.image_url if index == 0 else "") or ""
+    if not image and index == 0 and order.product_id:
         images = order.product.get_image_list()
         image = images[0] if images else ""
     if isinstance(image, str) and image.lstrip().startswith("["):
@@ -44,9 +44,15 @@ def product_preview(order, items):
             image = ""
     if isinstance(image, list):
         image = next((value for value in image if isinstance(value, str) and value.strip()), "")
+    return image if isinstance(image, str) else ""
+
+
+def product_preview(order, items):
+    """Use purchased snapshots, not current prices, names or bundle ingredients."""
+    first = items[0] if items else {}
     return {
         "product_name": first.get("product_name") or order.product_name,
         "quantity": first.get("quantity") if items else order.quantity,
-        "thumbnail_url": image if isinstance(image, str) else "",
+        "thumbnail_url": item_thumbnail(order),
         "additional_items": max(0, len(items) - 1),
     }

@@ -34,7 +34,7 @@ class MobileFacilityBookingTests(TestCase):
         self.auth = {"HTTP_AUTHORIZATION": "Bearer " + mobile_chat_token(self.user)}
         self.facility = Facility.objects.create(id=f"TEST-{suffix}", facility_name="Test Court", capacity=50,
             facility_type="covered_court", booking_mode="slot", rate=Decimal("500"), price_type="hour",
-            slots="08:00-12:00;13:00-17:00", availability_status="available")
+            slots="08:00-12:00;13:00-17:00", availability_status="available", amenities=["Sound System"])
         self.day = timezone.localdate() + timedelta(days=3)
         self.data = {"request_key": str(uuid.uuid4()), "facility_id": self.facility.pk,
             "date": self.day.isoformat(), "start": "13:00", "end": "17:00",
@@ -56,6 +56,68 @@ class MobileFacilityBookingTests(TestCase):
         self.assertEqual(booking.total_amount, Decimal("2000.00"))
         self.assertIn("Sound System", booking.purpose)
         self.assertEqual(self.post().status_code, 200)
+        self.assertEqual(Booking.objects.filter(facility=self.facility).count(), 1)
+
+    def test_booking_choices_match_saved_admin_selections_and_accept_custom_labels(self):
+        self.facility.location = "Isolated test campus"
+        self.facility.save(update_fields=["location"])
+        admin = User.objects.create_user(username="requirement-admin-" + uuid.uuid4().hex[:8],
+                                        role="Facilities Admin", is_staff=True)
+        sync_user_admin_permissions(admin)
+        self.client.force_login(admin)
+        edited = self.client.post(f"/api/facilities/{self.facility.pk}/update/", json.dumps({
+            "amenities": ["Stage", "Microphone", "Other"],
+            "workflow_config": {"other_feature": "Extension Cords"},
+        }), content_type="application/json")
+        self.assertEqual(edited.status_code, 200, edited.content)
+        self.client.logout()
+        self.facility.refresh_from_db()
+        self.assertEqual(self.facility.amenities, ["Stage", "Microphone", "Extension Cords"])
+        path = f"/api/mobile/facilities/{self.facility.pk}/quote/"
+        availability = self.post(path, {**self.data, "availability_only": True})
+        self.assertEqual(availability.status_code, 200, availability.content)
+        self.assertEqual(availability.json()["pricing_options"]["requirement_options"], self.facility.amenities)
+        catalog = self.client.get("/api/facilities/?resource_type=facility").json()["facilities"]
+        self.assertEqual(next(row for row in catalog if row["id"] == self.facility.pk)["amenities"], self.facility.amenities)
+        data = {**self.data, "additional_requirements": ["Microphone", "Extension Cords"]}
+        quote = self.post(path, data)
+        self.assertEqual(quote.status_code, 200, quote.content)
+        created = self.post(data={**data, "quote_token": quote.json()["quote_token"]})
+        self.assertEqual(created.status_code, 201, created.content)
+        booking = Booking.objects.get(pk=created.json()["booking"]["id"])
+        self.assertEqual(booking.mobile_request.details["additional_requirements"], data["additional_requirements"])
+
+    def test_unselected_or_empty_admin_requirements_reject_injected_booking_choices(self):
+        path = f"/api/mobile/facilities/{self.facility.pk}/quote/"
+        for configured in (["Microphone"], []):
+            self.facility.amenities = configured
+            self.facility.save(update_fields=["amenities"])
+            for chosen in (["Chairs"], ["Projector"], ["Others"], ["Invented item"]):
+                with self.subTest(configured=configured, chosen=chosen):
+                    data = {**self.data, "additional_requirements": chosen, "other_requirements": "Not configured"}
+                    self.assertEqual(self.post(path, data).status_code, 400)
+                    self.assertEqual(self.post(data=data).status_code, 400)
+        self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+        self.assertEqual(self.post(data={**self.data, "additional_requirements": []}).status_code, 201)
+
+    def test_removed_admin_choice_is_rejected_after_review_but_saved_retry_stays_idempotent(self):
+        path = f"/api/mobile/facilities/{self.facility.pk}/quote/"
+        quote = self.post(path).json()
+        data = {**self.data, "quote_token": quote["quote_token"]}
+        self.facility.amenities = []
+        self.facility.save(update_fields=["amenities"])
+        rejected = self.post(data=data)
+        self.assertEqual(rejected.status_code, 400, rejected.content)
+        self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+        self.facility.amenities = ["Sound System"]
+        self.facility.save(update_fields=["amenities"])
+        created = self.post(data=data)
+        self.assertEqual(created.status_code, 201, created.content)
+        self.facility.amenities = []
+        self.facility.save(update_fields=["amenities"])
+        retried = self.post(data=data)
+        self.assertEqual(retried.status_code, 200, retried.content)
+        self.assertEqual(retried.json()["booking"]["id"], created.json()["booking"]["id"])
         self.assertEqual(Booking.objects.filter(facility=self.facility).count(), 1)
 
     def test_admin_facility_status_refreshes_catalog_and_enforces_mobile_booking(self):
@@ -144,6 +206,7 @@ class MobileFacilityBookingTests(TestCase):
         self.facility.capacity = 500
         self.facility.rate = Decimal("3000")
         self.facility.price_type = "base_hour"
+        self.facility.amenities = ["Chairs"]
         self.facility.workflow_config = {
             "weekend_only": True, "minimum_booking_duration": "4", "booking_form_type": "rental",
             "operating_hours": {day: {"open": "08:00", "close": "17:00"} if day in WEEKDAYS[5:] else None for day in WEEKDAYS},
@@ -168,15 +231,16 @@ class MobileFacilityBookingTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         quote = response.json()
         self.assertEqual([quote[key] for key in ("base_rental_amount", "additional_hour_amount", "discount_amount", "fee_amount", "deposit_amount", "total_amount")],
-                         ["3000.00", "500.00", "1750.00", "200.00", "0.00", "1950.00"])
-        _, staff_quote = reservation_quote(self.facility, {**self.data, "client_id": self.user.pk, "discount_index": 0, "discount_reason": "Office checked account"})
+                         ["3000.00", "500.00", "0.00", "200.00", "0.00", "3700.00"])
+        self.assertEqual(quote["discount_note"], "")
+        _, staff_quote = reservation_quote(self.facility, {**self.data, "client_id": self.user.pk})
         for key in ("base_amount", "additional_hour_amount", "rental_amount", "discount_amount", "fee_amount", "deposit_amount", "total_amount"):
             self.assertEqual(quote[key], staff_quote[key], key)
         data = {**self.data, "quoted_amount": quote["total_amount"], "quote_token": quote["quote_token"]}
         created = self.post(data=data)
         self.assertEqual(created.status_code, 201, created.content)
         booking = Booking.objects.get(pk=created.json()["booking"]["id"])
-        self.assertEqual((booking.status, booking.total_amount), ("pending", Decimal("1950.00")))
+        self.assertEqual((booking.status, booking.total_amount), ("pending", Decimal("3700.00")))
         self.assertEqual(booking.mobile_request.details["fee_quantities"], {"0": "20"})
         self.assertEqual(created.json()["booking"]["details"]["quote"]["fees"][0]["amount"], "200.00")
         self.assertEqual(self.post(data=data).status_code, 200)
@@ -186,7 +250,7 @@ class MobileFacilityBookingTests(TestCase):
         Booking.objects.filter(pk=booking.pk).update(status="approved")
         history = self.client.get("/api/mobile/bookings/", **self.auth).json()["bookings"]
         self.assertEqual(history[0]["status"], "approved")
-        self.assertEqual(history[0]["details"]["quote"]["total_amount"], "1950.00")
+        self.assertEqual(history[0]["details"]["quote"]["total_amount"], "3700.00")
 
     def test_complete_quotes_preserve_weekend_hours_and_reject_invalid_intervals(self):
         url = self.covered_court_pricing()
@@ -200,13 +264,13 @@ class MobileFacilityBookingTests(TestCase):
         self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
 
     def test_authorized_deposit_configurations_are_separate_from_chair_fees(self):
-        for deposit, expected in ((None, "0.00"), ({"type": "fixed", "value": "500"}, "500.00"), ({"type": "percentage", "value": "40"}, "700.00")):
+        for deposit, expected in ((None, "0.00"), ({"type": "fixed", "value": "500"}, "500.00"), ({"type": "percentage", "value": "40"}, "1400.00")):
             url = self.covered_court_pricing(deposit=deposit)
             before = Facility.objects.get(pk=self.facility.pk).workflow_config
             quote = self.post(url).json()
             self.assertEqual(quote["deposit_amount"], expected)
             self.assertEqual(quote["fee_amount"], "200.00")
-            self.assertEqual(Decimal(quote["total_amount"]), Decimal("1950") + Decimal(expected))
+            self.assertEqual(Decimal(quote["total_amount"]), Decimal("3700") + Decimal(expected))
             self.assertEqual(Facility.objects.get(pk=self.facility.pk).workflow_config, before)
 
     def test_chair_quantity_validation_never_creates_a_booking(self):
@@ -229,6 +293,95 @@ class MobileFacilityBookingTests(TestCase):
                 "client_affiliation": "internal", "discount_reason": "I say I qualify", "verification_method": "Student ID"})
             self.assertEqual(response.status_code, 400)
         self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+
+    def test_account_type_email_profile_or_admin_role_do_not_verify_discount_affiliation(self):
+        url = self.covered_court_pricing()
+        for account_type in ('student', 'faculty', 'employee', 'guest', 'external', 'admin'):
+            for role in ('User', 'Super Admin'):
+                with self.subTest(account_type=account_type, role=role):
+                    self.user.user_type = account_type
+                    self.user.role = role
+                    self.user.email_verified = True
+                    self.user.profile_completed = True
+                    self.user.student_id = 'SELF-DECLARED-ID'
+                    self.user.institutional_id = 'SELF-DECLARED-EMPLOYEE-ID'
+                    self.user.save()
+                    response = self.post(url, {**self.data, 'user_type': 'student',
+                        'affiliation_verified': True, 'verification_status': 'approved',
+                        'client_affiliation': 'internal', 'verification_method': 'Student ID'})
+                    self.assertEqual(response.status_code, 200, response.content)
+                    result = response.json()
+                    self.assertEqual((result['discount_amount'], result['fee_amount'], result['total_amount']),
+                                     ('0.00', '200.00', '3700.00'))
+                    self.assertEqual(result['discount_note'], '')
+                    self.assertNotIn('discount_label', result)
+        self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+
+    def test_mobile_special_and_internal_discount_claims_reject_quote_and_submission(self):
+        url = self.covered_court_pricing()
+        quote = self.post(url).json()
+        for index in (0, 1, True, 'invalid', 999):
+            with self.subTest(index=index):
+                data = {**self.data, 'discount_index': index, 'discount_reason': 'Claimed approval',
+                    'verification_method': 'University Office Verification',
+                    'verification_status': 'approved', 'affiliation_verified': True,
+                    'quote_token': quote['quote_token'], 'quoted_amount': quote['total_amount']}
+                self.assertEqual(self.post(url, data).status_code, 400)
+                self.assertEqual(self.post(data=data).status_code, 400)
+        self.assertFalse(Booking.objects.filter(facility=self.facility).exists())
+
+    def test_account_change_after_quote_requires_requote_and_preserves_saved_history(self):
+        url = self.covered_court_pricing()
+        quote = self.post(url).json()
+        data = {**self.data, 'quote_token': quote['quote_token'], 'quoted_amount': quote['total_amount']}
+        self.user.user_type = 'guest'
+        self.user.save(update_fields=['user_type'])
+        self.assertEqual(self.post(data=data).status_code, 400)
+        refreshed = self.post(url).json()
+        data.update(quote_token=refreshed['quote_token'])
+        created = self.post(data=data)
+        self.assertEqual(created.status_code, 201, created.content)
+        booking = Booking.objects.get(pk=created.json()['booking']['id'])
+        stored = booking.mobile_request.details['quote']
+        visible_before = self.client.get(f'/api/mobile/bookings/{booking.pk}/', **self.auth).json()['booking']['details']['quote']
+        self.user.user_type = 'student'
+        self.user.save(update_fields=['user_type'])
+        # An exact retry returns the saved request, not newly recalculated pricing.
+        self.assertEqual(self.post(data=data).status_code, 200)
+        self.assertEqual(self.client.get(f'/api/mobile/bookings/{booking.pk}/', **self.auth)
+                         .json()['booking']['details']['quote'], visible_before)
+        booking.mobile_request.refresh_from_db()
+        self.assertEqual(booking.mobile_request.details['quote'], stored)
+        self.assertEqual(Booking.objects.filter(facility=self.facility).count(), 1)
+
+    def test_staff_verified_student_and_faculty_discounts_preserve_configured_scope(self):
+        self.covered_court_pricing()
+        staff = User.objects.create_user(username='discount-staff-' + uuid.uuid4().hex[:8],
+                                        role='Facilities Admin', is_staff=True)
+        sync_user_admin_permissions(staff)
+        self.client.force_login(staff)
+        for kind, method in (('student', 'Student ID'), ('faculty', 'Faculty / Staff ID')):
+            self.user.user_type = kind
+            self.user.save(update_fields=['user_type'])
+            for scope, expected_discount in (('entire_rental_rate', '1750.00'),
+                                             ('base_rate', '1500.00'),
+                                             ('additional_hour_rate', '250.00')):
+                with self.subTest(kind=kind, scope=scope):
+                    self.facility.workflow_config['discount_rules'][0]['applies_to'] = scope
+                    self.facility.save(update_fields=['workflow_config'])
+                    data = {**self.data, 'client_type': 'existing', 'client_id': self.user.pk,
+                        'discount_index': 0, 'verification_method': method,
+                        'verification_notes': 'Evidence inspected for this fixture reservation.'}
+                    response = self.client.post('/api/bookings/preview/', json.dumps(data),
+                                                content_type='application/json')
+                    self.assertEqual(response.status_code, 200, response.content)
+                    result = response.json()['quote']
+                    self.assertEqual(result['discount_amount'], expected_discount)
+                    self.assertEqual(result['fee_amount'], '200.00')
+                    self.assertEqual(Decimal(result['total_amount']), Decimal('3700') - Decimal(expected_discount))
+        self.client.logout()
+        # Per-reservation evidence is not reusable account-wide verification.
+        self.assertEqual(self.post(f'/api/mobile/facilities/{self.facility.pk}/quote/').json()['discount_amount'], '0.00')
 
     def test_submit_requires_review_and_revalidates_config_and_new_conflicts(self):
         url = self.covered_court_pricing()
@@ -614,7 +767,7 @@ class MobileFacilityBookingTests(TestCase):
         available = self.post(url, {**data, "availability_only": True})
         self.assertEqual(available.status_code, 200, available.content)
         self.assertEqual(available.json(), {"available": True, "date": self.day.isoformat(), "start": "10:00", "end": "14:00",
-                                            "pricing_options": {"item_fees": []}})
+                                        "pricing_options": {"requirement_options": ["Sound System"], "item_fees": []}})
         self.assertNotIn("total_amount", available.json())
         self.assertEqual(self.post(url, data).status_code, 400)
         self.assertEqual(self.post(data={**data, "availability_only": True}).status_code, 400)

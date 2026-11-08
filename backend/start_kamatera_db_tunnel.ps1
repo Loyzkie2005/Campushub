@@ -19,19 +19,41 @@ function Test-CampusHubTunnelProcess($processInfo) {
         $processInfo.CommandLine.Contains("root@$serverHost")
 }
 
+function Get-CampusHubTunnelListeners {
+    # Windows can report a stale/incorrect State for the forwarding endpoint.
+    # An unconnected endpoint has no remote peer; verify its owner and connect
+    # separately instead of trusting a State=Listen filter alone.
+    Get-NetTCPConnection -LocalPort 15432 -ErrorAction SilentlyContinue |
+        Where-Object { $_.RemotePort -eq 0 -and $_.RemoteAddress -in @('0.0.0.0', '::') }
+}
+
+function Test-CampusHubTunnelConnection {
+    $client = New-Object System.Net.Sockets.TcpClient
+    try {
+        $connecting = $client.ConnectAsync('127.0.0.1', 15432)
+        if (-not $connecting.Wait(2000)) { return $false }
+        return $client.Connected
+    }
+    catch { return $false }
+    finally { $client.Dispose() }
+}
+
 try {
     $locked = $mutex.WaitOne(0)
     if (-not $locked) { throw 'Another tunnel startup is in progress; no duplicate was started.' }
     if (-not (Test-Path -LiteralPath $identityFile -PathType Leaf)) {
         throw 'The dedicated CampusHub SSH private key is missing.'
     }
-    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort 15432 -ErrorAction SilentlyContinue)
+    $listeners = @(Get-CampusHubTunnelListeners)
     if ($listeners.Count -gt 0) {
         foreach ($listener in $listeners) {
             $existing = Get-CimInstance Win32_Process -Filter "ProcessId=$($listener.OwningProcess)"
             if ($listener.LocalAddress -ne '127.0.0.1' -or -not (Test-CampusHubTunnelProcess $existing)) {
                 throw 'Port 15432 belongs to an unverified listener. No process was changed.'
             }
+        }
+        if (-not (Test-CampusHubTunnelConnection)) {
+            throw 'The verified SSH endpoint is not accepting connections; no duplicate was started.'
         }
         Write-Output "Existing CampusHub SSH tunnel is ready at 127.0.0.1:15432 (PID $($listeners[0].OwningProcess))."
         return
@@ -60,9 +82,9 @@ try {
         if ($helper.HasExited) {
             throw "SSH exited before the tunnel was ready. Inspect $errorLog; no app was restarted."
         }
-        $ready = @(Get-NetTCPConnection -State Listen -LocalPort 15432 -ErrorAction SilentlyContinue |
+        $ready = @(Get-CampusHubTunnelListeners |
             Where-Object { $_.LocalAddress -eq '127.0.0.1' -and $_.OwningProcess -eq $helper.Id })
-        if ($ready.Count -gt 0) {
+        if ($ready.Count -gt 0 -and (Test-CampusHubTunnelConnection)) {
             Write-Output "CampusHub SSH tunnel is ready at 127.0.0.1:15432 (PID $($helper.Id))."
             return
         }

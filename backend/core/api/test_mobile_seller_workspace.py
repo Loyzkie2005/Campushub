@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -129,6 +131,57 @@ class MobileSellerWorkspaceTests(TestCase):
         self.owner.is_active = False
         self.owner.save(update_fields=["is_active"])
         self.assertEqual(self.client.get(self.url, **self.auth).status_code, 403)
+
+    def test_sales_banner_contract_preserves_decimal_totals_timestamps_and_all_time_counts(self):
+        manila = ZoneInfo('Asia/Manila')
+        today = datetime(2026, 11, 7, 0, 1, tzinfo=manila)
+        older = today - timedelta(days=40)
+        self.order(self.own, total_price=Decimal('19.95'), completed_at=today,
+                   paid_at=older)  # Completion takes precedence over payment.
+        self.order(self.second, total_price=Decimal('0.10'), completed_at=None, paid_at=today)
+        historical = self.order(self.own, total_price=Decimal('0.20'), completed_at=None, paid_at=None)
+        MarketplaceOrder.objects.filter(pk=historical.pk).update(created_at=today)
+        self.order(self.own, total_price=Decimal('0.00'), completed_at=today)
+        self.order(self.own, total_price=Decimal('100.00'), completed_at=older)
+        self.order(self.own, status='completed', payment_status='unpaid', completed_at=today)
+        self.order(self.own, status='pending', payment_status='unpaid', completed_at=None)
+        self.order(self.own, status='cancelled', completed_at=today)
+        self.order(self.own, quantity=0, total_price=999, completed_at=today)
+        self.order(self.foreign, total_price=999, completed_at=today)
+        self.second.archive()  # Historic sales survive listing archival.
+        with timezone.override(manila), patch(
+            'modules.marketplace.services.analytics.timezone.localdate',
+            return_value=today.date(),
+        ):
+            for period in ('day', '7', 'month'):
+                with self.subTest(period=period):
+                    result = self.get(period=period, seller_id=self.other.pk)
+                    analytics = result['analytics']
+                    self.assertEqual(analytics['revenue'], '20.25')
+                    self.assertEqual(analytics['completed_orders'], 4)
+                    self.assertEqual(analytics['units_sold'], 8)
+                    self.assertEqual(analytics['average_order_value'], '5.06')
+                    self.assertEqual(result['order_count'], 9)
+                    self.assertEqual(result['overview']['completed_orders'], 7)
+                    self.assertEqual(result['overview']['pending_orders'], 1)
+                    self.assertEqual(sum(Decimal(str(value)) for value in analytics['trend']['sales']), Decimal('20.25'))
+                    if directory := os.environ.get('SELLER_SALES_REVIEW_DIR'):
+                        target = Path(directory)
+                        target.mkdir(parents=True, exist_ok=True)
+                        (target / f'sales-{period}.json').write_text(json.dumps(result), encoding='utf-8')
+
+    def test_sales_banner_empty_contract_is_zero_without_writing_records(self):
+        before = (MarketplaceOrder.objects.count(), Product.objects.count(), SellerRequest.objects.count())
+        for period in ('day', '7', 'month'):
+            with self.subTest(period=period):
+                response = self.client.get(self.url, {'period': period}, **self.auth)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('no-store', response['Cache-Control'])
+                data = response.json()
+                self.assertEqual(data['analytics']['revenue'], '0.00')
+                self.assertEqual(data['analytics']['completed_orders'], 0)
+                self.assertEqual(data['order_count'], 0)
+        self.assertEqual(before, (MarketplaceOrder.objects.count(), Product.objects.count(), SellerRequest.objects.count()))
 
     def test_variant_rows_and_bundle_availability_reuse_inventory(self):
         variant = self.product(self.owner, "Variant Product", customization_enabled=True,
@@ -291,7 +344,7 @@ class MobileSellerWorkspaceTests(TestCase):
         self.assertEqual(rows[ambiguous.pk]["buyer_full_name"], "Recorded Buyer Snapshot")
 
     def test_product_preview_keeps_item_names_quantities_and_bundle_identity(self):
-        from modules.marketplace.services.mobile_order_previews import product_preview
+        from modules.marketplace.services.mobile_order_previews import product_preview, item_thumbnail
         from modules.marketplace.services.orders import order_items
         historical = self.order(self.own, customization={"items": [
             {"product_name": "First Purchased Product", "quantity": 2, "image_url": "/media/item-one.png"},
@@ -299,6 +352,9 @@ class MobileSellerWorkspaceTests(TestCase):
         self.assertEqual(product_preview(historical, order_items(historical)), {
             "product_name": "First Purchased Product", "quantity": 2,
             "thumbnail_url": "/media/item-one.png", "additional_items": 1})
+        self.assertEqual(item_thumbnail(historical, 1), '')
+        historical.customization['items'][1]['thumbnail_url'] = '/media/item-two.png'
+        self.assertEqual(item_thumbnail(historical, 1), '/media/item-two.png')
         bundle = self.order(self.own, product_name="Purchased Bundle", quantity=3,
             customization={"bundle_components": [{"product_id": self.own.pk}], "items": [
                 {"product_name": "Ingredient", "quantity": 9}, {"product_name": "Other ingredient", "quantity": 6}]})
@@ -308,6 +364,23 @@ class MobileSellerWorkspaceTests(TestCase):
         ids = {row["id"] for row in self.get()["recent_orders"]}
         self.assertNotIn(historical.pk, ids)
         self.assertNotIn(bundle.pk, ids)
+
+    def test_recent_details_keep_recorded_item_thumbnail_payment_and_receiving_data(self):
+        order = self.order(self.own, buyer_name='Saved Customer', product_name='Saved Product',
+            fulfillment_method='pickup', payment_status='unpaid', status='pending',
+            image_url='/media/orders/old.png', customization={'items': [{
+                'product_name': 'Purchased Product', 'quantity': 2, 'unit_price': '20.00',
+                'subtotal': '40.00', 'variant': 'Blue', 'image_url': '/media/orders/purchased.png'}]})
+        self.own.image_url = '/media/products/current.png'
+        self.own.save(update_fields=['image_url'])
+        row = next(row for row in self.get()['recent_orders'] if row['id'] == order.pk)
+        self.assertEqual(row['items'][0]['thumbnail_url'], '/media/orders/purchased.png')
+        self.assertEqual(row['items'][0]['variant'], 'Blue')
+        self.assertEqual(row['items'][0]['subtotal'], '40.00')
+        self.assertEqual(row['fulfillment_method'], 'pickup')
+        self.assertEqual(row['payment_method_label'], 'Cash on Pickup')
+        self.assertEqual(row['payment_status'], 'Unpaid')
+        self.assertEqual(row['product_preview']['thumbnail_url'], '/media/orders/purchased.png')
 
     def test_linked_buyer_lookup_has_constant_query_growth(self):
         buyer = self.account("batched-order-buyer")

@@ -68,6 +68,10 @@
 
 /* Service configuration is separate from physical facility reservation controls. */
 .service-form-body { display:grid; gap:24px; color:#1A1851; }
+.service-form-body > .facility-form-row-top { margin-bottom:0; min-width:0; }
+.service-form-body .facility-form-section-basic { min-width:0; }
+.service-form-body .facility-form-section-basic .facility-form-section-title { margin-bottom:0; }
+.service-form-body [data-service-disclose="category"] { margin-top:12px; }
 .service-form-body > section { padding-bottom:24px; border-bottom:1px solid #e2e8f0; min-width:0; }
 .service-form-body .facility-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .service-form-body .facility-form-field-wide { grid-column:1 / -1; }

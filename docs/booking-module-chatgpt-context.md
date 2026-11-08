@@ -1,5 +1,318 @@
 # CampusHub Bookings: reusable project context
 
+## Discount eligibility safeguard, relevant notes and smaller cost typography - November 6, 2026
+
+### 1. Cause / reason
+
+The pasted task identified two confirmed defects in `complete_mobile_quote`: it granted discounts based solely on authenticated `user_type`, and attached a family-verification note whenever any special rule existed at the facility. The latter did not mean the customer had requested that discount. The user also requested smaller Estimated Total and cost-card text.
+
+**Verification dependency remains unresolved:** inspection found no authoritative account-wide institutional-affiliation verification state in `CampusHubUser`, admin `User`, the account-management handlers, or Flutter's AuthUser/session models. Email verification confirms mailbox access; profile completion, typed IDs and declared account type do not confirm USTP affiliation. Existing protected staff reservation controls record verification evidence for an individual booking, not an account-wide verified status. Inferring global eligibility from those records or adding a new verification registry without its lifecycle, review permissions and revocation rules would exceed a minimal pricing fix. The task explicitly permits reporting this dependency instead of inventing eligibility.
+
+### 2. Exact files changed / current anchors
+
+| File | Line / code anchor | Change |
+|---|---|---|
+| `backend/core/modules/facilities/services/mobile_booking.py` | 230 `complete_mobile_quote`; 254 affiliation comment; 259 authenticated account type; 265 `discount_note`; 273 signed eligibility context | Remove account-type-only automatic discounts; reject mobile discount claims; return empty irrelevant note; bind signed quotes to current authenticated account type and unavailable verification source. |
+| `backend/core/api/test_mobile_facility_booking.py` | 227 complete quote; 266 deposits; 297 account evidence matrix; 320 forged claims; 333 re-quote/history; 357 staff-verified scope | Update unverified quote expectations and add security, history, staff verification and scope coverage. |
+| `backend/core/modules/facilities/test_booking_workflow.py` | 152 Sound System fixture; 1585 slip fixture selections | Explicitly configure equipment requested by two older document fixtures, consistent with the earlier admin-selected requirements change. No runtime document code changed. |
+| `campushub/lib/module_app/widgets/facilities/booking_review_summary.dart` | 25 `_heading`; 42 `_card`; 221 `_costRow`; 292 note visibility; 313 compact cost card | Smaller cost-only typography/spacing, right-aligned amounts and text-scale-aware stacked rows. Hide whitespace-only notes. |
+| `campushub/test/booking_review_summary_test.dart` | 133 undiscounted quote; 162 server label/recorded note | Check no zero-discount row, blank-note hiding, smaller total and long server label/note at enlarged text. |
+| This guide; `CAMPUSHUB_CONTEXT.md` | Leading entries | Explain behavior, missing verification dependency, tests and safe practice. |
+
+### 3. Changes made
+
+New mobile estimates are **undiscounted until an authoritative affiliation-verification mechanism exists**. This applies to declared Student/Faculty/Employee accounts as well as Guest/External/Admin; administrative privileges alone are not evidence. Nonempty mobile `discount_index` claims are rejected rather than accepted as verification. Request-supplied user type, client ID, approval flags, verification methods and reasons never become staff evidence. Configured Student/Internal/Immediate Family/Other rules remain saved and usable in the existing authorized staff verification path; no percentages, scopes or prices were changed. No special-discount application workflow was added.
+
+`discount_note` remains API-compatible as an empty string on ordinary new mobile quotes. Active family/other rules no longer manufacture a pending request or a generic notice. The renderer hides empty/missing/whitespace notes, displays a discount row only for a positive server amount, and keeps a supplied label/relevant note unchanged. The selected fixture's discount row remains only a presentation test input; it is not evidence that automatic verified mobile discounts exist.
+
+The cost card heading is 15px; row labels and server notes are 12px; ordinary amounts are 13px with medium weight; Estimated Total uses a 12px semibold label and 15px semibold amount (previously an 18px bold amount). Rows have tighter spacing. Normal layouts align values right with more space for labels; enlarged text stacks label and amount so long content can wrap. Other Review cards retain their existing typography. The cost breakdown remains visible, with no collapse control or new disclaimer.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The existing bearer decoder in `api.views._mobile_user_from_bearer` resolves the actual account from the database on every request. `complete_mobile_quote(facility, day, start, end, data, user)` builds safe staff-engine inputs using that owner's ID, validated schedule, attendee count and fee quantities. It invokes the original `reservation_quote` without an asserted discount. No mobile evidence is copied into `discount_reason`, `verification_method` or eligibility. It then rejects an explicit discount selection and returns the existing quote amounts plus `discount_note: ''`.
+
+The existing signature now includes the authenticated account type and a fixed `affiliation_verification: 'unavailable'` context alongside facility, owner, request, workflow and quote. The booking POST recomputes the quote/signature in the existing locked-facility transaction. Changed account type, pricing or an older discounted signature requires a new Review. Existing request fingerprint and exact saved-request retries remain; historical quote JSON is not recalculated. Staff verification remains per reservation, through its original permission-checked preview/create/edit architecture.
+
+Flutter `_costRow(label, formattedAmount, total: ...)` is presentation only. `_cost` passes actual quote values and the server label into it; no rate, discount or total is computed in Dart. New optional `_card(..., compact: true)` changes only the cost card. The wizard controllers, navigation, quote request, submission key and payload remain intact.
+
+Annotated isolated example: configured rental 3000 plus 500 additional hours and 20 chairs at saved test rate 10 produce an unverified mobile total of 3700, with `discount_amount: '0.00'` and no discount line/note. Through the existing authorized staff path, inspected Student/Faculty evidence can apply the configured 50% entire-rental discount: 1750 discount, 200 chair fee unchanged, total 1950. These are fixtures, not production pricing changes. A configured base-rate-only rule reduces 1500 instead; additional-hour-only reduces 250. No discount is stacked. Percentage deposits still follow the same engine and undiscounted/discounted rental basis as appropriate.
+
+### 5. Backend / API behavior
+
+No routes or payload schema changed. Ordinary new quotes retain all existing pricing fields and an empty `discount_note`; no irrelevant special-rule message appears. New mobile discount-index claims receive HTTP 400. The quote token changes because it now signs current eligibility context; old unsaved estimates must be reviewed again. Existing saved bookings, exact retry behavior and public/private quote filtering remain. Original configuration, chair amounts, deposits, scope calculations, RBAC, approval, Job Order, SOA and payment implementations are preserved.
+
+### 6. Database / migration impact
+
+None. No model, migration, new verification table, dependency, account permission, configured rate, live record or historical quote edits. Tests write only to disposable local PostgreSQL databases. No server/phone restart, build, install, deployment or Git push.
+
+### 7. Tests performed
+
+- Final Flutter command: `flutter test --no-pub test/booking_review_summary_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart --reporter expanded`: **23 tests passed in 45 seconds**. Covers blank/missing notes, zero-discount hiding, supplied discount labels, smaller total, long labels at 280px/200% text, Review/Back, quote amounts/token/quantities and retries.
+- `flutter analyze --no-pub`: **No issues found**, 112.3 seconds. Formatting and scoped whitespace checks passed. Inspected the actual compact cost-card capture at `scratch/discount-review-20261106/quote-390.png`; its discounted amounts are an isolated supplied UI fixture.
+- Final `backend/core/venv/Scripts/python.exe -B scratch/schedule-policy-20261105/run_tests.py api.test_mobile_facility_booking api.test_facility_rental_configuration modules.facilities.test_admin_reservations modules.facilities.test_booking_workflow`: **220 tests passed in 36.344 seconds**, system checks clean and disposable PostgreSQL database destroyed. Coverage includes unverified account types plus email/profile/ID/admin-role non-evidence, forged family/internal claims on quote and submission, account changes after Review, history and exact retry preservation, staff-verified Student/Faculty scope calculations, chair fees/deposits, rental configuration and existing document/payment/approval workflow cases.
+- The first broad run exposed a new test comparing private saved data to the intentionally filtered public response, plus two older document fixtures requesting unconfigured equipment. The assertion and isolated fixtures were corrected; no public-data filtering or document behavior was weakened. The corrected history/staff-scope focused rerun passed **2 tests in 0.245s**.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+**Verified automatic mobile discounts are not implemented:** no trusted institutional-affiliation verification source exists. Tests confirm the safe fallback and existing per-booking staff discounts; they do not claim verified Student/Faculty accounts automatically receive mobile discounts. A future integration needs staff-controlled verified affiliation, evidence/provenance, expiry/revocation and a protected way to maintain it. It must map verified Student to configured Student/Internal rules and verified Faculty/Employee to Internal, choose one applicable rule using the existing engine, and recheck evidence at submission. Family eligibility needs separately verified relationship evidence; a profile or dropdown cannot grant it.
+
+No physical-device, live-API or full-app-suite verification. Existing eligible-client booking-access rules are unchanged; this fix targets discount eligibility only. Do not reuse a past booking's evidence as permanent account affiliation. Staff can continue using the original verified reservation workflow; the task did not authorize a new self-service discount application.
+
+Safe practice: run `test_account_type_email_profile_or_admin_role_do_not_verify_discount_affiliation` and verify every declared type receives zero automatic discount even with email/profile flags set. Run `test_staff_verified_student_and_faculty_discounts_preserve_configured_scope` and compare its expected 1750/1500/250 reductions with the configured scope, leaving chair fees unchanged. In the widget fixture, supply zero `discount_amount` and an empty note, then a real supplied label/amount, and verify the corresponding row appears only in the latter case. Do not alter real rates or grant real account verification for a screenshot.
+
+## Review Booking uses separate reference-style information cards - November 6, 2026
+
+### 1. Cause / reason
+
+The user supplied a Review layout with separate schedule, requestor, event, requirements/notes and estimated-cost cards, explicitly excluding the `1 pc` requirement wording, Subject to final verification disclaimer and expand/collapse interaction. The existing Review put facility imagery and all sections into one large Booking Summary card separated by dividers. This update changes that presentation, using the actual current form and Django quote values rather than copying example records or amounts from the images.
+
+### 2. Exact files changed / current anchors
+
+| File | Lines / anchors | Purpose |
+|---|---|---|
+| `campushub/lib/module_app/widgets/facilities/booking_review_summary.dart` | New: 8 `BookingReviewSummary`, 25 `_heading`, 42 `_card`, 62 `_stackedValue`, 82 `_schedule`, 135 `_requestor`, 148 `_event`, 159 `_requirementsAndNotes`, 220 `_cost`, 274 `build` | Dedicated read-only Review presentation, reusing BookingCard, BookingValue, shared icons, typography and money/date/time helpers. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | New widget import; 1748 `BookingReviewSummary(...)` | Replace the old monolithic Review markup with the presentation widget, passing existing date, time, draft, quote and facility terms. |
+| `campushub/test/booking_review_summary_test.dart` | New: 74 responsive long-content cases; 119 empty optional-details case | Verify 390px/normal and 280px/200% text, long names/email/event data, supplied quote amounts, no unsupported quantity suffix/disclaimer/collapse and no empty optional card. |
+| `campushub/test/facility_booking_flow_test.dart` | 226 card keys; 237 cost capture | Extend the existing form flow to verify the separate cards and omitted reference elements while retaining Review/Back/submission coverage. |
+| `campushub/test/covered_court_booking_test.dart` | 230 updated fee labels; 241 Estimated Total capture; 419 fee lookup | Preserve the authoritative pricing/token/quantity checks with the new display labels. |
+| This guide; `CAMPUSHUB_CONTEXT.md` | Leading entries | Record changes, data flow, evidence and safe practice. |
+
+### 3. Changes made
+
+Review now starts with Booking Schedule: date and weekday alongside duration and time range. The columns stack on narrow screens or enlarged text. Requestor Information stacks Full Name, optional Organization, Contact Number and Email Address, allowing long values to wrap. Event Information retains label/value rows for event, purpose and attendee count.
+
+Additional Requirements and Additional Notes share a card when present, separated by a divider. Requirement rows show shared icons and saved item names, without `pc` quantities. The cost card remains fully visible and non-collapsible. It displays Base Rental Fee, applicable Additional Hours, server discount label/value, actual item fee quantities/amounts, applicable refundable deposit, existing server-provided notes and Estimated Total. Quantity-based cost rows use `Chairs × 20` rather than adding `20 pc` to the requirement list. Do not add a static Subject to final verification disclaimer or collapse arrow.
+
+Remove the old overall Booking Summary heading, facility thumbnail/identity block and monolithic interior layout from this stage, following the supplied card sequence. Selected facility state and payload remain unchanged. Preserve optional Organization and Rules & Guidelines when saved, as well as actual Django discount/requirement notes; these are existing data, not the excluded generic disclaimer. Shared components remain available to other screens.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`BookingReviewSummary` receives `date`, `start`, `end`, `details`, `quote` and optional `termsConditions`. It returns a Column of read-only cards; it has no controller, network client, expansion state or submission callback. The booking screen still owns `_fields`, `_requirements`, `_feeFields`, `_quote`, request key, quote refresh and submission lifecycle. `_bookingInputs` supplies the same draft mapping to both Review presentation and the existing booking request.
+
+`_schedule` formats the selected date/time and uses the server's quoted hours. `_requestor` reads the entered contact fields; `_event` reads event/purpose/attendees. `_requirementsAndNotes` renders only selected saved requirement labels and actual notes, omitting the card when both are empty. `_cost` formats amounts already present in the quote; it does not recalculate rent, discounts, fees, deposit or total. `_card`, `_heading` and `_stackedValue` provide consistent layout using the existing shared styles.
+
+Annotated isolated example: `details.additional_requirements = ['Chairs']`, quote fee `{name: 'Chairs', quantity: '20', amount: '200.00'}` -> requirement card shows **Chairs**, cost row shows **Chairs × 20 / PHP 200.00**. `quote.total_amount = '2450.00'` -> Estimated Total is PHP 2450.00 exactly. The fixture total includes its separately configured deposit; no production rate or total is seeded. Review Back still returns to the retained draft, and Submit still sends the original quoted amount/token and fee quantities.
+
+### 5. Backend / API behavior
+
+Unchanged. No endpoints, authorization, configuration, schedule/conflict checks, quote signatures, pricing calculations, booking submission, retry handling, approval, Job Order, SOA or payment behavior changed. The customer-visible total remains the actual Django quote. No example screenshot value is used as application data.
+
+### 6. Database / migration impact
+
+None. No schema, migrations, dependencies, configured rates, working records or deployment changes. New sample values exist only in isolated widget tests.
+
+### 7. Tests performed
+
+- `flutter test --no-pub test/booking_review_summary_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart --reporter expanded`: **21 tests passed in 13 seconds**. New display tests cover long content at 390px/normal and 280px/200% text, horizontal bounds and optional empty details. Existing integration tests retain quote/token/quantity totals, Review/Back input retention, final submission, uncertain retries, configured-only requirements and Chair editing/removal.
+- `flutter analyze --no-pub`: **No issues found**, 11.8 seconds. Dart formatting and scoped tracked-file whitespace checks passed.
+- Inspected actual captures at `scratch/review-cards-20261106/review-booking.png` and `quote-390.png`: separate top cards, requirement names without piece suffixes and a fully visible cost breakdown. Additional captures include `review-cost.png` and `quote-320.png`. These renders use test fixtures, not production records.
+- No backend regression suite rerun for this presentation extraction; no backend code changed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-phone, real screen-reader or full-app-suite verification. On narrow/enlarged-text screens, cards grow and Schedule stacks to keep text readable; the page intentionally scrolls. Quantity is still visible where it explains an actual priced cost line. Server-provided special-discount/requirements notes are retained. Optional Organization/Rules remain when entered/configured, even though omitted from the sample images.
+
+Safely run the listed fixture suites. In a fixture draft, enter a long email and note, select Chairs, visit Review, check the card sequence and compare the displayed amounts with its supplied quote. Scroll to Estimated Total without expanding anything, return to Details and confirm the inputs remain. Set optional requirements/notes empty in the display fixture and verify no empty combined card appears. Restore fixture edits afterward. Do not change real facility fees or create live bookings for layout practice. For broken text-based tests, use the new card keys and labels (`review-cost`, `Estimated Total`, `Chairs × 20`) instead of removed Booking Summary / Total Amount wording.
+
+## Remove the gray back-arrow container from Review Booking - November 6, 2026
+
+1. **Cause / reason:** Review Booking still used the shared non-flat header, whose back chevron sat inside a light-gray rounded Material with a gray outline. The user requested removal of that gray line/container.
+2. **Exact files changed / anchors:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:1253` (`flatAppBar`); `campushub/test/facility_booking_flow_test.dart:219` (Review header assertion and capture); this guide; `CAMPUSHUB_CONTEXT.md:3` (summary).
+3. **Changes made:** Enable the existing plain header for the Review stage as well as Details. Review now uses the same plain navy chevron as the earlier wizard stages, removing its gray back-button fill/outline and the non-flat app-bar divider. Shared history/status headers, page content, booking cards and bottom actions remain as before.
+4. **How it works / functions, inputs, outputs and data flow:** The booking screen passes `flatAppBar: _step == 1 || _step == 2` into `BookingScaffold`. Its existing `build` method selects the plain localized IconButton when that flag is true. The button still invokes `Navigator.maybePop`; the wizard's PopScope moves Review back to Details and preserves the existing controllers. Example: enter a note, advance to Review and tap the plain chevron; Details returns with the same note. No new navigation function, input, output or booking-data path was introduced; this reuses an existing presentation option.
+5. **Backend / API behavior:** Unchanged. Quotes, pricing, submission, permissions, approvals and payments retain their existing behavior.
+6. **Database / migration impact:** None. No schema, migration, dependency or working-record changes.
+7. **Tests performed:** `flutter test --no-pub test/facility_booking_flow_test.dart test/covered_court_booking_test.dart --reporter expanded`: **18 tests passed in 13 seconds**. Existing form test asserts Review's leading control is an IconButton, taps it to verify retained values, then submits through the existing fixture service. `flutter analyze --no-pub`: **No issues found**, 14.0 seconds. Formatting/scoped whitespace checks passed. Inspected the actual Review header at `scratch/review-plain-back-20261106/review-booking.png`: plain chevron with no gray container/outline.
+8. **Remaining limitations / safe practice:** No physical-phone or full-suite verification. Reload the updated Flutter code, use the isolated booking fixture to enter Details and reach Review, inspect the plain back chevron, tap it and verify input retention. Do not create live bookings to practice this styling change.
+
+## Chevron back icons from Select Schedule through Review Booking - November 6, 2026
+
+1. **Cause / reason:** The user requested removal of the straight horizontal line from the booking arrow. Select Schedule and Booking Details used Flutter's default BackButton, which displayed an arrow with a stem. Review Booking already used a chevron.
+2. **Exact files changed / anchors:** `campushub/lib/module_app/widgets/facilities/booking_widgets.dart:272` (`BookingScaffold` flat-header leading IconButton); `campushub/test/facility_booking_flow_test.dart:118`, `:120`, `:219`, `:227` (icons across all three stages and actual Review back tap); `campushub/test/select_schedule_test.dart:1216` (existing responsive-header lookup), `:377` (braces around the formatted screenshot condition); this guide; `CAMPUSHUB_CONTEXT.md:3` (summary).
+3. **Changes made:** Replace the flat-header default BackButton with an IconButton displaying `Icons.arrow_back_ios_new_rounded`, a simple chevron with no horizontal stem. Keep the existing leading width, navy color, title, header layouts and Review's existing chevron container. Other non-flat BookingScaffold headers are unchanged.
+4. **How it works / functions, inputs, outputs and data flow:** `BookingScaffold.build(context)` already chooses its flat header when `schedulePresentation` or `flatAppBar` is true. Those flags are used by the current wizard's Schedule and Details stages. Its new IconButton uses the localized Back tooltip and the same `Navigator.of(context).maybePop()` route action. The existing wizard PopScope still returns from Review to Details and Details to Schedule, retaining controllers; Schedule still permits leaving the route. Example: enter notes, visit Review and tap the chevron; Details reappears with the same notes. No booking data or navigation state is stored by the icon itself. This changes the visible glyph while keeping the established navigation path.
+5. **Backend / API behavior:** None changed. Quote/submission endpoints, permissions, availability, pricing and booking workflows remain intact.
+6. **Database / migration impact:** None. No schema, migration, dependency or working-record changes.
+7. **Tests performed:** `flutter test --no-pub test/facility_booking_flow_test.dart test/select_schedule_test.dart test/covered_court_booking_test.dart --reporter expanded`: **54 tests passed in 18 seconds**. The existing form test checks the chevron at Schedule, Details and Review and taps Review's header button, verifying retained inputs and later submission. Existing responsive calendar, schedule, quote and quantity cases passed. Final `flutter analyze --no-pub`: **No issues found**, 6.8 seconds. Formatting/scoped whitespace checks passed. Inspected the actual Details header capture at `scratch/booking-chevron-20261106/additional-notes.png`. Formatting exposed an existing unbraced screenshot condition; enclosed it in braces before the final clean analysis, without changing its behavior.
+8. **Remaining limitations / safe practice:** No physical-phone or full-suite verification. Review retains its existing rounded back-button container; only the arrow's horizontal stem was targeted. Reload the updated Flutter code, open the fixture booking, advance Schedule -> Details -> Review, then tap the chevron to return. Verify entered values remain and use the initial Schedule chevron to leave the draft. Do not submit live bookings merely to practice an icon change.
+
+## Chairs checkbox removes directly; card body edits quantity - November 6, 2026
+
+1. **Cause / reason:** The user reported that tapping the checked box still opened the quantity modal. The box was a decorative Container inside the card's InkWell, so it had no separate action; the whole card routed to `_editChairs`.
+2. **Exact files changed / anchors:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:3` (CustomSemanticsAction import), `:1096` (`toggleSelection`), `:1110` (remove/edit semantic actions), `:1186` (`booking-requirement-toggle-Chairs` tap target); `campushub/test/covered_court_booking_test.dart:307` (direct removal, re-selection and semantic action checks); this guide; `CAMPUSHUB_CONTEXT.md:3` (summary).
+3. **Changes made:** Keep the existing checkbox appearance, colors and card dimensions. Add an independent 48x48 tap target over the supported Chairs checkbox. Tapping a checked box immediately removes Chairs; tapping an unchecked box opens the quantity popup. Tapping the rest of the card still edits quantity. The popup's Remove Chairs and Cancel actions remain. Other requirement cards and included-chair selection retain their existing behavior. The selected card's primary semantic action removes it, with a separate Edit chairs quantity custom action.
+4. **How it works / functions, inputs, outputs and data flow:** `_requirementCard(label, icon)` still reads `_requirements` and its configured fee/controller. Its local `toggleSelection()` calls `_toggleRequirement(label)` when a priced Chair selection is checked; that existing function removes the requirement and resets its fee controller to `0`. Otherwise it calls `_tapRequirement(label)` to open the existing quantity editor or toggle an ordinary requirement. A Positioned InkWell sits above the card body in a Stack, so its taps do not also trigger the sibling card InkWell. The card body still calls `_tapRequirement` directly. The same original controllers flow through `_bookingInputs` -> Django quote -> Review -> submission.
+
+   Annotated example: select 15 Chairs, then tap the top-right check. No modal opens; the selection clears and the next quote sends `fee_quantities: {'0': '0'}` with no Chairs requirement. Tap the empty box to open the quantity sheet at `1`; Cancel leaves it unselected. Tap the body of an already selected card to edit its confirmed quantity.
+5. **Backend / API behavior:** Unchanged. No route, rate, quantity-validation, configured-option, payment, approval or permission changes. Existing Django pricing remains authoritative.
+6. **Database / migration impact:** None. No models, migrations, dependencies or working-record changes.
+7. **Tests performed:** Final `flutter test --no-pub test/covered_court_booking_test.dart test/facility_booking_flow_test.dart test/chairs_quantity_sheet_test.dart --reporter expanded`: **24 tests passed in 17 seconds**. Updated the existing removal regression to tap the actual 48x48 checkbox target, assert the sheet stays closed and the quote quantity becomes zero, reselect through the unchecked box, cancel, and exercise the selected semantic callback. Existing body-edit, quantity, popup Remove, configured choices and booking submission tests passed. Final `flutter analyze --no-pub`: **No issues found**, 17.1 seconds. Formatting/scoped whitespace checks passed. Actual selected-card render inspected at `scratch/chairs-checkbox-20261106/confirmed-chairs-card.png`. Initial compile check caught the missing semantics import; corrected before the successful final run.
+8. **Remaining limitations / safe practice:** No physical-device, real screen-reader or full-suite verification. Separate priced-chair controls apply to the supported single valid Chair fee case; ordinary/included requirements retain their single toggle. Safely run the fixture suite, select a quantity, tap only the checkbox and verify no sheet appears; then tap the empty box, cancel and verify it stays empty. Reconfirm a quantity, tap the card label/summary and verify it opens for editing. Inspect the test quote for zero after removal. Do not create a live booking for practice. Reload the updated Flutter code before checking the behavior in an already-running app.
+
+## Additional Notes label and placeholder cleanup - November 6, 2026
+
+1. **Cause / reason:** The user requested removal of the duplicate Notes label below the Additional Notes heading and a clearer placeholder. The shared field helper always rendered a permanent field label and generated `Enter notes` from it.
+2. **Exact files changed / anchors:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:897` (`showLabel` / `hintText` arguments), `:910` (placeholder override), `:996` (optional permanent label), `:1698` (Additional Notes section); `campushub/test/facility_booking_flow_test.dart:146` (existing form-flow assertions and capture), `:231` / `:242` (retained/submitted notes); this guide; `CAMPUSHUB_CONTEXT.md:3` (summary).
+3. **Changes made:** Keep the Additional Notes heading, remove the repeated Notes label and its 8px gap, and replace the placeholder with **Add any details or instructions for your booking.** Keep the three-line white input, existing borders, typography, optional status and semantic name. Other field labels/placeholders retain their defaults.
+4. **How it works / functions, inputs, outputs and data flow:** `_field(key, label, ...)` accepts optional `showLabel` (default `true`) and `hintText` (default generated from the label). The Notes call uses key `notes`, semantic label Additional Notes, `showLabel: false` and the new placeholder. The shared helper still returns the same controller-backed form field; its Semantics wrapper retains an accessible name even though the duplicate visual label is hidden. Input -> `_fields['notes']` -> `_bookingInputs['notes']` -> quote/review -> existing booking submission is unchanged. Example: entering `Please arrange the chairs before the event.` still sends that exact text under `notes`. Using optional helper arguments avoids copying the shared input styling for one field.
+5. **Backend / API behavior:** None changed. Existing notes validation, payload, booking workflow and permissions remain.
+6. **Database / migration impact:** None. No schema, migration, dependency or working-record changes.
+7. **Tests performed:** `flutter test --no-pub test/facility_booking_flow_test.dart --reporter expanded`: **9 tests passed in 9 seconds**. Updated the existing form-flow case to check the absent duplicate label/new placeholder and verify entered notes survive Review/Back and reach submission. `flutter analyze --no-pub`: **No issues found**, 11.7 seconds. Dart formatting and scoped whitespace checks passed. Inspected the actual rendered empty field at `scratch/additional-notes-20261106/additional-notes.png`. No backend test rerun was needed for this label/placeholder change.
+8. **Remaining limitations / safe practice:** No physical-phone, screen-reader or full-suite verification. Safely run the fixture suite, inspect the single heading/new placeholder, enter a short note, visit Review, return and verify the note remains. Inspect the fixture's submitted `notes` value. Other fields should keep their labels. Do not create live bookings to practice a presentation edit.
+
+## Remove the duplicate inline Chairs quantity field - November 6, 2026
+
+1. **Cause / reason:** The user's screenshot showed an extra inline Chairs quantity field and helper paragraphs below the requirement cards. The existing Chairs card already opens the quantity popup, so the supported single-fee case exposed the same value twice.
+2. **Exact files changed / anchors:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:858` (`_feeQuantity` fallback), `:1684` (configured fee rendering); `campushub/test/covered_court_booking_test.dart:307` (Remove and zero payload), `:335` (card-only editing and submission); this guide; `CAMPUSHUB_CONTEXT.md:3` (summary).
+3. **Changes made:** Skip the inline fee field when it is the same configured fee handled by `_chairRentalFee` and the popup. Remove its now-unused read-only/onTap/helper wording branches from `_feeQuantity`. Remove the pictured general configured-charge explanation and its spacing below the controls. Keep the requirement heading/cards and their confirmed quantity/charge summary. Other fee inputs and ambiguous/unpriced Chair configurations retain their existing fallback controls.
+4. **How it works / functions, inputs, outputs and data flow:** The rendering loop compares each configured fee to `_chairRentalFee`; the supported Chair fee is omitted from the widget tree. Its `_feeFields` controller is retained as booking state. Tapping the Chairs card still invokes `_editChairs`, which opens `showChairsQuantitySheet` with the current quantity and Django rate. Confirm writes the result into that same controller; Cancel leaves it untouched; Remove writes `0` and clears the selected requirement. `_bookingInputs` still reads the controller into `fee_quantities` for quote/review/submission. This removes duplicate presentation without deleting the stored quantity path.
+
+   Annotated fixture example: confirm 20 chairs at the isolated rate 12.35; the card shows `20 chairs` and PHP 247.00, and the request still sends `fee_quantities: {'0': '20'}`. Removing Chairs changes that payload to `{'0': '0'}`. No inline field is needed to submit either value.
+5. **Backend / API behavior:** Unchanged. Existing Django configured-choice, quantity, rate and quote validation remain authoritative. No approval, Job Order, SOA, payment, permission or endpoint changes.
+6. **Database / migration impact:** None. No schema, migration, dependency, configured-rate or working-record changes.
+7. **Tests performed:** `flutter test --no-pub test/covered_court_booking_test.dart test/facility_booking_flow_test.dart test/chairs_quantity_sheet_test.dart --reporter expanded`: **24 tests passed in 16 seconds**. Existing tests now assert the duplicate field/helper text are absent, verify card/popup state, Cancel/Back, Remove, and quote/final submission quantities. `flutter analyze --no-pub`: **No issues found**, 17.9 seconds. Dart formatting and scoped whitespace checks passed. Inspected the actual card-only render at `scratch/chairs-card-only-20261106/confirmed-chairs-card.png`. Backend tests were not rerun for this presentation-only removal.
+8. **Remaining limitations / safe practice:** No physical-phone or full-suite verification. Unsupported/ambiguous fee configurations retain the previous quantity field so a required input is not hidden without a working popup. To practice safely, run the fixture suites, tap the Chairs card, confirm 20, reopen and Cancel a different draft, then remove it. Verify the card summary and outgoing quantity; confirm the extra field and explanation are absent. Do not submit live bookings or change actual rates for this exercise.
+
+## Additional Requirements follow the admin's saved selections - November 6, 2026
+
+### 1. Cause / reason
+
+Confirmed two independent fixed lists: Flutter `_requirementChoices` always offered Chairs, Tables, Sound System, Projector and Others, while Django `_details` accepted only those names. The actual physical-facility admin heading is Additional Requirements, stored in the existing `Facility.amenities` list. The admin's Other entry is resolved into its actual custom label by `validate_features`; it is not an instruction to add a universal Others card. As a result, unchecked choices appeared on mobile and configured items such as Microphone, Stage and Extension Cords could not be submitted. New regression cases reproduced the missing fresh-options response and acceptance of unconfigured quote choices before the fix.
+
+### 2. Exact files changed / current anchors
+
+| File | Line / nearby anchor | Change |
+|---|---|---|
+| `backend/core/modules/facilities/services/feature_configuration.py` | 16 `booking_requirement_options`; 22 `validate_booking_requirements` | Read valid saved labels and validate this facility's selected request values. |
+| `backend/core/modules/facilities/services/mobile_booking.py` | 222 `mobile_pricing_options`; 242 `requirements = validate_booking_requirements` | Return fresh choices through the existing quote response; enforce them for full quotes and new submissions. |
+| `backend/core/modules/facilities/mobile_views.py` | 175 `Basic shape is checked` | Replace the universal allowlist with input-shape validation; configured-choice checks remain in the quote engine after existing-request retry lookup. |
+| `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart` | 49 `_requirementOptions`; 73 initialization; 750 `_cleanRequirementOptions`; 757 `_loadPricingOptions`; 802 `_chairRentalFee`; 1167 `_requirementChoices`; 1687 fee rendering | Build cards from saved/fresh labels, clear removed draft choices, suppress an unconfigured Chair editor, reuse shared amenity icons and show an honest empty state. Remove unused Lucide import. |
+| `backend/core/api/test_mobile_facility_booking.py` | 61 admin-to-mobile custom-label round trip; 90 unconfigured-choice rejection; 103 removal/retry test | Test actual authorized admin update, catalog, fresh options, quote, submission, removal and exact retry preservation. Update fixtures and the old exact response assertion for the additive API field. |
+| `campushub/test/fixtures/facility_booking_fixture.dart` | 11 `testFacilityWithRequirements` | Reuse explicit isolated configuration without changing the shared fixture's original default labels. |
+| `campushub/test/facility_booking_flow_test.dart` | 17 configured fixture; 248 selected/custom choices; 290 empty state | Test explicit fixture choices, no unselected defaults, custom requirement submission, selection retention and existing responsive cards. |
+| `campushub/test/covered_court_booking_test.dart` | 25 `requirementOptions`; 433 fresh-choice regression | Exercise fresh server options overriding a stale facility object and clearing a removed Chair quantity. |
+| This guide; `CAMPUSHUB_CONTEXT.md` | New leading entries | Record cause, data flow, verification and recovery steps. |
+
+### 3. Changes made
+
+Mobile now displays exactly the configured label list, keeping its order and custom names while trimming/deduplicating labels. It no longer invents the five default choices or adds Others automatically. An empty list displays **No additional requirements are configured for this facility.** The existing card layout, white/navy colors, check states and shared icon mapping remain. The configured Chairs choice still opens the existing quantity popup when a single valid Chair fee exists; included chairs still use ordinary selection. If refreshed choices remove Chairs, its old fee draft becomes `0` and its quantity editor is hidden. Other fee calculations were not rewritten.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`booking_requirement_options(facility)` reads `facility.amenities`, retains valid plain labels up to the existing 200-character limit, and returns an ordered unique list. `validate_booking_requirements(facility, requirements)` takes a submitted list, checks exact membership in those options and returns unique selected values; otherwise it raises a Django validation error. It does not create charges or modify facility configuration.
+
+The original admin save path remains `amenities` plus `workflow_config.other_feature` -> `validate_features` -> saved `Facility.amenities`. The existing Schedule availability-only quote now returns `pricing_options.requirement_options`, next to the unchanged `item_fees`. Flutter initially reads `widget.facility.amenities`, then `_loadPricingOptions` replaces that draft option list with the fresh response before showing Details. `_requirementChoices` maps each saved label to a card and shared `iconForAmenity` result; `_requirements` still holds the customer's selections. `_bookingInputs` at line 741 sends those selections and existing `fee_quantities` -> full Django quote -> Review -> existing booking POST.
+
+Annotated example: admin checks **Stage** and **Microphone**, selects **Other**, and enters **Extension Cords**. Saved `amenities` and mobile options become `['Stage', 'Microphone', 'Extension Cords']`. Selecting Extension Cords sends `additional_requirements: ['Extension Cords']`. It does not send an Others marker or assume a rental fee. If Projector is not configured, no Projector card appears and a forged Projector selection receives HTTP 400.
+
+`_details` validates text/list shape before computing the submission fingerprint. New submissions then validate current configured choices inside the locked facility quote path. Already-saved exact retries return the existing booking first, even when the admin has since removed an option; this preserves idempotency and historical requests. Saved requests are not rewritten by current configuration changes. This shared server source was chosen over maintaining another category-based or hardcoded mobile item registry.
+
+### 5. Backend / API behavior
+
+Additive response field: `pricing_options.requirement_options` on the existing availability-only and complete quote responses. Full quotes and new booking submissions now reject unconfigured/removed labels. The routes, bearer authentication, permissions, schedule/conflict checks, rate/discount/quantity calculation, pricing signature, request keys, approval, Job Order, SOA and payment flows remain. The existing `requirements` prose field is not parsed into selectable equipment; it remains separate from the admin checkbox list. Older clients that send unsupported hardcoded choices now receive a validation error and should use the updated app.
+
+### 6. Database / migration impact
+
+None. Reuse `Facility.amenities`, existing workflow JSON and existing booking request details; no schema, migrations, dependency, seeding, working-record, price or permission changes. Tests create and destroy a disposable local PostgreSQL database. No live server or phone was restarted or installed.
+
+### 7. Tests performed
+
+- Before the fix, two new backend regression tests failed: missing requirement options and unconfigured choices accepted by full quotes.
+- Final `backend/core/venv/Scripts/python.exe -B scratch/schedule-policy-20261105/run_tests.py api.test_mobile_facility_booking api.test_facility_rental_configuration`: **103 tests passed in 11.581 seconds**, system checks clean, disposable PostgreSQL database destroyed. Includes actual Facilities Admin update through its authorized endpoint, custom-label quote/submission persistence, unchecked/empty-list rejection, post-review removal, exact retry preservation, current pricing and existing rental configuration tests.
+- Final `flutter test --no-pub test/facility_booking_flow_test.dart test/covered_court_booking_test.dart test/chairs_quantity_sheet_test.dart test/select_schedule_test.dart --reporter expanded`: **60 tests passed in 33 seconds**. Includes configured-only/empty/custom cards, removed Chair quantity clearing, current popup behavior, quote/submission mapping, and existing schedule/large-text cases.
+- `flutter analyze --no-pub`: **No issues found**, 23.2 seconds. Dart formatting and scoped root/nested Git whitespace checks passed. Inspected the actual render at `scratch/requirements-admin-selection-20261106/requirements-selected.png` with selected custom Extension Cords.
+- Initial reruns exposed an obsolete exact JSON assertion, two new tests tapping before scroll animations settled, an unused import and one incorrect optional test-module label. Corrected those before the final successful runs; no failed run is counted as a passing suite.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-phone, screen-reader, full-app suite or deployment verification. Fresh choices load on the existing Schedule-to-Details validation, not as live pushed checkbox changes while a form is open. If an admin changes choices after Review, a new submission rejects unsupported selections; go Back to Select Schedule, then Next to Booking Details to reload the current choices. Existing requestor fields remain. A missing options field from an older server falls back to the facility object's actual saved amenities, never to the former five-item list. All configured labels remain displayable, including fixed features that the admin chose under the current Additional Requirements heading; no hidden category-based filtering is invented.
+
+For a safe exercise, run the isolated admin round-trip test at line 61. Change only its custom fixture label from Extension Cords to another plain label and update its corresponding expectation; rerun, then restore the fixture. In the Flutter fixtures, configure only Microphone and Stage, confirm that Chairs/Projector/Others are absent, select an item and verify its exact label persists into the submitted request. Configure an empty list and verify the empty state. Do not alter production facility settings or create live bookings for practice. If choices disagree, inspect the facility's saved `amenities` and fresh `pricing_options.requirement_options`; do not copy the entire global admin choices registry into the customer form.
+
+## Compact Chairs Quantity layout and Request Booking button size - November 6, 2026
+
+This refinement supersedes the larger popup presentation described in the preceding implementation history below.
+
+1. **Cause / reason:** The user supplied a compact popup reference and requested its layout with existing CampusHub colors and the Request Booking button size. The earlier sheet had a description, steppers, separate pricing paragraphs and 48px actions.
+2. **Exact files changed / anchors:** `campushub/lib/module_app/widgets/facilities/chairs_quantity_sheet.dart:100` (`_actions`), `:148` (`build`), `:173` (quantity input), `:227` (Estimated chair charge); `campushub/test/chairs_quantity_sheet_test.dart:128` (compact layout and button checks), `:169` (invalid-input checks); `campushub/test/covered_court_booking_test.dart:353` (charge text lookup); this guide; `CAMPUSHUB_CONTEXT.md:3` (summary). Existing unrelated work was preserved.
+3. **Changes made:** Use a compact title, one left-aligned rounded numeric input, an estimated-charge row and equal-width Cancel/Confirm actions. Remove steppers, drag-handle decoration and extra explanatory paragraphs. Both buttons copy the existing Request Booking dimensions/style at `facility_details_screen.dart:1227`: 52px minimum height, 12px horizontal/vertical padding, StadiumBorder and 14px semibold text. Keep white surfaces, navy text/Cancel outline and existing gold Confirm (`#FCB316`). Remove Chairs remains for a previously confirmed selection. Narrow enlarged-text layouts stack actions and wrap the charge.
+4. **How it works / functions, inputs, outputs and data flow:** `showChairsQuantitySheet(context, currentQuantity, unitCentavos, maxQuantity)` still returns a confirmed integer, `0` for Remove, or `null` for cancellation. The controller holds a draft. `_valid` at line 86 validates a whole number within the supplied maximum; `_close` at line 89 dismisses focus and returns the result. `_actions` uses those same callbacks; `build` renders the compact field and `chairMoney(quantity * unitCentavos)` estimate. The existing booking screen `_editChairs` copies only a confirmed result into the original fee controller/requirements; `_bookingInputs` sends `fee_quantities` through Django quote and submission. Controller disposal remains at line 95. Reusing this path avoids a second quantity state or price authority.
+
+   Annotated fixture example: rate `1235` centavos and quantity `2` display PHP 24.70. Cancel returns `null`, retaining the old quantity. Confirm returns `2`, and existing fee index `0` sends `fee_quantities: {'0': '2'}`. No estimated amount becomes an authoritative submitted price.
+5. **Backend / API behavior:** Unchanged. Django supplies the saved rate and validates/calculates the actual quote. Other requirements, Function Hall included-chair selection, permissions, approval, Job Order, SOA and payments are unchanged.
+6. **Database / migration impact:** None. No schema, migration, dependency, saved-rate or working-record changes. Capture prices come from isolated fixtures.
+7. **Tests performed:** `flutter test --no-pub test/chairs_quantity_sheet_test.dart test/covered_court_booking_test.dart test/facility_booking_flow_test.dart --reporter expanded`: **21 tests passed in 17 seconds**. Tests cover default/edit/invalid/overflow values, cancellation/Back/barrier/Remove, booking payloads, Function Hall without a separate fee, and keyboard/narrow enlarged-text layouts. The updated layout check measures both actions at 52px and checks the retained gold color. `flutter analyze --no-pub`: **No issues found**, 18.6 seconds. Formatting and scoped whitespace checks passed. Actual renders inspected: `scratch/chairs-compact-20261106/chairs-compact-default.png` and `chairs-280.0-2.0.png`.
+8. **Remaining limitations / troubleshooting / safe practice:** No physical-phone, live-booking, full-suite or screen-reader verification. Quantity still uses the existing maximum 100000, not an inventory guarantee. The narrow capture is scrolled to Confirm, so part of the heading is above the viewport; its keyboard uses simulated insets. Safely rerun the listed fixture tests, enter `2`, inspect the estimate, Cancel/reopen and verify the prior value remains; then Confirm and inspect the existing quote quantity. Enter `0` or `100001` and verify Confirm disables. Do not modify live fees or create a real booking for practice. For test lookup failures after this copy change, use `chairs-quantity-subtotal` for the amount and the new Estimated chair charge label.
+
+## Chair quantity bottom sheet adapted to the current local source - November 6, 2026
+
+1. **Cause / reason:** The user supplied a ChatGPT task/example and warned that it might not match their unpushed code. Inspected the actual local Flutter form and Django pricing contract instead of replacing the form with the snippet or pulling GitHub. The current form already owns `_feeFields`, `_itemFees`, `_requirements` and the correct `fee_quantities` mapping. Previously tapping Chairs merely toggled the requirement and required a separate quantity edit.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:777` (`_chairRentalFee`), `:785` (`_editChairs`), `:824` (`_tapRequirement`), `:837` (existing quantity-field entry), `:1058` / `:1119` (card estimate); new `campushub/lib/module_app/widgets/facilities/chairs_quantity_sheet.dart:7` (existing limit), `:24` / `:37` (rate parsing/centavo display), `:40` (modal launcher), `:63` / `:99` (state/controller lifecycle), `:104` (responsive actions), `:155` (sheet layout); `campushub/test/covered_court_booking_test.dart:135`, `:304`, `:335`, `:403`; new `campushub/test/chairs_quantity_sheet_test.dart:105`, `:131`, `:163`, `:210`, `:252`; this guide. Other local changes and all migration files were preserved.
+3. **Changes made:** For one valid separately configured Chair item fee, the card displays the saved rate and opens a white bottom sheet with Montserrat, navy `#1A1851`, gold `#FCB316`, minus/plus, editable quantity, saved rate, estimated subtotal, Cancel and Confirm. A new choice defaults to `1`; existing choices reopen at the confirmed value. Confirm updates the original controller/selection; Remove Chairs writes `0` and unchecks Chairs. Cancel, barrier dismissal and Android Back do not commit the draft. The white selected card displays confirmed quantity and estimated charge. Preserve the existing Chairs quantity field/controller/key; it is read-only for this supported case and tapping it opens the same editor. Its validator and payload mapping remain in place. Other requirement and fee controls retain their behavior. No document notice was reintroduced.
+4. **How it works / functions, inputs, outputs and data flow:** Existing Django availability-only quote response -> `_loadPricingOptions` -> `_itemFees` / indexed `_feeFields` -> `_chairRentalFee`. That getter accepts exactly one recognized Chair fee with a valid saved rate. `_tapRequirement` routes only that Chair interaction to `_editChairs`; all other cases use the existing toggle. `_editChairs` passes current quantity and unit centavos to `showChairsQuantitySheet`, which returns an integer on Confirm/Remove or `null` on cancellation. A stateful `ChairsQuantitySheet` owns its temporary controller through the modal closing animation and disposes it in `State.dispose`; the unsafe example pattern of disposing an external controller immediately after awaiting the route is not used. `_editChairs` rejects a commit if the field/rate changed or the form left Details while the sheet was open.
+
+   `chairUnitCentavos` validates finite, non-negative saved prices with the existing two-decimal/max-amount contract; missing or malformed prices do not become a fabricated zero. `chairMoney` displays integer centavos, keeping quantity multiplication exact within the existing limits. The subtotal is labeled an estimate. The original controllers -> `_bookingInputs['fee_quantities']` -> Django quote -> Review -> original booking submission remain the only processing path; the mobile app never sends an arbitrary Chair rate or subtotal.
+
+   Annotated isolated example: saved test rate `12.35` -> `1235` centavos; confirmed `20` chairs -> estimated `247.00`; original fee index `0` still sends `{'0': '20'}`. This is test data, not a configured production rate. The attendees field remains independent and can contain a different number.
+5. **Backend / API behavior:** No backend code or API contract changed. Read `mobile_booking.mobile_pricing_options` for active item/unit fee indices, names and saved rates; `complete_mobile_quote` and `admin_reservations.whole_number` remain authoritative for request validation. Final fees still come from Django's saved configuration and quote token. The implementation does not hardcode the policy's Chair rate, add charges to included Function Hall chairs, change approval, Job Order, SOA or payment handling, or move business logic into FastAPI.
+6. **Database / migration impact:** None. No migrations, inventory, prices, permissions, dependency or working-record changes. No Git pull, commit or push was performed.
+7. **Tests performed:** Final `flutter test test/chairs_quantity_sheet_test.dart test/covered_court_booking_test.dart test/facility_booking_flow_test.dart test/select_schedule_test.dart --reporter expanded`: **57 tests passed in 19 seconds**. Final `flutter analyze --no-pub`: **No issues found**, 17.9 seconds. Refreshed the confirmed-card capture with the existing Lucide test font, rerunning its single integration case: **1 passed in 3 seconds** (a repeat, not an additional distinct case). Formatting/scoped whitespace checks passed. Verified default quantity, steppers/bounds, invalid/zero/negative/fractional/overflowing input, Confirm, edits, Cancel, Back/barrier dismissal, Remove, route/controller closing lifecycle, keyboard Done, 280px/200% text with keyboard insets, navigation safe area, original quote/submission quantities and request keys, and Function Hall without a separate Chair fee. Initial standalone test failures were incorrect Tooltip/Scrollable finders; corrected before the successful final run. Actual sheet and confirmed-card captures in `scratch/chairs-quantity-20261106/` were inspected. Visual review led to stacked buttons for narrow enlarged text and explicit Montserrat variable weights.
+8. **Remaining limitations / troubleshooting and safe practice:** The current pricing API does not expose per-facility Chair stock or a lower configured quantity cap; the popup uses the existing mobile/Django maximum of **100000**, not a claim that this many chairs are available. Final availability/acceptance remains with Django/office processing. No physical-phone, live-server or full-suite verification. Missing, malformed or multiple Chair fee mappings retain the previous controls instead of guessing a rate/index; included chairs keep ordinary selection. If the popup does not open, inspect the actual `pricing_options.item_fees` response and the existing aliases `chair`, `chairs`, `chair rental`, without editing working prices. In isolated fixtures, confirm 20 chairs, reopen and edit to 99 then Cancel/Back, verify 20 remains, remove and verify quantity `0`, then inspect quote/submission `fee_quantities`. Exercise another rate to prove no fixed price was introduced. Use `CHAIRS_REVIEW_DIR` with the widget suites for actual rendered captures; do not change production inventory or submit live bookings for this exercise.
+
+## Remove the remaining Job Order description from the booking form - November 6, 2026
+
+1. **Cause / reason:** After removing the notice heading and service label, the user also requested removal of its description paragraph.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:1099` (build now follows the requirements helpers directly), `:1585` (Details ends with Additional Notes), `:1803` (Review ends with applicable Rules & Guidelines); `campushub/test/facility_booking_flow_test.dart:111`, `:140`, `:189`, `:296` (assert the notice and text are absent); this guide.
+3. **Changes made:** Delete the unused `_jobOrderRequest()` presentation helper and both its Details/Review calls. This removes the paragraph, its white card and its bottom padding without leaving an empty section. Keep the white requirement selection cards and all other form sections.
+4. **How it works / data flow:** The existing build method simply renders the remaining form/review children. No replacement helper, input or output is introduced. Controllers and `_requirements` still feed `_details()` -> Django quote -> Review -> existing booking submission. Example: a selected Tables card still sends the same requirement while no document explanation appears below Notes.
+5. **Backend / API behavior:** None changed. Actual post-approval Job Order generation, document access, booking validation, prices, category mapping and submission request keys remain unchanged.
+6. **Database / migration impact:** None. No schema, migration, dependency or working-record changes.
+7. **Tests performed:** `flutter test test/facility_booking_flow_test.dart test/covered_court_booking_test.dart --reporter expanded`: **13 tests passed in 14 seconds**. `flutter analyze --no-pub`: **No issues found**, 19.3 seconds. Formatting and scoped whitespace checks passed. No new visual capture or physical-phone verification was run for this removal.
+8. **Remaining limitations / safe practice:** Targeted tests only, not a full-suite claim. Use the isolated booking fixtures to open Details, scroll past Notes and proceed to Review; verify the paragraph/card are absent and the existing action bar still advances/submits. Check selected requirements survive Back/Review. Do not create a live booking or modify actual document records to test a UI removal.
+
+## White selected requirement cards and simplified document notice - November 6, 2026
+
+1. **Cause / reason:** The user requested white requirement cards even when selected, and removal of the visible Job Order Request / Facility Rental labels. The previous selected Material used `bookingGoldBg`; the bottom notice contained both a section title and configured service-label row.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:1004` (`_requirementCard` surface), `:1098` (`_jobOrderRequest` notice); `campushub/test/facility_booking_flow_test.dart:111` (notice position/hidden labels), `:262` (selected white surface), `:295` (missing-mapping case); this guide. Other pending work was preserved.
+3. **Changes made:** Always use a white Material for the five requirement cards. Retain the navy selected border, filled checkbox/checkmark, icons and whole-card tap target. Remove the Job Order Request heading and service-label/icon row from the notice on Booking Details and Review, including the unknown-service display fallback. Keep the existing explanatory paragraph and bottom spacing in its white BookingCard. No blank heading space remains.
+4. **How it works / data flow:** `_requirementCard(label, icon)` still derives its checked state from `_requirements`; `_toggleRequirement` still updates that set and clears configured Chair quantities when appropriate. Only the surface color changed. `_jobOrderRequest()` now returns a constant padded BookingCard with the same explanation and a stable `booking-job-order-notice` key. It no longer reads `facility.jobOrderService` for display; that model field and server mapping remain intact. Existing request controllers/requirements -> `_details()` -> Django quote/review/submission are unchanged. Example: choosing Tables shows a navy check on white while submitting the same `Tables` requirement value as before.
+5. **Backend / API behavior:** None changed. Existing booking validation, pricing, request keys, category workflows and actual post-approval Job Order generation remain unchanged. Hiding these labels does not delete a document or change its service category.
+6. **Database / migration impact:** None. No model, migration, permission, dependency, rate or working-record edits.
+7. **Tests performed:** `flutter test test/facility_booking_flow_test.dart test/covered_court_booking_test.dart --reporter expanded`: **13 tests passed in 17 seconds**. `flutter analyze --no-pub`: **No issues found**, 21.4 seconds. Formatting and scoped whitespace checks passed. Tests verify selected surfaces stay white, checked states still toggle at normal/enlarged text, the two labels are absent in Details/Review, the notice remains below Notes, selections survive review/back/submission and configured Chair quantities clear on deselection. Inspected the actual selected-state capture at `scratch/white-requirements-20261106/requirements-selected.png`.
+8. **Remaining limitations / safe practice:** No physical-phone or full-suite verification. The explanatory paragraph still mentions Job Order processing; only the requested heading and service-label row were removed. To practice safely, select Tables/Others in the fixture, check the white background and navy checks, scroll below Notes to confirm the paragraph remains without the labels, and review/back to confirm selections persist. If a notice-position test needs a finder, use `booking-job-order-notice` rather than the removed title. Do not create live bookings or modify real document metadata to test this presentation change.
+
+## Event Information and selectable requirement cards - November 6, 2026
+
+1. **Cause / reason:** The user requested the same Add Product-style fields for Event Information and supplied a reference showing five outlined requirement cards. The existing form used floating event labels and a vertical CheckboxListTile list.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:3` (existing Lucide package import), `:825` (preserve the attendee unit in styled fields), `:918` (`_informationCard`), `:969` (`_eventInformation`), `:982` (`_toggleRequirement`), `:995` (`_requirementCard`), `:1057` (`_requirementChoices`), `:1598` / `:1609` (form placement), `:1615` / `:1633` (Other details / Notes styling); `campushub/test/facility_booking_flow_test.dart:107`, `:236`; `campushub/test/covered_court_booking_test.dart:277`; `campushub/test/select_schedule_test.dart:613`; this guide. Unrelated pending work was preserved.
+3. **Changes made:** Reuse one `_informationCard` helper for Requestor and Event Information, with a white surface, icon, wrapping title and permanent labels above rounded fields. Event name, purpose and attendee count use the same existing product-field typography/border/focus/error style as Requestor; attendee count retains the `persons` suffix. Other details and Additional Notes use that field style too. Replace the five checkbox rows with white rounded cards: navy icon at upper left, checkbox indicator at upper right, label below. Selected cards show a navy check/border and pale gold surface. Keep the existing choices, configured fee controls, quote guidance and bottom Job Order notice.
+4. **How it works / functions and data flow:** `_informationCard(title, icon, fields)` returns presentation only. `_eventInformation()` supplies the same three controller-backed fields and their existing required/capacity validation. `_requirementChoices()` reads available width and text scale, then lays out two columns when each card has sufficient width; narrow or enlarged text falls back to one column. Rows grow with their labels. `_requirementCard(label, icon)` reads `_requirements`, paints the current state and exposes a checked semantic action; tapping the entire card calls `_toggleRequirement(label)`. That extracted callback retains the former checkbox behavior, including resetting configured Chair fee quantities to `0` on deselection. Entering a positive Chair quantity still selects Chairs through the unchanged `_feeQuantity` callback. Existing controllers and `_requirements` -> `_details()` -> Django quote -> Review -> existing submission remain the data path.
+
+   Example: selecting **Others** reveals the existing `other_requirements` controller; its conditional validation still requires a description. Selecting **Tables** alone adds `Tables` to the existing request list and does not invent a price. Returning from Review retains both selections and entered text. The visual helper was chosen to share the current field design without changing backend contracts.
+5. **Backend / API behavior:** None changed. Django still validates eligibility, capacity, schedules and prices. No API route, payment, Job Order approval, messaging or category-workflow changes. The displayed requirements retain their existing request meanings; a card is not proof that equipment is in stock or a new charge is due.
+6. **Database / migration impact:** None. No model, migration, dependency, rate or working-record changes. Lucide was already installed.
+7. **Tests performed:** `flutter test test/facility_booking_flow_test.dart test/covered_court_booking_test.dart test/select_schedule_test.dart --reporter expanded`: **49 tests passed in 25 seconds**. Final `flutter analyze --no-pub`: **No issues found**, 8.8 seconds. Checked formatting on the changed form/flow/Court files and scoped whitespace across all changed files. The schedule test received only its stable-key field lookup, preserving its existing formatting. An initial run exposed an old floating-label lookup in that test; it was corrected. Tests cover all five card toggles at 390px/normal and 320px/200% text, selected state, retained selections/write-in through review/back/submission, actual quote quantities and resetting Chair quantity on deselection. Actual Event, selected/unselected requirements and large-text captures were inspected in `scratch/event-requirements-20261106/`. Visual review led to a one-column fallback at enlarged text to avoid splitting Projector across awkward lines.
+8. **Remaining limitations / debugging and safe practice:** No physical-device, full-suite or screen-reader verification; no measured accessibility-score claim. Single-column layout intentionally takes more scrolling at large text sizes. To practice safely, run the fixture suites, tap Tables and Others, enter a test description, review and return; confirm checked states and text remain. In the isolated Court fixture, enter a Chair quantity, deselect Chairs and verify the next quote sends quantity `0`. If a field test cannot find a permanent label as `labelText`, use its `booking-field-<key>` finder (for example, `booking-field-full_name`) and its descendant TextField. If a card seems clipped, first inspect text scale and available width rather than adding a fixed card height. Do not submit live reservations or modify actual fees for this exercise.
+
+## Requestor fields match Add Product; Job Order notice moved to the bottom - November 6, 2026
+
+1. **Cause / reason:** The booking form used floating field labels while Add Product uses permanent labels above white outlined fields. The Job Order explanation preceded the actual booking information. The user requested the Add Product field design for Requestor Information and the Job Order section at the bottom.
+2. **Exact files changed:** `campushub/lib/module_app/screens/facilities/facility_booking_screen.dart:10` (shared field-label/style import), `:804` (`_field`), `:915` (`_requestorInformation`), `:1459` (requestor section placement), `:1539` and `:1757` (Job Order placement); `campushub/test/facility_booking_flow_test.dart:18`, `:104` (capture, validation, ordering and submission checks); `campushub/test/covered_court_booking_test.dart:174` (field lookup); this guide. Dashboard/Profile and three header tests also changed for the associated all-tab background request; see [the navigation guide](mobile-services-navigation.md).
+3. **Changes made:** Place the four requestor fields in a white BookingCard with a person icon and wrapping section title. Reuse `ProductFieldLabel`, `ProductFormStyle` border/radius/error values and `AppTypography` from the existing Add Product UI. Show permanent labels, real required markers, white outlined inputs, 14/15px inner padding and a navy focus outline. Organization remains optional. Event, fee, notes and requirement controls keep their existing appearance. Move the unchanged `_jobOrderRequest()` notice below Additional Notes on Booking Details and below summary/rules on Review, above the existing fixed action bar.
+4. **How it works / functions and data flow:** `_requestorInformation()` returns the card and calls `_field(..., productStyle: true)` for name, organization, phone and email. `_field` receives the same field key, label, required flag, keyboard type and controller; its new optional flag selects decoration/label layout only. Its existing validator returns the same required/email/capacity messages. Controllers still feed `_details()` -> existing Django quote -> Review -> existing idempotent submission. `_jobOrderRequest()` still reads the configured service label and explains post-approval draft preparation; moving it creates no Job Order or signature.
+
+   ```dart
+   // Same stored organization value; optional input with the Add Product appearance.
+   _field('organization', 'Organization / Office',
+       required: false, productStyle: true);
+   ```
+
+   This approach reuses the actual label/style primitives while preserving the booking navy, existing form controllers and business rules. Test lookups now recognize permanent-label fields by their hints; stable `booking-field-<key>` keys also identify the inputs.
+5. **Backend / API behavior:** None changed. Request payloads, quote authority, booking eligibility, conflict checks, request keys, pricing, approval and existing post-approval Job Order handling remain unchanged. No new endpoint or online form workflow.
+6. **Database / migration impact:** None. No model, migration, permission, rate, account or working-record edits. Add Product implementation and its persisted data were not changed.
+7. **Tests performed:** Shared final six-file run listed in the navigation guide: **57 tests passed in 30 seconds**; `flutter analyze --no-pub`: **No issues found**, 14.6 seconds. Relevant cases cover requestor validation, retained input, review/back navigation, single submission, actual quote quantities and retry keys, 320/390px booking review, enlarged text, header navigation and standalone Profile. The form test verifies the Job Order notice follows Additional Notes and scrolls down to find the notice on the lazy Review list. Actual normal and enlarged-text form captures were inspected under `scratch/shared-tabs-requestor-20261106/`. Formatting and scoped whitespace checks passed. Initial test lookup failures were resolved before this final run.
+8. **Remaining limitations / safe practice:** No physical-device, keyboard/screen-reader, live booking or full-suite verification. The Job Order notice is intentionally below the fold; scroll to reach it. Safely rerun the fixture suites, leave name/email blank to inspect validation, enter isolated fixture values, review, go Back and confirm the values remain. Scroll below Notes and then to the end of Review to locate Job Order. Confirm one fixture submission and the same request key; do not create a live booking or sign as another user for this exercise.
+
 ## Non-selected adjacent wheel numbers visibility restored - November 5, 2026
 
 ### 1. Cause / reason
@@ -1986,3 +2299,325 @@ _pickSlot(slot)  ──>  setState(() { _slot = slot['time']; })
 2. Inspect the diameter: outer container is 20 px, inner dot is 10 px, outer border is 2.0 px when selected.
 3. Calculate spacing: (20 - 4 - 10) / 2 = 3.0 px padding between inner dot and outer ring.
 4. Verify by running lutter test --no-pub test/select_schedule_test.dart.
+
+
+---
+
+## 35. Facilities Screen: Top "My Bookings" Button Removed - November 6, 2026
+
+### 1. Cause / Reason
+The mobile Facilities catalog tab (`FacilitiesPage`) previously rendered an `Align` container with a `TextButton.icon` (`Icons.receipt_long_outlined`, label `'My Bookings'`) at the top of the facility listing. The user requested removing "My Bookings" from the facilities section in mobile. Users already have primary access to their booking history through the side navigation drawer (`SellerDrawer` / `MainDrawer` -> `My Bookings`) as well as the confirmation screen after submitting a reservation (`Check My Bookings`). Removing this button cleans up the facility catalog view, aligning the top edge of the list directly with facility cards or status feedback.
+
+### 2. Exact Files & Current Line Numbers
+- `campushub/lib/module_app/screens/facility_screen.dart`:
+  - **Anchor**: top imports (around line 7-8).
+    - Removed `import 'facilities/facility_booking_history_screen.dart';`.
+  - **Anchor**: inside `_FacilitiesPageState.build()` `ListView(children: [...])` (around line 79-92).
+    - Removed the `Align` block containing `TextButton.icon(icon: const Icon(Icons.receipt_long_outlined, size: 18), label: const Text('My Bookings'), ...)` that pushed `FacilityBookingHistoryScreen`.
+- `campushub/test/resource_catalog_cards_test.dart`:
+  - **Anchor**: widget test at line 454.
+    - Updated test name from `'facility listing retains selected details and My Bookings'` to `'facility listing retains selected details without top My Bookings button'`.
+    - Updated assertion from `expect(find.text('My Bookings'), findsOneWidget);` to `expect(find.text('My Bookings'), findsNothing);`.
+
+### 3. Changes Made
+- In `facility_screen.dart`:
+  - Removed the unused import `facilities/facility_booking_history_screen.dart`.
+  - Removed the `Align(alignment: Alignment.centerRight, child: TextButton.icon(...))` widget from the top of the `children` list in `ListView`.
+- In `resource_catalog_cards_test.dart`:
+  - Updated widget test assertions to verify that `'My Bookings'` is no longer present on the `FacilitiesPage`.
+
+### 4. Functions & Data Flow
+```
+User navigates to Facilities tab (Tab index 3)
+                     │
+                     ▼
+             FacilitiesPage
+                     │
+                     ▼
+         _FacilitiesPageState.initState()
+                     │
+                     ▼
+             _fetchFacilities()
+                     │
+      ┌──────────────┴──────────────┐
+      │                             │
+Loading state                  Success state
+      │                             │
+      ▼                             ▼
+CircularProgressIndicator     ResourceCardGrid
+                              (FacilityPreviewCard widgets)
+```
+- **Inputs**: `loadFacilities` callback returning `FacilityServiceResult`.
+- **Outputs**: Clean listing of `FacilityPreviewCard` items inside `ResourceCardGrid` without a superfluous top action button.
+- **Navigation Preservation**: Navigating to `FacilityBookingHistoryScreen` remains fully intact via the navigation drawer item `bookings('My Bookings', 'MAIN', Iconsax.calendar_tick_copy)` in `lib/module_app/widgets/navigation/seller_drawer.dart` and the post-booking submission step in `lib/module_app/screens/facilities/facility_booking_screen.dart`.
+
+### 5. Backend / API Behavior
+No backend or API changes. The facilities endpoint (`GET /api/facilities/`) and booking endpoints continue functioning as designed.
+
+### 6. Database / Migration Impact
+None. No database models, migrations, or database records were modified.
+
+### 7. Tests Performed
+- `flutter test test/resource_catalog_cards_test.dart`: 18/18 tests passed.
+- `flutter test test/facility_status_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart test/select_schedule_test.dart`: 74/74 tests passed.
+- `flutter analyze --no-pub`: 0 issues found (`No issues found!`).
+
+### 8. Remaining Limitations
+No physical Android/iOS device deployment or APK rebuild was performed in this session.
+
+### 9. Beginner Safe Practice Exercise
+1. Open `campushub/lib/module_app/screens/facility_screen.dart`.
+2. Inspect `build(BuildContext context)`: observe that `ListView(children: [...])` begins directly with `if (_isLoading)` without any preceding buttons.
+3. Open `campushub/lib/module_app/widgets/navigation/seller_drawer.dart`: observe where `bookings('My Bookings', ...)` provides the persistent drawer entry point.
+4. Run `flutter test test/resource_catalog_cards_test.dart` from the `campushub` directory to verify the test suite verifies that `My Bookings` does not appear on the facilities catalog.
+
+
+---
+
+## 36. Facility Details: Bottom Action Button Matches Product Details Style & Size - November 6, 2026
+
+### 1. Cause / Reason
+The user requested copying the style and size of the button from Product Details to Facility Details. In `ProductDetailsScreen` (`_ProductBottomBar`), the main action button (`Buy Now`) uses a 52 px height (`minimumSize: const Size(0, 52)`), a pill-shaped outline (`shape: const StadiumBorder()`), `FontWeight.w600` typography, zero elevation, and standard horizontal/vertical padding (`EdgeInsets.symmetric(horizontal: 12, vertical: 12)`). In contrast, `FacilityDetailsScreen` (`_FacilityBookingBar`) previously used 56 px tall buttons with rectangular 14 px corner radiuses (`RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))`) and heavier `FontWeight.w700` text. Updating the Facility Details bottom action bar buttons (`Request Booking` / `Message Admin` and `Chat`) to match this exact style and 52 px height delivers design consistency across the mobile application.
+
+### 2. Exact Files & Current Line Numbers
+- `campushub/lib/module_app/screens/facility_details_screen.dart`:
+  - **Anchor**: inside `_FacilityBookingBar.build()` (around lines 1162–1240).
+  - Updated outer footer padding to `EdgeInsets.fromLTRB(16, 10, 16, 10)` matching the Product Details bottom bar safe area inset.
+  - In `OutlinedButton` (`facility-chat-button`):
+    - Added `elevation: 0`.
+    - Changed `minimumSize` from `Size(0, 56)` to `Size(0, 52)`.
+    - Changed `padding` to `EdgeInsets.symmetric(horizontal: 12, vertical: 12)`.
+    - Changed `shape` from `RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))` to `const StadiumBorder()`.
+  - In `FilledButton` (`facility-request-booking-button`):
+    - Added `elevation: 0`.
+    - Changed `minimumSize` from `Size(double.infinity, 56)` to `Size(double.infinity, 52)`.
+    - Changed `padding` to `EdgeInsets.symmetric(horizontal: 12, vertical: 12)`.
+    - Changed `shape` from `RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))` to `const StadiumBorder()`.
+    - Updated `textStyle` weight from `FontWeight.w700` to `FontWeight.w600` matching `AppTypography.text(fontSize: 14, fontWeight: FontWeight.w600)`.
+
+### 3. Changes Made
+```dart
+// OutlinedButton (facility-chat-button):
+style: OutlinedButton.styleFrom(
+  backgroundColor: _facilityControlSurface,
+  foregroundColor: bookingNavy,
+  elevation: 0,
+  minimumSize: const Size(0, 52),
+  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+  side: const BorderSide(color: _facilityOutline),
+  shape: const StadiumBorder(),
+  textStyle: _detailText(14, weight: FontWeight.w600),
+),
+
+// FilledButton (facility-request-booking-button):
+style: FilledButton.styleFrom(
+  backgroundColor: _facilityDetailGold,
+  foregroundColor: bookingNavy,
+  disabledBackgroundColor: _facilityControlSurface,
+  disabledForegroundColor: _facilityMuted,
+  elevation: 0,
+  minimumSize: const Size(double.infinity, 52),
+  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+  shape: const StadiumBorder(),
+  textStyle: _detailText(
+    14,
+    weight: FontWeight.w600,
+    color: bookingNavy,
+  ),
+),
+```
+
+### 4. Functions & Data Flow
+```
+User navigates to Facility Details screen
+                   │
+                   ▼
+         FacilityDetailsScreen
+                   │
+                   ▼
+         Scaffold bottomNavigationBar
+                   │
+                   ▼
+         _FacilityBookingBar
+         ┌─────────┴─────────┐
+         │                   │
+showBookingAction == true   showBookingAction == false
+         │                   │
+         ▼                   ▼
+Row:                        Full-width:
+- OutlinedButton (Chat)     - FilledButton (Message Admin)
+  [StadiumBorder, 52h]        [StadiumBorder, 52h]
+- FilledButton (Request)
+  [StadiumBorder, 52h]
+```
+- **Inputs**: `showBookingAction`, `onChat`, `onPressed` callbacks.
+- **Outputs**: Institutional, unified pill-shaped bottom action bar buttons across products and facilities.
+
+### 5. Backend / API Behavior
+None. This is purely a Flutter presentation and styling update. All facility quote, booking, and chat endpoints behave identically.
+
+### 6. Database / Migration Impact
+None. No database models, migrations, or database records were changed.
+
+### 7. Tests Performed
+- `flutter test test/facility_details_test.dart`: **41/41 tests passed** in 9s.
+- `flutter test test/facility_details_test.dart test/facility_status_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart test/select_schedule_test.dart test/resource_catalog_cards_test.dart`: **115/115 tests passed** in 26s.
+- `flutter analyze --no-pub`: 0 issues found (`No issues found! (ran in 10.4s)`).
+
+### 8. Remaining Limitations
+No physical phone APK install was performed; layout verified through automated widget testing and headless Flutter test runtime.
+
+### 9. Beginner Safe Practice Exercise
+1. Open `campushub/lib/module_app/screens/facility_details_screen.dart` and locate `_FacilityBookingBar`.
+2. Inspect `FilledButton.styleFrom` and `OutlinedButton.styleFrom`: verify both have `shape: const StadiumBorder()` and `minimumSize: const Size(..., 52)`.
+3. Open `campushub/lib/module_app/screens/product_details_screen.dart` and locate `_ProductBottomBar`: verify the identical button shape (`StadiumBorder`) and height (`52`).
+4. Run `flutter test test/facility_details_test.dart` to verify all button height and interaction tests pass.
+
+
+---
+
+## 37. Facility Details: Chat Button Styled with Pure White Container & Navy Blue Outline - November 6, 2026
+
+### 1. Cause / Reason
+The user provided a visual reference and requested designing the Chat button in the Facility Details bottom action bar with a pure white container (`Colors.white`) and a navy blue outline (`bookingNavy`, `#1A1851`). Previously, the Chat `OutlinedButton` used a subtle grey background (`_facilityControlSurface`, `#F5F6FA`) with a subtle grey border (`_facilityOutline`, `#E3E5ED`). Updating it to a pure white container with a 1.2 px solid navy blue border gives the button clear contrast, institutional branding, and a crisp pill appearance alongside the gold `Request Booking` button.
+
+### 2. Exact Files & Current Line Numbers
+- `campushub/lib/module_app/screens/facility_details_screen.dart`:
+  - **Anchor**: inside `_FacilityBookingBar.build()` `OutlinedButton` (`ValueKey('facility-chat-button')`) (around lines 1170–1188).
+  - Changed `backgroundColor` from `_facilityControlSurface` to `Colors.white`.
+  - Changed `side` from `const BorderSide(color: _facilityOutline)` to `const BorderSide(color: bookingNavy, width: 1.2)`.
+  - Preserved `foregroundColor: bookingNavy`, `shape: const StadiumBorder()`, `minimumSize: const Size(0, 52)`, and `elevation: 0`.
+- `campushub/test/facility_details_test.dart`:
+  - **Anchor**: widget test at lines 205–240.
+  - Added explicit test expectations asserting `chatButton.style!.backgroundColor!.resolve({}) == Colors.white` and `chatButton.style!.side!.resolve({})!.color == const Color(0xFF1A1851)`.
+
+### 3. Changes Made
+```dart
+// OutlinedButton (facility-chat-button):
+OutlinedButton(
+  key: const ValueKey('facility-chat-button'),
+  onPressed: onChat,
+  style: OutlinedButton.styleFrom(
+    backgroundColor: Colors.white, // Pure white container
+    foregroundColor: bookingNavy, // Navy blue text & icon
+    elevation: 0,
+    minimumSize: const Size(0, 52),
+    padding: const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 12,
+    ),
+    side: const BorderSide(color: bookingNavy, width: 1.2), // Navy blue outline
+    shape: const StadiumBorder(),
+    textStyle: _detailText(14, weight: FontWeight.w600),
+  ),
+  child: ...
+)
+```
+
+### 4. Functions & Data Flow
+```
+Facility details rendered with showBookingAction == true
+                     │
+                     ▼
+         _FacilityBookingBar
+         ┌───────────┴───────────┐
+         │                       │
+OutlinedButton (Chat)    FilledButton (Request Booking)
+- Background: Colors.white- Background: #FCB316 (Gold)
+- Border: #1A1851 (Navy) - Border: none
+- Text/Icon: #1A1851     - Text: #1A1851
+- Shape: StadiumBorder   - Shape: StadiumBorder
+- Height: 52px           - Height: 52px
+```
+- **Inputs**: `onChat` callback.
+- **Outputs**: High-contrast, institutional pure white Chat button with crisp navy blue outline.
+
+### 5. Backend / API Behavior
+None. Purely a Flutter visual presentation styling update.
+
+### 6. Database / Migration Impact
+None. No database models or migrations involved.
+
+### 7. Tests Performed
+- `flutter test test/facility_details_test.dart`: **41/41 tests passed** in 14s.
+- `flutter test test/facility_details_test.dart test/facility_status_test.dart test/facility_booking_flow_test.dart test/covered_court_booking_test.dart test/select_schedule_test.dart test/resource_catalog_cards_test.dart`: **115/115 tests passed** in 31s.
+- `flutter analyze --no-pub`: 0 issues found (`No issues found! (ran in 9.3s)`).
+
+### 8. Remaining Limitations
+No physical phone APK install was performed; automated tests verify styling, background color resolution, and outline color resolution.
+
+### 9. Beginner Safe Practice Exercise
+1. Open `campushub/lib/module_app/screens/facility_details_screen.dart` and locate `_FacilityBookingBar`.
+2. Inspect `OutlinedButton.styleFrom`: verify `backgroundColor: Colors.white` and `side: const BorderSide(color: bookingNavy, width: 1.2)`.
+3. In `test/facility_details_test.dart`, locate `final chatButton = tester.widget<OutlinedButton>(chat);` and see how Flutter widget tests inspect resolved button background and border side colors.
+4. Run `flutter test test/facility_details_test.dart` to verify the tests pass.
+
+
+---
+
+## 38. Facility Details: Chat Button Icon Replaced with Circular Speech Bubble (Lucide messageCircle) - November 6, 2026
+
+### 1. Cause / Reason
+The user provided a picture and requested: *"change icon also same as pic"*. The reference image showed a clean, circular outline speech bubble with a small downward-left pointer tail and an empty interior. Previously, `_FacilityBookingBar` used Material's `Icons.chat_outlined` (which renders a rectangular chat shape with horizontal message lines inside). Replacing it with `LucideIcons.messageCircle` (19 px) reproduces the exact circular outline speech bubble shown in the user's reference image.
+
+### 2. Exact Files & Current Line Numbers
+- `campushub/lib/module_app/screens/facility_details_screen.dart`:
+  - **Anchor**: top imports (around line 12).
+    - Added `import 'package:lucide_icons/lucide_icons.dart';`.
+  - **Anchor**: inside `_FacilityBookingBar.build()` (around lines 1195, 1203, 1246).
+    - Replaced `Icon(Icons.chat_outlined, size: 20)` with `Icon(LucideIcons.messageCircle, size: 19)` in both the compact column and standard row layouts for the Chat button, as well as the full-width `Message Admin` fallback button.
+- `campushub/test/facility_details_test.dart`:
+  - **Anchor**: top imports and widget test at line 424.
+    - Added `import 'package:lucide_icons/lucide_icons.dart';`.
+    - Updated expectation from `find.byIcon(Icons.chat_outlined)` to `find.byIcon(LucideIcons.messageCircle)`.
+
+### 3. Changes Made
+```dart
+// facility_details_screen.dart:
+Icon(LucideIcons.messageCircle, size: 19)
+
+// facility_details_test.dart:
+expect(find.byIcon(LucideIcons.messageCircle), findsOneWidget);
+expect(
+  tester.getRect(find.text('Chat')).left,
+  greaterThan(tester.getRect(find.byIcon(LucideIcons.messageCircle)).right),
+);
+```
+
+### 4. Functions & Data Flow
+```
+Facility Details bottom navigation bar
+                   │
+                   ▼
+         _FacilityBookingBar
+         ┌─────────┴─────────┐
+         │                   │
+showBookingAction == true   showBookingAction == false
+         │                   │
+         ▼                   ▼
+OutlinedButton (Chat)       FilledButton (Message Admin)
+- Icon: LucideIcons.messageCircle
+- Container: Colors.white
+- Border: #1A1851 (Navy)
+```
+- **Inputs**: Lucide icon asset definition (`0xf3cd`).
+- **Outputs**: Exact circular speech bubble icon matching user reference screenshot.
+
+### 5. Backend / API Behavior
+None. Visual frontend presentation update only.
+
+### 6. Database / Migration Impact
+None.
+
+### 7. Tests Performed
+- `flutter test test/facility_details_test.dart`: **41/41 tests passed** in 10s.
+- `flutter analyze --no-pub`: 0 issues found (`No issues found! (ran in 10.9s)`).
+
+### 8. Remaining Limitations
+None. Verified via automated widget tests and analyzer.
+
+### 9. Beginner Safe Practice Exercise
+1. Open `campushub/lib/module_app/screens/facility_details_screen.dart` and locate line 1195.
+2. Note the use of `LucideIcons.messageCircle`: a circular speech bubble from the `lucide_icons` package.
+3. Compare with `product_details_screen.dart` line 1689 which uses `LucideIcons.messageSquare`.
+4. Run `flutter test test/facility_details_test.dart` to verify the widget finder matches `LucideIcons.messageCircle`.

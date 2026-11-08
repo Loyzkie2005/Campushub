@@ -1,15 +1,16 @@
 <div class="service-form-body">
+  <div class="facility-form-row-top">
   {% include 'facilities/partials/catalog_images.html' %}
-  <section aria-labelledby="serviceBasicHeading"><h3 class="facility-form-section-title" id="serviceBasicHeading">2. Basic Information</h3>
-    <div class="facility-form-grid">
-      <div><label class="form-label" for="facilityName">Service Name *</label><input class="form-control" id="facilityName" maxlength="150" required placeholder="Enter service name"></div>
-      <div><label class="form-label" for="facilityType">Service Category *</label><select class="form-select" id="facilityType" required><option value="">Select category</option>{% for value,label in service_configuration.categories.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
-      <div data-service-disclose="category"><label class="form-label" for="serviceCustomCategory">Specify Service Category *</label><input class="form-control" id="serviceCustomCategory" maxlength="120" placeholder="Enter service category"></div>
-      <div><label class="form-label" for="facilityLocation">Location</label><input class="form-control" id="facilityLocation" maxlength="180" placeholder="Enter building or campus location"></div>
-      <div><label class="form-label" for="facilityStatus">Status *</label><select class="form-select" id="facilityStatus" required>{% for value,label in service_configuration.statuses.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
-      <div class="facility-form-field-wide"><label class="form-label" for="facilityDescription">Description</label><textarea class="form-control" id="facilityDescription" rows="3" maxlength="5000" placeholder="Describe the service, its purpose, and what it offers"></textarea></div>
-    </div>
+  <section class="facility-form-section-basic" aria-labelledby="serviceBasicHeading"><h3 class="facility-form-section-title" id="serviceBasicHeading">2. Basic Information</h3>
+      <div class="facility-form-field"><label class="form-label" for="facilityName">Service Name *</label><input class="form-control" id="facilityName" maxlength="150" required placeholder="Enter service name"></div>
+      <div class="facility-form-field"><label class="form-label" for="facilityType">Service Category *</label><select class="form-select" id="facilityType" required><option value="">Select category</option>{% for value,label in service_configuration.categories.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        <div data-service-disclose="category"><label class="form-label" for="serviceCustomCategory">Specify Service Category *</label><input class="form-control" id="serviceCustomCategory" maxlength="120" placeholder="Enter service category"></div>
+      </div>
+      <div class="facility-form-field"><label class="form-label" for="facilityLocation">Location</label><input class="form-control" id="facilityLocation" maxlength="180" placeholder="Enter building or campus location"></div>
+      <div class="facility-form-field"><label class="form-label" for="facilityStatus">Status *</label><select class="form-select" id="facilityStatus" required>{% for value,label in service_configuration.statuses.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
   </section>
+  </div>
+  <div class="facility-form-field"><label class="form-label" for="facilityDescription">Description</label><textarea class="form-control" id="facilityDescription" rows="4" maxlength="5000" placeholder="Describe the service, its purpose, and what it offers"></textarea></div>
   <section aria-labelledby="serviceRequestHeading"><h3 class="facility-form-section-title" id="serviceRequestHeading">3. Request Configuration</h3>
     <div class="facility-form-grid">
       <div><label class="form-label" for="serviceRequestType">Request Type *</label><select class="form-select" id="serviceRequestType" required><option value="">Select request type</option>{% for value,label in service_configuration.request_types.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>

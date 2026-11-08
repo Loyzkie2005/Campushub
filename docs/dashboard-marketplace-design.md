@@ -1,5 +1,16 @@
 # Marketplace Admin Dashboard: Super Admin Layout & Inventory Alerts Alignment
 
+## Browser title is CampusHub | Dashboard — November 6, 2026
+
+1. **Cause / reason:** The user clarified that the requested rename applies to the web title, then explicitly requested adding the CampusHub brand back. The final browser title is `CampusHub | Dashboard`. This supersedes the preceding title-only Dashboard choice.
+2. **Exact files changed:** `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:9` (`<title>`), this guide and `CAMPUSHUB_CONTEXT.md`. No Flutter file changed for this request.
+3. **Changes made:** Restore `CampusHub | Dashboard` in the browser-title string. The existing `page_title='Dashboard'` include at line 33 continues to supply the same visible page heading.
+4. **How it works / functions, inputs, outputs and data flow:** The Marketplace branch of `admin_dashboard_page` renders this Django template; its literal `<title>` becomes the browser-tab title. The shared `partials/admin_header.html` separately renders the `page_title` input into its heading. Example: the response now contains `<title>CampusHub | Dashboard</title>` while the visible heading still reads Dashboard. A literal title is sufficient because this page has a single fixed name.
+5. **Backend / API behavior:** No route, permission, scope, calculation or API changed. Only the Marketplace Admin template's browser title changed; other role dashboards retain their current browser titles.
+6. **Database / migration impact:** None. No working records or schema changed.
+7. **Tests performed:** For this final restoration, parsed the actual template with Python's HTML parser and confirmed its title is exactly CampusHub | Dashboard and its header include still passes Dashboard; scoped whitespace checks passed. The earlier title edit ran all 24 existing `modules.reports.test_dashboard_marketplace` tests in a disposable PostgreSQL test database: **23 passed, 1 errored**. That error is `test_zero_value_paid_order_does_not_claim_no_completed_orders` at line 460: an existing revenue-secondary markup regex returns None. It was reproduced with the branded title supplied in memory using `scratch/web-dashboard-title-20261106/baseline_check.py`; it is unrelated to the title. That suite was not rerun for this text restoration. No new permanent test was added.
+8. **Remaining limitations / troubleshooting / safe practice:** The pre-existing revenue-test error remains outside this rename. Refresh the Marketplace Admin page to see CampusHub | Dashboard in the browser tab; an older deployed copy must be updated before it reflects local changes. Safe exercise: open that page, read the tab and visible heading, then inspect the page source for `<title>CampusHub | Dashboard</title>`. This verifies the label without changing any product or order. No live-browser or deployment verification was performed.
+
 ## Current: Marketplace Overview inline KPI trends, November 4, 2026
 
 ### 1. Cause / reason

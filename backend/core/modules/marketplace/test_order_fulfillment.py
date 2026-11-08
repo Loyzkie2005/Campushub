@@ -186,6 +186,11 @@ class SellerDeliveryAccessTests(TestCase):
         self.assertEqual(self.post(action="ready",payment_status="paid").status_code,400)
         for action in ("start_processing","ready","start_delivery","delivered"):
             self.assertEqual(self.post(action=action).status_code,200)
+            workspace = self.client.get(reverse('mobile_seller_workspace'), **self.auth)
+            self.assertEqual(workspace.status_code, 200)
+            updated = next(row for row in workspace.json()['recent_orders'] if row['id'] == self.owned_order.pk)
+            self.assertEqual(updated['status_key'], 'processing' if action == 'start_processing' else 'ready_for_pickup')
+            self.assertEqual(updated['payment_status'], 'Unpaid')
         self.owned_order.refresh_from_db();self.assertEqual(self.owned_order.payment_status,"unpaid")
         self.assertIsNone(self.owned_order.completed_at)
         self.assertEqual(self.owned_order.status,"ready_for_pickup")

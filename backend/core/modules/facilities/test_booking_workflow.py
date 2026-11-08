@@ -149,6 +149,8 @@ class BookingWorkflowTests(TestCase):
     def test_mobile_job_order_service_matches_generated_draft_and_ignores_client_override(self):
         from api.views import serialize_facility
         from .services.job_order import default_job_order_service
+        self.facility.amenities = ['Sound System']
+        self.facility.save(update_fields=['amenities'])
         for kind, mode, expected in (
                 ('covered_court', 'slot', 'Facility Rental'),
                 ('function_hall', 'slot', 'Facility Rental'),
@@ -1580,6 +1582,8 @@ class BookingWorkflowTests(TestCase):
         from .services.booking_slip import booking_slip_data, slip_values
         from pypdf import PdfReader
         from io import BytesIO
+        self.facility.amenities = ['Chairs', 'Sound System', 'Others']
+        self.facility.save(update_fields=['amenities'])
         mobile=Client()
         data={**self.data,'request_key':str(uuid.uuid4()),'full_name':'Mobile Requestor',
             'email':'mobile@example.edu','contact_number':'09171234567','event_name':'Sports Day',

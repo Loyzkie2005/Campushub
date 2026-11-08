@@ -118,12 +118,14 @@ def workspace(request):
     action_orders_source = list(order_rows.filter(status__in=(
         MarketplaceOrder.STATUS_PENDING, MarketplaceOrder.STATUS_PROCESSING,
         MarketplaceOrder.STATUS_READY_FOR_PICKUP)).order_by("created_at", "pk")[:5])
-    from .services.mobile_order_previews import buyer_full_names, product_preview
+    from .services.mobile_order_previews import buyer_full_names, product_preview, item_thumbnail
     preview_orders = {order.pk: order for order in page_orders + recent_orders_source + action_orders_source}
     full_names = buyer_full_names(list(preview_orders.values()))
 
     def serialize_order_row(order):
         items = order_items(order)
+        for index, item in enumerate(items):
+            item['thumbnail_url'] = item_thumbnail(order, index)
         return {"id": order.pk, "code": order.order_code or str(order.pk),
         "product_name": order.product_name, "buyer_name": order.buyer_name,
         "buyer_full_name": full_names.get(order.pk, ""), "product_preview": product_preview(order, items),

@@ -1,5 +1,169 @@
 # PostgreSQL backups and server transfers
 
+## Dashboard missing seller-delivery column — November 8, 2026
+
+**Current status: fixed after the user explicitly approved “Apply only migration 0052”.** Applied only `api.0052_seller_delivery_setting` to the confirmed existing Kamatera database. There are no pending migrations. Read-only dashboard renders returned 200 for all four active admin accounts (two Marketplace Admins, one Facilities Admin, one Super Admin). All 48 tables' original row contents matched before/after, excluding only the intended new field and migration-history record. Refresh **http://127.0.0.1:8000/admin-dashboard/** in the existing signed-in browser.
+
+### 1. Cause / reason
+
+`backend/core/api/models.py:392`, `SellerRequest.seller_delivery_enabled`, exists in the current code. Kamatera has migrations through `api.0051_hybrid_inventory`, but not `0052_seller_delivery_setting`. The missing column was confirmed by read-only introspection. `backend/core/modules/reports/views.py:1070` iterates seller requests for dashboard approvals; line 1204 also loads seller requests for activities. A normal Django model query selects all concrete fields, including the missing delivery field, even when the dashboard only displays seller names/status. A read-only request using an existing active Super Admin reproduced `ProgrammingError` for that field without logging in or using the submitted browser token. This is confirmed schema drift, not a guessed template issue or failed PostgreSQL connection.
+
+### 2. Exact files changed / current anchors
+
+| File / current line | Anchor | Action |
+| --- | --- | --- |
+| `scratch/reconnect-kamatera-20261108/prepare_0052.py:1` | Read-only preparation script | Added ignored diagnostic/backup helper; no migration execution path. |
+| `scratch/reconnect-kamatera-20261108/prepare_0052.py:90` | `columns` | Records original column order so later comparisons can exclude only the new column. |
+| `scratch/reconnect-kamatera-20261108/apply_0052.py:11`, `:50`, `:71`, `:97` | Approval flag, `fingerprints`, targeted migrate, dashboard requests | Added ignored guarded application/verification helper, run only after explicit approval. |
+| `docs/database-backup-neon.md:3` | This report | Record cause, exact pending SQL, backup verification, data flow and approval status. |
+| `CAMPUSHUB_CONTEXT.md:3` | Dashboard migration note | Preserve current unresolved dashboard state. |
+
+No Django application code, model, template, database configuration or migration source was changed. The required migration already exists at `backend/core/api/migrations/0052_seller_delivery_setting.py:4`, `class Migration`; that existing file was applied without modification. Helpers/results are local Git-ignored artifacts; the private backup is outside the repository.
+
+### 3. Changes made
+
+Reused the healthy existing SSH tunnel. First reproduced the error and prepared SQL/backup without executing schema changes. After the user explicitly approved only migration 0052, refreshed the full private backup, confirmed that the entire pending plan still contained only that migration, captured an immediate content baseline and ran the targeted existing Django migration. Used a five-second lock timeout and sixty-second statement timeout. Returned the helper's connection to read-only mode for preservation checks and protected dashboard renders. No application restart or remote source deployment was needed for this schema repair. No other migration, sample-data operation, delivery enablement, fulfillment/payment update or stock operation ran.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The preparation script loads the active Django settings, requires `127.0.0.1:15432/campushub` and verifies the actual database/role with PostgreSQL read-only mode on. `MigrationExecutor` checks that the entire pending plan contains exactly `api.0052_seller_delivery_setting`. `call_command('sqlmigrate', 'api', '0052')` produces reviewable SQL; it does not execute schema changes. `RequestFactory` invokes the real protected dashboard view with an existing authorized account inside a read-only transaction; failure is caught and the transaction rolls back.
+
+The script uses the same PostgreSQL client/active Django settings approach as the existing backup service, with literal subprocess arguments and the password only in the child environment. It creates a Windows directory accessible only to the current user, SYSTEM and Administrators before saving the SQL dump. It verifies pg_dump exit status, dump completion, size, table/data sections and SHA-256. Its aggregate JSON contains no credential, session token, response body or personal record contents. A separate private file stores table row counts/content hashes for later comparison; hashes are evidence of a snapshot, not a substitute for the backup.
+
+`apply_0052.py` requires the explicit `--approved-0052` argument, the expected active target, exactly the one forward migration and a verified private backup checksum before enabling writes. `call_command('migrate', 'api', '0052_seller_delivery_setting', interactive=False)` applies that exact target through Django's normal migration lifecycle. The helper returns its connection to read-only mode afterward. This is an approved one-time operation, not a startup command; it refuses the plan once 0052 is already applied.
+
+`fingerprints(ignore_new_migration=False)` reads original columns in their recorded order, converts complete rows to JSON, sorts row representations and returns table row-count/SHA-256 pairs. Calling it after migration with `True` omits only the new 0052 history row; projecting original columns also omits only the added seller field. Therefore, unchanged hashes verify original values, including users/auth, orders/payments, stock and permissions, without printing records. The new field and new history row are independently checked. Four actual active admins are then attached to `RequestFactory` requests for the existing protected dashboard view inside enforced read-only transactions; this does not create login sessions or reuse the user's submitted token.
+
+```text
+GET /admin-dashboard/ -> admin_dashboard_page -> SellerRequest queryset
+ -> PostgreSQL SELECT includes seller_delivery_enabled -> missing-column error
+Approved existing migration 0052 -> add missing column -> same query now renders dashboard
+```
+
+Annotated SQL: `ADD COLUMN seller_delivery_enabled boolean DEFAULT false NOT NULL` adds an opt-in setting whose initial value is disabled. The existing fulfillment-choice alteration is a SQL no-op; it records Django model state without changing stored fulfillment values. Do not manually add the column or fake the migration as a shortcut.
+
+### 5. Backend / API behavior
+
+Before migration the read-only Super Admin dashboard request reproduced the missing-column error. After migration, the actual protected dashboard view returned 200 under read-only transactions for all four active admin accounts across the three admin roles. Actual localhost HTTP GETs returned 200 for login, approved products (six) and facilities (three). No endpoint, RBAC, login, payment, inventory, Flutter or FastAPI business logic changed. The schema now supports the model field that the existing queries require. Authenticated dashboard checks invoked real Django views/templates under read-only transactions; no live browser login or physical-device flow was performed.
+
+### 6. Database / migration impact
+
+Applied only `api.0052_seller_delivery_setting`, adding one non-null boolean column with PostgreSQL/Python default false and one migration-history record. Django's normal migration lifecycle also ran its metadata/permission reconciliation. All 48 original table-content fingerprints matched; no original stored order fulfillment/payment values, product/inventory quantities, accounts or permissions changed. There is one existing seller request and zero delivery-enabled sellers. Exactly one 0052 history row exists and no migrations remain pending. The operation affected the shared hosted database explicitly approved by the user. No destructive migration, seed, reset, restore or database copy ran.
+
+Refreshed backup used for the approved migration: `C:/Users/leste/.campushub-secrets/kamatera-before-0052-20261108T134443Z/campushub-before-0052.sql`, **405,014 bytes**, **48 table definitions / 48 data sections**, pg_dump exit 0 and completion marker verified. SHA-256: `db714e5d55f50276a8a35a64c95a502b57b74eec1edf0f69777f1f54938af2f0`. **Not restore-tested; media files are not included.** Private `preparation.json`, `pg_dump.stderr.log`, `table-fingerprints-before.json`, `immediate-before.json`, `after-original-columns.json`, `migration.log` and `result.json` are beside it. The timestamp is UTC; the work occurred November 8 in Asia/Singapore. The earlier 13:39 UTC preparation backup remains a historical checkpoint; the 13:44 UTC backup above is the refreshed pre-application backup.
+
+### 7. Tests performed / safe practice
+
+- Healthy tunnel reuse, real PostgreSQL login and identity verification: passed.
+- Fresh Django database system check: passed; 48 tables/107 recorded migrations, consistent history, one pending migration and one missing model column.
+- Direct and full Django-client product/facility GETs: 200, six products/three facilities.
+- Read-only protected Super Admin dashboard request: reproduced the reported missing-column `ProgrammingError`.
+- `sqlmigrate api 0052`: confirmed the single column-add SQL and fulfillment-choice SQL no-op; no schema executed.
+- Full private pg_dump: completion/size/table-section/checksum checks passed; 48 baseline table fingerprints saved. No restore rehearsal or application regression suite run.
+- Approved targeted migration: applied successfully; exactly one 0052 history row, no remaining pending migrations and the new setting is false for the existing seller request.
+- Immediate before/after original-column comparison: **48/48 table-content fingerprints matched**, excluding only the intended new field/history row.
+- Post-migration Django database system check: passed. Read-only dashboard view/template renders: **4/4 HTTP 200**, covering both Marketplace Admin accounts, Facilities Admin and Super Admin.
+- Actual localhost login/products/facilities HTTP checks after migration: all 200. Ignored aggregate evidence: `scratch/reconnect-kamatera-20261108/{0052-result.json,0052-http.json}`. Documentation whitespace check passed.
+
+Safe learning exercise: open the existing migration and find `AddField`, `model_name='sellerrequest'` and `db_default=False`; compare these with `SellerRequest.seller_delivery_enabled` in the model. Run the existing read-only `verify.py --active` helper and expect zero pending migrations/no missing model columns. Refresh the already-signed-in dashboard to verify the original missing-column error is gone. Do not rerun the one-time migration helper or submit seller/stock changes as part of this exercise. This demonstrates how a Python model field requires a matching database column.
+
+### 8. Remaining limitations / troubleshooting
+
+The reported schema error is resolved. No automated application suite, physical-device test, full browser workflow or backup restore rehearsal was run; the exact database/view/HTTP checks above were performed. The existing tunnel must remain connected and still needs its normal restart after a PC restart or session loss. No server source release was deployed; the schema update is shared with the hosted application, while its uploaded source remains separate. The earlier no-automatic-migration rule remains in force for future changes; this approval covered only 0052.
+
+## Reconnected this PC to existing Kamatera PostgreSQL — November 8, 2026
+
+**Result: this PC's Django and chat now connect to the existing Kamatera database, verified through their actual settings and localhost HTTP endpoints.** Open **http://127.0.0.1:8000/**. The remote service's private environment selects `core.settings_production` and the same `campushub` database/`campushub_app` role. No separate development/staging database was identified. After reviewing the read-only findings, the user explicitly instructed: “just connect to the to the kamatera”. This authorizes the shared-database selection, not migrations or test-data writes. Earlier dated reports below describe historical switches.
+
+### 1. Cause / reason
+
+Follow-up connection-refused incident on November 8: the tunnel error log recorded `client_loop: send disconnect: Connection reset`, the recorded SSH process had exited and no listener remained on PC port 15432. This confirms a dropped SSH session caused this incident; the available evidence does not identify why the network session reset. It does not establish a PostgreSQL outage or invalid credentials.
+
+During recovery, the original helper also incorrectly refused to reuse the live tunnel: Windows TCP snapshots did not classify the forwarding endpoint as `Listen`, although a direct TCP connection and real Django queries succeeded. The exact reason for those inconsistent state snapshots is unknown. Replaced the state-only detection with endpoint/owner validation plus a TCP connection probe.
+
+Before this switch, the active Django and chat `.env` files selected the separate PC database at `127.0.0.1:5432/campushub`. Existing code already supports Kamatera; no new provider integration is needed. The existing tunnel script and the saved private configuration from `C:/Users/leste/.campushub-secrets/before-local-development-20261021T140559Z/{django.env,chat.env}` identify the original online target. The similarly named repository backup `backend/backups/kamatera-switch-20261029/django.env` contains the pre-switch **local** settings and was not used as an online credential source. No credentials were guessed or printed.
+
+### 2. Exact files changed / inspected anchors
+
+| File / current line | Anchor | Action |
+| --- | --- | --- |
+| `backend/core/.env:10` | `DATABASE_URL` | Restored saved Django Kamatera URL on tunnel port 15432, including existing connection timeout. |
+| `backend/chat_service/.env:1` | `DATABASE_URL` | Restored saved asyncpg Kamatera URL on the same tunnel. |
+| `backend/core/core/settings.py:23`, `:167`, `:171` | `_load_dotenv`, `_database_url`, `dj_database_url.parse` | Existing environment loading and URL parsing verified; unchanged. |
+| `backend/start_kamatera_db_tunnel.ps1:22`, `:30`, `:47`, `:85` | `Get-CampusHubTunnelListeners`, `Test-CampusHubTunnelConnection`, reuse/start checks | Recovery now checks the unconnected local endpoint, verified SSH owner and actual TCP acceptance rather than depending on `State=Listen`. Existing destination, key and strict host checking retained. |
+| `scratch/reconnect-kamatera-20261108/verify.py:1` | Read-only verification helper | Added ignored local diagnostic code; no credentials embedded. |
+| `scratch/reconnect-kamatera-20261108/connect.py:1` | Connection-only switch helper | Validates saved targets, restricts backup access and changes only database keys. |
+| `docs/database-backup-neon.md:3` | This report | Added current evidence, migration impact and troubleshooting. |
+| `CAMPUSHUB_CONTEXT.md:3` | Kamatera verification note | Added current result without replacing existing project history. |
+
+Diagnostic JSON files are `scratch/reconnect-kamatera-20261108/{verification.json,connection-change.json,http-verification.json}`. These helpers and evidence are ignored local artifacts. Private `.env` files remain Git-ignored. Recovery changed the tunnel helper and documentation; no Django application, Flutter, model or migration source changed.
+
+### 3. Changes made
+
+For the follow-up tunnel recovery, reran `backend/start_kamatera_db_tunnel.ps1`, which started a verified new SSH endpoint on port 15432. Then updated its readiness/reuse detection after reproducing the false refusal above. The updated helper successfully reused the same verified SSH process twice without starting duplicates. No `.env`, database setting or application service restart was needed for this recovery. This guide and the leading context note record the recovery alongside the original reconnection work.
+
+Started the existing hidden SSH helper with the saved dedicated key and strict host verification. The forwarding path is PC `127.0.0.1:15432` to Kamatera PostgreSQL `127.0.0.1:5432`. First verified the saved connection in a separate read-only process. After the user's shared-database confirmation, backed up both current `.env` files to `C:/Users/leste/.campushub-secrets/before-reconnect-kamatera-20261108T121126Z/`, restricting Windows access to the current user, SYSTEM and Administrators. Changed only `DATABASE_URL`; byte comparisons confirmed every other line was retained. Restarted only this checkout's verified local Django tree with its existing `0.0.0.0:8000` development/reload command and started local chat on `127.0.0.1:8001` with reload after checking that port was free. Launch metadata and logs are in that private backup folder. No remote deployment/configuration was changed and no push worker was started.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_load_dotenv(path)` reads key/value pairs but preserves values already present in the process environment. Django passes `DATABASE_URL` to `dj_database_url.parse`, producing the standard database settings. The diagnostic helper reads the original saved URL privately, verifies its expected loopback host, tunnel port and database, then sets it only in that process before `django.setup()`.
+
+With `--active`, the helper instead reads the current `backend/core/.env`; this verified the completed switch. It sets PostgreSQL `default_transaction_read_only=on`, a statement timeout and a five-second connection timeout. It confirms `transaction_read_only = on`, reads table/column metadata and counts, calls Django's existing system check, and uses `MigrationExecutor` to inspect recorded versus source migrations. No migration execution method is called. `safe_error(error)` returns exception type, SQLSTATE and available table/column identifiers rather than credentials, raw exceptions or response contents. Output is a safe aggregate JSON report.
+
+`connect.py:database_url(raw)` accepts private file bytes and extracts exactly one URL. Its switch checks both saved targets and matching database credentials, creates restricted backups, then replaces only each `DATABASE_URL` line while preserving all other bytes. It restores originals if either update fails. It executes no SQL. This one-time helper intentionally refuses a source already switched to port 15432; it is not a routine startup command.
+
+Tunnel helper `Get-CampusHubTunnelListeners()` takes no input and returns port-15432 TCP entries without a remote peer (`RemotePort=0`, wildcard remote address). The caller still requires a loopback endpoint and `Test-CampusHubTunnelProcess(processInfo)` verifies its SSH executable, dedicated key, forwarding arguments and exact server. `Test-CampusHubTunnelConnection()` attempts a loopback TCP connection with a two-second timeout, returns a boolean and always disposes its socket. Startup accepts only the launched process's endpoint; reuse accepts only verified existing owners. This avoids trusting inconsistent state labels while retaining unknown-owner refusal. The connection probe opens/closes TCP only; it does not authenticate or execute SQL. For example, two successful invocations printing the same PID demonstrate reuse; only the Django read-only probe establishes PostgreSQL login/query success.
+
+`RequestFactory` probes resolve the real URL/view; Django `Client` probes additionally run the middleware/request pipeline. Both invoke actual ORM/serializer reads against Kamatera inside read-only transactions that are rolled back. They do not send network requests to the existing port-8000 process. Example: `{"status": 200, "list_counts": {"products": 6}}` means the real approved-products response contained six records without printing their contents.
+
+```text
+Diagnostic Django process -> PC :15432 -> verified SSH -> existing Kamatera PostgreSQL
+Running PC Django        -> PC :15432 -> same existing Kamatera database
+Running PC chat          -> PC :15432 -> same database, messaging only
+Flutter ProductService   -> HTTP Django /api/products/approved/ -> Django ORM -> PostgreSQL
+FastAPI                   -> existing messaging-only service
+```
+
+### 5. Backend / API behavior
+
+Against the online connection, both direct-view and full Django-client probes returned HTTP 200 for `/api/products/approved/` (six approved, available products) and `/api/facilities/` (three facilities). After restarting the local services, real localhost HTTP GETs also returned 200 for `/`, `/api/products/approved/` (six products), `/api/facilities/` (three facilities), `/api/mobile/services/` (one service) and chat `/health` (`status: ok`). A fresh async SQLAlchemy connection through chat's existing configuration independently confirmed the same `campushub` identity, saved role and client port 15432 using a read-only transaction. No route, serializer, authentication, permission, fulfillment or inventory behavior changed. This verifies these read endpoints and connection selection, not every authenticated marketplace workflow. Localhost submissions now affect shared Kamatera records; the separate PC database was not merged or copied.
+
+Flutter `campushub/lib/module_app/services/product_service.dart:26`, `fetchApproved`, calls the Django HTTP API and converts its JSON to `ProductItem` objects. `campushub/lib/module_app/config/api_config.dart` selects API origins. A source search of `campushub/lib` and `pubspec.yaml` found no `DATABASE_URL`, PostgreSQL URL or PostgreSQL-port references. No database credential was copied into Flutter; no phone build/install or live device request was performed.
+
+### 6. Database / migration impact
+
+No schema or business-record writes, database creation/reset/copy, seed, restore, flush or migration application occurred. PostgreSQL enforced read-only verification. Found **48 tables, 107 recorded migrations, 15 products, one order, four web accounts, five mobile accounts, inventory, booking/payment tables and permission records**. All managed model tables exist. Migration history is consistent.
+
+Pending: **`api.0052_seller_delivery_setting`**, from `backend/core/api/migrations/0052_seller_delivery_setting.py`. It changes the order fulfillment field's Django choices and adds `SellerRequest.seller_delivery_enabled` with Python/database default `False`. The online table currently lacks that column, so current seller-related code that selects it can fail even though the approved-product catalog succeeds. Applying it would change the shared hosted schema, expose the setting with an initial false value for existing sellers and require a table lock during the schema operation; it was **not applied**. No claim is made that every workflow is compatible with the current remote schema.
+
+### 7. Tests performed / safe practice
+
+- Saved-credential PostgreSQL login through the existing SSH tunnel: passed; actual database is `campushub`, role matches the saved configuration, server port 5432 and read-only mode is on.
+- Django `check` with `database=['default']` through existing settings: passed.
+- Table/column and migration-history inspection: completed; the one pending migration/missing column is reported above.
+- Direct view and full Django-client GET checks: both endpoints passed against real online data.
+- Read-only inspection of `/etc/campushub/django.env` confirmed the hosted production settings/database identity; credentials were not output.
+- Actual localhost HTTP checks after the switch passed for login, products, facilities, mobile services and chat health; the async chat driver independently passed a read-only database identity query.
+- Only the two `DATABASE_URL` lines changed, verified by byte comparison; previous values were backed up privately. Documentation whitespace checks passed.
+- No application test suite, authenticated write workflow or physical-device check was run.
+- Follow-up tunnel recovery: the new endpoint became ready, fresh read-only Django verification connected successfully, and actual localhost `/` and `/api/products/approved/` returned 200 with six catalog products. The updated helper was invoked twice and reused the same verified process both times. Recovery HTTP evidence is `scratch/reconnect-kamatera-20261108/tunnel-recovery-http.json`; no database writes or migrations were performed.
+
+Safe practice exercise: from the project root run `backend/core/venv/Scripts/python.exe scratch/reconnect-kamatera-20261108/verify.py --active` while the existing tunnel is ready. Check `source: active Django .env`, `connected: true`, `transaction_read_only: on`, the `pending_migrations` list and API statuses in the aggregate JSON. This probes the active connection through a separate read-only process. Do not replace it with a migration, login, checkout or sample-data command. The recorded counts are a dated observation, not expected permanent totals.
+
+### 8. Remaining limitations / troubleshooting
+
+If `127.0.0.1:15432` reports **Connection refused**, first restore the existing tunnel from the project root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\start_kamatera_db_tunnel.ps1
+```
+
+Expect a ready/reused verified listener message, then retry the failing page or existing pgAdmin connection. Port 15432 belongs to this PC's SSH forwarding; do not replace the URL with the server's public IP or open public PostgreSQL to work around a stopped tunnel. The helper starts/reuses one verified SSH process but does not automatically reconnect after that process exits. `ServerAliveInterval`/`ServerAliveCountMax` detect lost sessions; they do not restart them. No automatic startup task or persistent reconnect supervisor was installed. Its `current.json` and timestamped error logs are under `%LOCALAPPDATA%/CampusHub/kamatera-tunnel/`.
+
+Safe recovery exercise: run the helper again while the verified tunnel is already healthy. Expect it to reuse the same listener rather than create a duplicate. Then run the read-only verification command in Section 7. If it refuses an unknown listener or reports SSH startup failure, inspect the indicated error log rather than terminating an unidentified process or changing credentials.
+
+There were no remaining connection/authentication errors in the completed Django/chat checks. This is the shared hosted Kamatera database selected explicitly by the user, not a separately confirmed development/staging database. The pending seller-delivery migration remains unapplied. The tunnel depends on this PC and Internet access; rerun the existing tunnel script after restart/disconnection, preserving strict host verification. Settings edits require a fresh application process; existing process-level environment values take precedence over `.env`. To revert a future connection selection, restore only the private backup's database key, preserve other newer settings and restart local services; do not restore database tables. Some old scratch helpers mentioned in historical reports are absent; use this dated diagnostic helper for the checks above. Public website DNS, uploaded media and Flutter device reachability were not retested and are separate from PostgreSQL connectivity.
+
 ## Returned this PC to localhost — October 30, 2026
 
 Current mode: open **http://127.0.0.1:8000/**. Both this PC's Django backend and chat service connect to **127.0.0.1:5432/campushub**, using the original saved local credentials. Local changes now affect the PC database. The hosted Kamatera deployment/database was not changed by this switch. This supersedes the online-database selection described below.
