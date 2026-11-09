@@ -39,6 +39,7 @@
 /backend/core/venv/
 /backend/core/.venv/
 /backend/core/.cache/
+/backend/core/var/
 /backend/backups/*
 !/backend/backups/.gitignore
 /backend/media/

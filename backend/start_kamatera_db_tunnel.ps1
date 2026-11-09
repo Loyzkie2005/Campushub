@@ -1,6 +1,9 @@
 # Forward a local-only port to CampusHub PostgreSQL over the authorized SSH key.
-# Starts one hidden SSH helper, reuses only the verified matching listener,
-# and never terminates an existing process or restarts an application.
+# Starts/reuses the verified SSH forward and one hidden reconnect monitor.
+# -Once is used by the monitor and performs no recursive monitor startup.
+# Never terminates an existing process or restarts an application.
+param([switch]$Once)
+
 $ErrorActionPreference = 'Stop'
 $serverHost = '74.113.234.180'
 $forward = '127.0.0.1:15432:127.0.0.1:5432'
@@ -38,12 +41,40 @@ function Test-CampusHubTunnelConnection {
     finally { $client.Dispose() }
 }
 
+function Start-CampusHubTunnelMonitor {
+    $monitorScript = Join-Path $PSScriptRoot 'kamatera_db_tunnel_monitor.py'
+    $monitorPython = Join-Path $PSScriptRoot 'core\venv\Scripts\python.exe'
+    if (-not (Test-Path -LiteralPath $monitorScript -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $monitorPython -PathType Leaf)) {
+        throw 'The CampusHub reconnect monitor or existing Python environment is missing.'
+    }
+    New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
+    $monitorStatePath = Join-Path $stateDirectory 'monitor.json'
+    if (Test-Path -LiteralPath $monitorStatePath -PathType Leaf) {
+        try {
+            $monitorState = Get-Content -LiteralPath $monitorStatePath -Raw | ConvertFrom-Json
+            $monitorProcess = Get-CimInstance Win32_Process -Filter "ProcessId=$([int]$monitorState.ProcessId)"
+            if ($null -ne $monitorProcess -and $monitorProcess.Name -eq 'python.exe' -and
+                $monitorProcess.CommandLine.Contains($monitorScript) -and
+                $monitorState.State -ne 'stopped') { return }
+        }
+        catch { # Stale metadata is not authority to stop an existing process.
+        }
+    }
+    $monitorStamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')
+    Start-Process -FilePath $monitorPython -ArgumentList @(('"' + $monitorScript + '"')) -WindowStyle Hidden `
+        -RedirectStandardError (Join-Path $stateDirectory "$monitorStamp.monitor.stderr.log") `
+        -RedirectStandardOutput (Join-Path $stateDirectory "$monitorStamp.monitor.stdout.log") | Out-Null
+    Write-Output 'CampusHub automatic tunnel reconnect monitor started.'
+}
+
 try {
     $locked = $mutex.WaitOne(0)
     if (-not $locked) { throw 'Another tunnel startup is in progress; no duplicate was started.' }
     if (-not (Test-Path -LiteralPath $identityFile -PathType Leaf)) {
         throw 'The dedicated CampusHub SSH private key is missing.'
     }
+    if (-not $Once) { Start-CampusHubTunnelMonitor }
     $listeners = @(Get-CampusHubTunnelListeners)
     if ($listeners.Count -gt 0) {
         foreach ($listener in $listeners) {

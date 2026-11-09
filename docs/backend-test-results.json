@@ -1,0 +1,884 @@
+{
+  "recorded_on": "2026-11-09",
+  "scope": "Existing backend working tree after test-file organization; local disposable databases only. No Flutter tests included.",
+  "django": {
+    "run": 1477,
+    "passed": 1437,
+    "failures": 28,
+    "errors": 11,
+    "skipped": 1,
+    "duration_seconds": 382.271
+  },
+  "infrastructure": {
+    "run": 9,
+    "passed": 9
+  },
+  "fastapi": {
+    "run": 9,
+    "passed": 9,
+    "warnings": 1,
+    "duration_seconds": 1.15
+  },
+  "discovery": {
+    "before": 1477,
+    "after": 1477,
+    "normalized_ids_equal": true,
+    "duplicate_ids": 0,
+    "import_errors": 0
+  },
+  "baseline_comparison": {
+    "marketplace_run": 355,
+    "marketplace_passed": 323,
+    "marketplace_failures": 22,
+    "marketplace_errors": 10,
+    "marketplace_same_unsuccessful_test_ids": true,
+    "additional_original_tests_run": 7,
+    "additional_original_failures": 5,
+    "additional_original_errors": 1,
+    "additional_original_passed": 1,
+    "confirmed_unsuccessful_tests_reproduced_from_original_files": 38,
+    "suite_only_unresolved_test": "modules.facilities.tests.test_job_order_signatures.JobOrderSignatureConcurrencyTests.test_concurrent_confirmations_create_exactly_one_signature_and_audit",
+    "suite_only_note": "403 during full-suite fixture creation; passes in isolation using both original and relocated source. Cause of interaction remains unconfirmed."
+  },
+  "modules": [
+    {
+      "module": "accounts.tests.test_account_recovery",
+      "file": "backend/core/accounts/tests/test_account_recovery.py",
+      "run": 20,
+      "passed": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_activity_api",
+      "file": "backend/core/accounts/tests/test_activity_api.py",
+      "run": 20,
+      "passed": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_admin_notifications",
+      "file": "backend/core/accounts/tests/test_admin_notifications.py",
+      "run": 5,
+      "passed": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_admin_workflows",
+      "file": "backend/core/accounts/tests/test_admin_workflows.py",
+      "run": 70,
+      "passed": 70,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_data_exports",
+      "file": "backend/core/accounts/tests/test_data_exports.py",
+      "run": 5,
+      "passed": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_marketplace_support",
+      "file": "backend/core/accounts/tests/test_marketplace_support.py",
+      "run": 14,
+      "passed": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_monitoring",
+      "file": "backend/core/accounts/tests/test_monitoring.py",
+      "run": 14,
+      "passed": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_recovery_code_flow",
+      "file": "backend/core/accounts/tests/test_recovery_code_flow.py",
+      "run": 18,
+      "passed": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_recovery_eligibility",
+      "file": "backend/core/accounts/tests/test_recovery_eligibility.py",
+      "run": 8,
+      "passed": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_recovery_information",
+      "file": "backend/core/accounts/tests/test_recovery_information.py",
+      "run": 7,
+      "passed": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_recovery_transport",
+      "file": "backend/core/accounts/tests/test_recovery_transport.py",
+      "run": 8,
+      "passed": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "accounts.tests.test_roles_permissions",
+      "file": "backend/core/accounts/tests/test_roles_permissions.py",
+      "run": 27,
+      "passed": 25,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "accounts.tests.test_user_management",
+      "file": "backend/core/accounts/tests/test_user_management.py",
+      "run": 27,
+      "passed": 27,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_api_contracts",
+      "file": "backend/core/api/tests/test_api_contracts.py",
+      "run": 14,
+      "passed": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_facilities_archive",
+      "file": "backend/core/api/tests/test_facilities_archive.py",
+      "run": 4,
+      "passed": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_facility_form_controls",
+      "file": "backend/core/api/tests/test_facility_form_controls.py",
+      "run": 18,
+      "passed": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_facility_rental_configuration",
+      "file": "backend/core/api/tests/test_facility_rental_configuration.py",
+      "run": 54,
+      "passed": 53,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "api.tests.test_facility_schedule_live_browser",
+      "file": "backend/core/api/tests/test_facility_schedule_live_browser.py",
+      "run": 1,
+      "passed": 0,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "status": "skipped"
+    },
+    {
+      "module": "api.tests.test_food_preferences",
+      "file": "backend/core/api/tests/test_food_preferences.py",
+      "run": 11,
+      "passed": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_mobile_facility_booking",
+      "file": "backend/core/api/tests/test_mobile_facility_booking.py",
+      "run": 53,
+      "passed": 53,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_mobile_seller_application",
+      "file": "backend/core/api/tests/test_mobile_seller_application.py",
+      "run": 26,
+      "passed": 26,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_mobile_seller_workspace",
+      "file": "backend/core/api/tests/test_mobile_seller_workspace.py",
+      "run": 23,
+      "passed": 23,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_profile_photos",
+      "file": "backend/core/api/tests/test_profile_photos.py",
+      "run": 6,
+      "passed": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_search_recommendations",
+      "file": "backend/core/api/tests/test_search_recommendations.py",
+      "run": 6,
+      "passed": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "api.tests.test_seller_recommendations",
+      "file": "backend/core/api/tests/test_seller_recommendations.py",
+      "run": 31,
+      "passed": 31,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "core.tests.test_media_views",
+      "file": "backend/core/core/tests/test_media_views.py",
+      "run": 9,
+      "passed": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.facilities.tests.test_admin_reservations",
+      "file": "backend/core/modules/facilities/tests/test_admin_reservations.py",
+      "run": 27,
+      "passed": 27,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.facilities.tests.test_booking_workflow",
+      "file": "backend/core/modules/facilities/tests/test_booking_workflow.py",
+      "run": 86,
+      "passed": 86,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.facilities.tests.test_calendar",
+      "file": "backend/core/modules/facilities/tests/test_calendar.py",
+      "run": 10,
+      "passed": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.facilities.tests.test_job_order_preview",
+      "file": "backend/core/modules/facilities/tests/test_job_order_preview.py",
+      "run": 8,
+      "passed": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.facilities.tests.test_job_order_signatures",
+      "file": "backend/core/modules/facilities/tests/test_job_order_signatures.py",
+      "run": 32,
+      "passed": 31,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.facilities.tests.test_mobile_services",
+      "file": "backend/core/modules/facilities/tests/test_mobile_services.py",
+      "run": 5,
+      "passed": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.facilities.tests.test_service_configuration",
+      "file": "backend/core/modules/facilities/tests/test_service_configuration.py",
+      "run": 27,
+      "passed": 27,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.facilities.tests.test_service_navigation",
+      "file": "backend/core/modules/facilities/tests/test_service_navigation.py",
+      "run": 8,
+      "passed": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_admin_orders",
+      "file": "backend/core/modules/marketplace/tests/test_admin_orders.py",
+      "run": 25,
+      "passed": 23,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.marketplace.tests.test_bundle_monitoring",
+      "file": "backend/core/modules/marketplace/tests/test_bundle_monitoring.py",
+      "run": 83,
+      "passed": 83,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_bundle_suggestions",
+      "file": "backend/core/modules/marketplace/tests/test_bundle_suggestions.py",
+      "run": 45,
+      "passed": 45,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_bundles",
+      "file": "backend/core/modules/marketplace/tests/test_bundles.py",
+      "run": 21,
+      "passed": 10,
+      "failures": 8,
+      "errors": 3,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.marketplace.tests.test_checkout",
+      "file": "backend/core/modules/marketplace/tests/test_checkout.py",
+      "run": 9,
+      "passed": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_fifo_concurrency",
+      "file": "backend/core/modules/marketplace/tests/test_fifo_concurrency.py",
+      "run": 6,
+      "passed": 2,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.marketplace.tests.test_fifo_inventory",
+      "file": "backend/core/modules/marketplace/tests/test_fifo_inventory.py",
+      "run": 34,
+      "passed": 34,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_hybrid_inventory",
+      "file": "backend/core/modules/marketplace/tests/test_hybrid_inventory.py",
+      "run": 12,
+      "passed": 6,
+      "failures": 0,
+      "errors": 6,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.marketplace.tests.test_inventory_monitor",
+      "file": "backend/core/modules/marketplace/tests/test_inventory_monitor.py",
+      "run": 19,
+      "passed": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_low_stock_thresholds",
+      "file": "backend/core/modules/marketplace/tests/test_low_stock_thresholds.py",
+      "run": 10,
+      "passed": 9,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.marketplace.tests.test_order_fulfillment",
+      "file": "backend/core/modules/marketplace/tests/test_order_fulfillment.py",
+      "run": 9,
+      "passed": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_product_administration",
+      "file": "backend/core/modules/marketplace/tests/test_product_administration.py",
+      "run": 29,
+      "passed": 29,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_product_catalog",
+      "file": "backend/core/modules/marketplace/tests/test_product_catalog.py",
+      "run": 7,
+      "passed": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_product_final_validation",
+      "file": "backend/core/modules/marketplace/tests/test_product_final_validation.py",
+      "run": 7,
+      "passed": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_product_ownership",
+      "file": "backend/core/modules/marketplace/tests/test_product_ownership.py",
+      "run": 7,
+      "passed": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_product_review_images",
+      "file": "backend/core/modules/marketplace/tests/test_product_review_images.py",
+      "run": 5,
+      "passed": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_program_inventory",
+      "file": "backend/core/modules/marketplace/tests/test_program_inventory.py",
+      "run": 14,
+      "passed": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.marketplace.tests.test_variant_inventory",
+      "file": "backend/core/modules/marketplace/tests/test_variant_inventory.py",
+      "run": 13,
+      "passed": 5,
+      "failures": 7,
+      "errors": 1,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.messages.tests.test_chat_authentication",
+      "file": "backend/core/modules/messages/tests/test_chat_authentication.py",
+      "run": 5,
+      "passed": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.notifications.tests.test_product_push",
+      "file": "backend/core/modules/notifications/tests/test_product_push.py",
+      "run": 22,
+      "passed": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_bookings",
+      "file": "backend/core/modules/reports/tests/test_dashboard_bookings.py",
+      "run": 17,
+      "passed": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_empty_states",
+      "file": "backend/core/modules/reports/tests/test_dashboard_empty_states.py",
+      "run": 8,
+      "passed": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_executive",
+      "file": "backend/core/modules/reports/tests/test_dashboard_executive.py",
+      "run": 16,
+      "passed": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_health",
+      "file": "backend/core/modules/reports/tests/test_dashboard_health.py",
+      "run": 17,
+      "passed": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_kpi_cards",
+      "file": "backend/core/modules/reports/tests/test_dashboard_kpi_cards.py",
+      "run": 3,
+      "passed": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_kpi_trends",
+      "file": "backend/core/modules/reports/tests/test_dashboard_kpi_trends.py",
+      "run": 9,
+      "passed": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_low_stock",
+      "file": "backend/core/modules/reports/tests/test_dashboard_low_stock.py",
+      "run": 18,
+      "passed": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_marketplace",
+      "file": "backend/core/modules/reports/tests/test_dashboard_marketplace.py",
+      "run": 24,
+      "passed": 23,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_marketplace_parity",
+      "file": "backend/core/modules/reports/tests/test_dashboard_marketplace_parity.py",
+      "run": 9,
+      "passed": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_operations",
+      "file": "backend/core/modules/reports/tests/test_dashboard_operations.py",
+      "run": 9,
+      "passed": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_periods",
+      "file": "backend/core/modules/reports/tests/test_dashboard_periods.py",
+      "run": 37,
+      "passed": 37,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_services",
+      "file": "backend/core/modules/reports/tests/test_dashboard_services.py",
+      "run": 8,
+      "passed": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_dashboard_utilization",
+      "file": "backend/core/modules/reports/tests/test_dashboard_utilization.py",
+      "run": 16,
+      "passed": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_facility_admin_dashboard",
+      "file": "backend/core/modules/reports/tests/test_facility_admin_dashboard.py",
+      "run": 13,
+      "passed": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_facility_operational_status",
+      "file": "backend/core/modules/reports/tests/test_facility_operational_status.py",
+      "run": 9,
+      "passed": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_facility_revenue",
+      "file": "backend/core/modules/reports/tests/test_facility_revenue.py",
+      "run": 11,
+      "passed": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_inventory_report_accuracy",
+      "file": "backend/core/modules/reports/tests/test_inventory_report_accuracy.py",
+      "run": 2,
+      "passed": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_marketplace_admin_dashboard",
+      "file": "backend/core/modules/reports/tests/test_marketplace_admin_dashboard.py",
+      "run": 49,
+      "passed": 49,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_marketplace_analytics",
+      "file": "backend/core/modules/reports/tests/test_marketplace_analytics.py",
+      "run": 19,
+      "passed": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_marketplace_inventory_integration",
+      "file": "backend/core/modules/reports/tests/test_marketplace_inventory_integration.py",
+      "run": 2,
+      "passed": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_most_booked_facilities",
+      "file": "backend/core/modules/reports/tests/test_most_booked_facilities.py",
+      "run": 12,
+      "passed": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_sales_overview",
+      "file": "backend/core/modules/reports/tests/test_sales_overview.py",
+      "run": 23,
+      "passed": 21,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "status": "has_failures_or_errors"
+    },
+    {
+      "module": "modules.reports.tests.test_superadmin_analytics",
+      "file": "backend/core/modules/reports/tests/test_superadmin_analytics.py",
+      "run": 45,
+      "passed": 45,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_upcoming_reservations",
+      "file": "backend/core/modules/reports/tests/test_upcoming_reservations.py",
+      "run": 12,
+      "passed": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "module": "modules.reports.tests.test_web_typography",
+      "file": "backend/core/modules/reports/tests/test_web_typography.py",
+      "run": 5,
+      "passed": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "passed"
+    }
+  ],
+  "failures": [
+    "accounts.tests.test_roles_permissions.RolesWorkflowTests.test_history_reads_existing_role_audit_only_with_pagination_and_no_writes",
+    "accounts.tests.test_roles_permissions.RolesWorkflowTests.test_page_batches_role_permissions_and_admins_and_exports_browser_fixture",
+    "api.tests.test_facility_rental_configuration.FacilityRentalAPITests.test_booking_enforces_client_eligibility_closed_days_and_minimum_capacity",
+    "modules.marketplace.tests.test_admin_orders.OrdersAdminTests.test_cancellation_preserves_history_and_releases_exact_variant_once",
+    "modules.marketplace.tests.test_admin_orders.OrdersAdminTests.test_dashboard_fragment_requires_one_explicit_scoped_order",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_active_order_blocks_recipe_type_and_owner_changes",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_apriori_basket_contains_bundle_identity_only",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_archived_bundle_holds_still_protect_component_type_changes",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_component_archival_disables_bundle_catalog_not_history",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_exact_variant_availability_order_price_and_restore",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_insufficient_bundle_order_is_atomic",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_order_is_one_bundle_item_with_exact_component_holds",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_shared_variant_pool_demands_are_combined_before_reservation",
+    "modules.marketplace.tests.test_low_stock_thresholds.ProductLowStockThresholdTests.test_reserved_stock_uses_saved_level_without_second_subtraction",
+    "modules.marketplace.tests.test_variant_inventory.ProductVariantInventoryTests.test_inventory_rows_list_summary_and_dashboard_use_same_variant",
+    "modules.marketplace.tests.test_variant_inventory.ProductVariantInventoryTests.test_legacy_tracked_options_still_deduct_exact_variant_when_flag_is_false",
+    "modules.marketplace.tests.test_variant_inventory.ProductVariantInventoryTests.test_order_deducts_reserves_and_prices_only_selected_variant",
+    "modules.marketplace.tests.test_variant_inventory.ProductVariantInventoryTests.test_reserved_variant_cannot_be_renamed_removed_or_converted_to_parent",
+    "modules.marketplace.tests.test_variant_inventory.ProductVariantInventoryTests.test_sold_out_option_keeps_other_variants_available_and_excludes_completed_holds",
+    "modules.marketplace.tests.test_variant_inventory.ProductVariantInventoryTests.test_stock_update_requires_exact_variant_and_keeps_other_stock_and_holds",
+    "modules.marketplace.tests.test_variant_inventory.ProductVariantInventoryTests.test_unknown_selection_never_deducts_or_restores_a_different_option",
+    "modules.reports.tests.test_sales_overview.SalesOverviewTests.test_empty_data_has_zero_buckets_and_safe_average",
+    "modules.reports.tests.test_sales_overview.SalesOverviewTests.test_previous_sales_but_no_current_orders",
+    "modules.facilities.tests.test_job_order_signatures.JobOrderSignatureConcurrencyTests.test_concurrent_confirmations_create_exactly_one_signature_and_audit",
+    "modules.marketplace.tests.test_fifo_concurrency.FIFOConcurrencyTests.test_simple_stock_simultaneous_orders_cannot_oversell",
+    "modules.marketplace.tests.test_fifo_concurrency.FIFOConcurrencyTests.test_simultaneous_keyed_order_retry_allocates_once",
+    "modules.marketplace.tests.test_fifo_concurrency.FIFOConcurrencyTests.test_simultaneous_orders_cannot_oversell",
+    "modules.marketplace.tests.test_fifo_concurrency.FIFOConcurrencyTests.test_single_product_and_bundle_share_one_locked_pool"
+  ],
+  "errors": [
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_cancellation_restores_snapshot_once_even_if_recipe_changed_outside_ui",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_completed_sales_rank_bundle_without_counting_ingredients",
+    "modules.marketplace.tests.test_bundles.BundleProductTests.test_unreconcilable_selection_has_no_fake_price_or_wrong_restoration",
+    "modules.marketplace.tests.test_hybrid_inventory.HybridInventoryTests.test_explicit_fifo_transition_preserves_current_available_and_original_hold",
+    "modules.marketplace.tests.test_hybrid_inventory.HybridInventoryTests.test_mixed_bundle_reserves_and_completes_each_component_once",
+    "modules.marketplace.tests.test_hybrid_inventory.HybridInventoryTests.test_mixed_bundle_shortage_leaves_all_components_unchanged",
+    "modules.marketplace.tests.test_hybrid_inventory.HybridInventoryTests.test_receiving_simple_with_live_hold_records_physical_balances",
+    "modules.marketplace.tests.test_hybrid_inventory.HybridInventoryTests.test_simple_cancellation_releases_hold_and_shortage_has_no_partial_write",
+    "modules.marketplace.tests.test_hybrid_inventory.HybridInventoryTests.test_simple_reservation_completion_and_keyed_retry_change_physical_stock_once",
+    "modules.marketplace.tests.test_variant_inventory.ProductVariantInventoryTests.test_cancellation_restores_exact_variant_once",
+    "modules.reports.tests.test_dashboard_marketplace.DashboardMarketplaceTests.test_zero_value_paid_order_does_not_claim_no_completed_orders"
+  ],
+  "skipped": [
+    {
+      "test": "api.tests.test_facility_schedule_live_browser.FacilityScheduleLiveBrowserTests.test_real_form_clicks_roles_and_persistence",
+      "reason": "Opt-in Chrome/Playwright test"
+    }
+  ]
+}

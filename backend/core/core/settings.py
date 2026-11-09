@@ -282,3 +282,8 @@ import json as _job_order_json
 JOB_ORDER_SIGNERS = _job_order_json.loads(os.environ.get('CAMPUSHUB_JOB_ORDER_SIGNERS', '{}'))
 JOB_ORDER_SIGNATURE_SEQUENCE = True
 
+# Explicit CSV identity -> PostgreSQL product mapping for the optional seller demo.
+# Empty by default: never infer a database identity from a synthetic Pxx code/name.
+CAMPUSHUB_SYNTHETIC_PRODUCT_MAP = _job_order_json.loads(os.environ.get('CAMPUSHUB_SYNTHETIC_PRODUCT_MAP', '{}'))
+CAMPUSHUB_SELLER_DEMO_REPORT_PATH = os.environ.get('CAMPUSHUB_SELLER_DEMO_REPORT_PATH', '')
+

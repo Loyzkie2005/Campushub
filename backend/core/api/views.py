@@ -6,6 +6,7 @@ from modules.facilities.services.activity import facility_activity_row, facility
 import base64
 import binascii
 import json
+import hashlib
 import logging
 import random
 import re
@@ -836,20 +837,55 @@ def seller_submit_product(request):
                 application = SellerRequest.objects.select_for_update(of=("self",)).get(pk=application.pk)
                 if application.status != "approved" or application.is_suspended:
                     return JsonResponse({"error": "Approved active seller access is required."}, status=403)
+            submission_meta = {}
+            if is_bundle_product and source == 'mobile' and 'submission_key' in data:
+                from accounts.models import AccountActivity
+                key = data['submission_key']
+                if not isinstance(key, str) or not re.fullmatch(r'[a-f0-9]{32}', key):
+                    raise ValueError('Refresh the bundle form before submitting.')
+                fingerprint = hashlib.sha256(json.dumps({k: v for k, v in data.items() if k != 'submission_key'},
+                    sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+                previous = AccountActivity.objects.filter(account_source='mobile', account_id=account.pk,
+                    activity_type='PRODUCT_SUBMITTED', result=AccountActivity.RESULT_SUCCESS,
+                    metadata__submission_key=key).first()
+                if previous:
+                    if previous.metadata.get('submission_fingerprint') != fingerprint:
+                        raise ValueError('This form already submitted a different bundle. Check My Products.')
+                    existing = Product.objects.get(pk=previous.metadata['product_id'], mobile_seller=account,
+                        product_type=Product.TYPE_BUNDLE)
+                    return JsonResponse({'message': 'Bundle submission already received.',
+                                         'product': serialize_product(existing, request)}, status=201)
+                submission_meta = {'submission_key': key, 'submission_fingerprint': fingerprint}
             recipe = validate_recipe(data.get("bundle_components"), f"mobile:{account.pk}" if source == "mobile" else account.pk) if is_bundle_product else []
             if is_bundle_product and source == "mobile":
                 from modules.marketplace.services.bundle_suggestions import build_bundle_suggestions
-                try:
-                    pair_ids = sorted(int(value) for value in str(data.get("suggestion_id", "")).split("|"))
-                except ValueError:
-                    raise ValueError("Choose a current bundle suggestion.")
+                recommendation_source = data.get('suggestion_source', 'live')
+                if recommendation_source not in {'live', 'synthetic', 'admin'}:
+                    raise ValueError('Choose a valid recommendation source.')
+                if recommendation_source == 'synthetic':
+                    raise ValueError('Synthetic Demo bundles are device-local samples. Use Save Demo in the mobile app.')
+                if recommendation_source == 'admin':
+                    from modules.marketplace.services.seller_recommendations import accepted_admin_pair
+                    pair_ids = sorted(row['product'].pk for row in recipe)
+                    accepted_admin_pair(account, data.get('suggestion_id', ''), pair_ids)
+                else:
+                    try:
+                        pair_ids = sorted(int(value) for value in str(data.get("suggestion_id", "")).split("|"))
+                    except ValueError:
+                        raise ValueError("Choose a current bundle suggestion.")
                 if len(pair_ids) != 2 or len(set(pair_ids)) != 2 or set(pair_ids) != {row["product"].pk for row in recipe}:
                     raise ValueError("Use both products from the selected suggestion.")
-                result = build_bundle_suggestions(None, mobile_seller=account)
-                if result["error"]:
-                    return JsonResponse({"error": "Unable to verify this suggestion. Retry."}, status=503)
-                if not any(sorted(int(product["id"]) for product in row["products"]) == pair_ids for row in result["rows"]):
-                    raise ValueError("This suggestion no longer qualifies. Refresh Suggested Product Bundles.")
+                if recommendation_source == 'live':
+                    result = build_bundle_suggestions(None, mobile_seller=account)
+                    if result["error"]:
+                        return JsonResponse({"error": "Unable to verify this suggestion. Retry."}, status=503)
+                    if not any(sorted(int(product["id"]) for product in row["products"]) == pair_ids for row in result["rows"]):
+                        raise ValueError("This suggestion no longer qualifies. Refresh Suggested Product Bundles.")
+                    from api.models import BundleRecommendation
+                    previous = BundleRecommendation.objects.select_for_update().filter(
+                        product_a_id=pair_ids[0], product_b_id=pair_ids[1], is_current=True).first()
+                    if previous and previous.created_bundles.filter(mobile_seller=account).exists():
+                        raise ValueError('A bundle has already been submitted for this recommendation. Check My Products.')
             method = data.get("inventory_method", "simple")
             if not isinstance(method, str) or method not in {"simple", "fifo"} or (is_bundle_product and method != "simple"):
                 raise ValueError("Choose Simple stock or FIFO batches. Bundles use component stock.")
@@ -882,7 +918,7 @@ def seller_submit_product(request):
                 product.image_url = persist_product_image(raw_image, product.pk, name)
                 product.save(update_fields=["image_url", "updated_at"])
             log_marketplace_event(request, account=account, source=source, activity_type="PRODUCT_SUBMITTED",
-                activity=f"Product submitted: {product.name}", metadata={"product_id": product.pk})
+                activity=f"Product submitted: {product.name}", metadata={"product_id": product.pk, **submission_meta})
         return JsonResponse({"message": "Product submitted for marketplace approval.", "product": serialize_product(product, request),
                              **({"initial_batches_saved": len(initial_batches)} if initial_batches is not None else {})}, status=201)
     except (ValueError, TypeError, InvalidOperation, ValidationError) as error:

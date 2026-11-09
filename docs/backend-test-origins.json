@@ -1,0 +1,426 @@
+{
+  "recorded_on": "2026-11-09",
+  "note": "Paths and SHA-256 describe the existing working-tree files before organization, not inferred authorship. Test status is recorded separately in backend-testing.md.",
+  "files": [
+    {
+      "original_path": "backend/core/accounts/test_account_recovery.py",
+      "current_path": "backend/core/accounts/tests/test_account_recovery.py",
+      "original_sha256": "6e0214c8927d7d0e0cc9c5308efe40c56b1c9ac316eda9022304bfee830a288d"
+    },
+    {
+      "original_path": "backend/core/accounts/test_activity_api.py",
+      "current_path": "backend/core/accounts/tests/test_activity_api.py",
+      "original_sha256": "fe96bb88079ba9746a4a9a4529f615fa078c192a6db8545c718109af471ce917"
+    },
+    {
+      "original_path": "backend/core/accounts/test_admin_notifications.py",
+      "current_path": "backend/core/accounts/tests/test_admin_notifications.py",
+      "original_sha256": "f9e6dc925f80b15265875ec5afde1dbb5fc397ee9094b0b14a39bf5b6bcfd94e"
+    },
+    {
+      "original_path": "backend/core/accounts/test_data_exports.py",
+      "current_path": "backend/core/accounts/tests/test_data_exports.py",
+      "original_sha256": "5989afe470fa5473fe0eb8f6cc846daf4e9ac8bd1b51eab14ba5d757b4f55e82"
+    },
+    {
+      "original_path": "backend/core/accounts/test_marketplace_support.py",
+      "current_path": "backend/core/accounts/tests/test_marketplace_support.py",
+      "original_sha256": "987bac483f1c7864dfa8068c1bb1bb0b8e1844c5c20d4f0b59202baac06b77e0"
+    },
+    {
+      "original_path": "backend/core/accounts/test_monitoring.py",
+      "current_path": "backend/core/accounts/tests/test_monitoring.py",
+      "original_sha256": "815ba4c861e96e06d157e6532d47a3bd41206066123797a1ad03f02012aed501"
+    },
+    {
+      "original_path": "backend/core/accounts/test_recovery_code_flow.py",
+      "current_path": "backend/core/accounts/tests/test_recovery_code_flow.py",
+      "original_sha256": "1bd04bd82b4f1654dd04fa8329c1228b71bcde9acb4bfc734317acb7ddd9ab25"
+    },
+    {
+      "original_path": "backend/core/accounts/test_recovery_eligibility.py",
+      "current_path": "backend/core/accounts/tests/test_recovery_eligibility.py",
+      "original_sha256": "e10e80ac1e58a2c1a34b673137e6f28d5bb64babe2c76155ab18199bf0c65b78"
+    },
+    {
+      "original_path": "backend/core/accounts/test_recovery_information.py",
+      "current_path": "backend/core/accounts/tests/test_recovery_information.py",
+      "original_sha256": "201bce4599ff6d63c93b6ea05174460ead09baf95a1785a7befb21817006a6a1"
+    },
+    {
+      "original_path": "backend/core/accounts/test_recovery_transport.py",
+      "current_path": "backend/core/accounts/tests/test_recovery_transport.py",
+      "original_sha256": "e8c66f8af3aaee8ad9b7a95052dd33e0b70b5804201c67002eb0213aa20fe03f"
+    },
+    {
+      "original_path": "backend/core/accounts/test_roles_permissions.py",
+      "current_path": "backend/core/accounts/tests/test_roles_permissions.py",
+      "original_sha256": "f777ee13ab8eb00dc3a1dc527182714c93c8c4baed0217242a10ff4566ea1ae7"
+    },
+    {
+      "original_path": "backend/core/accounts/test_user_management.py",
+      "current_path": "backend/core/accounts/tests/test_user_management.py",
+      "original_sha256": "3f9ff1b69c33b2816e8fa383f2ca8e812e80512a099a6404840a402341ec584d"
+    },
+    {
+      "original_path": "backend/core/accounts/tests.py",
+      "current_path": "backend/core/accounts/tests/test_admin_workflows.py",
+      "original_sha256": "a3e8f6c575685626171f6805a042a1192f008bb91a30f88fb6c1877cb98cb280"
+    },
+    {
+      "original_path": "backend/core/api/test_facilities_archive.py",
+      "current_path": "backend/core/api/tests/test_facilities_archive.py",
+      "original_sha256": "964b57562db606ec0c33a934bb23eeba49f57b872394983d7912e35d76541904"
+    },
+    {
+      "original_path": "backend/core/api/test_facility_form_controls.py",
+      "current_path": "backend/core/api/tests/test_facility_form_controls.py",
+      "original_sha256": "86835594bbb129c495300b7aeee1633b38e2dce3401c08c353d6b2eaf5b3e513"
+    },
+    {
+      "original_path": "backend/core/api/test_facility_rental_configuration.py",
+      "current_path": "backend/core/api/tests/test_facility_rental_configuration.py",
+      "original_sha256": "a1582824e535c54e461aad2d78c32fe303fe0b2293c17910158022f51c6041e7"
+    },
+    {
+      "original_path": "backend/core/api/test_facility_schedule_live_browser.py",
+      "current_path": "backend/core/api/tests/test_facility_schedule_live_browser.py",
+      "original_sha256": "1747856bcc66b9b74988dbabbee2dd37135f8cc41015f3b6ed71fd5efd73ea1c"
+    },
+    {
+      "original_path": "backend/core/api/test_food_preferences.py",
+      "current_path": "backend/core/api/tests/test_food_preferences.py",
+      "original_sha256": "7dbfdba5d92775704057712dd0ae1547beaa4d7ee727a642e440580153166802"
+    },
+    {
+      "original_path": "backend/core/api/test_mobile_facility_booking.py",
+      "current_path": "backend/core/api/tests/test_mobile_facility_booking.py",
+      "original_sha256": "6a3546639ad3643130b79d1073c602d92c0bae7b6758225aca3029f3da42cc69"
+    },
+    {
+      "original_path": "backend/core/api/test_mobile_seller_application.py",
+      "current_path": "backend/core/api/tests/test_mobile_seller_application.py",
+      "original_sha256": "6759d782a79667f6dbe25fedd04c2d5451708b0f0c9382a1c62e25e6c28c0ab9"
+    },
+    {
+      "original_path": "backend/core/api/test_mobile_seller_workspace.py",
+      "current_path": "backend/core/api/tests/test_mobile_seller_workspace.py",
+      "original_sha256": "ba742d8118983efcd8efe169c6b9bf46a251fb8a6f28afbf78a678c2b29cb4b5"
+    },
+    {
+      "original_path": "backend/core/api/test_profile_photos.py",
+      "current_path": "backend/core/api/tests/test_profile_photos.py",
+      "original_sha256": "94a1a6f2b019caea4a0006f1766205b1d05bc481baab375a6dabb55aa7c9f4b4"
+    },
+    {
+      "original_path": "backend/core/api/test_search_recommendations.py",
+      "current_path": "backend/core/api/tests/test_search_recommendations.py",
+      "original_sha256": "7e1990870d6aa782e0a0dc03c256e6a1af02fd90ed4cb97acc45564e841e3dae"
+    },
+    {
+      "original_path": "backend/core/api/test_seller_recommendations.py",
+      "current_path": "backend/core/api/tests/test_seller_recommendations.py",
+      "original_sha256": "36ecd6b694f6a615cf91a5f9e19990da1f23f40d9b48f1d564c20d09e117413c"
+    },
+    {
+      "original_path": "backend/core/api/tests.py",
+      "current_path": "backend/core/api/tests/test_api_contracts.py",
+      "original_sha256": "cdc090b168c5e4ff85a127c8f77483e8f89763f3cb765dad5fa022ae969aebde"
+    },
+    {
+      "original_path": "backend/core/core/test_media_views.py",
+      "current_path": "backend/core/core/tests/test_media_views.py",
+      "original_sha256": "689f4c90cff5f67b1eaad2dc204702cbe1e3091367cf5e23007a73c89668ea24"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_bundle_monitoring.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_bundle_monitoring.py",
+      "original_sha256": "328ad1bd1cb7214986dee6bbcf7f65668f5799cebcf2eb6dc66942806bbd2e6a"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_bundle_suggestions.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_bundle_suggestions.py",
+      "original_sha256": "cc20b4ad1100618faaf0724cf1b5d10a17f4f8d20f64aa8bdd2c43b1e8a9fe9f"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_bundles.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_bundles.py",
+      "original_sha256": "1cccb8dc7fd7d3be9a34d239fba4ba5feade42d765b789c9614e2fd4258a22f8"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_checkout.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_checkout.py",
+      "original_sha256": "236257f9455322f45f08aee6faa12c3487dba98cdd67e1e6044a6aaba5d91c7f"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_fifo_concurrency.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_fifo_concurrency.py",
+      "original_sha256": "cd9e4217133f6eb453f4753f3a53e6a39d044e6668b9f898cbf49c858f1ab837"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_fifo_inventory.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_fifo_inventory.py",
+      "original_sha256": "860708adbbd898065a9699b10c3929e8fd142a30d1786105b4942d12ea715b18"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_hybrid_inventory.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_hybrid_inventory.py",
+      "original_sha256": "37cfec1069c7c2eba2c4cfd4b5c6149bcad7813c519b833e26ba9939db34fe0f"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_inventory_monitor.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_inventory_monitor.py",
+      "original_sha256": "6d368d03c4927254f64d043a86422aa69dad99478bee0097d3d6f883d1a981b6"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_order_fulfillment.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_order_fulfillment.py",
+      "original_sha256": "1f3df00b840eeb4791dc021dbb72b0c5e38cba3120b459ed1ed69f96e3d08b77"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_orders_admin.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_admin_orders.py",
+      "original_sha256": "04c34a4adffba51cbb28d8fa1df96fea93ea55a4da55757d352be3f050015eee"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_product_catalog.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_product_catalog.py",
+      "original_sha256": "2c2c42182c0c163ab0eb2f99ce8f05d5b08dad0f0ce5e4b9de407df813f666cf"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_product_final_validation.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_product_final_validation.py",
+      "original_sha256": "9d1f4ce4d12fe584c5bf50687139103650a55ba402b6a0720b6e40c5f2d43984"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_product_ownership.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_product_ownership.py",
+      "original_sha256": "ad38e1c34d280a5b75be5cea44b0e517bab3f1d54af032e276dcf43f856e0f1b"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_product_review_images.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_product_review_images.py",
+      "original_sha256": "4c78862335f88e6c6fd653ecb7e8ef284103c7e8b15429d462475c1ffed329cd"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_program_inventory.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_program_inventory.py",
+      "original_sha256": "c7ecbcab667f9c3efa5004100ebcb974706ae82df154481b11ef24abaea5efa6"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_thresholds.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_low_stock_thresholds.py",
+      "original_sha256": "4703e2db8010a9f8e2aa6b5eaa047e24698d27e34045e5af97a0420bb3b742b4"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/test_variant_inventory.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_variant_inventory.py",
+      "original_sha256": "9ce7a8fc521af2d04e9a87fc80e09b91edb98dd036a72a365cc792f1bf49285b"
+    },
+    {
+      "original_path": "backend/core/modules/marketplace/tests.py",
+      "current_path": "backend/core/modules/marketplace/tests/test_product_administration.py",
+      "original_sha256": "f41b3f122a18ccd9d58f70087f253c4382ad2de23cd29f2f3df0acff8f8efa5e"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/test_admin_reservations.py",
+      "current_path": "backend/core/modules/facilities/tests/test_admin_reservations.py",
+      "original_sha256": "11ca80baa473d0bcee4af428e6146308c7a01efa9832f37cc5fc7b7a5f8f1dab"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/test_booking_workflow.py",
+      "current_path": "backend/core/modules/facilities/tests/test_booking_workflow.py",
+      "original_sha256": "227bead18e3eb40a068eea1d3ab9bc4a8f191dac0883a9730689fb2fd4ccee7b"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/test_calendar.py",
+      "current_path": "backend/core/modules/facilities/tests/test_calendar.py",
+      "original_sha256": "c82c3b092ef6dfe3574f9db6791ccbde3584e824e06673aa7aaf4a0d8c6944c5"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/test_job_order_preview.py",
+      "current_path": "backend/core/modules/facilities/tests/test_job_order_preview.py",
+      "original_sha256": "cd0ba99b299f82b701cd582a886d93ce54ad9e1987f0ee2b682b683d2ee127f9"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/test_job_order_signatures.py",
+      "current_path": "backend/core/modules/facilities/tests/test_job_order_signatures.py",
+      "original_sha256": "60c260d4ef0f14658fd5c5b2e8309033f5412e21a9f26fba8ddc39f6e33e20c8"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/test_mobile_services.py",
+      "current_path": "backend/core/modules/facilities/tests/test_mobile_services.py",
+      "original_sha256": "8da9e9bee0dd9d8aade2b094ad195a416c8f12830ec9bc51382daa144013e8c4"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/test_service_configuration.py",
+      "current_path": "backend/core/modules/facilities/tests/test_service_configuration.py",
+      "original_sha256": "7f5acc5b448ef9bd513846616abbdf188170f585da30c834c7e3a4934c010453"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/test_service_navigation.py",
+      "current_path": "backend/core/modules/facilities/tests/test_service_navigation.py",
+      "original_sha256": "5cf0a962d78d5357649604fea872b54dde22a6b233e1f07f50d108afcd891182"
+    },
+    {
+      "original_path": "backend/core/modules/facilities/tests.py",
+      "current_path": "backend/core/modules/facilities/tests/__init__.py",
+      "original_sha256": "c7b014af6baa85d7d6b2425cdeff920011df329a83fdcecfd6bc6d8534649b94"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_bookings.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_bookings.py",
+      "original_sha256": "ad0b22a0c5414021b95b04eafd3985b2c4fb6a9a9d47424c84fba58e771f69b5"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_empty_states.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_empty_states.py",
+      "original_sha256": "73aa2309e0251635ca30f8a7226c230da6f60ec73ddd2812bd8221f8927cd5f2"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_executive.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_executive.py",
+      "original_sha256": "8aa96ce0df07ad2e9183e100d7dd98698470e0e96b4a50df963ce57615cec71a"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_health.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_health.py",
+      "original_sha256": "b7f13820b242326c7dfa27c353cebd282ab4893beebf4f95fa4ef3f1a0e69381"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_kpi_cards.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_kpi_cards.py",
+      "original_sha256": "8cb9d9c6e643cc6368a109c6b9ba9cf474dde4d1bfad6bce54e38a03b04caa0b"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_kpi_trends.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_kpi_trends.py",
+      "original_sha256": "80d3dd2e8dbe59e4001c3d0de76c2edb1512dcb56d98126a378213eec238ceef"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_low_stock.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_low_stock.py",
+      "original_sha256": "103ed41bba29c59ab3e41d3448470b442b11f9861bfdb8f20f950b7bca539e91"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_marketplace.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_marketplace.py",
+      "original_sha256": "b8950427f123b62f43cf551c7399943263f5c72f4e2ad117b55cc4e500b797bb"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_marketplace_parity.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_marketplace_parity.py",
+      "original_sha256": "a8bf8670b20177e338c91bb6d5cfb5fbb942786bdafd3f76c0efde44038116c1"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_operations.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_operations.py",
+      "original_sha256": "1efbb5c1cd5ca5e4c3c766e3818541ab539eee0817c019e68fb96374e7fca62d"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_periods.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_periods.py",
+      "original_sha256": "67ea4e7b916981a8ac094dbe29df788f5d49e85eb5674f2656160aa72d902efb"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_services.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_services.py",
+      "original_sha256": "537ce1c493d5c2704668194e98371f82f42a1d89d7c263da2f412ccb0b28896a"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_dashboard_utilization.py",
+      "current_path": "backend/core/modules/reports/tests/test_dashboard_utilization.py",
+      "original_sha256": "a7d48e7f106d97ca8a18b6a9c5cfa205738cc202b859d149776c1ad5e16953b3"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_facility_admin_dashboard.py",
+      "current_path": "backend/core/modules/reports/tests/test_facility_admin_dashboard.py",
+      "original_sha256": "00ccd6c30a1f464a151765c4ad0ea7d76cda6b5ced121c670ceff9255f1eb33b"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_facility_operational_status.py",
+      "current_path": "backend/core/modules/reports/tests/test_facility_operational_status.py",
+      "original_sha256": "db9604ad16282f5e5dd40c75b7616516aa6a91efbd9b161216046ddf5ab450fa"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_facility_revenue.py",
+      "current_path": "backend/core/modules/reports/tests/test_facility_revenue.py",
+      "original_sha256": "a217e05100dbdba9b7ab0cbb9cefb78c8ed46465cbb8d2aa4614d23396b4669a"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_inventory_report_accuracy.py",
+      "current_path": "backend/core/modules/reports/tests/test_inventory_report_accuracy.py",
+      "original_sha256": "d7d689cb2f3fa84b13eb05f3285083a1c84f12bdbf05827111673e5adc599f0f"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_marketplace_admin_dashboard.py",
+      "current_path": "backend/core/modules/reports/tests/test_marketplace_admin_dashboard.py",
+      "original_sha256": "71f7cbeb7efb334aab05615c20a0d9e373cf8caa51bc4e3a932e09e572c84bb7"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_marketplace_inventory_integration.py",
+      "current_path": "backend/core/modules/reports/tests/test_marketplace_inventory_integration.py",
+      "original_sha256": "699c0f8670f96992cb440a76cc22c213ed165efd35a7744195d5d43880cefb60"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_most_booked_facilities.py",
+      "current_path": "backend/core/modules/reports/tests/test_most_booked_facilities.py",
+      "original_sha256": "38a2328d6fae6c2bb38082f1301dba2cac7afbd3e01a172c76c88c3cb2decb7e"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_sales_overview.py",
+      "current_path": "backend/core/modules/reports/tests/test_sales_overview.py",
+      "original_sha256": "2988f0f685f45c8f53ea146c88c0e929b9cbddfa0441f1c630ca1585a39312aa"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_superadmin_analytics.py",
+      "current_path": "backend/core/modules/reports/tests/test_superadmin_analytics.py",
+      "original_sha256": "527c19773f06271cdff000fc57395d3f4e8ce4e28feec6a1c236993eba496b2c"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_upcoming_reservations.py",
+      "current_path": "backend/core/modules/reports/tests/test_upcoming_reservations.py",
+      "original_sha256": "653b30e6d6b95e32a62c4351b9c15da3cc74b290a2b16d112de4905901efea40"
+    },
+    {
+      "original_path": "backend/core/modules/reports/test_web_typography.py",
+      "current_path": "backend/core/modules/reports/tests/test_web_typography.py",
+      "original_sha256": "205ab83846d5ca58d4e17256c6e1c1f8ad28d546c60ba775da0dd5cc5421dda3"
+    },
+    {
+      "original_path": "backend/core/modules/reports/tests.py",
+      "current_path": "backend/core/modules/reports/tests/test_marketplace_analytics.py",
+      "original_sha256": "ca78d86bdcad17e6b5afc5d745fe4c46fe7d194c74cf89920be9f653b8ca83af"
+    },
+    {
+      "original_path": "backend/core/modules/messages/tests.py",
+      "current_path": "backend/core/modules/messages/tests/test_chat_authentication.py",
+      "original_sha256": "4e1b59063ef1a70bba7674f2b49e32937870c694570c829634e4e7901486b115"
+    },
+    {
+      "original_path": "backend/core/modules/notifications/test_product_push.py",
+      "current_path": "backend/core/modules/notifications/tests/test_product_push.py",
+      "original_sha256": "fd90621607b92aef6c4546173d1d7bfd8351a760715639120215b5935cf964a9"
+    },
+    {
+      "original_path": "backend/core/modules/notifications/tests.py",
+      "current_path": "backend/core/modules/notifications/tests/__init__.py",
+      "original_sha256": "5456d442089f15dfb684f78fa7be385d7f9f9f7f2ff8f5174bfb42c708c9615a"
+    },
+    {
+      "original_path": "backend/core/modules/user_management/tests.py",
+      "current_path": "backend/core/modules/user_management/tests/__init__.py",
+      "original_sha256": "500a8cdc1b4f024f2fab7bc91fa063e320c422450b2cbb998fd07dc1454e0598"
+    },
+    {
+      "original_path": "backend/core/api/facility_schedule_live_browser_checks.cjs",
+      "current_path": "backend/core/api/tests/facility_schedule_live_browser_checks.cjs",
+      "original_sha256": "ba2ca5effbe7aae2d8d7a4315ada176acabd1ab348e20bf31de6e0fe2aa19a45"
+    },
+    {
+      "original_path": "backend/test_kamatera_db_tunnel_monitor.py",
+      "current_path": "backend/tests/test_kamatera_db_tunnel_monitor.py",
+      "original_sha256": "cf28c844ae876f06863a317a9a9a8a496d21d56dd2dbce90067f965b905ae6cb"
+    }
+  ]
+}

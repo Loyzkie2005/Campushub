@@ -99,6 +99,8 @@ from modules.notifications import mobile_views as mobile_notifications
 urlpatterns = [
     path("api/mobile/push/device/", mobile_notifications.device_registration, name="mobile_push_device"),
     path("api/mobile/seller/workspace/", mobile_seller_views.workspace, name="mobile_seller_workspace"),
+    path("api/mobile/seller/recommendations/", mobile_seller_views.recommendations, name="mobile_seller_recommendations"),
+    path("api/mobile/seller/recommendations/action/", mobile_seller_views.recommendation_action, name="mobile_seller_recommendation_action"),
     path("api/mobile/seller/inventory/receive/", mobile_seller_views.receive_stock, name="mobile_seller_receive_stock"),
     path("api/mobile/seller/orders/<int:order_id>/progress/", mobile_seller_views.order_progress, name="mobile_seller_order_progress"),
     path("api/mobile/seller/suggestions/<str:pair_id>/", mobile_seller_views.suggestion_choice, name="mobile_seller_suggestion_choice"),

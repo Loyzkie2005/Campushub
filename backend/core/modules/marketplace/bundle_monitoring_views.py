@@ -96,7 +96,7 @@ def suggestion_list(request):
         base = annotated(request.user)
         summary = {"total": base.count(), "sent": base.filter(sent_at__isnull=False).count(),
                    "created": base.filter(_created=True).count(),
-                   "awaiting": base.filter(sent_at__isnull=False, _created=False, _dismissed=False).count()}
+                   "awaiting": base.filter(sent_at__isnull=False, _created=False, _dismissed=False, _accepted=False).count()}
         rows = base.annotate(_web_name=Concat("product_a__seller__first_name", Value(" "), "product_a__seller__last_name"),
                              _mobile_name=Concat("product_a__mobile_seller__first_name", Value(" "), "product_a__mobile_seller__last_name"))
         query = request.GET.get("q", "").strip()[:150]
@@ -131,7 +131,9 @@ def suggestion_list(request):
         elif state == "dismissed":
             rows = rows.filter(_created=False, _dismissed=True)
         elif state == "awaiting":
-            rows = rows.filter(_created=False, _dismissed=False, sent_at__isnull=False)
+            rows = rows.filter(_created=False, _dismissed=False, _accepted=False, sent_at__isnull=False)
+        elif state == "accepted":
+            rows = rows.filter(_created=False, _dismissed=False, _accepted=True, sent_at__isnull=False)
         elif state == "na":
             rows = rows.filter(_created=False, _dismissed=False, sent_at__isnull=True)
         elif state:

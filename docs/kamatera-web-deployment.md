@@ -1,5 +1,140 @@
 # CampusHub Kamatera web deployment
 
+## Online DNS repaired; PC resolver cache pending expiry - November 9, 2026
+
+**The domain is corrected to `74.113.234.180`.** DuckDNS returned `OK / UPDATED` with the expected IP; Google and Cloudflare agree. Normal public DNS/HTTPS verification from Kamatera passed for five application endpoints, eight login assets and the HTTP redirect. Open https://campushub-ch-org.duckdns.org/. The PC's default resolver still returns the previous address with a decreasing cache TTL (548 seconds at the final check), so this PC may need roughly nine more minutes before normal access works. Local development remains independently configured for PC PostgreSQL on port 5432.
+
+### 1. Cause / reason
+
+The initial screenshot's DuckDNS IP differed from the existing hosted server address. Cloudflare, Google, two queried DuckDNS nameservers and Google's DNS-over-HTTPS API initially returned `49.149.100.191`. Normal public HTTPS timed out, but directing the same hostname to `74.113.234.180` succeeded with normal certificate/hostname validation. This confirmed a DNS-routing fault. Who or what changed the record is unknown; no background updater has been established as the cause. The later screenshots provided the confirmed Kamatera IP and the DuckDNS account token, allowing a scoped provider update.
+
+### 2. Exact files changed / current anchors
+
+Only `docs/kamatera-web-deployment.md:3` (this report) and `CAMPUSHUB_CONTEXT.md:3` (current online status) are updated. No local private environment file, seller template, Nginx configuration, production environment or application source was changed. The external change is only the existing DuckDNS domain's IPv4 record. Ignored helper/evidence directory: `scratch/online-dns-repair-20261109/`; `dns-update.json` records credential-free provider results, `pinned-verification.json` records direct-server checks, `server-public-verification.json` records successful normal public checks from Kamatera, and `public-verification.json` records the PC's still-stale resolver failure.
+
+### 3. Changes made
+
+Inspected the known hosted service status and Nginx syntax using the established dedicated SSH key with strict host-key checking. Checked public DNS and the hosted application independently. Browser inventory reported no accessible native/browser host, so the signed-in page was unavailable to automation. Initial manual correction did not persist after page refresh.
+
+Used the token supplied in the later screenshot only for the authorized HTTPS request to DuckDNS, naming exactly `campushub-ch-org` and explicitly supplying `ip=74.113.234.180`. Provider response was `OK`, the expected IP, and `UPDATED`; the user also later reported the page's success message. No token was written to project/server files or verification output. No other domain was requested, no token was rotated, and no updater was installed. Explicit IP selection avoids the provider's automatic caller-IP detection described in its [official API specification](https://www.duckdns.org/spec.jsp).
+
+Cleared the PC's DNS client cache once after confirming its normal lookup still returned the old IP. The old address persisted through its default resolver, while public resolvers and Kamatera resolved correctly. A no-hosts-file query and absence of an active matching hosts-file entry ruled out that local override; the default-resolver TTL decreased from 637 to 548 seconds. No adapter/DNS-server/hosts configuration was changed.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+```text
+Corrected public DNS -> 74.113.234.180 -> Nginx -> hosted Django/chat -> existing hosted database
+PC default resolver -> old cached 49.149.100.191 until its upstream cache expires
+Separate localhost development -> PC Django/chat -> PC PostgreSQL :5432
+```
+
+`verify.py` takes optional `--pinned`. Its `request(path, secure=True)` function sends anonymous GETs, returns status/header metadata and response bytes internally, and always closes the connection. Pinned mode changes only the TCP destination to the known server; TLS still sends and validates `campushub-ch-org.duckdns.org`. It does not disable certificate validation. `main()` checks five existing routes, every directly referenced local login asset and the HTTP-to-HTTPS redirect, then writes credential-free JSON and returns success/failure. Normal mode uses public DNS. The same source was streamed over SSH and executed in memory on Kamatera with file writing disabled; only the local result file was saved. The verification sends no account credentials and performs no authenticated application writes.
+
+The provider request takes the existing domain name, its account token and the explicit server IP as inputs. Its output is a status and the resulting address; only non-secret metadata is retained. The token never becomes part of Django/chat configuration. Changing DNS routes browsers/APKs to the existing server and does not deploy local application edits.
+
+### 5. Backend / API behavior
+
+All five direct-server checks and all five subsequent **normal public DNS/HTTPS checks from Kamatera** returned 200: login, approved products, facilities, mobile services and chat health. Actual catalog results were six products, three facilities and one service. All eight directly referenced local login assets returned 200. HTTP redirected to the correct HTTPS hostname. Hosted `nginx`, `campushub-django` and `campushub-chat` were active; `nginx -t` succeeded. The remaining PC resolver delay is separate from hosted application health.
+
+### 6. Database / migration impact
+
+None. No migration, database connection selection change, reset/import/copy, account/password change, authenticated application write or deployment/restart was performed. The DNS provider update changes only hostname routing. The prior separated localhost configuration is preserved.
+
+### 7. Tests performed / safe practice
+
+Provider update returned `OK / UPDATED` and the expected IP. Google/Cloudflare DNS and DNS-over-HTTPS returned `74.113.234.180`; Kamatera's normal resolver agreed. Both direct-server and normal-public-from-Kamatera checks passed with normal TLS validation, eight static-asset 200s, five endpoint 200s and the expected 301 redirect. Hosted services stayed active. The PC normal-public run failed with old-IP timeouts; clearing the local cache did not remove the upstream default-resolver record. These scopes are deliberately distinguished. No full application suite, authenticated workflow, mobile rebuild/install or browser walkthrough was run. Documentation whitespace checks passed.
+
+Safe practice: in DuckDNS, confirm the exact `campushub-ch-org` row, type `74.113.234.180` in **current ip**, select **update ip**, and confirm the page retains that value. Then run `Resolve-DnsName campushub-ch-org.duckdns.org -Type A -Server 1.1.1.1` and expect the server IP. This exercise shows that DNS chooses the public server independently of the database selected by local Django. Never paste or share the DuckDNS account token.
+
+### 8. Remaining limitations / troubleshooting
+
+The PC default DNS resolver still has the old address with 548 seconds remaining at the last check, despite the provider's 60-second record TTL. Wait approximately nine minutes and retry the normal URL; local cache flushing alone cannot evict an upstream resolver's cache. This is an observed TTL, not a guarantee about browser/ISP behavior. A different network may already resolve correctly. No network settings were changed to force a workaround. If a later authoritative lookup reverts to the wrong IP, inspect any user-configured updater before changing server/database code; such an updater remains unconfirmed. No automatic updater or stored token was introduced. Existing online APKs use this hostname and need no origin rebuild for this DNS-only repair. Authenticated and physical-device behavior remains untested.
+
+## Online release APK built for the new DuckDNS hostname - November 9, 2026
+
+1. **Cause / reason:** the user requested an APK after connecting the new DuckDNS origin, then asked to continue the running build.
+2. **Exact files / artifacts:** generated `campushub/build/app/outputs/flutter-apk/app-release.apk`; updated this guide. No application source, Android signing configuration or backend deployment changed. Ignored build/test/artifact-verification evidence: `scratch/apk-online-20261109/`.
+3. **Changes made:** packaged the latest local Flutter implementation in release mode with `CAMPUSHUB_API_BASE_URL=https://campushub-ch-org.duckdns.org`. Package `com.ustp.campushub`, version `1.0.0+1`, minimum Android API 24, target API 36; universal APK contains arm64-v8a, armeabi-v7a and x86_64.
+4. **How it works / inputs, outputs and data flow:** the existing `ApiConfig.publicBaseUrl` compile-time setting selects the public HTTPS API, `/chat` HTTP origin and `/chat/ws` WSS route. Online builds reject remembered LAN/other-host overrides. Example build command from `campushub/`: `flutter build apk --release --no-pub --dart-define=CAMPUSHUB_API_BASE_URL=https://campushub-ch-org.duckdns.org`. The output contains the new origin in all three compiled libapp.so libraries, the exact bundled check.lottie and all six existing demo images. Build artifacts do not deploy Django source or write database records.
+5. **Backend / API behavior:** public API target is the new DuckDNS hostname. Confirmed compatibility limitation: the existing hosted release has the seller workspace route (anonymous request returns 401 as expected) but lacks `/api/mobile/seller/recommendations/` (404; read-only hosted source inspection confirms the route is absent). Synthetic Demo suggestion loading therefore needs a separate scoped backend deployment; building this APK does not fix that missing hosted route. No deployment was performed as part of this build.
+6. **Database / migration impact:** none; no PostgreSQL operation, schema migration, sample seed, account or inventory/order/payment write.
+7. **Tests performed:** 21 targeted Flutter tests passed with the same online define, two LAN-only tests deliberately skipped. Suites: `api_config_test.dart`, `seller_demo_bundle_workflow_test.dart`, `seller_bundle_flow_test.dart`. Release build exited 0 (370.4s). APK signature verification exited 0 with v2 signing valid; manifest/package/architectures checked. Embedded origin found in all three native libraries; packaged Lottie matches the source asset byte-for-byte; all six demo images present. APK size: 72,214,063 bytes (68.9 MiB). SHA-256: `5b418e154f02ff41811bb5493fa70907f5ad1437af4e79ff82fcc4e81e12947d`. Build emitted existing future-support warnings for Android Gradle/Kotlin versions; no build failure. No installation or physical-phone walkthrough performed.
+8. **Remaining limitations / safe practice:** release mode currently uses the project's existing Android Debug certificate, as configured in `android/app/build.gradle.kts`; this is the existing test-distribution signing setup, not a new production key. The missing hosted recommendations route remains. Safe exercise: inspect the verification JSON, compare the APK SHA-256, install only when intended, and verify normal sign-in/catalog connectivity to the new origin. A signature mismatch with another installed distribution requires reviewing its signing certificate; do not uninstall/clear app data blindly because local demos are stored on the device. For learning, rerun the online `api_config_test.dart` with the same define and inspect how its HTTPS/WSS assertions correspond to ApiConfig; do not change PostgreSQL settings to fix a mobile origin.
+
+## Current DuckDNS address: campushub-ch-org.duckdns.org - November 9, 2026
+
+**Open https://campushub-ch-org.duckdns.org/**. The new hostname now points to the existing Kamatera server and has a valid publicly trusted HTTPS certificate. This supersedes the historical campushub-ch.duckdns.org address below. No marketplace/database records or application release were copied or replaced for this hostname connection.
+
+### 1. Cause / reason
+
+The user supplied the newly created DuckDNS hostname and requested connecting it. Live DNS checks confirmed `campushub-ch-org.duckdns.org` pointed to the user's home connection, while the deployed Nginx, Django public origin and chat allowed origin still referenced `campushub-ch.duckdns.org`. The old hostname returned NXDOMAIN. Kamatera's existing Django/chat/Nginx services were healthy; changing only the database connection would not repair public hostname routing.
+
+### 2. Exact files changed / current lines and anchors
+
+| Local/server file | Anchor | Change |
+| --- | --- | --- |
+| `backend/deployment/campushub-nginx.conf:14` / `:31` | server_name | Set the new hostname on HTTP and HTTPS. |
+| Same file `:24`, `:34`, `:35`, `:63`, `:77` | redirect, certificate paths, proxy Host | Keep redirect/TLS/upstream host handling consistent with the new hostname. |
+| Server `/etc/nginx/sites-available/campushub` | deployed matching configuration | Activate the same checked local Nginx file and reload Nginx. |
+| Server `/etc/campushub/django.env` | CAMPUSHUB_PUBLIC_BASE_URL | Change only the existing public-origin key to the new HTTPS URL. |
+| Server `/etc/campushub/chat.env` | ALLOWED_ORIGINS | Change only the existing allowed-origin key to the new HTTPS URL. |
+| Server `/etc/letsencrypt/live/campushub-ch-org.duckdns.org/` | certificate lineage | Issue the hostname's certificate with existing Certbot/webroot integration. |
+| `docs/kamatera-web-deployment.md`, `CAMPUSHUB_CONTEXT.md` | leading current report/summary | Record the working address, data flow, verification and limits. |
+
+DuckDNS A record changed to the existing Kamatera IP `74.113.234.180`. The screenshot-provided token was used only for the authorized HTTPS provider request; it was not stored in a project file, server configuration or diagnostic result. Private server backups/logs are under root-only `/root/campushub-migration/duckdns-org-20261109T042323Z/`. Ignored local helpers/evidence are under `scratch/duckdns-org-20261109/`. No local `.env`, Flutter API origin, PostgreSQL URL, application/model/API code or hosted release selection changed.
+
+### 3. Changes made
+
+Staged a hostname-specific HTTP ACME challenge route after backing up the old Nginx and both private environment files. Updated only the requested DuckDNS domain using the provider's HTTPS API and an explicit server IP, preventing accidental PC-IP autodetection. Confirmed resolution from Google DNS, Cloudflare, this PC and the server before requesting the certificate.
+
+Issued the new certificate using Certbot webroot validation, checked its hostname, validated the final Nginx configuration and changed the two public-origin environment values. Byte comparisons confirmed all other private configuration, including database URLs and secrets, was retained. Restarted only the existing hosted Django/chat units, checked their upstream responses with the new host/origin and reloaded Nginx. The activation helper has a configuration rollback path if validation fails. Old certificate files were retained; no unrelated Nginx site was removed.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+```text
+Browser -> campushub-ch-org.duckdns.org -> 74.113.234.180
+  HTTP :80  -> same-host HTTPS redirect (ACME challenge paths remain available)
+  HTTPS :443 -> valid new-domain certificate -> Nginx
+    /static/ -> existing shared static assets
+    /chat/   -> existing loopback FastAPI :8001, with websocket upgrade headers
+    other routes -> existing loopback Django :8000
+Django/chat -> the same existing online PostgreSQL database
+```
+
+Nginx `server_name` selects this site; its redirect keeps the new hostname. Certificate paths select the new certificate/key. Both proxy locations pass the expected host and HTTPS forwarding headers, retaining existing permission-aware media routing, query-token-safe logging and application-port isolation. No blanket media alias or database port was opened.
+
+The existing production settings derive Django ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS and CORS_ALLOWED_ORIGINS from CAMPUSHUB_PUBLIC_BASE_URL; they also derive public chat HTTPS/WSS addresses. Chat parses its existing ALLOWED_ORIGINS setting. Changing these known origin inputs and restarting the services therefore synchronizes the hostname without editing authentication or enabling permissive wildcard origins.
+
+The ignored `activate.py` takes the staged, checksum-verified Nginx candidate and backed-up environment files, validates the expected old values, replaces only the public keys, tests Nginx, restarts the scoped units, probes Django/chat and reloads the proxy. It restores previous configuration on failure. Safe example: a request to `http://campushub-ch-org.duckdns.org/` returns a 301 to the identical path on HTTPS; it no longer redirects to the deleted hostname.
+
+The DNS update follows [DuckDNS's official API specification](https://www.duckdns.org/spec.jsp). Secrets belong only in the authorized provider request, never in copied command examples or Git. The existing Nginx routing and webroot certificate approach are retained.
+
+### 5. Backend / API behavior
+
+Public HTTPS GETs returned 200 for login `/`, `/api/products/approved/` (six products), `/api/facilities/` (three facilities), `/api/mobile/services/` (one service) and `/chat/health`. All seven directly referenced local login assets returned 200. Chat returned the exact new allowed origin. HTTP redirected to the correct new HTTPS address. TLS verification used normal certificate/hostname validation and negotiated TLSv1.3; the certificate includes the new hostname and expires February 7, 2027 UTC.
+
+The current hosted release remains `/srv/campushub/releases/campushub-hybrid-20261029T145640Z`. Local Flutter/demo/web code edits are not automatically deployed by connecting DNS. Existing sessions tied to the old hostname may require signing in on the new one. No authenticated write was used for verification.
+
+### 6. Database / migration impact
+
+None. No migration, database copy/reset/restore/seed, product/inventory/order/payment/sales edit or PostgreSQL credential change. The PC's existing online-database tunnel connection also remains unchanged. Website traffic continues using the server's existing database.
+
+### 7. Tests performed
+
+- DuckDNS returned OK/UPDATED and the expected server address. Google DNS, Cloudflare, PC and server resolution agreed.
+- Certbot exited 0; normal public TLS/hostname validation passed for the new certificate.
+- `nginx -t` passed; local/deployed Nginx SHA-256 matched: `5a8dd6ec67250dd553031dab3fe88f72073721b83cc056330c5cfc0a24c84225`.
+- All five public HTTPS endpoint checks and all seven referenced local static assets returned 200; the HTTP redirect destination was correct.
+- Exact-key comparisons verified no unrelated private environment change. Hosted nginx, campushub-django and campushub-chat were active after restart/reload.
+- Existing certbot.timer is active. The new renewal configuration uses the expected webroot and the existing Nginx deployment hook is present. A renewal dry-run was not performed for this hostname change.
+- No full application suite, authenticated browser write, physical-phone verification or application-code release deployment was performed. Public results are recorded in ignored `https-verification.json`; provider result metadata is in `dns-update.json` without the token. Documentation/configuration whitespace checks passed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Use the new hostname; the old hostname still does not exist in DNS. A previously compiled APK explicitly pointing to the old hostname needs a new public-origin build/run using `--dart-define=CAMPUSHUB_API_BASE_URL=https://campushub-ch-org.duckdns.org`; no phone build/install or mobile-origin change was performed here. This operation connects the existing hosted release, not every newer local feature. A server-IP change requires updating the DuckDNS A record deliberately; no additional periodic updater or stored DuckDNS token was introduced.
+
+Safe checks from a terminal: resolve `campushub-ch-org.duckdns.org`, open the HTTPS login page and request `/chat/health`. Expect `74.113.234.180`, a trusted certificate and HTTP 200. For a learning exercise, follow server_name -> certificate -> proxy Host -> CAMPUSHUB_PUBLIC_BASE_URL and compare the same hostname in each; never paste tokens/private environment URLs into screenshots or commits. If a mismatch appears, inspect the known root-only backup and Nginx validation before editing; do not bypass TLS checks or change database records to repair DNS.
+
 ## Phone catalog images fixed on the server — October 20, 2026
 
 ### 1. Cause / reason

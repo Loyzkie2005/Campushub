@@ -1,5 +1,385 @@
 # PostgreSQL backups and server transfers
 
+## Current development is separated from the hosted website - November 9, 2026
+
+**Use http://127.0.0.1:8000/ for development. Local Django and messaging-only FastAPI now select the existing PC PostgreSQL database at `127.0.0.1:5432/campushub`.** This is a different PostgreSQL server from the hosted Kamatera database, even though the databases have the same name. The online domain and deployment were not edited or restarted. This section supersedes the online-selection report immediately below it.
+
+### 1. Cause / reason
+
+Confirmed: both private environment files selected the online SSH tunnel on port 15432. A localhost web address only selects the web server; it does not make that server's database local. Local development therefore still targeted online records. The existing saved PC connections were available and passed compatibility checks, so no database creation or production-data import was necessary.
+
+### 2. Exact files changed / current lines and code anchors
+
+| File / current line | Anchor | Change |
+| --- | --- | --- |
+| `backend/core/.env:10` | `LOCAL DEVELOPMENT (active)` | Active PC URL at line 11; saved online URL remains commented at line 13. |
+| `backend/chat_service/.env:1` | `LOCAL DEVELOPMENT (active)` | Active PC asyncpg URL at line 2; saved online URL remains commented at line 4. |
+| `docs/database-backup-neon.md:3` | `Current development is separated` | Current selection, verification and restart instructions. |
+| `CAMPUSHUB_CONTEXT.md:3` | `Current development: separated localhost` | Current project guidance above historical connection selections. |
+
+Both `.env` files stay Git-ignored. No application source, seller template, API implementation, Flutter source or production configuration changed. Ignored one-time helpers and aggregate evidence are in `scratch/separate-local-20261109/`. Exact private originals and runtime logs are restricted to `C:/Users/leste/.campushub-secrets/before-separated-local-20261109T135247Z/` (timestamp is UTC). These private files contain credentials and must not be committed or shared.
+
+### 3. Changes made
+
+Activated the existing saved PC database URL in each local `.env`; kept one active URL and one commented online URL per file. Verified matching local database/account identities across the two drivers without printing credentials. Replacing each four-line selection block preserved every unrelated byte. Saved restricted originals before writing and included restoration on a failed write. Started only this checkout's local services with the existing inspected restart helper, clearing inherited `DATABASE_URL` for their launches and selecting `core.settings`.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+```text
+Browser -> http://127.0.0.1:8000 -> local Django -> PC PostgreSQL :5432/campushub
+Local messaging -> http://127.0.0.1:8001 -> local FastAPI -> same PC PostgreSQL
+Public domain -> existing hosted Django/chat -> existing hosted PostgreSQL
+```
+
+The unchanged `_load_dotenv(path)` in `backend/core/core/settings.py:23` takes a private file path, reads active `KEY=VALUE` lines and populates missing process environment values. Comments are skipped. `DATABASES` then parses `DATABASE_URL` with `dj_database_url`. An existing process environment value takes precedence over `.env`, so a stale online override must be cleared before a manual launch. Chat's unchanged `Settings` in `backend/chat_service/app/config.py:8` loads `.env` relative to its working directory; `app/database.py` uses its URL to create the asynchronous engine. Restarting makes cached environment settings and connection pools use the new target.
+
+`switch.py:13` (`main`) in the ignored evidence directory takes the successful local preflight and exact saved private connections, validates host/port/driver/identity, and replaces only the expected database-selection blocks. Its outputs are private backups plus credential-free JSON metadata. It is a one-time transition helper and refuses an already-local selection. `check_chat.py:13` (`main`) reads the selected chat URL, uses the actual SQLAlchemy/asyncpg engine and queries database identity inside `SET TRANSACTION READ ONLY`; its output records host, port and verified read-only mode. The reused `scratch/switch-local-20261109/check.py` checks Django schema, migration history and read endpoints under enforced read-only PostgreSQL options.
+
+Annotated selection example, for learning only:
+
+```dotenv
+# LOCAL DEVELOPMENT (active)
+DATABASE_URL=<existing private PC URL>
+# KAMATERA (inactive)
+# DATABASE_URL=<saved private online URL>
+```
+
+Do not paste placeholders or inline comments into the actual URL. The line without the leading `#` is selected. Database name alone does not distinguish servers; check the host and port too.
+
+### 5. Backend / API behavior and continuing development
+
+Local web/API traffic now uses PC records; production keeps its existing independent records and code release. Django continues owning marketplace, bookings, authentication and permissions. FastAPI remains messaging-only. Existing local chat HTTP/WS URLs and allowed origins were already configured for local development and were preserved.
+
+Services are already running. After a reboot, open two PowerShell terminals **at the repository root** and run these separately. Leave each terminal running; stop its server with Ctrl+C before starting another copy.
+
+```powershell
+# Terminal 1: clear a possible stale override, then start local Django.
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+$env:DJANGO_SETTINGS_MODULE = 'core.settings'
+Set-Location backend/core
+.\venv\Scripts\python.exe manage.py runserver 0.0.0.0:8000
+```
+
+```powershell
+# Terminal 2: chat must start in its own folder so it finds the correct .env.
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+Set-Location backend/chat_service
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
+```
+
+Do not start the online database tunnel for this local configuration. Keep the active URLs on port 5432 during development. Local edits are reviewed and deployed separately when ready; editing the checkout does not automatically update the hosted release.
+
+### 6. Database / migration impact
+
+No migrations, database creation/reset, record copy, production-data import or synchronization was performed. Read-only checks found 48 tables and 108 applied migrations, no pending migrations and no missing managed-model columns. Local read results contain six approved products, two facilities and zero services. These are actual existing PC records. Differences from online data are expected. No account/password, order, payment or stock changes were intentionally made.
+
+### 7. Tests performed / safe practice exercise
+
+- Saved-local and active-local Django checks passed: expected database identity, enforced read-only transaction mode, schema/migration compatibility and Django system check.
+- Saved-local and active-local chat-driver queries passed against PC port 5432 with read-only mode confirmed.
+- Actual running localhost requests returned HTTP 200 for `/`, `/api/products/approved/`, `/api/facilities/`, `/api/mobile/services/` and chat `/health`. Evidence: `scratch/separate-local-20261109/runtime-check.json`.
+- The running Django process's established TCP connection targeted `127.0.0.1:5432`, not port 15432. Runtime service logs and launcher metadata are in the restricted backup directory above.
+- Both private files retain exactly one active local URL and one commented online URL. All configuration bytes outside those selection blocks were preserved.
+- No full application suite, authenticated write workflow, mobile rebuild/install or physical-device walkthrough was run for this configuration-only switch.
+
+Safe exercise: open http://127.0.0.1:8000/ and, from a separate terminal at the repository root, run `backend/core/venv/Scripts/python.exe -B scratch/switch-local-20261109/check.py --active`. Expect `port: 5432`, `connected: true`, `transaction_read_only: on`, empty `pending_migrations` and empty `missing_model_columns`. Identify the active and commented database lines privately without changing or sharing them. This demonstrates how a web server and its database are configured separately without writing records.
+
+### 8. Remaining limitations / troubleshooting
+
+Local accounts may differ from online accounts; use an existing local account to sign in. An installed APK built with `CAMPUSHUB_API_BASE_URL` still targets its configured hosted origin. Mobile was not rebuilt or redirected in this task. For later local mobile development, the existing `campushub/lib/module_app/config/api_config.dart` supports a development build without that public-origin define; device addressing/ADB forwarding must also match the PC.
+
+This separates the local database and web runtime. Existing external integrations such as SMTP and enabled Firebase push settings were preserved, so this is not a fully offline environment. Local media and production media are not synchronized by this switch. No authenticated seller/admin browser walkthrough was performed. An existing online database tunnel/monitor was not modified; the selected local services do not use it. If a later session selects port 15432 again, inspect both `.env` files and terminal `DATABASE_URL` overrides before continuing local edits.
+
+## Returned local services to the online Kamatera database - November 9, 2026
+
+**Historical selection, superseded by the separated-local-development section above:** this earlier task selected the shared online Kamatera `campushub` database through the existing SSH tunnel at `127.0.0.1:15432`. Local Django remained at http://127.0.0.1:8000/; chat remained on port 8001. Both local services were restarted for that earlier selection. The PC connection was then retained as an inactive comment in each private environment file.
+
+### 1. Cause / reason
+
+The user explicitly requested returning to the online database. Inspection confirmed both active private URLs selected PC PostgreSQL on port 5432, while the saved online URLs remained commented on port 15432. The tunnel was not listening at inspection time; the existing authorized starter established it and its reconnect monitor.
+
+### 2. Exact files changed / current lines and anchors
+
+| File / current line | Anchor | Change |
+| --- | --- | --- |
+| `backend/core/.env:10` | KAMATERA (active) | Online URL active at line 11; saved PC URL commented at line 13. |
+| `backend/chat_service/.env:1` | KAMATERA (active) | Asyncpg online URL active at line 2; saved PC URL commented at line 4. |
+| `docs/database-backup-neon.md:3` | current online runtime | This implementation/verification guide. |
+| `CAMPUSHUB_CONTEXT.md:3` | current online database selection | Record current selection above historical reports. |
+
+The `.env` files remain Git-ignored and private. No application, API, Flutter, migration or database-loader code changed. Ignored one-time helpers/evidence are under `scratch/switch-online-20261109/`: `check.py` (read-only Django checks), `check_chat.py` (actual chat async driver), `switch.py` (selection-block update), plus aggregate preflight/active/HTTP JSON results. Restricted originals and replacement-runtime logs/metadata are under `C:/Users/leste/.campushub-secrets/before-online-return-20261109T041432Z/`. No connection URL or credential is included in this guide.
+
+### 3. Changes made
+
+Validated both saved online URLs and confirmed their database/credential identities agree across the PostgreSQL and asyncpg schemes. Performed read-only online compatibility checks first. Privately backed up the exact active files, swapped only their four-line database-selection blocks and preserved all unrelated bytes. Each file has one active online URL and one commented local URL. Failed writes would restore the originals.
+
+Reused `backend/start_kamatera_db_tunnel.ps1` with its strict host/key/owner checks. The established tunnel is bound to loopback and was reused by a second starter call without creating another connection. Reused the inspected `scratch/switch-local-20261109/restart.ps1 -RuntimeDirectory <restricted backup directory>` to restart only this checkout's verified Django process tree and launch the local chat service. Launches were hidden; inherited DATABASE_URL was cleared for these launches so the private files take effect. No remote service was restarted or deployed.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+```text
+Local browser/mobile HTTP -> local Django :8000 -> loopback SSH forward :15432
+                                                   -> existing Kamatera PostgreSQL :5432/campushub
+Local messaging HTTP/WS   -> local FastAPI :8001 -> the same online database via asyncpg
+Inactive commented PC URL -> ignored by the existing environment loaders
+```
+
+`check.py` reads either the commented online URL for preflight or the active URL with `--active`. It verifies the expected loopback/tunnel/database, sets PostgreSQL read-only options in that diagnostic process only, then checks identity, model columns, migration history, Django system checks and catalog/facility reads. `check_chat.py` selects the equivalent chat URL, imports the actual chat settings/engine and executes its identity query inside an explicitly read-only transaction. Neither diagnostic changes the normal application's write permissions.
+
+`switch.py` takes the successful preflight reports plus existing private connection lines as inputs. It validates exact drivers, ports, database and matching online identities; requires the expected selection block; stores restricted backups; replaces only that block; verifies byte preservation and restores originals on failure. Its output is safe host/port/path metadata. `restart.ps1` validates project command lines and descendants before stopping only the local service trees, then restarts with fresh settings. Restarting is necessary because environment values, database pools and chat Settings are cached in running processes.
+
+Annotated configuration example (documentation only):
+
+```dotenv
+# KAMATERA (active): shared online database through the existing SSH tunnel.
+DATABASE_URL=<existing private online URL>
+# LOCAL DEVELOPMENT (inactive): saved PC PostgreSQL connection; retained for later.
+# DATABASE_URL=<existing private PC URL>
+```
+
+Do not replace real values with these placeholders. Active means the line without `#`; comments alone do not select a database. This reuses the existing integration rather than introducing another connection mechanism.
+
+### 5. Backend / API behavior
+
+Fresh active Django and chat-driver checks connected to the online `campushub` database through client port 15432. The restarted Django HTTP-worker PID 7512 had actual TCP connections to port 15432. Running-server GET results were all HTTP 200: login `/`, `/api/products/approved/` (six products), `/api/facilities/` (three facilities), `/api/mobile/services/` (one service), and chat `/health`. These catalog counts match online data rather than the earlier PC facility/service counts. Chat health was supplemented by the separate actual-driver read-only query; health alone is not a database test.
+
+Local application writes now target shared online records. Existing authentication, roles, marketplace/booking/payment rules and the messaging-only FastAPI boundary remain. Flutter still talks to HTTP APIs; no database URL/credential or mobile API origin was changed. The public hosted deployment was not altered.
+
+### 6. Database / migration impact
+
+No migration, SQL schema repair, data import/copy/merge/restore, database creation/reset or sample seeding was performed. Read-only checks found 48 tables, 108 applied migrations, consistent migration history, no pending migrations and no missing managed-model tables/columns. The PC database was not changed. Explicit verification queries ran with transaction_read_only=on; normal user activity may continue changing the shared online database independently.
+
+### 7. Tests performed
+
+- Read-only online preflight and active-settings Django checks passed, including migration/schema compatibility and system checks.
+- Both preflight and active chat async-driver read-only checks passed with matching saved role/database.
+- All five actual local HTTP GETs above returned 200; the live Django TCP destination was verified as port 15432.
+- Tunnel startup and repeat reuse succeeded; its reconnect monitor is retained.
+- Private-byte checks confirmed only the database-selection blocks changed. Both local URLs were retained as comments; each file has exactly one active URL.
+- No application test suite, write transaction, authenticated browser write, phone build/install or hosted deployment was performed for this configuration switch.
+
+Safe commands from the root: `backend/core/venv/Scripts/python.exe scratch/switch-online-20261109/check.py --active` and `backend/chat_service/.venv/Scripts/python.exe scratch/switch-online-20261109/check_chat.py --active`. These diagnostic helpers report only safe identity/status/aggregate information. Documentation whitespace checks passed.
+
+### 8. Remaining limitations / troubleshooting / learning exercise
+
+Online access requires the PC tunnel and Internet. If unavailable, rerun the existing tunnel starter and inspect its verified monitor status. The completed read checks do not prove every authenticated workflow or physical-phone connection. An existing PC-database browser session may need signing in again with an online account. No automatic synchronization exists between PC and online records.
+
+Safe exercise: inspect only the parsed active port (15432) and commented local port (5432) without exposing URLs in screenshots. Run the two active read-only checks and expect connected=true/transaction_read_only=on; open http://127.0.0.1:8000/ and verify the catalog. To learn selection safely, compare the active/inactive block with the example, but do not rerun the one-time switch helper or restore database tables. A future explicitly requested return to PC uses the saved local lines and another local-service restart; it does not require a database restore or application-code edit.
+
+## Local development database selected — November 9, 2026
+
+**Current selection: PC PostgreSQL at `127.0.0.1:5432/campushub`. Open http://127.0.0.1:8000/.** Both local Django and chat have been restarted. Kamatera URLs remain labelled inactive comments in the two private, Git-ignored `.env` files. This selection supersedes the historical online-runtime reports below; online integration code remains available.
+
+### 1. Cause / reason
+
+The user requested returning development to the PC database because the online connection was taking too long, while keeping the online connection for later. Both services previously selected Kamatera through port 15432. PC PostgreSQL was already running. A read-only preflight using saved local credentials found 48 tables, 108 applied migrations, no pending migrations and no missing managed-model columns. No schema repair was needed. This confirms local readiness; no controlled before/after latency benchmark was performed.
+
+**Follow-up: user still saw loading.** Both active private URLs had subsequently been set back to port 15432, despite the comments still labelling local development as active. New running Django processes were also connected to port 15432. This confirms the local selection had been superseded by another configuration/runtime change; it was not merely a stale browser cache. The writer/reason for that intervening change is not established. Before this repair, public product/facility GETs took 831/724 ms in the observed requests. These individual observations do not isolate database/network time or establish the cause of every browser delay.
+
+### 2. Exact files changed / current lines and anchors
+
+| File / current line | Nearby anchor | Change |
+| --- | --- | --- |
+| `backend/core/.env:10` | `# LOCAL DEVELOPMENT (active)` | Labels PC connection; line 11 is its active `DATABASE_URL`. Lines 12–13 label/comment the saved Kamatera URL. |
+| `backend/chat_service/.env:1` | `# LOCAL DEVELOPMENT (active)` | Active asyncpg `DATABASE_URL` at line 2; labelled inactive Kamatera URL at lines 3–4. |
+| `docs/database-backup-neon.md:3` | `Local development database selected` | Current mode, functions/data flow, verification, recovery and exercise. |
+| `CAMPUSHUB_CONTEXT.md:3` | `Current development runtime: PC PostgreSQL` | Latest database choice above historical online reports. |
+
+One-time ignored helpers/evidence: `scratch/switch-local-20261109/` contains `check.py` (`database_url`, `main`), `switch.py` (`database_url`, `main`), `restart.ps1` (`Assert-ProjectTree`, `Test-Port`) and aggregate JSON results. Helpers contain no credentials. Original private settings and new runtime logs/metadata are under `C:/Users/leste/.campushub-secrets/before-local-development-20261108T165112Z/`, restricted to the current Windows user, SYSTEM and Administrators. The timestamp is UTC; the task occurred November 9 in Asia/Singapore.
+
+### 3. Changes made
+
+Restored only each service's saved local `DATABASE_URL`, added active/inactive comments and preserved every unrelated configuration byte. Saved exact original `.env` copies before editing. Each file now has exactly one active URL on port 5432 and one commented online URL on port 15432. The online URLs remain private; credentials were not copied into source, documentation or Flutter.
+
+Restarted only this checkout's verified Django/chat process trees with their previous addresses and reload behavior: Django `0.0.0.0:8000`, chat `127.0.0.1:8001`. Replacement launches were hidden; an inherited `DATABASE_URL` override was cleared for launch so the files take effect. Existing SSH/reconnect-monitor implementation was preserved; no new tunnel command was issued for this switch. Local application requests no longer depend on that tunnel.
+
+For the loading follow-up, restored only the two active URLs to the saved PC values again and retained the already-commented Kamatera values unchanged. Backed up the intervening settings and saved replacement-service logs/metadata under restricted `C:/Users/leste/.campushub-secrets/restore-local-loading-20261108T170738Z/`. Reused the guarded local-service restart. The ignored `scratch/switch-local-20261109/restart.ps1:1` now accepts an optional `RuntimeDirectory` input for separate recovery logs; omission retains its original behavior. No tracked application/settings-parser/UI source changed in this repair.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Unchanged Django `backend/core/core/settings.py:23`, `_load_dotenv(path)`, loads private key/value settings, skips comments and preserves existing process variables. Lines 167–170 pass the active URL to `dj_database_url.parse`, returning Django's connection dictionary. Unchanged chat `app/config.py:8`, `Settings`, reads its own `.env`; `get_settings()` at line 31 caches it. `app/database.py:18` creates the async engine, line 19 creates its session factory, and `get_db()` at line 22 yields request-scoped sessions. Restarting discards old database pools and cached settings.
+
+`check.py:main()` reads the saved local URL or, with `--active`, the current private Django file. It validates loopback/port/database, enforces PostgreSQL read-only mode, checks model columns/migration history, runs the Django database check and probes existing read endpoints. Its output is aggregate JSON. `switch.py:main()` takes the successful preflight and saved local settings, validates both drivers/targets and matching local identities, creates restricted backups, then writes local URLs plus inactive online comments. Byte comparison checks unrelated content; a failed write restores originals. `restart.ps1` verifies service arguments/descendants, stops only those local trees, checks both ports are free, then launches replacements and records PIDs/log locations. No helper executes migration or business-data SQL.
+
+```text
+Browser / local mobile API call -> Django :8000 -> PC PostgreSQL :5432/campushub
+Chat HTTP / WebSocket          -> FastAPI :8001 -> PC PostgreSQL :5432/campushub
+Commented Kamatera URL          -> ignored by both environment-file loaders
+```
+
+Annotated example without credentials:
+
+```dotenv
+# LOCAL DEVELOPMENT (active): PC PostgreSQL
+DATABASE_URL=<existing private local connection URL>
+# KAMATERA (inactive): keep for later
+# DATABASE_URL=<existing private online connection URL>
+```
+
+This illustrates the arrangement only: do not paste placeholders over real settings. The leading `#` makes the online line inactive. Keeping the existing parser avoids introducing another database-selection system or changing hosted settings.
+
+Debugging lesson from the follow-up: comments describe intent but do not select a database; the un-commented `DATABASE_URL` is the value the loader uses. Inspect that line's parsed port and the running process's TCP destination. After recovery, the current Django process had a live loopback connection to port 5432 rather than 15432. The optional restart-log directory is only a filesystem destination; it does not select a database.
+
+### 5. Backend / API behavior
+
+Actual running-server GETs returned HTTP 200: login `/` (53 ms), approved products (80 ms, six products), facilities (53 ms, two facilities), mobile services (48 ms, zero services), and chat `/health` (21 ms). These are one-time observations, not performance guarantees. Two facilities/zero services match the PC preflight; the previous online process returned three/one. The running Django process also has a loopback TCP connection to port 5432. Routes, permissions, stock/payment/booking logic and the messaging-only FastAPI boundary remain unchanged.
+
+The protected `/admin-dashboard/` view rendered HTTP 200 for an existing local Super Admin inside a PostgreSQL-enforced read-only transaction (313 ms). This used `RequestFactory`, not browser login or running-server middleware. A fresh connection through chat's actual asyncpg configuration confirmed `campushub`, client/server port 5432 and `transaction_read_only=on`; chat health alone does not test its database.
+
+Follow-up after restoring the local selection again: actual login/products/facilities/chat-health requests all returned 200, at 49/82/58/29 ms respectively; facilities returned the local two records. Protected read-only `RequestFactory` renders returned 200 for Dashboard (401 ms) and Products (54 ms). These view timings exclude browser assets, JavaScript and rendering; they do not verify the browser's loading indicator. Aggregate evidence is `scratch/switch-local-20261109/loading-http-check.json` and `loading-view-check.json`.
+
+### 6. Database / migration impact
+
+No migrations were applied and no database was copied, merged, restored, created or reset. Read-only diagnostics reported zero pending migrations and no missing model columns. No intentional business-record update or sample-data write was performed. Shared online deployment/database was not changed. PC and Kamatera data remain separate; differing local records and empty services are expected rather than silently synchronized.
+
+### 7. Tests performed / safe practice exercise
+
+- Saved-local and active-local Django read-only checks passed: database identity, column/migration compatibility, Django system check and four read routes.
+- Actual local HTTP checks and protected read-only dashboard render passed, with scope/measurements above.
+- Chat async driver read-only query passed.
+- Both private files have exactly one active local URL and one commented online URL; unrelated configuration bytes were preserved.
+- Service restart completed after verifying local process trees. Its initial guard refused a legitimate Windows `conhost.exe` descendant before stopping anything; after verifying its system executable, the helper accepted that console child and completed the restart.
+- No application test suite, authenticated browser write workflow or physical-device build/install/test was performed for this configuration-only switch.
+- Loading follow-up: verified both active ports were 15432 before repair, restarted after restoring 5432, then verified the live local TCP destination and successful HTTP/protected-view checks above. Online comments were retained and only the active keys changed. No schema migration or application-suite rerun was needed for this configuration restoration.
+
+Safe practice: open http://127.0.0.1:8000/ and run `backend/core/venv/Scripts/python.exe scratch/switch-local-20261109/check.py --active` from the root. Expect port 5432, `connected: true`, `transaction_read_only: on`, no pending migrations and successful endpoint statuses. In each private `.env`, identify the active local line and online line beginning with `#`; do not expose either URL in screenshots or commits. This teaches selecting saved connections through comments without editing application code. Do not rerun `switch.py`: it is a one-time helper guarded for an online-to-local transition.
+
+### 8. Remaining limitations / switching online later
+
+Authenticated browser logout and the phone's API origin were not tested. An online session may need a fresh login against local accounts. An APK configured for a hosted API continues using it until its normal development configuration/run changes. Flutter/API settings were not changed here.
+
+If loading persists after reloading the browser, identify the exact slow page/request and inspect its browser network timings; server view timings alone cannot diagnose an asset/CDN or JavaScript stall. If port 15432 becomes active again, investigate the latest `.env` edit or another service-launch session. This repair does not lock settings against subsequent explicit edits.
+
+To return online later, deliberately swap active/commented `DATABASE_URL` lines in **both private files**, keeping exactly one active URL each and preserving their different PostgreSQL/asyncpg schemes. Start/reuse `backend/start_kamatera_db_tunnel.ps1` and restart local services so cached settings change. Commented online URLs and private backups preserve credentials; source integration and strict SSH host verification remain. A terminal-level `DATABASE_URL` overrides `.env`, so clear a stale override if a future launch selects the wrong target. Do not apply migrations or synchronize records merely to switch connections.
+
+## Automatic reconnect for repeated SSH tunnel drops — November 9, 2026
+
+### 1. Cause / reason
+
+The recurring logout failure was another exited SSH connection: its log recorded `client_loop: send disconnect: Connection reset`, and no process was accepting PC port 15432 until the existing helper restored it. The exact network/reset cause is unknown. The old launcher returned after starting SSH, so a later SSH exit left Django without its database forwarding until someone reran the command. Logout legitimately needs PostgreSQL for account activity, token revocation and session handling; no authentication workaround was added.
+
+### 2. Exact files changed / current anchors
+
+| File / current line | Anchor | Change |
+| --- | --- | --- |
+| `backend/start_kamatera_db_tunnel.ps1:5` | `param([switch]$Once)` | Keep a one-shot internal mode that cannot recursively start monitors. |
+| `backend/start_kamatera_db_tunnel.ps1:44`, `:77` | `Start-CampusHubTunnelMonitor` / default call | Normal startup now also starts or reuses a hidden monitor using the existing Python environment. |
+| `backend/kamatera_db_tunnel_monitor.py:13` | `ssh_process_running(state_file)` | Read local SSH identity/lifetime without polling PostgreSQL. |
+| `backend/kamatera_db_tunnel_monitor.py:58`, `:72`, `:98` | `repair_tunnel`, `monitor_loop`, `main` | Strict helper reuse, bounded retries, single-owner lock, status and cooperative stop. |
+| `backend/test_kamatera_db_tunnel_monitor.py:10` | `TunnelMonitorTests` | Isolated monitor regressions; no real process termination or database mutation. |
+| `docs/database-backup-neon.md:3`, `CAMPUSHUB_CONTEXT.md:3` | This report / current runtime note | Implementation, data flow, verified scope and safe practice. |
+
+The separate local session's logout investigation note below is retained. Its read-only findings complement this monitor implementation report; its statements about which commands that session ran remain its own scope. No `.env`, Django settings, logout/authentication code, server deployment or PostgreSQL configuration changed in this implementation.
+
+### 3. Changes made
+
+Restored the existing verified SSH tunnel and started one hidden reconnect monitor. The launcher verifies/reuses the existing monitor process; a kernel-managed Windows byte lock makes duplicate monitor launches exit without taking ownership. Existing unknown-listener/process refusal, dedicated key, BatchMode and strict SSH host verification remain in place. The monitor never kills an existing SSH process, changes credentials or redirects Django to another database. Its own cooperative stop/restart was exercised while leaving the working tunnel in place.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`ssh_process_running(state_file)` reads the helper's local `current.json`, requires the expected Kamatera host/loopback port, and checks the Windows process handle, actual SSH executable and recorded creation time. Matching creation time prevents confusing a reused PID with the old SSH process. It returns a boolean and closes every process handle. This is a local process-liveness check every two seconds; it does not repeatedly open PostgreSQL connections or run SQL. `ready` in monitor status means that SSH lifetime check passed, not that every database/API operation is guaranteed to work.
+
+When SSH exits, `repair_tunnel(script)` invokes only the existing PowerShell launcher with `-Once`, literal arguments, hidden execution, no input prompt and a 35-second timeout. The existing helper rechecks the exact owner, key, route and SSH host before starting or reusing forwarding. It still refuses unknown port owners or a matching process whose endpoint is not ready; the monitor does not terminate these processes as a shortcut.
+
+`monitor_loop(ready, repair, wait, report, stopped)` accepts small callbacks so recovery can be tested without real networking. It waits two seconds between healthy lifetime checks. Failed repair attempts use 2, 4, 8, 16 and then at most 30 seconds between attempts. A successful repair is checked before reporting `ready`; failures never fabricate readiness. The callback wait checks a stop marker and can end early. `main()` owns the byte lock, writes safe state transitions to `monitor.json`/`monitor.log`, and releases ownership when it exits. A duplicate invocation leaves the recorded owner's PID unchanged.
+
+```text
+Normal starter -> verify/start SSH + start/reuse one monitor
+Monitor -> recorded SSH process exits -> strict helper -Once -> same forwarding restored
+Browser -> unchanged Django logout -> PC :15432 -> SSH -> existing Kamatera PostgreSQL
+```
+
+Annotated example: `{"State":"retrying"}` means the helper failed and another attempt will follow; it does not mean a logout succeeded. No supplied browser token or database password is passed to the monitor or written into its status/logs. SSH retains its own timestamped error log. If repair repeatedly fails, run the starter with `-Once` in a terminal to see its existing safe key/host/owner error.
+
+### 5. Backend / API behavior
+
+Fresh read-only Django verification connected successfully to the intended database. Both actual public HTTP checks (`/`, `/api/products/approved/`) returned 200; an anonymous, token-free `/admin-logout/` returned 302 to `/`. Direct and Django-client catalog/facility views returned 200 with six approved products/three facilities. The user's real browser token was not replayed or revoked by verification. Normal authenticated logout still performs real server-side revocation when the database is reachable. The user can retry Logout in the existing browser now.
+
+### 6. Database / migration impact
+
+No migrations, database creation/reset/restore, `.env` changes, sample records or direct business-record writes. The actual SQL verification enforced `transaction_read_only=on` and found the existing `campushub` database, 48 tables/108 applied migrations, consistent history, no pending migrations and no missing model columns. Restarting the monitor does not close the active SSH tunnel or modify remote data. No hosted service or source release was restarted/deployed.
+
+### 7. Tests performed / safe practice
+
+- Monitor unit tests passed for missing/malformed state, unknown targets, healthy reuse, repair after simulated loss, bounded backoff, stop behavior, helper timeouts and the exact one-shot helper command.
+- PowerShell source parsed with zero errors. Normal starter reruns reused the same verified SSH process and monitor owner.
+- A second monitor invocation exited 0 with the owner PID unchanged; the active monitor reports `ready`.
+- Existing enforced-read-only Django identity/schema/migration/API verification passed. Real public HTTP login/catalog checks passed; anonymous logout redirected normally.
+- No working tunnel was intentionally interrupted for a live failover experiment. Loss/retry behavior is simulated by the isolated regressions; real startup/reuse and PostgreSQL reads were exercised. No authenticated logout or business-write workflow was submitted.
+
+Safe exercise from the repository root:
+
+```powershell
+backend/core/venv/Scripts/python.exe -m unittest discover -s backend -p test_kamatera_db_tunnel_monitor.py -v
+powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\start_kamatera_db_tunnel.ps1
+```
+
+Expect passing mocked recovery tests and a ready/reused tunnel. Inspect `%LOCALAPPDATA%/CampusHub/kamatera-tunnel/monitor.json`; a second starter run should retain the same live owner. To stop only automatic retries, run `backend/core/venv/Scripts/python.exe backend/kamatera_db_tunnel_monitor.py --stop`, wait for its state to become `stopped`, then rerun the normal starter when you want retries again. This stop command leaves the active SSH tunnel alone. Do not kill an unknown process or interrupt real orders merely to demonstrate recovery.
+
+### 8. Remaining limitations / troubleshooting
+
+Network outages can still interrupt an in-flight request before reconnection. A silent broken network may take SSH's existing keepalive timeout to make the SSH process exit. The monitor watches that process; it is not a PostgreSQL server-health service. An existing SSH process with no ready endpoint is deliberately not force-killed. Read `monitor.log`, `monitor.json` and the SSH error log for persistent failures. Credentials/host keys must remain valid and network access to Kamatera must be available.
+
+This is a hidden process for the current Windows session, not an installed service or scheduled startup task. After reboot or manually closing the monitor, run the existing normal starter again before using the shared database. No auto-start persistence was installed. Earlier dated notes below that describe a one-shot-only helper/no automatic reconnection describe the previous implementation.
+
+## Admin logout connection refusal — November 9, 2026
+
+### 1. Cause / reason
+
+The reported `/admin-logout/` failure targeted PC loopback port **15432**, the entrance to the existing Kamatera SSH tunnel. The previously recorded SSH process (32020) had exited; its `20261108T1639515490572Z.stderr.log` ends with `client_loop: send disconnect: Connection reset`. This confirms a lost tunnel. The underlying reason for that reset is unknown. It does not establish invalid credentials or a stopped remote PostgreSQL service.
+
+During this investigation, another local session added reconnect-monitor files and restored the SSH endpoint. This investigation issued no tunnel-start or application-restart command and preserved those concurrent changes. Fresh TCP, database and HTTP checks then confirmed recovery. Retry Logout in the existing browser.
+
+### 2. Exact files changed / inspected anchors
+
+This investigation changes only this guide (`docs/database-backup-neon.md:3`, anchor `Admin logout connection refusal`). The existing ignored diagnostic helper regenerated `scratch/reconnect-kamatera-20261108/verification.json`; it contains aggregate verification results, not credentials. Application code and private environment settings were not edited here.
+
+Relevant unchanged application anchors are `backend/core/accounts/views.py:139` (`admin_logout_page`), `backend/core/accounts/admin_tab_auth.py:36` (`get_user_for_tab_token`), `:58` (`revoke_admin_tab_token`), and `backend/core/accounts/middleware.py:32` (`AdminTabAuthMiddleware`). Concurrent helper changes are in `backend/start_kamatera_db_tunnel.ps1`, `backend/kamatera_db_tunnel_monitor.py`, and `backend/test_kamatera_db_tunnel_monitor.py`; their implementation and monitor regression results are outside this investigation's verification claim.
+
+### 3. Changes made
+
+Recorded the confirmed cause, current recovery evidence and a safe recovery exercise. No workaround was added to suppress database errors or bypass token revocation. No application implementation change was necessary to restore connectivity.
+
+### 4. How it works / functions and data flow
+
+`AdminTabAuthMiddleware` receives the request and looks up a supplied tab token through `get_user_for_tab_token(key)`, returning its authorized user or no user. This lookup needs PostgreSQL. `admin_logout_page(request)` records an authenticated logout, passes the token to `revoke_admin_tab_token(key)` to delete that token, invokes Django logout, then returns a redirect response to `/` with no-store cache headers. Authenticated logout therefore legitimately needs database access.
+
+```text
+Browser Logout -> Django authentication / logout view
+               -> PC 127.0.0.1:15432 -> SSH -> Kamatera PostgreSQL:5432
+               -> token revocation / session logout -> 302 redirect to /
+```
+
+Annotated example: a `Connection refused` at **15432** means the local tunnel entrance cannot accept the connection. A successful TCP probe alone only proves acceptance; the read-only Django query below additionally proves PostgreSQL authentication and query execution. This layered check was chosen to distinguish tunnel failure from database/schema failure.
+
+### 5. Backend / API behavior
+
+Actual running-server HTTP checks returned **200** for `/` and `/api/products/approved/`. An anonymous, token-free `GET /admin-logout/` returned **302**, `Location: /`, and `Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0`. The diagnostic Django client and direct views returned **200** for approved products (six) and facilities (three). No existing browser token was submitted or printed by these checks.
+
+### 6. Database / migration impact
+
+The active connection successfully reached `campushub` through client port 15432 under PostgreSQL-enforced `transaction_read_only=on`. Verification found 48 tables, 108 applied migrations, consistent migration history, no pending migrations, no missing managed-model tables, and no missing managed-model columns. No migration, schema change, sample data or intentional business-record update was performed. The anonymous HTTP logout check did not revoke an authenticated user's token.
+
+### 7. Tests performed / safe practice exercise
+
+- Fresh TCP connections to ports 15432, 8000 and 8001: passed. This is only TCP acceptance for chat; no chat workflow was tested.
+- Existing `scratch/reconnect-kamatera-20261108/verify.py --active`: completed, connected successfully, Django database system check passed, and the database/API findings above were verified.
+- Running-server login/catalog GETs and anonymous logout redirect/cache-header checks: passed.
+- No authenticated logout, browser UI, application test suite or reconnect-monitor regression test was run in this investigation.
+
+Safe exercise from the repository root, if the same connection refusal returns:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\start_kamatera_db_tunnel.ps1
+backend/core/venv/Scripts/python.exe scratch/reconnect-kamatera-20261108/verify.py --active
+```
+
+The first command starts/reuses the existing strict-host/key-checked forwarding helper; the current concurrent version also starts/reuses its reconnect monitor. The second command reads active settings and produces aggregate read-only results. Expect a ready/reused tunnel, `connected: true`, `transaction_read_only: on`, and successful API statuses. Then retry Logout in your browser and expect the login page. Do not edit credentials, switch databases or apply migrations to fix a missing tunnel.
+
+### 8. Remaining limitations / troubleshooting
+
+The connection is recovered, but this investigation did not test the user's authenticated browser logout or explain the original SSH network reset. A reconnect monitor was observed in `ready` state; its restart-after-drop behavior and startup-after-PC-reboot were not tested here. Older dated statements below that no monitor exists describe the earlier helper. If recovery fails, inspect `%LOCALAPPDATA%/CampusHub/kamatera-tunnel/current.json` and its indicated SSH error log. Preserve strict host verification and do not terminate an unidentified listener.
+
 ## Dashboard missing seller-delivery column — November 8, 2026
 
 **Current status: fixed after the user explicitly approved “Apply only migration 0052”.** Applied only `api.0052_seller_delivery_setting` to the confirmed existing Kamatera database. There are no pending migrations. Read-only dashboard renders returned 200 for all four active admin accounts (two Marketplace Admins, one Facilities Admin, one Super Admin). All 48 tables' original row contents matched before/after, excluding only the intended new field and migration-history record. Refresh **http://127.0.0.1:8000/admin-dashboard/** in the existing signed-in browser.

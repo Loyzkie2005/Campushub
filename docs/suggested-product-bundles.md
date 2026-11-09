@@ -1,5 +1,685 @@
 # Suggested Product Bundles - monitoring and research
 
+## Integrated mobile admin, live and demo sections - November 9, 2026
+
+This supersedes the earlier mobile source-tab layout. Seller Home and the existing Suggested Product Bundles destination now show **From Marketplace Admin → Recommended for You (Live Data) → Synthetic Demo (Testing Only)** as three stacked sections. The existing dashboard, navigation, real product approval workflow, CSV analysis and device-local demo form/storage remain in place. Development and verification use PC PostgreSQL only; production was not contacted or changed during this implementation.
+
+### 1. Cause / reason
+
+The previous mobile view switched between live and synthetic results using tabs. Admin-highlighted pairs only influenced the live ordering; the seller had no separate sent-recommendation feed or explicit persistent Accept/Decline workflow. The existing `SellerBundleSuggestion` table already stored saved/dismissed choices, `AccountActivity` already stored recommendation history, and `Product.source_recommendation` already linked submitted bundles. Reusing these avoids duplicate models and unnecessary migrations.
+
+### 2. Exact files changed / current lines and code anchors
+
+Paths below are relative to the repository root. Older sections retain historical line references; use the named anchors if later edits move them.
+
+| File / current line | Anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/services/seller_recommendations.py:26` | `admin_response` | Project actual accepted/declined history and linked bundle submissions into four seller statuses. Legacy saved choices alone never imply acceptance. |
+| Same file `:46`, `:70`, `:84`, `:197` | `admin_recommendations`, `accepted_admin_pair`, `admin_recommendation_action`, `seller_recommendations` | Seller-owned, explicitly sent admin feed; bounded IDs; eligibility checks; locked, idempotent decisions; admin source dispatch. |
+| `backend/core/modules/marketplace/mobile_seller_views.py:268` | `recommendation_action` | Reuse the authenticated action endpoint for admin Accept/Decline/validate; live/demo keep their existing actions. |
+| `backend/core/api/views.py:840`, `:867`, `:921` | `submission_meta`, admin recommendation validation, `PRODUCT_SUBMITTED` | Optional per-form submission key and payload fingerprint return the same product after a lost response; enforce accepted admin pair/recipe; preserve approval and record normal audit metadata. |
+| `backend/core/modules/marketplace/services/bundle_monitoring.py:254`, `:369` | `status_records_for`, `presentation` | Show actual Accepted/Declined responses and timestamps; count acceptance as a response; retain legacy labels/history and real created-product counts. |
+| `backend/core/modules/marketplace/bundle_monitoring_views.py:99`, `:134` | awaiting summary/filter, accepted filter | Accepted rows leave Awaiting Response; retain existing scoped filters and sending workflow. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/bundle_carousel.html:8` | Seller Response selector | Add Accepted and identify the existing dismissed filter as Dismissed / Declined. No web layout redesign. |
+| `campushub/lib/module_app/screens/seller_dashboard_page.dart:108`, `:328`, `:445`, `:540`, `:558` | `_load`, `_createBundle`, `_refreshRecommendations`, `_updateAdminDecision`, `_declineRecommendation` | Load independent source sections; persist Accept before opening the form; preserve decisions after cancel/refresh; independently retry feeds; invalidate stale/unauthorized results; open My Products after successful real submission. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart:1495` | `suggestions` | Replace tabs with ordered source sections, separate progress/error/retry/empty states and shared carousels. Retain the existing live empty-state explanation. |
+| `campushub/lib/module_app/screens/seller_bundle_form.dart:27` | `_newSubmissionKey`, `submit` | Generate one random key per form, send it through the existing real product API, and require a positive price. Existing products and quantities defaulting to one remain editable. |
+| `campushub/lib/module_app/widgets/seller/seller_bundle_carousel.dart:93`, `:135`, `:156`, `:271` | `decline`, `measure`, `cardHeight`, `card` | Shared 80px images, cover fit, rounded corners, individual names, combination title, source/status text, appropriate actions, confirmed Decline, busy guards and horizontal slides/dots. |
+| `campushub/lib/module_app/widgets/seller/synthetic_demo_images.dart:6` | `demoFoodIcon` | Keep explicit identity-mapped demo artwork and provide relevant illustrative food icons when absent; real cards use a truthful missing-image fallback. |
+| `backend/core/api/tests/test_admin_seller_recommendations.py:14` | `AdminSellerRecommendationTests` | Thirteen isolated cases for real admin sending, seller scope, decisions, history, ownership, malformed IDs, approval and lost-response retries. |
+| `campushub/test/seller_bundle_flow_test.dart:22`, `:123` | `FlowService`, stacked-section tests | Source order/no tabs, real acceptance/form/submission, decline confirmation, retained decisions, independent retry, stale validation and isolated demo persistence. |
+| `campushub/test/seller_bundle_carousel_test.dart:165`, `campushub/test/seller_bundle_demo_test.dart:18` | demo card/layout assertions, synthetic states | Update assertions for the new Testing Only card/stacked sections while retaining image, swipe and demo isolation checks. |
+| `campushub/test/seller_workspace_test.dart:51`, `:776` | fixture `recommendations`, qualifying-product flow | Stub the newly independent feed reads in existing tests; scroll through the stacked sections and My Products to verify actual pending review status. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | current integration report | Record implementation, data flow, verification, debugging and safe practice. |
+
+### 3. Changes made
+
+Kept one carousel/card implementation for all sources, with navy primary actions, a gold plus, existing typography/theme colors, 12px corners and no added shadows/gradients. Pending admin rows are first, followed by decision history. Admin cards offer Accept/Decline while pending, Create Bundle after acceptance, and retain Declined/Bundle Created without duplicate actions. Decline requires the existing Flutter dialog pattern; failure leaves the decision unchanged. Cards keep manual horizontal paging and subtle indicators when multiple pairs exist.
+
+`SellerBundleSuggestion` still stores `saved` or `dismissed`. New admin decisions additionally record the recommendation ID and explicit `decision` in the existing PostgreSQL activity history. This distinguishes accepting an admin recommendation from an older generic Save action, and preserves the admin decision even if an older saved-choice feature later removes its choice row. Real linked bundle products determine Bundle Created, including pending review submissions; acceptance itself never creates a product.
+
+The existing product submission transaction serializes on the seller application before validating/locking the recommendation. It requires the exact eligible seller-owned pair and an actual accepted admin decision. A previously linked submission blocks a second bundle for that recommendation. A new form key also protects a retry after a lost HTTP response: matching key + payload returns the existing product; a changed payload with the same committed key is rejected. Existing clients without this optional key remain compatible.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+```text
+Existing admin Send action -> BundleRecommendation.sent_at + existing activity
+  -> authenticated GET source=admin -> only that seller's sent pairs/history
+Accept/Decline POST -> lock approved seller application + owned recommendation
+  -> saved/dismissed choice + explicit PostgreSQL decision event
+Accept response -> fresh products -> existing SellerBundleForm (quantity 1 each)
+  -> existing product submission API + source/admin ID/recipe/form key
+  -> one pending Product + components + source_recommendation + activity
+  -> refreshed My Products; admin monitor reads the same state/history
+Live source -> existing completed-order recommendations -> same real bundle form
+Synthetic source -> existing generated CSV report -> separate demo form
+  -> seller-scoped device storage only; no real product submission
+```
+
+`admin_recommendations(account)` takes the server-authenticated seller and returns public pair/status/image data. It never mines transactions or accepts a client-supplied seller ID. `admin_recommendation_action(request, account, data)` validates the sent pair and action, saves the decision once, and returns current serialized products for the existing form. `accepted_admin_pair(account, identity, product_ids)` runs inside real submission and rejects foreign, unsent, unaccepted, stale or already-used recommendations. `admin_response(row)` reads actual decision history and linked owned bundles instead of inventing a status.
+
+Flutter `_refreshRecommendations(source)` uses a generation counter per source plus a workspace generation. One failed/retried feed does not replace another source's successful rows. Decisions invalidate older admin reads, and a changed seller/full refresh prevents an older validation from opening a form. Authorization failures clear protected data rather than endlessly reloading. `_createBundle(pair)` routes synthetic rows directly to the unchanged local-demo route; real/admin rows require a server action first. After a confirmed real submission it selects My Products and reloads current server data.
+
+The shared image presentation uses existing `ProductImage`: relative Django media paths resolve through the selected API origin; network loading, decode limits and error fallback are reused. Demo artwork still requires an explicit synthetic identity; food fallback icons are illustrations, not seller photographs. The carousel measures text with `TextScaler` **and the inherited `DefaultTextStyle`**, matching actual rendered text. The initial regression found a one-line height difference at 280px/2x when inherited style was omitted; the corrected exact case passed.
+
+Annotated request example (placeholder IDs; never run against production):
+
+```json
+{"source":"admin","id":"17","action":"accept"}
+```
+
+Here `17` means a persisted recommendation ID, not a product ID. The response contains two server-validated products and `status: "accepted"`; those products prepopulate the existing form. Live requests retain pair IDs such as `1|2`. Demo identities/revisions retain their separate synthetic format and never become database product IDs implicitly.
+
+### 5. Backend / API behavior
+
+No new route is needed. Existing `GET /api/mobile/seller/recommendations/?source=admin` adds the admin source alongside live/synthetic. Existing `POST /api/mobile/seller/recommendations/action/` supports admin `accept`, `decline` and `validate`. Reads and actions require an approved active mobile seller and both products belonging to that account. Foreign/unsent IDs return 404; invalid actions return 400; ineligible/conflicting decisions return 409; suspension/authentication checks remain server-side. Oversized IDs are rejected before a database numeric conversion.
+
+The existing product endpoint accepts `suggestion_source: "admin"`, a recommendation ID, the existing component recipe and optional 32-character hexadecimal `submission_key`. Server validation preserves name, positive price, category, ownership, customization/recipe and Pending Approval requirements. Synthetic real-product submission stays rejected. Marketplace Admin continues using the same scoped highlighting/sending workflow and can see/filter Accepted and Declined responses and their actual timestamps.
+
+### 6. Database / migration impact
+
+No model/schema changes or migrations. Reuse `BundleRecommendation`, `SellerBundleSuggestion`, `AccountActivity`, `Product.source_recommendation` and existing bundle components. Runtime decisions and real submissions persist to the selected PostgreSQL database when the user performs them; demo saves remain device-local. Development preflight confirmed `127.0.0.1:5432/campushub`, 48 tables/108 applied migrations, no pending migrations or missing model columns under enforced read-only SQL. Tests create/migrate/seed only uniquely named disposable PC test databases and destroy them afterward. No development application records, production records, release configuration or hosted services were changed for this implementation.
+
+### 7. Tests performed / actual results
+
+- Final relevant Django run: **130 tests passed** in 34.155s, including all 13 new admin/seller integration cases; system check clean and disposable database destroyed. Command from root: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py api.tests.test_admin_seller_recommendations api.tests.test_seller_recommendations modules.marketplace.tests.test_bundle_monitoring`. Credential-free evidence: `scratch/seller-bundle-integration-20261109/django-final.json`.
+- A broader earlier backend run including `modules.marketplace.tests.test_bundles` ran 148 tests: 137 passed, eight failed and three errored. All 11 unsuccessful IDs match the existing recorded baseline in `docs/backend-test-results.json` (that bundle suite previously had 10/21 passed). These existing order/self-purchase fixture failures were not suppressed or changed; this is not a claim the whole backend suite passes.
+- Final seven-file Flutter regression: **94 passed, one failed, one skipped** in approximately 18 seconds. The only failure is the known unrelated Add Product progress semantics case, `seller additions share Home and navbar; existing tools return without hiding catalogs` (`Step 1 of 4` supplied as a numeric progress value). This baseline issue was documented before this task. The optional authenticated real-HTTP demo test was skipped because no explicit localhost URL/token was supplied. All new admin/live/demo flow cases, images, carousels, pending-product visibility, Home layout and source error/retry checks passed. Command from `campushub/`: `flutter test --no-pub test/seller_bundle_flow_test.dart test/seller_bundle_carousel_test.dart test/synthetic_demo_images_test.dart test/seller_demo_bundle_workflow_test.dart test/seller_bundle_demo_test.dart test/seller_home_layout_test.dart test/seller_workspace_test.dart`. Log: `scratch/seller-bundle-integration-20261109/flutter-final.log`. Earlier focused run: 39 passed; the subsequently added real form-to-My Products case also passed in the final regression.
+- Final scoped analysis of all nine changed Flutter source/test files reported **No issues found**. Formatting completed. Actual three-section render inspected under `scratch/seller-bundle-integration-20261109/render/three-sections.png`; narrow/enlarged cards are covered by widget geometry tests.
+- Root/mobile scoped whitespace checks passed. The final test updates scroll to the Create action and pending product because the new stacked layout and existing My Products list are genuinely scrollable; assertions still verify the actual form and Pending Review label rather than dropping those checks.
+- The installed design-doctrine/design-code skills lack their referenced root token/scripts kit. In accordance with the user's explicit reuse-existing-project direction, existing CampusHub Flutter theme/components and real project tests were used; no kit-gate N/N result, WCAG certification or invented contrast score is claimed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No APK build/install, physical-phone walkthrough, production deployment or real-account write walkthrough was performed. No synthetic analysis was run or fake recommendations inserted into the application database. An honest empty admin section means no recommendation has actually been sent to that local seller; inspect the existing admin Send workflow and both products' recorded ownership. A stale/archived pair cannot be accepted or submitted, but can be declined and remains in history. Legacy Save alone intentionally stays Pending in the admin feed until a real admin Accept action occurs.
+
+The full Flutter regression retains the known unrelated Add Product semantic-progress failure (`Step 1 of 4` supplied as a numeric progress value), already documented in earlier project reports. The broader backend bundle-order baseline failures remain as above. Demo persistence still depends on device storage and seller identity; clearing app data removes those samples. The existing Marketplace Demo Preview/Saved Demo Bundles behavior and fixed quantity ×1 were not rewritten. Release builds retain their existing public-origin configuration; development was tested without the public-origin define.
+
+Safe learning exercise: run the new Django module through the guarded local runner, then run `flutter test --no-pub test/seller_bundle_flow_test.dart` from `campushub/`. In the **stacked render test's fixture only**, set its `FlowService.decision` to `accepted` and verify that the admin card's Accept/Decline controls become Create Bundle. Keep the other tests' initial states unchanged, restore the render fixture and rerun. To practice troubleshooting, make only the synthetic fixture fail, confirm its Retry appears while the real card remains usable, then restore it. These exercises use disposable/mock data and require no production account, record edit or migration.
+
+## Lowered confirmation with tighter internal spacing - November 9, 2026
+
+1. **Cause / reason:** the user requested moving the creation feedback down slightly and improving its position/spacing.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_demo_bundle_page.dart:321` (check/heading gap), `:327` (heading/card gap), `:405` (success padding), `:408` (matching minimum height); `campushub/test/seller_demo_bundle_workflow_test.dart:297` (updated start-position assertion); this guide.
+3. **Changes made:** increase top padding from 16px to 40px, reduce check-to-heading spacing from 12px to 8px and heading-to-card spacing from 20px to 16px. Keep the 144px animation and bottom OK action.
+4. **How it works / data flow:** the success scroll view uses fixed layout spacing. The check starts 24px lower; tighter internal gaps keep the heading and saved card grouped beneath it. The minimum-height calculation subtracts 104px to match 40px top plus 64px bottom padding. For example, the check viewport starts 40px below the AppBar while the card remains scrollable on constrained screens. No saved values or animation playback settings change.
+5. **Backend / API behavior:** unchanged; mobile presentation only.
+6. **Database / migration impact:** none; no database command, migration or saved-record rewrite.
+7. **Tests performed:** all 11 demo workflow tests passed, including the adjusted position, animation/reduced-motion, OK navigation and narrow/enlarged cases. Scoped analysis reported No issues found; formatting/whitespace checks passed. Actual Flutter success render inspected. Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart --reporter expanded`; `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart`. Evidence: ignored `scratch/demo-success-spacing/`.
+8. **Remaining limitations / safe practice:** no APK rebuild/install or physical-phone walkthrough. Create a sample to review the lower check and tighter heading/card grouping, then verify OK still returns to suggestions. For a safe learning exercise, adjust test-only text length and rerun the workflow suite to check wrapping; layout adjustments do not require editing storage or the supplied animation.
+
+## OK label and top-aligned creation confirmation - November 9, 2026
+
+1. **Cause / reason:** the user corrected Okay to OK and requested returning the check/Bundle Created! content to the top.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_demo_bundle_page.dart:396` (OK caption), `:415` (success Column alignment); `campushub/test/seller_demo_bundle_workflow_test.dart` (OK navigation and top-position assertions); this guide.
+3. **Changes made:** rename the bottom action to OK and top-align the success content within its existing 16px top padding. Keep the larger animation, card, comma prices and bottom button dimensions/style.
+4. **How it works / data flow:** MainAxisAlignment.start uses the same scrollable success layout and children, so the confirmation begins below the AppBar instead of being vertically centered. The OK callback still pops to the originating suggestions and does not save again. Example: confirmed local save -> animated check/heading/card near the top -> bottom OK -> suggestions.
+5. **Backend / API behavior:** unchanged; no endpoint, authorization or real-product workflow edits.
+6. **Database / migration impact:** none; no PostgreSQL command, migration or stored-record modification.
+7. **Tests performed:** all 11 demo workflow tests passed, including exact OK text/navigation and confirmation start position, plus the existing save/error/reduced-motion/legacy/layout cases. Scoped analysis and formatting/whitespace checks passed. Actual Flutter success render inspected. Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart --reporter expanded`; `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart`. Evidence: ignored `scratch/demo-ok-top/`.
+8. **Remaining limitations / safe practice:** no APK rebuild/install or physical-phone walkthrough. Create a local demo, confirm top placement and the exact OK caption, then tap OK and reopen its pair to verify the saved sample remains. For a safe learning exercise, compare the Column alignment with the existing minimum-height/scroll wrapper and rerun the workflow tests before changing spacing; no storage changes are needed for positioning.
+
+## Bottom Okay action matching Create Bundle - November 9, 2026
+
+1. **Cause / reason:** the user requested an Okay button below the creation confirmation, sized like the Create Bundle action.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_demo_bundle_page.dart:359` (shared bottom action visibility), `:361` (layout key), `:396` (Okay label/callback); `campushub/test/seller_demo_bundle_workflow_test.dart:288` (button presence/equal size), `:306` (available-body centering) and `:318` (Okay navigation); this guide.
+3. **Changes made:** show a bottom Okay button after confirmed creation. Reuse the exact Save Demo Bundle control/style: full content width, 52px minimum height, gold pill, navy text, typography and safe-area margins. The removed View Demo Bundle and Back to Suggestions success actions remain absent.
+4. **How it works / inputs, outputs and data flow:** the existing bottomNavigationBar now appears for form or success states. Its same FilledButton calls `_save()` and displays Save Demo Bundle in the form; in success it displays Okay and pops the current route, returning to the originating suggestions. It performs no save or deletion. Confirmation centering remains relative to the body above the action area. Example: save once, see the animated confirmation, tap Okay, then reopen the original pair to view the unchanged saved record.
+5. **Backend / API behavior:** unchanged; no server code/request change.
+6. **Database / migration impact:** none; no PostgreSQL commands, migration or local-record rewrite.
+7. **Tests performed:** all 11 demo workflow tests passed, including equal create/success button sizes, Okay navigation, centered layout above the action, lifecycle/error/legacy cases, reduced motion and narrow/enlarged layouts. Scoped analysis reported No issues found; formatting/whitespace checks passed. Inspected the actual success render. Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart --reporter expanded`; `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart`. Evidence: ignored `scratch/demo-okay-action/`.
+8. **Remaining limitations / safe practice:** no APK rebuild/install or physical-phone walkthrough. Existing local-storage limits remain. Create a sample and compare the Okay and Save Demo Bundle button sizes, tap Okay, and reopen the same pair to verify it was retained. For a safe code exercise, inspect the shared button's state-dependent label/callback and run the workflow tests before changing labels; keep storage/save functions separate from dismissal.
+
+## Slightly raised confirmation and larger animated check - November 9, 2026
+
+1. **Cause / reason:** the user requested a larger check and slightly higher check/Bundle Created! placement.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_demo_bundle_page.dart:295` (144px animation viewport), `:394` (success padding) and `:397` (matching minimum-height calculation); `campushub/test/seller_demo_bundle_workflow_test.dart` (existing viewport/position assertions); this guide.
+3. **Changes made:** enlarge the supplied animation viewport from 112px to 144px. Place the confirmation group 24px above the previous vertical center using layout padding, retaining the existing scroll fallback.
+4. **How it works / data flow:** `_createdConfirmation()` renders the same unchanged Lottie asset at a larger width/height. Success uses 16px top and 64px bottom padding; its ConstrainedBox subtracts their combined 80px from available height. The asymmetry moves the group's center upward without a transform that could paint beyond its scroll bounds. For example, ordinary body center minus 24px is now the group's center. Input data, price formatting, one-shot/reduced-motion behavior and save-state gating are unchanged.
+5. **Backend / API behavior:** unchanged; presentation only, no server source edit.
+6. **Database / migration impact:** none; no database command, migration or saved-record rewrite.
+7. **Tests performed:** all 11 demo workflow tests passed, including the updated animation size/geometry, reduced motion, lifecycle and narrow/enlarged forms. Scoped analysis reported No issues found; formatting and whitespace checks passed. Inspected the updated actual Flutter success render. Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart --reporter expanded`; `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart`. Evidence: ignored `scratch/demo-check-larger/`.
+8. **Remaining limitations / safe practice:** no APK rebuild/install or physical-phone walkthrough for this spacing adjustment. The previous APK predates it. Create a local demo and compare the larger check/higher heading; enlarge system text to verify content still scrolls. To practice safely, inspect the success padding and matching 80px subtraction together, then run the workflow tests before keeping spacing edits. Do not modify the animation archive or storage to change placement.
+
+## Centered Lottie creation confirmation and grouped prices - November 9, 2026
+
+This supersedes the static success check and success-screen action buttons described below.
+
+### 1. Cause / reason
+
+The user supplied `check.lottie` and requested its animation, centered creation feedback, comma separators in displayed prices and removal of View Demo Bundle / Back to Suggestions on the creation-success screen. Previously the confirmation was top-aligned, the check was static and prices had no thousands grouping.
+
+### 2. Exact files changed / current lines and anchors
+
+| Workspace-relative file | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_demo_bundle_page.dart` | 13 `decodeBundleCheck`; 22 `_formattedPrice`; 289 `_createdConfirmation`; 392 centered success body; 559 saved-list subtitle | Decode the supplied archive, play its check once, respect reduced motion, center the success group, remove its two buttons and format displayed peso values with commas. |
+| `campushub/assets/animations/check.lottie` | complete binary asset | Copy the supplied file unchanged into the bundled app assets. |
+| `campushub/pubspec.yaml` | 50 dependency; 118 asset | Add pinned `lottie: 3.3.2` and declare the asset. |
+| `campushub/pubspec.lock` | `lottie` package entry | Lock the new dependency without changing the project's existing Dart/Flutter minimum requirements. No other dependency version was changed. |
+| `campushub/test/seller_demo_bundle_workflow_test.dart` | 95 actual asset preload; 276 comma-price lifecycle; 354 composition/reduced-motion case | Verify real archive decoding, one-shot configuration, final-frame accessibility behavior, centered geometry, absent success buttons and unchanged numeric storage. Existing lifecycle reopens saved view through the retained back/navigation flow. |
+| `docs/suggested-product-bundles.md` | 3 current report | Record asset provenance, implementation, verification and limitations. |
+
+### 3. Changes made
+
+Confirmed creation now displays the supplied animated check with Bundle Created! and the saved summary in the vertical center of the available content area. A scroll fallback keeps the content reachable on smaller screens/enlarged text. View Demo Bundle and Back to Suggestions are removed from this success state; the back chevron remains. Saved-view Edit/Delete and its existing navigation remain, and the original recommendation card still reopens the saved record.
+
+Prices in the saved summary/list now display comma grouping, for example `1234.50` becomes a peso-prefixed `1,234.50`. Raw form input and the stored numeric string are unchanged. This is display formatting, not a different currency calculation.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The supplied file is a 4,003-byte dotLottie ZIP: one manifest plus one 1300-by-1300 vector composition, 120 frames at 60fps, no external image assets. It is treated as animation data. The runtime uses the actual file; no replacement animation was generated. SHA-256: `2395bb9bce7809a1e208a3a0b83db7fa29acee9228e557a242176026adadddae`.
+
+`decodeBundleCheck(bytes)` selects the archive's `animations/*.json` entry through LottieComposition.decodeZip. This prevents the earlier manifest JSON from being mistaken for the composition. `_createdConfirmation()` passes the bundled path and decoder to Lottie.asset, with repeat disabled. The original two-second motion plays on a confirmed creation only. A reduced-motion setting displays the animation's final frame through AlwaysStoppedAnimation; a bounded static check is available if asset rendering fails. The Lottie widget owns its normal playback controller/disposal. The animate skill's purpose here is infrequent **state indication**, using the explicitly supplied timing rather than adding a separate UI transition or loop.
+
+The existing save path still awaits the local store before entering success, then dismisses keyboard focus. LayoutBuilder supplies the available body height; a minimum-height ConstrainedBox centers the confirmation/card inside a scroll view. This combination centers ordinary layouts and allows taller content to scroll without a RenderFlex overflow. `_formattedPrice(amount)` groups the string's whole-number digits and preserves its decimal portion, without converting/re-saving the amount. Example: the test saves `1234.50`, checks display `1,234.50`, and confirms storage still contains `1234.50`.
+
+### 5. Backend / API behavior
+
+Unchanged. No backend source edit, new server request, synthetic-to-real product submission, inventory/order/payment/sales change or permission bypass. The animation never acts as evidence of a successful write; it is reachable only through the existing confirmed-save state.
+
+### 6. Database / migration impact
+
+None. No PostgreSQL commands, migrations or saved-demo schema changes. Existing identities, source snapshots, quantities, timestamps and decimal strings are retained. Removing success buttons does not delete any record.
+
+### 7. Tests performed
+
+17 Flutter tests passed across the demo workflow and source-flow suites. Checks include actual archive decoding and dimensions/timing, original animation with repeat disabled, reduced motion at final frame, grouped four-/seven-digit prices, ungrouped stored values, centered geometry, absent success actions, failed/pending saves, legacy records, edit/delete/back, narrow/enlarged content and existing live validation. Scoped analysis reported No issues found; formatting/whitespace checks passed. An initial test used the wrong geometry getter for this pinned package; the test was corrected to inspect Rectangle width/height before the passing rerun.
+
+Debug APK build passed. The source download, bundled asset and bytes inside `app-debug.apk` were compared and are identical, including the SHA-256 above. Actual Flutter form/success renders were inspected. Evidence: ignored `scratch/demo-lottie-centered/` and `scratch/demo-lottie-dependency.log`. Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart test/seller_bundle_flow_test.dart --reporter expanded`; `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart`; `flutter build apk --debug --no-pub`. No Django tests were needed/run for this mobile presentation/dependency change.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The APK was rebuilt but not installed; no hosted deployment or physical-phone motion walkthrough. A running development session needs a restart to load the newly bundled asset/dependency. Prices gain grouping on display; the editable numeric input remains ungrouped. Demo persistence remains local. Leave success via the chevron, then reopen its original recommendation card to view/edit/delete the saved record; no new all-saved link was added.
+
+Safe practice: create a demo with price `1234.50`, verify the check plays once and stops, Bundle Created! is centered with the summary, the amount displays with a comma and the two removed buttons are absent. Reopen from its card and verify price editing/storage still work. Enable reduced motion and confirm a still completed check appears. To learn the code safely, inspect decodeBundleCheck beside the manifest/animation layout, then run the reduced-motion/comma-price test; do not edit the supplied animation or marketplace dataset to change price formatting. Feel-check the original two-second animation on a physical phone when installing the rebuilt APK.
+
+## Green success check, Bundle Created heading and Price label - November 9, 2026
+
+1. **Cause / reason:** the user requested a check icon inside a green container, Bundle Created! confirmation copy and Price instead of Demo Price, with the supplied saved-summary reference.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_demo_bundle_page.dart:217` (`_savedSummary`), `:267` (`_createdConfirmation`), `:299` (success app-bar title), `:358` (success rendering) and `:389` (Price field label); `campushub/test/seller_demo_bundle_workflow_test.dart:227` (Price label), `:269` (confirmation/check/card assertions), loading/failure assertions and optional success screenshot; `campushub/test/seller_bundle_flow_test.dart:251` (updated success copy); this guide.
+3. **Changes made:** add a compact white check on the existing green success-color container, followed by Bundle Created! on the successful creation state. Use a simple Demo Bundle app-bar title to avoid a repeated success heading. Group the saved name, Demo Only identifier, original products/quantities and right-aligned peso price in a compact 12px outlined summary card. Rename the form label to Price (peso) and the saved-card label to Price. Keep existing actions, the bottom save control and chevron.
+4. **How it works / inputs, outputs and data flow:** `_createdConfirmation()` returns a live-region success heading and decorative check; it is rendered only when `_stage == success`. The existing `_save()` still awaits confirmed local persistence before entering that state. Failed/pending writes therefore cannot show the green check or Bundle Created! heading. `_savedSummary()` reads the already restored name, price and quantities and reuses `_products(false)`; it never mutates records. The same summary is used in saved view. Example: a confirmed stored price of `50.00` renders as the Price label with a right-aligned peso amount; neither stored field names nor amounts change. A saved view does not repeat the creation check after reopening or editing an existing record.
+5. **Backend / API behavior:** unchanged; no new request, real marketplace product submission or live workflow change.
+6. **Database / migration impact:** none; no PostgreSQL commands, schema/data changes or local-record rewrite. Existing synthetic provenance and older quantities are retained.
+7. **Tests performed:** 16 Flutter tests passed across the demo workflow and source-flow suites, covering the green check's confirmed-save state, its absence on pending/failed saves, Price copy, source/live validation, edit/delete/back, legacy quantities and narrow/enlarged layouts. Scoped analysis of all three changed Dart files reported No issues found; formatting and scoped whitespace checks passed. Inspected the actual Flutter success render. Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart test/seller_bundle_flow_test.dart --reporter expanded`; `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart test/seller_bundle_flow_test.dart`. Ignored evidence: `scratch/demo-created-state/` with tests/analysis logs and form/success PNGs.
+8. **Remaining limitations / troubleshooting / safe practice:** no APK rebuild/install, hosted deployment or physical-phone walkthrough. Device-local persistence limitations are unchanged. The explicitly requested green treatment is scoped to confirmed success; no shared palette change. Safely create a local sample, verify the check and Bundle Created! appear only after saving, check Price and its exact amount, then open View Demo Bundle and confirm the check is absent there. To learn the code, compare the two helpers and the stage condition; change only the test fixture's price and rerun the workflow tests to verify display/data consistency without touching the dataset or real inventory.
+
+## Chevron back control and bottom save action - November 9, 2026
+
+1. **Cause / reason:** the user requested a back icon without the horizontal arrow shaft and the save button at the bottom of the screen.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_demo_bundle_page.dart:236` (AppBar leading IconButton) and `:243` (Scaffold bottomNavigationBar); `campushub/test/seller_demo_bundle_workflow_test.dart:226` (chevron/bottom-position assertions) and `:423` (keyboard layout assertions); this guide's current report.
+3. **Changes made:** use `Icons.arrow_back_ios_new` for a simple left chevron. Move the existing gold pill Save Demo Bundle button from the scrolling form to a bottom action area in create/edit modes. Its colors, text, enabled/loading behavior and save callback are retained. Success/view management actions keep their existing placement.
+4. **How it works / inputs, outputs and data flow:** the leading IconButton keeps the localized Back tooltip and calls the same `_back()` method, so editing/back behavior is unchanged. `bottomNavigationBar` is present only while `_stage == form`. A SafeArea with minimum side/bottom margins keeps the action clear of system navigation; outer padding uses `MediaQuery.viewInsetsOf(context).bottom` to lift it above the keyboard. For example, a 280px keyboard inset moves the button above that occluded region while the form body remains scrollable. The moved button still calls `_save()`, validates the same mounted Form and persists `[1, 1]` to the existing isolated store.
+5. **Backend / API behavior:** unchanged. No backend code or real marketplace action introduced.
+6. **Database / migration impact:** none; no PostgreSQL commands, migration, dataset edit or saved-record rewrite.
+7. **Tests performed:** all 16 Flutter tests passed across `seller_demo_bundle_workflow_test.dart` and `seller_bundle_flow_test.dart`. This includes save/edit/delete, validation/storage failure, duplicate prevention, legacy/back behavior, source switching/live validation, 280dp/390dp enlarged layouts and a simulated keyboard inset. Scoped analysis of the two changed Dart files reported No issues found; formatting verification and scoped whitespace checks passed. The actual Flutter form render was inspected. Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart test/seller_bundle_flow_test.dart --reporter expanded`; `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart`. Evidence: ignored `scratch/demo-bottom-action/`.
+8. **Remaining limitations / troubleshooting / safe practice:** no APK rebuild/install, hosted deployment or physical-device keyboard walkthrough. Existing device-local demo persistence limits remain. Open a pair, confirm the chevron and bottom action, focus the price field and verify the button remains above the keyboard, then save. For a safe learning exercise, inspect SafeArea.minimum and the keyboard test's 280px inset together; run the workflow tests before keeping any margin adjustment. Do not change `_save()` or storage to adjust positioning.
+
+## Remove device-storage paragraph and name counter - November 9, 2026
+
+1. **Cause / reason:** the user requested removing the repeated Demo Only / Saved on this device paragraph and visible name-length count.
+2. **Exact files changed:** `campushub/lib/module_app/screens/seller_demo_bundle_page.dart:262` (Bundle Name decoration, `counterText: ''`); removed `_storageNote`, its form/footer spacing and its saved-list paragraph. This guide records the update. Other source files are unchanged by this step.
+3. **Changes made:** remove the requested paragraph from the demo page/list and hide the visible `23/150`-style counter. Keep the short Demo Only identifier in saved views and list entries.
+4. **How it works / inputs, outputs and data flow:** `_field('Enter bundle name').copyWith(counterText: '')` changes only field decoration. The same name controller, `maxLength: 150`, validation and `_save()` inputs flow to the existing isolated local store. For example, an ordinary name displays without a counter while the existing length limit still applies. Removing static Text widgets does not read, write or delete records.
+5. **Backend / API behavior:** unchanged; no endpoint or real-product submission change.
+6. **Database / migration impact:** none; no PostgreSQL commands, migration or local-record rewrite.
+7. **Tests performed:** all 10 existing demo workflow tests passed, including create/edit/delete, input/storage errors, duplicate prevention, legacy records, back navigation and enlarged/narrow forms. Scoped analysis reported No issues found; Dart formatting and scoped whitespace checks passed. Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart --reporter expanded`; `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart`. Logs: ignored `scratch/demo-form-copy-{analysis,tests}.log`.
+8. **Remaining limitations / troubleshooting / safe practice:** storage is still device-local even though its paragraph is removed. No APK rebuild/install or phone walkthrough was performed. Open a synthetic pair and verify the removed paragraph/counter are absent; enter a valid price and save to confirm the same sample workflow. If name entry stops at 150 characters, that is the intentionally retained validation limit, not a new failure. For a safe code exercise, compare the name decoration with `_field` and inspect `counterText` without altering storage or datasets.
+
+## Underline source tabs and consistent demo fields/button - November 9, 2026
+
+This is the current presentation. The direct-save, fixed-quantity demo workflow from the reports below remains.
+
+### 1. Cause / reason
+
+The source choices were separate text buttons. The demo form used floating outline labels and a navy rectangular action, which differed from the latest requested references: underline tabs, Add Product fields and the Product Details purchase-button style. The long storage disclosure also preceded the actual form.
+
+### 2. Exact files changed / current lines and anchors
+
+| Workspace-relative file | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 1510 measured LayoutBuilder; 1529 DefaultTabController; 1535 TabBar | Equal-width underline tabs with gold active indicator, navy selected text, muted inactive text and wrapping height measured for current text scale. |
+| `campushub/lib/module_app/screens/seller_demo_bundle_page.dart` | 144 `_field`; 174 `_label`; 254 Bundle Name; 336 save-button style; 371 storage note | Match Add Product's white 12px fields, separate labels, input/placeholder/error typography, padding and border states. Match Product Details' gold/navy pill button. Move disclosure below the form action. |
+| `campushub/test/seller_bundle_flow_test.dart` | 104 underline source-tab cases | Verify selection, full-tab indicator, 280dp/2x and 390dp/1x layouts; keep existing real/demo source checks and stale-response coverage. |
+| `campushub/test/seller_demo_bundle_workflow_test.dart` | 226 field assertions; 245 button assertions | Verify labels sit above fields and check the shared Add Product border and Product Details color/shape tokens; retain the full lifecycle and failure tests. |
+| `docs/suggested-product-bundles.md` | 3 current report | Record the references, functions/data flow, verification and limitations. |
+
+The existing Add Product and Product Details source files were inspected but not edited. No broad style refactor or typography change was made.
+
+### 3. Changes made
+
+Live Data / Synthetic Demo now occupy equal-width native Flutter tabs. A full-tab-width gold underline marks selection, with a subtle divider and existing source-loading behavior. The tab labels grow/wrap at larger text sizes instead of clipping.
+
+Create/Edit Demo Bundle starts with Bundle Name above its field, followed by the same included products and fixed quantities, then an external Demo Bundle Price label with a sample-price hint and peso prefix. Fields use the existing Add Product token values: white fill, subtle enabled border, 12px corners, 14px horizontal/15px vertical padding, focused/error borders and AppTypography roles. The primary save action now matches the actual Product Details Buy Now treatment: gold fill, navy text, StadiumBorder, no elevation, 52px minimum height and the same disabled colors. The storage note remains visible below the action; the saved view still identifies Demo Only.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`suggestions(context)` continues using the current source-specific response. Its LayoutBuilder measures both tab labels with TextPainter at half the available width and current text scale. DefaultTabController initializes from that source; its source key keeps the visible selection synchronized when a refreshed response arrives. TabBar.onTap forwards only a changed source to the existing callback. AbsorbPointer blocks competing taps while recommendations load. Fetching, permissions and stale-response handling remain in the existing dashboard code.
+
+`_field(hint)` returns an InputDecoration using the same token values and states as Add Product's `_decoration(hint)`. `_label(label, field)` reuses ProductFieldLabel above the input and supplies its semantic label, preserving screen-reader field identification after removing floating labelText. Price prefix and input styles use the existing bundled AppTypography. Save still calls the same `_save()` and isolated DemoBundleStore, with quantities `[1, 1]`; styling does not alter validation or storage.
+
+Example: tap Synthetic Demo -> existing recommendation read -> gold underline on Synthetic Demo -> choose a pair -> its names prefill the restyled Bundle Name field -> enter a positive price -> the existing save persists the local sample before showing success. No new API call is introduced by the field or button treatment.
+
+### 5. Backend / API behavior
+
+Unchanged. No backend code edits, no marketplace creation API call from demo save, and no bypass of live seller ownership/approval/recipe/inventory checks. Existing Dismiss and selected-card reopening remain.
+
+### 6. Database / migration impact
+
+None. No PostgreSQL commands, migrations, synthetic-to-real records or order/payment/inventory/sales changes. Existing local demo identities, quantities-on-save and older-record handling remain intact.
+
+### 7. Tests performed
+
+**30 Flutter tests passed**: 29 across the source-flow, carousel and demo lifecycle suites, plus the existing real bundle submission/review-status workspace test. Checks include source switching, stale validation, narrow/enlarged tab layouts, requested field/button styling, direct save, errors, duplicate protection, view/edit/delete, legacy records and back navigation. Scoped analysis of the four edited Dart files reported **No issues found**. Formatting verification found no further changes; scoped Git whitespace checks passed. Actual rendered form and tab PNGs were inspected. An initial new tab-test harness incorrectly nested an unbounded ListView; the fixture was bounded before the passing rerun, with no application scrolling changes.
+
+Commands from `campushub/`: `flutter test --no-pub test/seller_bundle_flow_test.dart test/seller_demo_bundle_workflow_test.dart test/seller_bundle_carousel_test.dart --reporter expanded`; `flutter test --no-pub test/seller_workspace_test.dart --plain-name "qualifying pair opens existing Product workflow" --reporter expanded`. Analysis/format cover the four Dart paths above. Evidence is ignored under `scratch/demo-form-tabs/` (`tests.log`, `live.log`, `analysis.log`, `demo-form.png`, `underline-tabs.png`). No Django tests were needed/run for this presentation-only change.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No APK rebuild/install, hosted deployment or physical-phone walkthrough was performed. Demo records remain device-local, and the removed all-saved link is still absent; use the original recommendation card or save-success view to manage a sample. The save action remains tappable before inputs are valid so the existing inline validation can explain errors; it is disabled during saving. Product thumbnails remain in the form.
+
+Safe practice: switch between both source tabs and confirm the underline and returned rows match. Open a synthetic pair, verify its combined name and external labels, focus the price to inspect the Add Product border treatment, enter `0` to see validation, then `45.50` and save. Verify success/view/edit still work and live My Products does not gain a sample. For a learning exercise, inspect `_label` and `_field` alongside the existing Add Product helpers and run the workflow tests; change a test-only demo name to a longer one and confirm the 280dp/2x cases still save without overflow.
+
+## Compact suggestion card without the saved-list link - November 9, 2026
+
+This update supersedes the suggestions-screen Saved Demo Bundles link described below. The saved records themselves are retained.
+
+### 1. Cause / reason
+
+The supplied screenshot identified an unwanted Saved Demo Bundles text action above the carousel and excess vertical space inside the pair card. The shared card used a 48px header, 8px header/image and image/name gaps, a 12px name/action gap and 12px spacing above the dots.
+
+### 2. Exact files changed / current lines and anchors
+
+| Workspace-relative file | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 1486 `suggestions` and constructor | Remove the Saved Demo Bundles button and its callback property. No blank replacement widget. |
+| `campushub/lib/module_app/screens/seller_dashboard_page.dart` | 333 `_createBundle`; 433 `_refreshRecommendations` | Remove unused `_openDemoBundles` and both callback arguments; existing selected-pair reopening remains in `_createBundle`. |
+| `campushub/lib/module_app/widgets/seller/seller_bundle_carousel.dart` | 89 `cardHeight`; 136 `headerHeight`; 215 `PopupMenuButton`; 237/267/285 gaps; 358 indicators | Use a 32px measured header/menu trigger, 4px header/image and image/name gaps, 8px action gap and 8px above indicators. Keep centered names beneath images and align source/menu on the same row. |
+| `campushub/test/seller_bundle_flow_test.dart` | 193 removed-link assertion | Expect no saved-list link; reopen the selected card to verify its stored demo is still viewable. |
+| `docs/suggested-product-bundles.md` | 3 current report | Record implementation, verification and changed navigation limitation. |
+
+### 3. Changes made
+
+Removed the standalone saved-list text/action above suggestions. Tightened the existing horizontal card instead of changing its product layout, font, image size, 12px corners, navy button, gold separator or pagination. The three-dot menu still opens its normal Dismiss menu; only the trigger uses compact button styling, not constraints on the popup contents. The primary action retains its 48px minimum height.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`suggestions(context, preview)` still takes the source-specific Django rows and renders the same carousel or full list, without inserting the removed link. `cardHeight(context, width)` still measures actual product names, label and button at the current width/text scale; its smaller gap values match those used by `card()`. This keeps all pages the same height while preventing the shortened card from clipping longer names or enlarged text. `headerHeight()` reserves the measured source-label height or 32px, whichever is greater. Product names remain centered in their own equal-width image columns.
+
+Existing `_createBundle(pair)` still checks local demo storage by seller/source/revision/pair identity and opens the saved view if found, otherwise the create form. Example: create a demo, return to suggestions and tap Create Demo Bundle on the same pair; it opens the existing Demo Bundle view instead of making another record. No demo store code or data format changed.
+
+### 5. Backend / API behavior
+
+Unchanged. Recommendation reads, Dismiss, the real live creation API and isolated demo writes keep their existing behavior. There are no backend source edits in this adjustment.
+
+### 6. Database / migration impact
+
+None. No database commands, migrations, product/order/payment/inventory/analytics changes, or saved-demo deletion. Removing a navigation link does not clear device storage.
+
+### 7. Tests performed
+
+27 Flutter tests passed across `seller_bundle_carousel_test.dart`, `seller_bundle_flow_test.dart` and `seller_demo_bundle_workflow_test.dart`. Coverage includes swipe/indicators, successful/failed Dismiss, selected-pair reopening, source/live validation, direct demo save/edit/delete and 280-430dp / 1x-2x carousel rendering. Scoped analysis of the four touched Dart files reported No issues found. Formatting and scoped whitespace checks passed. Rendered and inspected the actual compact Flutter carousel. Logs and PNGs: ignored `scratch/demo-carousel-compact/`. No Django tests or APK rebuild/install were needed/performed for this presentation change.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The all-saved link is intentionally absent. Saved records can be reopened from their original recommendation card or from the immediate save-success view. If that recommendation is dismissed or no longer returned by the current dataset, there is no longer an all-saved entry point from suggestions; the local record is still retained. The separate saved-list component remains available in code and its existing management tests still pass. Device-local persistence limitations remain unchanged.
+
+Safe practice: open Synthetic Demo and confirm there is no Saved Demo Bundles text above the card. Swipe and check the dot changes, open/close Dismiss, create a demo, return and reopen the same card to verify its saved name/price. Try large text to verify names wrap without pushing the button outside the card. To learn the spacing code, inspect `cardHeight` beside its matching `SizedBox` gaps; if experimenting, change both together and run `flutter test --no-pub test/seller_bundle_carousel_test.dart` to verify narrow/enlarged layouts before keeping the edit.
+
+## Simplified mobile demo form - November 9, 2026
+
+This is the current workflow and supersedes the preview/quantity-editor instructions below.
+
+### 1. Cause / reason
+
+The existing local demo page still exposed quantity controls and an intermediate preview stage. The latest request requires a direct save with exactly one of each recommended product. Existing stored demos can contain higher quantities, so silently rewriting old records on read would lose saved information.
+
+### 2. Exact files changed / current lines and anchors
+
+| Workspace-relative file | Current line / anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_demo_bundle_page.dart` | 26 `_Stage`; 51 `_back`; 70 `_save`; 145 `_products`; 289 button label | Remove preview state/button/navigation and quantity controls. Save `[1, 1]` from create/edit with one Save Demo Bundle action. Retain success/view/list/delete and legacy quantities in read-only views. |
+| `campushub/test/seller_demo_bundle_workflow_test.dart` | 61 `tap`; 124 `main`; 211 direct lifecycle; 259 delayed save; 331 legacy/back regression; 380 responsive cases | Update the lifecycle, validate name/price, check pending-save behavior, old-record compatibility, back navigation and narrow/enlarged-text layout. Test tap helper centers and settles scrolled controls before tapping. |
+| `campushub/test/seller_bundle_flow_test.dart` | 145 source-selector workflow | Assert the selected pair, fixed quantities, direct save and saved-list presence; keep the existing live-validation and marketplace-isolation assertions. |
+| `docs/suggested-product-bundles.md` | 3 current report | Document current behavior, implementation, checks, troubleshooting and practice steps. |
+
+### 3. Changes made
+
+Create/Edit Demo Bundle now shows editable Bundle Name, the two existing product images/names with fixed quantity one, Demo Bundle Price and one primary Save Demo Bundle button. Preview and quantity adjustment UI are removed. Saving creates the success state only after persistence succeeds. View Demo Bundle, Back to Suggestions, saved-list access, Edit and confirmed Delete remain on their existing management screens. The compact white/navy layout, typography and 12px form/action corners are retained.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Selected carousel pair -> existing local form -> `_save()` -> unchanged `DemoBundleStore.save(pair, name, quantities: const [1, 1], price, editing)` -> isolated seller-specific device preferences -> success for creation, or updated saved view for editing. No preview state exists.
+
+`_save()` validates the mounted form, including nonempty trimmed name and a positive finite price with up to two decimals. It disables controls during the asynchronous write and uses the existing idempotent store. `_products(editable)` renders quantity one in create/edit forms; in saved view it renders the actual stored quantities. `_restore()` restores saved name, price and quantities when cancelling an edit. `_back()` returns an edit to its saved view and otherwise follows the existing suggestions/list route.
+
+Annotated example: `quantities: const [1, 1]` is passed by the UI on every successful create/edit save, so changing only a demo's name or price cannot retain an old quantity of three. The storage service/schema is unchanged: an old `[3, 2]` record still reads and displays correctly, remains untouched when opened/cancelled, and becomes `[1, 1]` only on an explicit successful edit save. Its recommendation identity, source snapshot and original creation timestamp remain unchanged. This keeps compatibility without a bulk rewrite or migration.
+
+### 5. Backend / API behavior
+
+No backend/API code changed. Demo saves still use only the existing local storage. The real Django create-bundle path, permissions, inventory validation, synthetic-submission rejection, recommendation reads and Dismiss behavior are preserved.
+
+### 6. Database / migration impact
+
+None. No PostgreSQL commands, migrations, dataset edits or real product/inventory/order/payment/sales writes. Existing local samples are not rewritten merely by loading the form or viewing them.
+
+### 7. Tests performed
+
+Actual results: **28 Flutter tests passed** (27 demo/workflow/carousel tests plus the existing Live Data product submission/review test). Scoped analysis reported **No issues found** in the three changed Dart files. Format verification found zero further changes; scoped Git whitespace checks passed. Inspected the actual Flutter-rendered simplified form PNG; responsive tests exercised direct saving at 280dp and 390dp with 2x text. The first run exposed test-harness scrolling/route-animation timing assumptions; centering/settling before taps and assertions corrected those tests without another application-code change. Logs/render: ignored `scratch/demo-bundle-simple-*`. No Django tests were run because no backend or API code changed.
+
+Commands from `campushub/`:
+
+- `dart format lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart test/seller_bundle_flow_test.dart`
+- `flutter analyze --no-pub lib/module_app/screens/seller_demo_bundle_page.dart test/seller_demo_bundle_workflow_test.dart test/seller_bundle_flow_test.dart`
+- `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart test/seller_bundle_flow_test.dart test/seller_bundle_carousel_test.dart --reporter expanded`
+- `flutter test --no-pub test/seller_workspace_test.dart --plain-name "qualifying pair opens existing Product workflow" --reporter expanded`
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Demo storage remains local to this seller/device and is removed by uninstalling or clearing app data. Older saved views deliberately retain their actual historical quantities; editing always displays one each and saving adopts those fixed quantities. No APK rebuild/install, phone walkthrough, hosted deployment or Django test run is part of this UI-only simplification. The earlier APK described below predates this change.
+
+If saving fails, correct the inline name/price errors or retry a storage failure; the form retains its input and must not display Demo Bundle Created. If an older saved demo shows quantities above one, open Edit to see the fixed-one form. Back cancels that edit without changing the saved data.
+
+Safe practice: choose an existing synthetic pair, verify both products show quantity one and no Preview/control buttons appear, edit the name, and try price `0` to confirm validation. Enter `45.50`, save once, open View Demo Bundle and then find it in Saved Demo Bundles. Edit its price, cancel a delete once, then confirm Delete Demo Bundle. Verify live My Products/My Bundles does not gain the sample. For a code exercise, inspect the test-only `[3, 2]` fixture in the legacy/back test and run the workflow suite; verify viewing/cancelling preserves it while explicit edit-save stores `[1, 1]`.
+
+## Synthetic Demo bundle creation and management - November 9, 2026
+
+This section supersedes the older requirements below that disable unmapped demo creation or submit mapped demos as marketplace products. The visible `1 of 4` counter is removed; manual carousel swiping, accessible position announcements, gold pagination indicators and the three-dot Dismiss menu remain.
+
+### 1. Cause / reason
+
+Confirmed in the latest local code: the synthetic carousel used the backend's real-catalog `can_create` flag, and `_createBundle` sent every source through real-product validation and `SellerBundleForm`. No isolated editable demo-bundle storage existed. The older Django endpoint could also turn a mapped synthetic recommendation into a real pending product. These were incompatible with a sample-only SUS workflow.
+
+### 2. Exact files changed / code anchors
+
+Paths are relative to the workspace root. These are this task's edits; the repositories already contained unrelated/uncommitted work.
+
+| File | Current line / anchor | Change and reason |
+| --- | --- | --- |
+| `campushub/lib/module_app/services/demo_bundle_store.dart` | 5 `DemoBundleStore`; 11 `validPair`; 68 `save`; 119 `delete`; 125 `_write` | New seller-specific local JSON storage, validation, source snapshot, duplicate protection and confirmed-write handling. |
+| `campushub/lib/module_app/screens/seller_demo_bundle_page.dart` | 12 `SellerDemoBundlePage`; 51 `_back`; 72 `_save`; 107 `_delete`; 147 `_products`; 215 `PopScope`; 352 `SellerDemoBundleList` | New compact form, read-only preview, successful-save presentation, view/edit/delete and saved list. Uses existing ProfileTheme, Poppins and ProductImage/demo assets. |
+| `campushub/lib/module_app/screens/seller_dashboard_page.dart` | 333 `_createBundle`; 433 `_openDemoBundles`; 542/704 callback wiring | Branch synthetic navigation into local samples; retain live server validation/form path and stale-response checks. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 39/51 `onOpenDemoBundles`; 1540 `Saved Demo Bundles` | Add saved-demo access for Synthetic Demo, including when recommendations are empty/dismissed. |
+| `campushub/lib/module_app/widgets/seller/seller_bundle_carousel.dart` | 64 `canCreate`; 118 action measurement; 136 `headerHeight`; 295 action label | Enable complete synthetic pairs independently of catalog mapping, use Create Demo Bundle, remove the visible position counter and its width measurement. Keep menu/indicators/images/layout. |
+| `backend/core/api/views.py` | 842 `recommendation_source` in `seller_submit_product` | Reject synthetic bundle submissions with HTTP 400 before product persistence. Keep the live recipe/ownership/approval/inventory checks and monitoring link. |
+| `backend/core/api/tests/test_seller_recommendations.py` | 154 `test_demo_submit_cannot_create_marketplace_records_even_with_verified_mapping` | Replace the obsolete synthetic-real-product expectation with a rejection/no-write regression. |
+| `campushub/test/seller_demo_bundle_workflow_test.dart` | 12 `demoPair`; 98 `main` | New local storage, complete lifecycle, invalid input, failed save, persistence/readback, seller isolation, source retention, duplicate and responsive tests. |
+| `campushub/test/seller_bundle_flow_test.dart` | 145 source-selector workflow | Exercise Home -> unmapped demo -> preview -> save; assert no real product API call or marketplace-state change; retain live-validation regressions. |
+| `campushub/test/seller_bundle_carousel_test.dart` | 62 manual-swipe test | Expect no visible counter; retain dot/swipe/dismiss and 280-430dp / 1x-2x checks; expect unmapped demo action enabled. |
+| `campushub/test/seller_bundle_demo_test.dart` | 99/122 optional authenticated response assertions | Update old visible-counter expectations to indicator position. The HTTP test still requires explicit localhost/token environment settings. |
+| `docs/suggested-product-bundles.md`, `CAMPUSHUB_CONTEXT.md` | leading current report / summary | Explain current behavior, implementation, verification, troubleshooting and limitations. |
+
+### 3. Changes made
+
+The selected pair opens Create Demo Bundle with an editable combined name, both images/names, quantity controls with a floor of one, and required positive peso price (up to two decimals). Preview changes the page state without writing storage. Save Demo validates again and waits for confirmed local persistence. Success provides View Demo Bundle and Back to Suggestions. View permits editing the same record or confirmed deletion. All stages keep the selected recommendation snapshot. The back arrow/system back returns preview to the same draft; leaving saved edits returns to the last saved values. Asynchronous writes disable controls/back navigation to avoid competing actions.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+```text
+Approved seller + selected synthetic recommendation
+  -> DemoBundleStore.validPair(source, revision, two distinct identities/names)
+  -> store.find(source + revision + recommendation ID)
+  -> existing saved record, or new prefilled local form
+  -> Preview (read-only state; no save)
+  -> save(pair, name, quantities, price)
+  -> seller-specific SharedPreferences JSON -> confirmed success -> view/edit/delete
+
+Live Data -> existing Django validate action -> SellerBundleForm
+          -> existing real Product submission/approval API
+```
+
+`validPair` requires a synthetic source, nonempty recommendation identity/revision and two distinct named products; it does not require PostgreSQL IDs, inventory or catalog mappings. `save` accepts that pair plus a name, two positive integer quantities and a positive finite numeric price. It returns the actual stored record, whose `recommendation` is a deep-copied source snapshot. This retains dataset revision, synthetic seller ID, recommendation ID, names, images and each product's `source_id`. For example, `quantities: [2, 1]` means two units of the first recommended item and one of the second; it never reserves those units.
+
+Storage key: `campushub_demo_bundles_v1_seller_<authenticated seller ID>`. Record identity is a JSON tuple of source, dataset revision and recommendation ID. `_mutate` serializes read/modify/write operations across store instances. A repeat create returns the existing record; editing explicitly updates it. `_write` checks the platform's boolean result and reloads the preference cache on failure, preventing a failed cached write from masquerading as success. Corrupt JSON causes a visible failure instead of silently clearing records. `list` returns local records; `find` reopens one for a selected pair; `delete` removes only the requested local record after UI confirmation. The saved list remains usable independently of current recommendation availability.
+
+This approach reuses the already installed SharedPreferences package and existing Flutter components. It needs no new server entity or simulated marketplace product, and keeps SUS samples available after ordinary app restarts on the same installation.
+
+### 5. Backend / API behavior
+
+Demo create/preview/save/edit/delete never calls a marketplace mutation endpoint. Source reads and the existing authorized Dismiss API remain. The obsolete synthetic-to-real bundle submission branch is removed: the real product endpoint rejects `suggestion_source=synthetic` with 400, even with valid owned/approved mapped products. Live calls still use the existing exact-recipe, seller ownership, approved-product, variant, inventory and seller-access checks; successful real submissions retain pending approval and normal recommendation monitoring.
+
+### 6. Database / migration impact
+
+No model, migration, database-selection setting or dataset change. No application PostgreSQL product, bundle component, order, payment, inventory, revenue or analytics record is written by local demo saves. Dismiss deliberately retains its existing authenticated activity recording. Django verification creates/destroys a uniquely named disposable PC PostgreSQL database; it does not reset or seed the working database.
+
+### 7. Tests performed
+
+- Flutter: 32 focused tests passed, one optional authenticated HTTP test skipped (no token/base URL supplied), covering local lifecycle, preview without saving, duplicate prevention, seller/source isolation, failed save, persistence readback, carousel/swiping/dismiss and existing live validation.
+- Flutter: all 39 existing seller Home layout tests passed, including enlarged text and the preserved Recent Orders/empty states. Two targeted existing seller workspace tests also passed: section navigation and actual Live Data bundle submission/review status. Total across these passing runs: 73 Flutter tests, plus one optional HTTP skip.
+- Django: 34 recommendation tests passed after the backend isolation change, including the new synthetic rejection/no-write check and inherited live submission/ownership/approval/inventory regressions. System checks reported no issues.
+- Scoped Flutter analysis: no issues in nine touched source/test files. Formatting and scoped Git whitespace checks passed.
+- Rendered the actual Flutter form using bundled fonts and inspected the PNG; enlarged form/preview widget checks cover 280dp and 390dp at 2x text. No physical-phone walkthrough claimed.
+- A broader initial seller run reproduced the documented unrelated Add Product semantics failure (`Step 1 of 4` as a progress numeric value). It was not changed. Early new-flow test failures exposed a queue issue, list refresh callback and enlarged-button measurement; these were corrected before the passing focused run.
+- Evidence/logs are ignored under `scratch/demo-bundle-workflow-*`. Debug APK build succeeded; no install or hosted deployment is implied.
+
+Commands from `campushub/`: `flutter test --no-pub test/seller_demo_bundle_workflow_test.dart test/seller_bundle_flow_test.dart test/seller_bundle_carousel_test.dart test/seller_bundle_demo_test.dart test/synthetic_demo_images_test.dart`; `flutter test --no-pub test/seller_home_layout_test.dart`. Django command from root: `backend/core/venv/Scripts/python.exe scratch/test-organization-20261109/run_local_tests.py api.tests.test_seller_recommendations` (the existing runner guards local port/database identity and uses a disposable test database).
+
+### 8. Remaining limitations / troubleshooting / learning exercise
+
+Samples are device-local, not shared between devices or backed up to Django. They persist across ordinary app restarts but can be removed by uninstalling/clearing app data; the UI states this. They are intended for SUS testing, not financial storage. No hosted deployment, physical-device restart persistence check or phone walkthrough was performed. A changed dataset revision creates a separate sample identity; old samples stay reachable through Saved Demo Bundles. Old mobile clients attempting mapped synthetic real creation now receive the deliberate 400 response and must use the updated demo flow. The optional real-HTTP test was not run.
+
+If Create Demo Bundle is disabled, inspect source/revision and the two product identities/names; do not assign catalog IDs to enable it. If saving fails, keep the draft, check local storage availability and retry; the success view must remain absent. If a saved demo is missing, check the signed-in seller and device, then Saved Demo Bundles; live My Bundles intentionally excludes these samples. Do not clear app data to troubleshoot if samples must be retained.
+
+Safe practice: use an existing synthetic pair, change only its local bundle name, increase the first quantity to two and enter `45.50`. Preview and verify Saved Demo Bundles is still empty. Save, reopen via Saved Demo Bundles, edit the price, cancel the first delete confirmation, then confirm deletion. Verify the normal My Products/My Bundles list never gains this sample. To learn the code safely, change the **test-only** `demoPair()` fixture's names, run `flutter test test/seller_demo_bundle_workflow_test.dart`, and verify the two prefills and provenance assertions; never edit the CSV or seed real products for this exercise.
+
+## Synthetic Demo product images — November 9, 2026
+
+- **Cause/fix:** verified catalog images were already supplied by Django, but unmapped demo products had only the placeholder. Flutter now uses the existing verified `image_url` first, an explicitly registered local demo image second, and the original placeholder if neither loads. Synthetic Demo disclosure, eligibility and Create Bundle validation are unchanged.
+- **Files/anchors:** `campushub/lib/module_app/widgets/seller/synthetic_demo_images.dart:7` maps 30 exact CSV seller/product identities (S01–S05, P01–P06) to six bundled illustrations; `:42` `syntheticDemoImage(row, product)` accepts only `source=synthetic` and the complete `source_id` (or legacy composite `id`). Numeric PostgreSQL IDs, bare P-codes, names, live rows and unknown identities cannot select a demo asset. `seller_bundle_carousel.dart:259` passes the optional asset into the existing `ProductImage`; `campushub/lib/module_app/widgets/product_image.dart:23`/`:92` adds `fallbackAsset` with asset-error → existing-icon handling. Other callers retain their existing behavior. `campushub/pubspec.yaml` bundles `assets/demo/synthetic/`.
+- **Assets:** six original, unchanged OpenMoji 17.0.0 PNG illustrations (53,712 bytes total), with CC BY-SA 4.0 attribution/license registered in Flutter. `campushub/assets/demo/synthetic/{README.md,LICENSE.txt,sources.json}` records credit, source URLs and hashes. These are illustrative demo artwork, not actual catalog photographs. No AI images were generated or new package dependencies added.
+- **API/database:** existing backend `source_id`, verified owner/approval mapping and `image_url` contract reused without backend edits. No schema, migrations, products, images-in-database, stock, orders or account records changed. Images never enable Create Bundle.
+- **Verified:** 28 targeted Flutter tests passed, including actual authenticated HTTP response → identity mapping → decoded PNG rendering and carousel swipe; catalog-image priority, malformed/missing images, unknown/bare/numeric IDs, live-source isolation, bundled assets, unchanged memory decoding, existing seller/source/See All flow and responsive layouts. Existing Django catalog-mapping/ownership/image test passed (one test, disposable local database). Five-file scoped analysis clean; formatting/whitespace passed; actual rendered asset thumbnails inspected. Tests: `campushub/test/{synthetic_demo_images_test.dart,seller_bundle_demo_test.dart}` plus existing image/carousel/flow suites. Ignored evidence: `scratch/demo-images-20261109/`.
+- **Phone:** explicit Flutter build exit 0; all six original image hashes verified inside the APK. Installed over the existing CampusHub package (18.22s) without clearing app data, restored API/chat forwarding and native launch returned `Status: ok`. Actual seller image rendering was inspected in the HTTP-backed Flutter capture; physical seller-tab navigation was not manually inspected. The first PowerShell-redirected build produced a successful APK/log but wrapper exit 1; the explicit subprocess rerun confirmed exit 0.
+- **Safe practice/limits:** to add another demo image, bundle a licensed PNG, add its full verified CSV identity to the registry, and run `flutter test test/synthetic_demo_images_test.dart`. Verify numeric/live identities still return no demo asset and missing files still show the existing icon. Unknown synthetic identities deliberately retain the placeholder. Catalog photos still require the existing reviewed real-product mapping. No hosted deployment is performed by this image-only change.
+
+## SUS fix: durable seller demo data — November 9, 2026
+
+- **Cause:** confirmed the CSV reads 1,000 transactions/2,027 items and calculates four qualifying pairs. The approved seller endpoint returned unavailable because no analysis projection existed in its one-hour process-local cache. Flutter already requested the synthetic endpoint and allowed unmapped synthetic rows; ownership filtering was not the confirmed blocker.
+- **Files/anchors:** `services/seller_recommendations.py:27` (`demo_report_path`), `:32` (`publish_demo`), `:57` (`_demo`), `:88` (`seller_recommendations`) under `backend/core/modules/marketplace/`; `services/bundle_suggestions.py:374` publishes before caching research success. `core/settings.py` adds an optional report path; `core/settings_production.py` defaults it to shared reports; root `.gitignore` excludes local `backend/core/var/`. Flutter `seller_workspace_content.dart:1433`/`:1495` renders state-specific text with the same icon; `seller_bundle_carousel.dart:62` requires explicit synthetic creation eligibility. Relevant Django/Flutter tests were updated/added; no unrelated refactor.
+- **Test files:** `backend/core/api/tests/test_seller_recommendations.py`, `backend/core/modules/marketplace/tests/test_bundle_suggestions.py`, `campushub/test/seller_bundle_demo_test.dart`, `campushub/test/seller_bundle_flow_test.dart`. Django report writes are isolated in temporary test directories.
+- **Flow:** existing Super Admin authorization → existing CSV/Apriori/thresholds → atomic, product-only version-1 JSON report → approved seller GET → existing Flutter service/parser → existing carousel. `publish_demo(snapshot, result, limits)` stores IDs/names/revision/threshold binding, not research metrics; `_demo()` reads/validates it without mining. The file survives process/cache restarts and has no time expiry. A changed CSV/hash or thresholds intentionally requires a new authorized run. Local report: `backend/core/var/reports/seller-bundle-demo.v1.json`; production uses the existing shared directory or private `CAMPUSHUB_SELLER_DEMO_REPORT_PATH` override. No absolute CSV path is stored, permitting equivalent worker/release paths.
+- **API/creation:** explicit `status`: `ready`, `not_generated`, `no_qualifying_pairs`, `error`. Synthetic seller/source IDs remain distinct; existing owner/approval/recipe validation and form preselection remain. Unmapped pairs display placeholders with disabled Create Bundle. Live Data never consumes this report; Admin retains its existing private research metrics/cache. Atomic replacement preserves the last completed report if publishing fails.
+- **Database:** no schema/migration/selection or working account/order/payment/stock changes. Generated the local report through the existing service using an existing authorized Super Admin, with PostgreSQL connection enforced read-only; relevant record counts remained unchanged. Authenticated localhost HTTP returned all four pairs, Live Data remained separate, and no real product was created.
+- **Verified:** 50 targeted Django tests passed (11.708s), including actual CSV calculation, cache loss/independent-process read, corrupt/stale/empty states, atomic failure, permissions and existing verified mapping/submission checks. 19 Flutter tests passed, including a real authenticated HTTP service/parser/render/swipe/blocked-validation test, existing source/See All flow and 280–430dp responsive carousel checks. Four-file analysis clean; formatting passed. Actual Flutter render inspected. Evidence is ignored under `scratch/sus-bundles-20261109/`; no credentials are stored there. The optional real-HTTP Flutter test uses transient `SELLER_DEMO_API_URL`/`SELLER_DEMO_TOKEN` environment values and is skipped when absent. Initial test-only network-adapter compilation and two old disclosure assertions were corrected before the passing rerun.
+- **Connected phone:** debug APK build passed (53.5s); verified the existing CampusHub package, restored Django/chat reverse forwarding, installed with `adb install -r` (17.06s) and native activity launch returned `Status: ok`. No uninstall or app-data clearing. Physical seller-tab navigation was not manually inspected; actual authenticated demo rendering/swiping was verified by the Flutter HTTP test above.
+- **Safe practice / limits:** run the existing authorized Run Demo Analysis action after deliberately changing the CSV or thresholds; refresh the seller Synthetic Demo tab and verify `status=ready` plus the calculated pair count. Never seed marketplace products or assign catalog IDs from CSV IDs. Without a reviewed real catalog mapping, demo creation remains intentionally disabled. Hosted deployment/report generation is not performed by this local fix; it needs the same code and a writable shared report path. The historical one-hour seller-cache descriptions below are superseded by this section.
+
+## Mobile Seller Home carousel and separate synthetic demo — November 9, 2026
+
+**Current implementation:** Seller Home shows one recommendation at a time with manual swiping, position text, gold indicators, an authorized Dismiss menu and a full-width Create Bundle action. Recent Orders remains immediately below. The Phase 1 empty-state icon/copy is preserved. Live Data is the default; Synthetic Demo is an explicit separate selection. The existing See All destination lists every eligible record for the selected source, without creating another screen.
+
+### 1. Cause / reason
+
+The existing Home preview stacked up to two text-based recommendations with View Suggestion/Create Bundle controls. It consumed unnecessary vertical space and preselected products from a potentially stale workspace snapshot. CSV analysis was deliberately restricted to the Super Admin research workflow; mobile sellers must not gain permission to run mining or inspect administrative metrics. This change keeps that boundary: a successful existing **Run Demo Analysis** action publishes a separate product-only demo projection. Seller GET requests only read that completed projection, never mine the CSV.
+
+### 2. Exact files changed / current lines and anchors
+
+Paths are relative to the project root; Flutter lives in its separate `campushub/` repository.
+
+| File | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/seller/seller_bundle_carousel.dart` | 9 `SellerBundleCarousel`; 84 `cardHeight`; 146 `dismiss`; 174 `create`; 306 `build` | New shared recommendation presentation: measured height, one manual page, indicators, pair images/names, menu and action. Full-list mode reuses the same card. |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 1433 `_bundleSuggestionsEmptyState`; 1482 `suggestions`; 1745 section title | Keep the empty widget, replace stacked previews with the carousel, add separate source controls/disclosure, reuse cards for See All, remove the unused old View Suggestion presentation. |
+| `campushub/lib/module_app/screens/seller_dashboard_page.dart` | 107 `_load`; 331 `_createBundle`; 397 `_refreshRecommendations`; 445 `_dismissRecommendation` | Fetch/validate source-specific data, verify fresh products before form navigation, ignore superseded responses and remove only a successfully dismissed row. |
+| `campushub/lib/module_app/screens/dashboard_screen.dart` | 79 `_sellerRecommendationSources`; 201 `_openSellerTool`; embedded seller widget | Retain source per seller in the current dashboard session, pass it to the existing See All route, refresh recommendations when returning from that route. |
+| `campushub/lib/module_app/screens/seller_bundle_form.dart` | 7 constructor; 77 `suggestion_source` | Keep the existing form and submission API; carry verified source/revision along with its suggestion ID. |
+| `campushub/lib/module_app/services/seller_application_service.dart` | 125 `recommendations`; 137 `recommendationAction` | Existing bearer transport for source reads and one-shot validation/dismissal POSTs; no automatic POST retries. |
+| `backend/core/modules/marketplace/services/seller_recommendations.py` | 26 `publish_demo`; 37 `_demo`; 56 `seller_recommendations`; 122 `validated_pair` | New safe projection, cache revision checks, explicit catalog mapping, eligibility and seller-scoped dismissal reads. |
+| `backend/core/modules/marketplace/services/bundle_suggestions.py` | 374 `publish_demo` call in `execute_synthetic_research` | Publish only after existing Super Admin authorization and successful analysis; preserve the full research result/cache. |
+| `backend/core/modules/marketplace/mobile_seller_views.py` | 88 `workspace`; 254 `recommendations`; 268 `recommendation_action` | Reuse the safe live projection in the workspace; authorize separate source reads, fresh form validation and persistent seller-only hiding. |
+| `backend/core/api/views.py` | 842 `recommendation_source`; 889 source-specific creation evidence | Revalidate mapped demo pairs inside existing bundle submission, preserve real recipe/approval rules, and prevent demo creation from being linked as live recommendation evidence. |
+| `backend/core/core/urls.py` | 102 recommendation routes | Add two approved-mobile-seller endpoints, leaving the existing workspace, form API and legacy save/remove endpoints in place. |
+| `backend/core/core/settings.py` | 287 `CAMPUSHUB_SYNTHETIC_PRODUCT_MAP` | Optional private JSON configuration; default empty mapping. No database destination change. |
+| `backend/core/api/test_seller_recommendations.py` | 19 `SellerRecommendationTests` | CSV, permissions, mappings, ownership, source/revision, persistence and submission regressions with isolated database fixtures. |
+| `campushub/test/seller_bundle_carousel_test.dart` | 62 manual swipe; 96 Dismiss; 144 full-list case | New manual swipe, count/dot, Dismiss, single/empty, eligibility and responsive checks; real Flutter render exports. |
+| `campushub/test/seller_bundle_flow_test.dart` | 14 `FlowService`; 94 stale validation; 145 workflow; 191 transport | New source selection, stale validation, fresh preselection, error, See All and bearer transport checks. |
+| `campushub/test/seller_home_layout_test.dart` | 673 recent-order PageView finder; 1005 bundle-state assertions | Scope order tests to their own carousel and expect the removed View Suggestion control to be absent. Preserve empty/error checks. |
+| `campushub/test/seller_workspace_test.dart` | 68 `recommendationAction` fake; Create Bundle workflow | Model server validation in the existing test service and update the intended removal of View Suggestion. |
+| `docs/suggested-product-bundles.md`, `CAMPUSHUB_CONTEXT.md` | 3 current report / summary | Current behavior, exact contracts, verification, limitations and learning exercise. |
+
+Existing unrelated database-tunnel, Android-forwarding and network-guide edits were preserved. No CSV, migration, model, global palette, shared typography or dashboard-layout redesign is part of this change.
+
+### 3. Changes made
+
+The carousel uses `PageView.builder` with one full-width page, no timer or automatic advancement. Every card in a source uses the same measured height: actual text style/scaling and available width determine header/name/button/explanation space. Names wrap to two lines with a tooltip for the full name. The source label itself wraps without truncation. Cards use navy, white, a subtle border and 12px corners; gold `#FCB316` marks the plus and selected indicator. The button spans the card width. Indicators appear only with multiple records and use a window of at most seven dots for large result sets; the position label always reports the full list count.
+
+Product images come only from verified owner catalog records. Unmapped CSV products use the existing `ProductImage` placeholder and remain labelled Synthetic Demo. The card has no Support, Confidence, Lift or View Suggestion control. Those metrics remain in the complete admin research result. Dismiss is available in the three-dot menu, hides only the selected source/revision/ID for that seller and leaves saved suggestions intact. Failed dismissal leaves the card visible. Removing the last card reveals the existing empty state without dots/actions. Retry is reserved for an actual source-loading error.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+```text
+Super Admin's existing authorized Run Demo Analysis POST
+  -> existing CSV reader + Apriori service + configured thresholds
+  -> unchanged full research result (metrics/itemsets/counts for Admin/Chapter 4)
+  -> separate product-only demo snapshot (one-hour cache, CSV hash + thresholds)
+
+Approved mobile seller -> GET recommendations?source=live|synthetic
+  live      -> existing owner-scoped live association service
+  synthetic -> completed demo projection only; no mining on GET
+  -> explicit owner-verified mapping or non-creatable demo placeholders
+  -> remove that seller's hidden IDs -> Flutter active source
+  -> one Home page / existing See All full list
+
+Create Bundle -> POST action=validate -> fresh PostgreSQL ownership/eligibility
+  -> existing form preselection -> existing submission API rechecks pair + recipe
+  -> normal pending product approval; no orders, payments or stock are invented
+
+Dismiss -> POST action=dismiss -> approved seller/application recheck
+  -> existing AccountActivity event -> hide that seller/source/revision/ID only
+```
+
+`publish_demo(snapshot, result, limits)` takes the already authorized completed analysis, copies only synthetic identities/product names and stores a separate projection. It never changes the calculator result or research metrics. `_demo()` checks the configured file path, current file SHA-256 and thresholds against the projection; a missing/expired/stale snapshot returns an unavailable normal empty state, while an actual read failure returns an error. The original researcher authorization remains in `execute_synthetic_research`; sellers cannot execute it through the new endpoints.
+
+`seller_recommendations(account, source)` accepts the server-authenticated mobile account, never a client-supplied owner ID. Live rows reuse existing mining/eligibility and legacy saved/dismissed choices. Demo rows retain a separate namespace and revision. `CAMPUSHUB_SYNTHETIC_PRODUCT_MAP` explicitly maps composite CSV identities such as `S03:P05` to PostgreSQL product IDs. **There is no numeric-code or product-name matching.** Both mapped products must exist, belong to this seller, be distinct approved active single products and pass the shared component eligibility helper. Invalid, absent, foreign or duplicate mappings disable creation; foreign catalog names/images/IDs are not disclosed. The configured mapping defaults to `{}`. Only a reviewed real catalog mapping should be configured privately; test mappings are not production configuration.
+
+`validated_pair(account, source, id, revision)` returns the current verified row or a bounded public failure. Flutter `_createBundle` waits for that server result and uses its freshly serialized products, rather than trusting the old Home snapshot. Changing source, actor or full workspace request makes an older validation response ineligible to open the form. `SellerBundleForm` adds source/revision to its existing payload. The existing product submission view validates the mapping and exact recipe again inside its existing transaction. Live creation retains `source_recommendation` linking; demo creation uses a separate `BUNDLE_CREATED_FROM_DEMO` event and is not counted as a live suggestion conversion.
+
+`recommendation_action` records Dismiss as `SELLER_RECOMMENDATION_DISMISSED` in the existing `AccountActivity` table. Metadata contains source, recommendation identity and CSV revision; owner/source fields come from authentication. Reads filter those exact keys. A locked active seller application and an existence check make repeated dismissal idempotent. It does not delete/overwrite `SellerBundleSuggestion`, CSV records or another seller's state. The old save/remove API remains backward compatible.
+
+`SellerBundleCarousel` receives the eligible rows and callbacks. `cardHeight`/`headerHeight` measure the actual font and text scale so swipe pages remain consistent. Dismiss only removes a row after its callback succeeds, clamps the current page and updates indicators. `_refreshRecommendations` merges only the recommendation block into the existing workspace and uses request generations to ignore stale responses. Other Home data and the Sales Overview refresh flow remain independent. Source choice is retained per seller within the current dashboard session, passed into the existing recommendations screen, and reconciled with Home on return.
+
+Annotated example of the response contract, not a saved recommendation or fixture injection:
+
+```dart
+// The server supplies source/revision/rows. An unmapped demo row is viewable
+// but can_create is false, so the button is disabled with creation_reason.
+final source = data['recommendations']['source'];
+final rows = data['recommendations']['rows'];
+// The selected row is sent back by identity for fresh server validation.
+await service.recommendationAction(rows.first, 'validate');
+```
+
+### 5. Backend / API behavior
+
+- `GET /api/mobile/seller/recommendations/?source=live|synthetic` returns source/label/revision, product-only rows, availability/error state and synthetic disclosure. Default source is live. There is no synthetic fallback into live results.
+- `POST /api/mobile/seller/recommendations/action/` takes `id`, `source`, optional `revision`, and `action` (`validate` or `dismiss`). Validate returns fresh owner products for the existing form; Dismiss returns a confirmation after the owner-scoped hide event. These bearer-only mobile adapters reuse `approved_seller` and no-store behavior. No new research permission is granted.
+- Existing `/api/seller/products/submit/` accepts optional `suggestion_source` (default `live`) and `suggestion_revision`. Source/mapping/recipe tampering is rejected. Existing variants, approval, component inventory and seller-suspension checks remain authoritative. Older live clients remain compatible.
+- Research Support, Confidence, Lift, itemsets and supporting transaction counts remain available through the unchanged authorized research workflow. No admin metrics or administrative URLs enter the seller projection.
+
+### 6. Database / migration impact
+
+No model or migration change. `makemigrations --check --dry-run` reported **No changes detected**. No actual marketplace order, revenue, inventory movement, seller account, CSV record or working product was created/changed by this task. Django test fixtures/submissions were confined to the separate PostgreSQL test database, guarded to the selected PC connection on port 5432. The development database connection and saved online settings were not switched.
+
+Future real Dismiss actions intentionally write owner-scoped activity events to the existing table. Future successful form submissions intentionally create genuine pending catalog bundles from verified real products using the existing workflow; simulated transaction records themselves are never imported. Demo-derived bundle provenance is recorded separately from live evidence.
+
+### 7. Tests performed
+
+- Flutter formatting completed on the changed source/test files. Scoped whitespace checks passed. Actual Flutter screenshots of eligible and disabled demo cards were exported and visually inspected under ignored `scratch/seller-bundle-carousel-20261109/`. These are isolated widget-test fixture renders, not claimed working-database recommendations.
+- Five-file focused seller run (`seller_bundle_carousel_test`, `seller_bundle_flow_test`, `seller_home_layout_test`, `seller_home_entry_test`, `seller_sales_refresh_test`): **83 passed**. It covered Home ordering/Recent Orders, existing empty/error/icon/navigation states and the new carousel. Two additional cases were subsequently added and checked in the final bundle-only run; overlapping runs are not summed.
+- Final bundle-only run of `seller_bundle_carousel_test.dart` and `seller_bundle_flow_test.dart`: **17 passed**, exit 0. Includes manual swiping/no timed slide, count/indicator selection, multiple/single/all-list records, last/failed Dismiss, disabled mapping explanation, source selection, pending stale-validation rejection, fresh server-product preselection, See All destination and bearer action transport.
+- Earlier broader compatibility run including `seller_workspace_test.dart`: **94 passed, 1 failed**, exit 1. The failure remains the pre-existing Add Product progress-semantics value `Step 1 of 4`, reproduced on unchanged `38b64b5` during Phase 1. This unrelated form issue was not changed or hidden. The existing qualifying-pair form-submission regression passed in that run.
+- Django: **159 passed** across `api.test_seller_recommendations`, `modules.marketplace.test_bundle_suggestions` and `modules.marketplace.test_bundle_monitoring` (29.899s). Includes the actual configured CSV calculation, unchanged admin research permission/metrics, no mining on seller GET, no real/synthetic mixing, same-owner mapping/foreign rejection, persistent/idempotent hiding without changing saved state or CSV/order/stock records, suspension/auth denial and existing bundle submission/approval tests. A final stale-revision assertion was added and its mapping test passed separately.
+- Whole-app `flutter analyze --no-pub`: four existing informational SDK deprecations only, exit 1 (`dashboard_screen.dart:865`, `facility_screen.dart:72`, `signup_screen.dart:525`, `campus_home_banners.dart:113`). No new warnings/errors. These unrelated deprecated call sites were not changed. Final scoped Flutter analysis of the seven recommendation source/test files reported **No issues found**, exit 0 (3.8s).
+- No phone build/install, live seller submission/dismissal, shared online write or production deployment was performed. No AI image generation was used.
+
+Reproduce from `campushub/`: `flutter test --no-pub test/seller_bundle_carousel_test.dart test/seller_bundle_flow_test.dart`, then the seller Home/layout/refresh tests listed above. From `backend/core/`, run `venv/Scripts/python.exe manage.py test api.test_seller_recommendations modules.marketplace.test_bundle_suggestions modules.marketplace.test_bundle_monitoring --keepdb --noinput` only with the intended local test database settings. Do not use a production connection for fixture tests.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+To view demo results, a permitted Super Admin opens the existing Research Analytics synthetic results tab and uses **Run Demo Analysis**, then the approved seller selects **Synthetic Demo**. No CSV mining or privileged run is triggered automatically on Home. A run completed before this code was loaded needs rerunning to publish the separate safe projection. Expiration (one hour), restart, CSV revision or threshold change can make the demo unavailable; this is a normal empty state with the existing operator guidance, not a fabricated result or a Retry error. The current local cache is process-local; multi-worker deployments need the existing Django cache configured as a shared backend for both admin and seller workers. No cache infrastructure was installed here.
+
+Mappings default to empty; unmapped demo cards are intentionally non-creatable. Before enabling a private mapping, an authorized operator must review the CSV identity and matching real catalog product, then verify owner, approved/nonarchived/single-product status. Do not infer identities from Pxx codes or names, create fake production products, import synthetic orders or loosen research permissions to populate Home. Changing a mapping requires normal settings/process reload. The user must use their normal Flutter reload/run to load the mobile code; no device installation is claimed.
+
+The known broad Add Product test failure and four analyzer notices remain. Product names are intentionally limited to two visible lines with their full names in tooltips/form data. For more than seven suggestions, dot indicators show a moving window while the full position label and swipe/See All navigation remain accurate.
+
+Safe learning exercise: inspect `test_explicit_mapping_is_rechecked_against_owner_and_database` in the isolated Django tests. Its `mapping(saved)` helper derives a composite CSV key from an actually calculated row and maps it to fixture product primary keys; it then checks successful validation, stale revision rejection, archival and foreign-owner denial. Run that named test, not a working database edit. In `seller_bundle_carousel_test.dart`, change the isolated pair fixture count from four to one and verify position `1 of 1`, no indicators and one visible card; restore the fixture afterward. This teaches source/eligibility versus presentation without changing any real orders or research data.
+
+## Mobile Seller Home empty state — Phase 1, November 9, 2026
+
+**Phase 1 is implemented.** Only the normal empty presentation in Flutter Seller Home's existing Suggested Product Bundles preview changes. Synthetic dataset integration has not started. The dedicated See All destination, populated recommendations, API error view and backend recommendation workflow retain their existing behavior.
+
+### 1. Cause / reason
+
+The latest local `seller_workspace_content.dart` preview used a single left-aligned sentence for normal empty data. It had no icon in that branch. The requested reference shows a package-with-search symbol; the updated card uses that same symbol from the existing `LucideIcons.packageSearch` icon package, without an image, illustration or dependency addition. Confirmed scope is presentation only, not a fix to the recommendation algorithm or its transaction-data threshold.
+
+### 2. Exact files changed / current lines and anchors
+
+| File relative to project root | Current line / nearby anchor | Change |
+| --- | --- | --- |
+| `campushub/lib/module_app/screens/seller_workspace_content.dart` | 3 Lucide import; 1491 `_bundleSuggestionsEmptyState`; 1563 `else if (list.isEmpty)` | Reuse existing icon library and render the centered compact card only in the existing Home empty branch. |
+| `campushub/test/seller_home_layout_test.dart` | 60 `content`; 77 `reviewFonts`; 990 existing bundle-state test; 1021 responsive cases; 1103 Retry case; 1124 active-source/navigation case | Add reload observation, load bundled fonts for real layout measurement, update copy assertions and cover state/geometry/navigation behavior. |
+| `docs/suggested-product-bundles.md` | 3 this Phase 1 report | Functions/data flow, verification, troubleshooting and learning exercise. |
+| `CAMPUSHUB_CONTEXT.md` | 3 Phase 1 summary | Preserve the current mobile scope and verified limitations. |
+
+No backend, database settings, API service, model, algorithm, dataset or shared theme file was changed by this task. Existing unrelated working-tree changes are preserved.
+
+### 3. Changes made
+
+The normal empty card now displays the exact heading **No bundle suggestions yet** and description **Suggested product combinations will appear here when enough transaction data is available.** The box/search icon, heading and description share one centered axis. The card reuses white, navy `#1A1851`, existing subtle border/secondary-text tokens and 12px corners; no new gold treatment or global palette change is introduced. A 64dp muted icon circle, 16dp icon-to-heading gap, 8dp heading-to-description gap and 20dp vertical padding keep normal layouts compact. Text wraps naturally with no fixed card height, maximum line count or ellipsis. The description is capped at 360dp width for readable lines on larger screens. The icon is decorative and excluded from screen-reader semantics because the text conveys the state.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`_bundleSuggestionsEmptyState()` takes no data or callbacks and returns only the card widget. It cannot create, dismiss, fetch or alter recommendations. Existing `suggestions(context, preview: true)` reads the active `data['recommendations']['rows']`, retains its existing two-product/current-seller eligibility filter, and chooses the branch. `recommendations['error'] == true` still takes priority and shows the existing error text plus Retry wired to `widget.onReload`. Without an error, an empty eligible list invokes the card. A nonempty eligible list renders the existing preview actions. Other lists such as `saved_suggestions` do not determine Home's empty state. At source line 1795, the unchanged section header keeps See All navigating to `SellerDestination.recommendations`.
+
+```text
+Existing workspace response -> recommendations.rows -> existing eligibility filter
+    error == true -> existing API error + Retry -> existing reload callback
+    no error / no eligible rows -> centered empty card, no actions
+    no error / eligible rows -> existing suggestion cards and callbacks
+Section header See All -> existing recommendations destination
+```
+
+Annotated state example, for an isolated widget test only:
+
+```dart
+// Successful active source with no recommendations: show the normal empty card.
+(data['recommendations'] as Map)['rows'] = [];
+(data['recommendations'] as Map)['error'] = false;
+// Setting error to true instead shows the existing Retry state, not empty copy.
+```
+
+Keeping this helper in the existing screen avoids a new recommendation source or state-management layer. Only the preview empty branch calls it; the full recommendations page remains outside this phase.
+
+### 5. Backend / API behavior
+
+Unchanged. Existing seller ownership filtering, source selection, eligibility, retry reload, See All route, recommendation preview limit and real-pair Create Bundle flow are preserved. No Create Bundle, Dismiss or Retry button is present in normal empty data. Retry remains exclusive to the existing API-error branch. Test-only fixtures are not a synthetic dataset integration and are not persisted or sent to an API.
+
+### 6. Database / migration impact
+
+None. No backend commands, migrations, live record changes, recommendation execution or database switch were performed for this phase.
+
+### 7. Tests performed
+
+Commands below run from `campushub/`:
+
+- `dart format lib/module_app/screens/seller_workspace_content.dart test/seller_home_layout_test.dart` completed. A final `dart format --output=none --set-exit-if-changed` reported two files unchanged; scoped Git whitespace checks passed.
+- `flutter analyze --no-pub lib/module_app/screens/seller_workspace_content.dart test/seller_home_layout_test.dart`: **No issues found**, exit 0 (7.2s).
+- `flutter test --no-pub test/seller_home_layout_test.dart --plain-name 'bundle'`: **11 passed**. Covers normal/error distinction, Retry callback, active versus saved results, valid/foreign pairs, preserved See All, no empty actions, exact copy/icon, centered geometry, border/radius, natural wrapping and widths 280/320/390/430dp at 1x/2x text.
+- The first geometry run used Flutter's square test font and failed the compact-height assertion. The harness now explicitly loads the bundled fonts before measuring. All eight normal/scaled geometry cases passed with the real font; no height constraint was added to hide text.
+- `flutter test --no-pub test/seller_home_layout_test.dart test/seller_home_entry_test.dart test/seller_workspace_test.dart test/seller_sales_refresh_test.dart`: **82 passed, 1 failed**, exit 1. The failure is `seller additions share Home and navbar; existing tools return without hiding catalogs`, reporting a nonnumeric progress semantics value `Step 1 of 4` in the existing Add Product flow.
+- Reproduced that exact failing test on unchanged mobile revision **38b64b5**, in isolated worktree `scratch/seller-bundle-empty-20261109/baseline/` after offline dependency resolution. It fails identically at `seller_workspace_test.dart:1149`; this establishes that failure predates this empty-state change. Unrelated Add Product code was not edited.
+- Whole-app `flutter analyze --no-pub`: exit 1 with **four informational SDK deprecations**, at `dashboard_screen.dart:841`, `facility_screen.dart:72`, `signup_screen.dart:525`, and `campus_home_banners.dart:113`. No diagnostics in the changed files. Those unchanged call sites were not modified for this focused task.
+- Actual Flutter renders were exported under ignored `scratch/seller-bundle-empty-20261109/` using `SELLER_BUNDLE_REVIEW_DIR`. Normal 390dp and 320dp/2x screenshots were visually inspected: the reference icon and text are centered, the white bordered card wraps cleanly, and surrounding Home sections remain intact. No AI image generation was used.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No physical-device build/install, authenticated live API workflow or broad unrelated semantics fix was performed. The four whole-app analysis notices and baseline-confirmed Add Product test failure remain. Optional web design-kit gates were unavailable because this checkout lacks that kit's `tokens/` and `scripts/accuracy_report.mjs`; no kit-gate result is claimed. Verification used Flutter's real renderer, layout checks, analyzer and UI tests.
+
+If a phone still shows the old sentence, reload the updated Flutter code using the normal development run. Do not create fake transactions or alter the backend to populate this card. If Retry appears, investigate the existing API error rather than treating it as normal sparse data. If real eligible results exist, this empty card should disappear.
+
+Safe learning exercise: in the isolated `bundle empty card follows active rows and keeps See All` widget test, inspect the transition from `rows: []` to `[sellerPairFixture()]`. Run the focused command above and verify the empty heading disappears while View Suggestion/Create Bundle return. Then inspect the Retry test, which changes only `error` and observes one reload callback. Keep changes in test fixtures; no working database edits are needed. This demonstrates how data state selects UI while the widget helper only controls layout.
+
 ## Current: saved recommendation carousel workspace - November 4, 2026
 
 This entry replaces the earlier stacked saved-list workspace presentation. The Dashboard Suggested Product Bundles card, existing dataset/research/activity/detail pages, algorithm and seller-mobile workflow remain separate and are preserved.

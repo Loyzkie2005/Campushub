@@ -368,6 +368,10 @@ def execute_synthetic_research(user):
                   thresholds={'support': limits[0] * 100, 'confidence': limits[1] * 100, 'lift': limits[2]})
     saved = {'format': 1, 'version': snapshot['version'], 'limits': list(limits),
              'completed_at': timezone.now(), 'result': result}
+    # Publish product-only demo results after the same Super Admin authorization;
+    # sellers cannot execute mining or read the research cache/metrics.
+    from .seller_recommendations import publish_demo
+    publish_demo(snapshot, result, limits)
     cache.set(_research_cache_key(snapshot, limits), saved, timeout=3600)
     return saved
 

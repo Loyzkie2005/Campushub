@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction, DatabaseError
-from django.db.models import Q, Count, Exists, OuterRef, F, Value, CharField, Subquery
+from django.db.models import Q, Count, Exists, OuterRef, F, Value, CharField, Subquery, Case, When, BooleanField
 from django.db.models.functions import JSONArray, JSONObject, Cast, Concat, Coalesce
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -256,7 +256,16 @@ def status_records_for(user):
     choices = SellerBundleSuggestion.objects.filter(seller_id=OuterRef("product_a__mobile_seller_id"),
         product_a_id=OuterRef("product_a_id"), product_b_id=OuterRef("product_b_id"), state="dismissed")
     bundles = linked_bundles_for(recommendations_for(user)).filter(source_recommendation_id=OuterRef("pk"))
-    return recommendations_for(user).annotate(_dismissed=Exists(choices), _created=Exists(bundles))
+    decisions = AccountActivity.objects.filter(account_source='mobile',
+        account_id=OuterRef('product_a__mobile_seller_id'), module='Marketplace',
+        activity_type='BUNDLE_SUGGESTION_UPDATED', result=AccountActivity.RESULT_SUCCESS,
+        ).annotate(
+            _event_key=JSONObject(recommendation_id=OuterRef('pk'))).filter(_event_key__contained_by=F('metadata'))
+    accepted = decisions.filter(metadata__decision='accepted')
+    declined = decisions.filter(metadata__decision='declined')
+    return recommendations_for(user).annotate(_dismissed=Case(
+        When(Exists(declined), then=Value(True)), When(Exists(accepted), then=Value(False)),
+        default=Exists(choices), output_field=BooleanField()), _created=Exists(bundles), _accepted=Exists(accepted))
 
 
 def linked_bundles_for(records):
@@ -283,10 +292,10 @@ def activity_events_for(user):
 def activity_summary(user, *, include_rates=False):
     records = status_records_for(user)
     counts = dict(sent=Count("pk", filter=Q(sent_at__isnull=False)),
-        awaiting=Count("pk", filter=Q(sent_at__isnull=False, _created=False, _dismissed=False)),
+        awaiting=Count("pk", filter=Q(sent_at__isnull=False, _created=False, _dismissed=False, _accepted=False)),
         dismissed=Count("pk", filter=Q(_created=False, _dismissed=True)))
     if include_rates:
-        counts.update(responded=Count("pk", filter=Q(sent_at__isnull=False) & (Q(_created=True) | Q(_dismissed=True))),
+        counts.update(responded=Count("pk", filter=Q(sent_at__isnull=False) & (Q(_created=True) | Q(_dismissed=True) | Q(_accepted=True))),
                       created_from_sent=Count("pk", filter=Q(sent_at__isnull=False, _created=True)))
     summary = records.aggregate(**counts)
     rates = None
@@ -369,6 +378,14 @@ def presentation(row):
             if (item.product_a_id, item.product_b_id) == (a.pk, b.pk)), None)
     response = "Bundle Created" if bundles else "Dismissed" if choice and choice.state == "dismissed" else (
         "Awaiting Response" if row.sent_at else "Not Applicable")
+    decision = AccountActivity.objects.filter(account_source='mobile', account_id=a.mobile_seller_id,
+            module='Marketplace', result=AccountActivity.RESULT_SUCCESS, activity_type='BUNDLE_SUGGESTION_UPDATED',
+            metadata__recommendation_id=row.pk, metadata__decision__in=['accepted', 'declined']).order_by(
+                '-created_at', '-pk').first() if row.sent_at else None
+    if decision:
+        from .seller_recommendations import admin_response
+        response = {'pending': 'Awaiting Response', 'accepted': 'Accepted',
+                    'declined': 'Declined', 'bundle_created': 'Bundle Created'}[admin_response(row)]
     photos = []
     for product in (a, b):
         images = product.get_image_list()
@@ -378,7 +395,7 @@ def presentation(row):
     return {"record": row, "id": row.pk, "products": photos,
             "product_a": a.name, "product_b": b.name, "seller": owner.get_full_name() or owner.username,
             "seller_ref": a.owner_ref, "academic": academic, "response": response,
-            "response_at": bundles[0].submitted_at if bundles else choice.updated_at if choice and choice.state == "dismissed" else None,
+            "response_at": bundles[0].submitted_at if bundles else decision.created_at if decision else choice.updated_at if choice and response in ('Accepted', 'Declined', 'Dismissed') else None,
             "delivery": "Highlighted in seller workspace" if row.sent_at else "Not Sent to Seller",
             "bundles": bundles, "eligible": eligible_pair(row)}
 

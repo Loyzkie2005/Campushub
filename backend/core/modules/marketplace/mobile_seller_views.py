@@ -102,13 +102,8 @@ def workspace(request):
     amounts = sales.aggregate(revenue=Sum("total_price"), units=Sum("quantity"))
     count = sales.count()
     revenue = amounts["revenue"] or Decimal("0")
-    recommendations = live_suggestions(account)
-    choices = {(row.product_a_id, row.product_b_id): row.state for row in
-               SellerBundleSuggestion.objects.filter(seller=account)}
-    recommendations["rows"] = [{**row, "saved": choices.get(pair_key(row)) == "saved"}
-        for row in recommendations["rows"] if choices.get(pair_key(row)) != "dismissed"]
-    # Do not expose administrative URLs, metrics, thresholds or other sellers.
-    public_recommendations = {key: recommendations[key] for key in ("rows", "error", "message", "detail")}
+    from .services.seller_recommendations import seller_recommendations
+    public_recommendations = seller_recommendations(account, live_result=live_suggestions(account))
     from .services.orders import order_items
     order_rows = orders.select_related("product").prefetch_related("product__inventory_skus")
     order_page = Paginator(order_rows.order_by("-created_at", "-pk"), 30).get_page(request.GET.get("orders_page", "1"))
@@ -252,3 +247,68 @@ def suggestion_choice(request, pair_id):
             activity={"save": "Bundle suggestion saved.", "dismiss": "Bundle suggestion dismissed.",
                       "remove": "Saved bundle suggestion removed."}[action], metadata={"product_ids": ids})
     return JsonResponse({"message": "Suggestion updated."})
+
+
+@never_cache
+@require_GET
+def recommendations(request):
+    from .services.seller_recommendations import seller_recommendations, RecommendationError
+    account, error = approved_seller(request)
+    if error is not None:
+        return error
+    try:
+        return JsonResponse(seller_recommendations(account, request.GET.get('source', 'live')))
+    except RecommendationError as exc:
+        return JsonResponse({'error': str(exc)}, status=exc.status)
+
+
+@csrf_exempt
+@never_cache
+@require_POST
+def recommendation_action(request):
+    """Validate before opening a form, or persist a seller-only hide event."""
+    from .services.seller_recommendations import (
+        seller_recommendations, validated_pair, RecommendationError, DISMISSED)
+    account, error = approved_seller(request)
+    if error is not None:
+        return error
+    try:
+        data = json.loads(request.body)
+        if not isinstance(data, dict) or data.get('action') not in {'validate', 'dismiss', 'accept', 'decline'} or not isinstance(data.get('id'), str):
+            raise RecommendationError('Choose a valid suggestion and action.', 400)
+        source = data.get('source', 'live')
+        if source == 'admin':
+            from .services.seller_recommendations import admin_recommendation_action
+            return JsonResponse(admin_recommendation_action(request, account, data))
+        if data['action'] not in {'validate', 'dismiss'}:
+            raise RecommendationError('Choose a valid suggestion and action.', 400)
+        if data['action'] == 'validate':
+            row = validated_pair(account, source, data['id'], data.get('revision'))
+            from api.views import serialize_product
+            products = Product.objects.filter(pk__in=[p['id'] for p in row['products']], mobile_seller=account)
+            return JsonResponse({'id': row['id'], 'source': source, 'revision': row['revision'],
+                                 'products': [serialize_product(product, request) for product in products]})
+        # No save/remove operation: saved choices remain exactly as they were.
+        with transaction.atomic():
+            from api.models import SellerRequest
+            application = latest(account, 'mobile')
+            application = SellerRequest.objects.select_for_update().get(pk=application.pk)
+            if application.status != 'approved' or application.is_suspended:
+                return JsonResponse({'error': 'Approved active seller access is required.'}, status=403)
+            result = seller_recommendations(account, source, include_hidden=True)
+            if result['error']:
+                raise RecommendationError('Unable to verify this suggestion. Retry.', 503)
+            if data.get('revision', result['revision']) != result['revision'] or not any(row['id'] == data['id'] for row in result['rows']):
+                raise RecommendationError('This suggestion changed. Refresh Suggested Product Bundles.')
+            from accounts.models import AccountActivity
+            metadata = {'recommendation_source': source, 'recommendation_id': data['id'], 'revision': result['revision']}
+            if not AccountActivity.objects.filter(account_source='mobile', account_id=account.pk,
+                    activity_type=DISMISSED, module='Marketplace', result=AccountActivity.RESULT_SUCCESS,
+                    metadata__contains=metadata).exists():
+                log_marketplace_event(request, account=account, source='mobile', activity_type=DISMISSED,
+                    activity='Seller hid a bundle recommendation.', metadata=metadata)
+        return JsonResponse({'message': 'Suggestion dismissed.'})
+    except RecommendationError as exc:
+        return JsonResponse({'error': str(exc)}, status=exc.status)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Choose a valid suggestion and action.'}, status=400)

@@ -48,6 +48,8 @@ SECURE_HSTS_PRELOAD = False
 _shared_root = Path(os.environ.get('CAMPUSHUB_SHARED_ROOT', '/srv/campushub/shared'))
 STATIC_ROOT = _shared_root / 'static'
 MEDIA_ROOT = _shared_root / 'media'
+CAMPUSHUB_SELLER_DEMO_REPORT_PATH = os.environ.get(
+    'CAMPUSHUB_SELLER_DEMO_REPORT_PATH', str(_shared_root / 'reports' / 'seller-bundle-demo.v1.json'))
 CHAT_SERVICE_HTTP_URL = CAMPUSHUB_PUBLIC_BASE_URL + '/chat'
 CHAT_SERVICE_WS_URL = 'wss://' + _public_url.netloc + '/chat/ws'
 
