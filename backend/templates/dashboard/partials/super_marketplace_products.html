@@ -2,13 +2,25 @@
     <header class="marketplace-products-header"><h3 id="topSellingProductsTitle">Top-Selling Products</h3><p>Best-performing products based on units sold.</p></header>
     <div class="marketplace-products-body">
     {{ dashboard_marketplace.top_products|json_script:'topSellingProductsData' }}
-    <div class="marketplace-products-canvas" data-products-content{% if not dashboard_marketplace.top_products %} hidden{% endif %}>
-        <canvas id="topSellingProductsChart" role="img" tabindex="0" aria-label="Top five products by units sold. Use left and right arrow keys to inspect each product." aria-describedby="topSellingProductsDescription"></canvas>
+    <div data-products-content{% if not dashboard_marketplace.top_products %} hidden{% endif %}>
+        <table class="top-products-table" id="topSellingProductsTable" aria-labelledby="topSellingProductsTitle">
+            <colgroup><col class="top-products-rank-column"><col><col class="top-products-units-column"></colgroup>
+            <thead><tr><th scope="col">Rank</th><th scope="col">Product</th><th scope="col">Units Sold</th></tr></thead>
+            <tbody data-products-rows>{% for product in dashboard_marketplace.top_products|slice:':5' %}
+                <tr>
+                    <td class="top-product-rank">#{{ forloop.counter }}</td>
+                    <th scope="row"><div class="top-product-cell">
+                        <span class="top-product-thumb" aria-hidden="true">{% include 'dashboard/partials/marketplace_icon.html' with icon='bag' %}{% if product.image_url %}<img data-top-product-image="{{ product.image_url }}" alt="" width="38" height="38" loading="lazy" decoding="async" hidden>{% endif %}</span>
+                        <span class="top-product-name" title="{{ product.product_name }}" tabindex="0">{{ product.product_name }}</span>
+                    </div></th>
+                    <td class="top-product-units">{{ product.units_sold|floatformat:'0g' }}</td>
+                </tr>
+            {% endfor %}</tbody>
+        </table>
     </div>
     <div class="marketplace-empty" data-products-empty{% if dashboard_marketplace.top_products %} hidden{% endif %}>{% include 'dashboard/partials/empty_state.html' with title='No Top-Selling Products Yet' description='Product rankings will appear when completed marketplace orders contain eligible product sales.' icon='products' %}</div>
     <p data-products-error role="alert" hidden>Unable to load top-selling products. <button type="button" id="topProductsRetry">Retry</button></p>
-    <p data-products-chart-error role="alert" hidden>Chart unavailable. Product quantities are listed below.</p>
-    <ul class="visually-hidden" id="topSellingProductsDescription" data-products-description>{% for product in dashboard_marketplace.top_products %}<li>{{ product.product_name }}: {{ product.units_sold }} units sold.</li>{% endfor %}</ul>
+    <template id="topProductPlaceholder">{% include 'dashboard/partials/marketplace_icon.html' with icon='bag' %}</template>
     <span class="visually-hidden" data-products-live aria-live="polite"></span>
     </div>
 </article>

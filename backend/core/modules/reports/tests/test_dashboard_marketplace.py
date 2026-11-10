@@ -67,6 +67,76 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
         self.assertEqual(ranked[2]["sales"], "210.00")
         self.assertEqual(data["top_selling_product"], ranked[0])
 
+    def test_top_products_table_uses_only_available_eligible_rows_and_selected_dates(self):
+        """Native table and refresh data share the existing real-order ranking."""
+        previous_day = self.today - timedelta(days=40)
+        for count in (0, 1, 3, 7):
+            with self.subTest(products=count):
+                MarketplaceOrder.objects.all().delete()
+                products = []
+                for index in range(count):
+                    name = f"Ranked product {count}-{index}"
+                    if index == 0:
+                        name += " with a long descriptive campus product name " * 2
+                    product = Product.objects.create(
+                        seller=self.seller, name=name, price=10,
+                        image_url=TEST_PRODUCT_IMAGE if index == 0 else "",
+                    )
+                    products.append(product)
+                    self.order(product, quantity=index + 1, amount=str((index + 1) * 10))
+                self.order(quantity=999, status="pending")
+                self.order(quantity=999, status="cancelled")
+                self.order(quantity=999, payment_status="unpaid")
+                self.order(self.prod_low, quantity=91, day=previous_day)
+                payload = self.api({"period": "today"})
+                ranked = payload["marketplace"]["top_products"]
+                expected = list(reversed(products))[:5]
+                self.assertEqual([row["id"] for row in ranked], [product.pk for product in expected])
+                self.assertEqual([row["units_sold"] for row in ranked], list(range(count, 0, -1))[:5])
+                with patch("django.utils.timezone.localdate", return_value=self.today):
+                    page = self.client.get(reverse("admin_dashboard_page"), {"period": "today"})
+                self.assertEqual(page.status_code, 200)
+                html = page.content.decode().split('id="topSellingProductsCard"', 1)[1].split('</article>', 1)[0]
+                table = html.split('id="topSellingProductsTable"', 1)[1].split('</table>', 1)[0]
+                self.assertEqual(table.count('<tr>'), 1 + min(count, 5))
+                self.assertIn('<th scope="col">Rank</th><th scope="col">Product</th><th scope="col">Units Sold</th>', table)
+                self.assertNotIn('<canvas', html)
+                for row in ranked:
+                    self.assertIn(f'<td class="top-product-units">{row["units_sold"]}</td>', table)
+                self.assertIn('No Top-Selling Products Yet', html)
+                self.assertIn('Product rankings will appear when completed marketplace orders contain eligible product sales.', html)
+                if count == 1:
+                    self.assertIn('data-top-product-image="' + ranked[0]["image_url"] + '"', table)
+                    image = self.client.get(ranked[0]["image_url"])
+                    self.assertEqual(image.status_code, 200)
+                directory = os.environ.get("TOP_PRODUCTS_TABLE_EXPORT_DIR")
+                if directory:
+                    path = Path(directory)
+                    path.mkdir(parents=True, exist_ok=True)
+                    (path / f"{count}.html").write_bytes(page.content)
+                    (path / f"{count}.json").write_text(json.dumps(payload), encoding="utf-8")
+                    if count == 1:
+                        (path / "product.png").write_bytes(image.content)
+                previous = self.api({"period": "custom", "start_date": previous_day.isoformat(),
+                                     "end_date": previous_day.isoformat()})["marketplace"]["top_products"]
+                self.assertEqual([(row["id"], row["units_sold"]) for row in previous], [(self.prod_low.pk, 91)])
+                if directory:
+                    with patch("django.utils.timezone.localdate", return_value=self.today):
+                        old_page = self.client.get(reverse("admin_dashboard_page"), {"period": "custom",
+                            "start_date": previous_day.isoformat(), "end_date": previous_day.isoformat()})
+                    (path / "previous.html").write_bytes(old_page.content)
+                    (path / "previous.json").write_text(json.dumps(self.api({"period": "custom",
+                        "start_date": previous_day.isoformat(), "end_date": previous_day.isoformat()})), encoding="utf-8")
+
+    def test_top_products_quantity_and_revenue_ties_have_stable_identity_order(self):
+        products = [Product.objects.create(seller=self.seller, name=f"Tied product {index}", price=10)
+                    for index in range(3)]
+        for product in reversed(products):
+            self.order(product, quantity=3, amount="30")
+        expected = sorted((product.pk for product in products), key=lambda key: f"product:{key}")
+        for _ in range(2):
+            self.assertEqual([row["id"] for row in self.api({"period": "today"})["marketplace"]["top_products"]], expected)
+
     def test_sales_overview_system_preview_values_and_grouping(self):
         """Visible preview fixtures live only in the isolated Django test database."""
         self.today = date(2026, 10, 5)
@@ -237,8 +307,8 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
         self.assertContains(page, 'Average Order Value')
         self.assertNotContains(page, 'data-executive-sellers')
         marketplace_html = page.content.decode().split('aria-labelledby="marketplaceOverviewTitle">', 1)[1].split('class="marketplace-operations-row"', 1)[0]
-        self.assertEqual(marketplace_html.count('<canvas '), 2)
-        self.assertContains(page, 'id="topSellingProductsChart"', count=1)
+        self.assertEqual(marketplace_html.count('<canvas '), 1)
+        self.assertContains(page, 'id="topSellingProductsTable"', count=1)
         self.assertRegex(page.content.decode(), r'<th\b(?=[^>]*\bscope="col")[^>]*>Order Status</th>')
         self.assertRegex(page.content.decode(), r'<th\b(?=[^>]*\bscope="col")[^>]*>Order ID</th>')
         self.assertNotIn('View chart data', marketplace_html)
@@ -347,9 +417,9 @@ class DashboardMarketplaceTests(fixtures.DedicatedDomainDashboardTests):
         self.assertEqual(self.client.get(row["image_url"]).status_code, 200)
         with patch("django.utils.timezone.localdate", return_value=self.today):
             page = self.client.get(reverse("admin_dashboard_page"), {"period": "today"})
-        self.assertContains(page, 'id="topSellingProductsChart"')
+        self.assertContains(page, 'id="topSellingProductsTable"')
         self.assertContains(page, "Best-performing products based on units sold.")
-        self.assertContains(page, '3 units sold.')
+        self.assertContains(page, '<td class="top-product-units">3</td>', html=True)
         self.prod_approved.delete()
         historical = self.api({"period": "today"})["marketplace"]["top_products"][0]
         self.assertEqual(historical["category"], "Original category")

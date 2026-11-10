@@ -1,5 +1,68 @@
 # Marketplace Analytics: ranked products, category sales and persistent chart layout
 
+## Current: Compact three-column Top-Selling Products table - November 10, 2026
+
+### 1. Cause / reason
+
+The actual Super Admin component used a Chart.js canvas for populated rankings and a trophy empty state when no eligible sales existed. The latest request replaces that chart with a compact native **Rank | Product | Units Sold** table. Inspection confirmed that the existing `top_selling_products()` provider already returns at most five real, selected-period products in the correct order. No sales or ranking calculation needed correction.
+
+This section supersedes the historical chart/keyboard-chart/description-list presentation below only for this card. The independent card placement, heading/subtitle, Marketplace width, global date/refresh/error/Retry workflow and every other dashboard component remain unchanged. Previously uncommitted work is preserved and excluded from this feature's commit.
+
+### 2. Exact files changed / current lines and anchors
+
+| File and current line | Anchor / targeted change |
+| --- | --- |
+| `backend/templates/dashboard/partials/super_marketplace_products.html:5` | Existing `data-products-content` wraps the native `topSellingProductsTable`: three column headers, native row headers, ranks and actual units; cap initial rows at five. Add existing bag-icon/photo thumbnails and focusable full-name text. Remove only the ranking canvas and its redundant chart-error/description-list fallback. Existing JSON, empty copy/trophy, load-error/Retry and live-region hooks remain. |
+| `backend/static/components/css/admin_top_products.css:2` | New card-scoped stylesheet: white table, 38px/36px proportional photos, roughly 51–53px rows, thin separators, aligned tabular counts and safe truncated names that expand on focus. Empty-area rule at `:38` keeps the trophy/copy centered on white with a 160px minimum; narrow viewports can grow naturally for readable text. |
+| `backend/static/components/js/admin_marketplace_products_chart.js:14`, `:24`, `:67` | Keep the existing asset path/event entry point while replacing chart drawing with authenticated image loading, safe native DOM row rendering and the existing global refresh/error events. Preserve Retry in the existing controller. No Chart.js dependency for rankings. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:31`, `:625` | Load the new scoped stylesheet after existing dashboard styles; change only the ranking script version to `20261110-top-products-table`. Earlier unrelated asset versions remain as found in the workspace. |
+| `backend/core/modules/reports/tests/test_dashboard_marketplace.py:70`, `:131`, `:311`, `:420` | Add actual isolated-record cases for 0/1/3/7 products, top-five limit, exclusions, selected dates and equal-quantity/revenue deterministic ordering; update only obsolete ranking-chart assertions to the table. Optional ignored QA exports replay actual Django responses. |
+| `backend/core/accounts/tests/test_admin_workflows.py:574` | The inherited Super Admin role/template assertion now requires the ranking table instead of the removed canvas. Permission/template-isolation checks are preserved. |
+| `docs/dashboard-marketplace-ranked-sales.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current eight-part report, data flow, verification, troubleshooting and safe exercise. |
+
+### 3. Changes made
+
+| Before | After | Why |
+| --- | --- | --- |
+| Populated chart with visually shortened axis names | Three-column native table with ranks, photo/name and quantity | Make exact product rankings easier to scan and read accessibly. |
+| Chart-specific keyboard/description fallback | Native column/row headers; full DOM names, title tooltip and focus expansion | Preserve access to complete names without depending on canvas or adding a visible column. |
+| Shared compact message with no reserved area | White, borderless, centered trophy/title/description with a 160px minimum | Match the requested empty-state size without a gray inner panel. |
+
+There are no progress bars, percentages, added metrics, rank badges or new actions. Ordinary row height is about 51–53px. Full long names are available to screen readers and expand when focused by keyboard/touch; that focused row can become taller as needed. The Units Sold heading may wrap on a narrow phone, while all three columns remain aligned without scrolling.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Unchanged selected-date/paid-completed order eligibility feeds `dashboard_marketplace.top_selling_products(orders, limit=5)`. That function groups surviving product variants under the parent ID and retains existing historical fallbacks. Its deterministic ordering is descending `units_sold`, descending `sales_sum`, then `product_identity`. Revenue remains an internal tie-breaker; it is not displayed as another column. Existing initial Django context and dashboard GET JSON expose the same `marketplace.top_products` fields.
+
+The partial initially renders those records into the table, including real `product_name`, `units_sold` and existing `image_url`. Rank is its returned position. A missing/deleted photo retains the shared bag SVG. `loadImage(image)` adds the existing tab token only to a same-origin image URL, loads the existing image endpoint and hides a failed image so the underlying placeholder remains. It never alters a product or order.
+
+The unchanged global controller's `campushub:dashboard-data` event passes the selected-period response to `render(products)`. That function takes at most five records, builds cells with `textContent` (rather than interpreting names as HTML), formats integer quantities and replaces only this table's rows. It toggles the existing content/empty/error hooks and updates the existing invisible live announcement. Failed dashboard requests hide stale rows/empty content and reveal the existing error/Retry. No new fetch endpoint, global filter calculation or listener was added outside this component.
+
+Annotated example: `products.slice(0, 5)` limits the displayed records without creating missing rows. For a response containing three eligible products, `render` creates three `<tr>` elements; an empty response creates none and shows the exact trophy empty state. Initial Django rows use the same five-item limit and remain readable if JavaScript is disabled. Existing `admin_marketplace_products_chart.js` keeps its filename to avoid unnecessary asset-path changes, but no longer creates a ranking chart.
+
+### 5. Backend / API behavior
+
+Unchanged provider, query counts, product identity, eligibility, sales/quantity aggregation, date range, deterministic secondary sorting, endpoint, permissions and image route. No fake/synthetic sales, fabricated image assets or extra products. The Super Admin card's display changes only; Marketplace Admin's separate ranking component is untouched. Sales Summary/Trend, Bundles, Inventory, Recent Orders, Facilities and Services files were protected against accidental changes during this task.
+
+### 6. Database / migration impact
+
+None. No database settings, production/application records, models, migrations or dependencies changed. New fixtures exist only in the guarded, unique disposable localhost PostgreSQL test database; that database was destroyed. Browser verification replayed those actual page/API/image exports and made only GET requests. Ignored exports, logs and screenshots are not part of the feature commit.
+
+### 7. Tests performed / actual results
+
+- **79 existing/new Django tests ran in 22.766s: 78 passed, one pre-existing unrelated assertion failed; no errors.** Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.reports.tests.test_dashboard_marketplace modules.reports.tests.test_dashboard_periods modules.reports.tests.test_dashboard_executive`. All table/ranking/image/exclusion/date/permission/role-isolation tests passed. The only failure is `GlobalDashboardTests.test_global_dashboard_markup_and_review_artifact`, which expects six `vs yesterday` occurrences but the earlier Booking comparison title produces a seventh. It was left unchanged to respect this task's scope. The first fixture run also caught an overlong test-only name; it was shortened to fit the existing 150-character schema, with no model/database change.
+- **One isolated baseline audit passed in 0.499s**, rendering the saved original ranking component with the otherwise untouched workspace. It confirmed the original canvas and the same seven comparison occurrences. This proves the outstanding assertion predates the table change. Both local test databases were destroyed. Reports: `scratch/test-organization-20261109/top-products-table-results.json` and `top-products-baseline-audit-results.json`.
+- **1,368 headless Chrome checks passed** using actual Chart.js 4.4.1 for surrounding charts. Seven widths (1440/1280/1024/768/390/320/280px), 0/1/3/7 eligible products, exact top-five names/units/ranks, existing trophy/copy, real image response/missing and failed-photo fallback, native three-column headers/row headers, compact rows/thumbnails, full-name focus expansion, actual date filtering, Refresh, error/Retry, populated-to-empty, no Chart.js ranking dependency and server-rendered rows without JavaScript. No uncaught JS/unexpected console errors, overlap or horizontal scrolling/overflow. Two expected resource errors came from deliberately failed photo/HTTP requests. No mutating requests. Command: `node scratch/top-products-table-20261110/review.cjs`.
+- Empty area measured 160px at ordinary widths, growing to189.19px at the narrowest stress width for readable copy. Desktop/mobile populated and empty screenshots were visually inspected. Baseline comparisons preserved the card width and other cards' markup/dimensions/styles (apart from natural vertical flow caused by this card's changed height). Twelve protected source hashes remained unchanged, including ranking provider/views/date calculations, global filter, Sales/Booking renderers/styles, Attention, Bundles and executive layout. JavaScript syntax and scoped whitespace checks passed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+One unrelated comparison-count assertion remains as documented above; no ranking/UI test failure remains. Chart-library errors elsewhere cannot prevent this native table from displaying. Empty/focused-name rows may grow on very narrow screens to preserve essential text. Physical-device and deployed production-account checks were not performed. Commit/push is scoped to this feature; earlier unrelated uncommitted changes remain in the workspace. The final implementation reply records the actual commit/push result.
+
+If the old chart remains, hard-refresh and confirm both ranking assets use `v=20261110-top-products-table`; check that the new CSS is collected during deployment. If a photo fails, inspect the existing image endpoint/session and confirm the bag placeholder remains; do not fabricate replacement images. If rankings are empty, compare `marketplace.top_products` in the existing dashboard GET response and verify selected dates and actual eligibility rather than adding sales.
+
+Safe exercise: select an existing period with eligible products, compare the first row's name/units with the dashboard GET JSON and focus a truncated name to reveal it. Select an empty historical period and confirm no rows are shown and the exact trophy empty state returns. Resize to390px and confirm all three columns fit. Temporarily block one image request in developer tools, Refresh and confirm its existing placeholder appears while the name/count remain. Restore network conditions and reload. Do not create, edit or pay real orders to test styling.
+
 Implemented October 4, 2026 for the CampusHub Super Admin Dashboard.
 
 Latest operations follow-up: Recent Orders and Inventory Alerts now have separate full-width cards within the existing Marketplace column, 16px apart. They follow this unchanged independent ranking card; its placement, title, ranking data and refresh behavior remain. The older shared operations wrapper described below has been removed. Current files, functions/data flow, verification, troubleshooting and safe practice are in the [dashboard operations report](dashboard-analytics-operations-update.md).

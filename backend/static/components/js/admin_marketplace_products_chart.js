@@ -1,106 +1,74 @@
-document.addEventListener('DOMContentLoaded', async () => {
+// Keep the existing asset/event entry point; rankings now use a native table.
+document.addEventListener('DOMContentLoaded', () => {
     const card = document.getElementById('topSellingProductsCard');
-    const canvas = document.getElementById('topSellingProductsChart');
-    if (!card || !canvas) return;
-    let rows = JSON.parse(document.getElementById('topSellingProductsData').textContent).slice(0, 5);
+    const table = document.getElementById('topSellingProductsTable');
+    if (!card || !table) return;
+    const body = card.querySelector('[data-products-rows]');
     const content = card.querySelector('[data-products-content]');
     const empty = card.querySelector('[data-products-empty]');
     const error = card.querySelector('[data-products-error]');
-    const fallback = card.querySelector('[data-products-chart-error]');
-    const description = card.querySelector('[data-products-description]');
     const live = card.querySelector('[data-products-live]');
+    const placeholder = document.getElementById('topProductPlaceholder');
     const numbers = new Intl.NumberFormat('en-PH');
-    let chart;
-    let chartFailed = false;
-    let active = -1;
-    function sync() {
-        error.hidden = true;
-        content.hidden = !rows.length || chartFailed;
-        fallback.hidden = !rows.length || !chartFailed;
-        empty.hidden = Boolean(rows.length);
-        const list = rows.map(product => {
-            const item = document.createElement('li');
-            item.textContent = `${product.product_name}: ${numbers.format(product.units_sold)} units sold.`;
-            return item;
-        });
-        description.replaceChildren(...list);
-        if (rows.length && !chart && !chartFailed) createChart();
-        if (chart && rows.length) {
-            chart.data.labels = rows.map(p => p.product_name);
-            chart.data.datasets[0].data = rows.map(p => p.units_sold);
-            chart.update('none');
-            requestAnimationFrame(() => chart.resize());
-        }
-        content.hidden = !rows.length || chartFailed;
-        fallback.hidden = !rows.length || !chartFailed;
-        description.classList.toggle('visually-hidden', !rows.length || !chartFailed);
-        active = -1;
+
+    function loadImage(image) {
+        // Reuse the existing authenticated image endpoint and tab-session convention.
+        const source = new URL(image.dataset.topProductImage, location.origin);
+        const token = window.CampusHubAdminSession?.getTabToken() || new URL(location.href).searchParams.get('__at');
+        if (source.origin === location.origin && token) source.searchParams.set('__at', token);
+        image.addEventListener('error', () => { image.hidden = true; }, {once: true});
+        image.src = source.href;
+        image.hidden = false;
     }
-    sync();
-    document.addEventListener('campushub:dashboard-data', event => {
-        rows = event.detail.marketplace.top_products.slice(0, 5);
-        sync();
-    });
+
+    function render(products) {
+        const rows = products.slice(0, 5).map((product, index) => {
+            const row = document.createElement('tr');
+            const rank = document.createElement('td');
+            rank.className = 'top-product-rank';
+            rank.textContent = `#${index + 1}`;
+            const label = document.createElement('th');
+            label.scope = 'row';
+            const cell = document.createElement('div');
+            cell.className = 'top-product-cell';
+            const thumb = document.createElement('span');
+            thumb.className = 'top-product-thumb';
+            thumb.setAttribute('aria-hidden', 'true');
+            thumb.append(placeholder.content.cloneNode(true));
+            if (product.image_url) {
+                const image = document.createElement('img');
+                image.alt = '';
+                image.width = image.height = 38;
+                image.loading = 'lazy';
+                image.decoding = 'async';
+                image.dataset.topProductImage = product.image_url;
+                loadImage(image);
+                thumb.append(image);
+            }
+            const name = document.createElement('span');
+            name.className = 'top-product-name';
+            name.textContent = name.title = product.product_name;
+            name.tabIndex = 0;
+            cell.append(thumb, name);
+            label.append(cell);
+            const units = document.createElement('td');
+            units.className = 'top-product-units';
+            units.textContent = numbers.format(product.units_sold);
+            row.append(rank, label, units);
+            return row;
+        });
+        body.replaceChildren(...rows);
+        content.hidden = !rows.length;
+        empty.hidden = Boolean(rows.length);
+        error.hidden = true;
+        live.textContent = `Top-selling products updated. ${rows.length} product${rows.length === 1 ? '' : 's'}.`;
+    }
+
+    card.querySelectorAll('[data-top-product-image]').forEach(loadImage);
+    document.addEventListener('campushub:dashboard-data', event => render(event.detail.marketplace.top_products));
     document.addEventListener('campushub:dashboard-load-error', () => {
         content.hidden = empty.hidden = true;
-        fallback.hidden = true;
-        description.classList.add('visually-hidden');
+        live.textContent = '';
         error.hidden = false;
     });
-    if (document.fonts) await document.fonts.ready;
-    function createChart() {
-        try {
-            if (typeof Chart === 'undefined') throw new Error('Chart library unavailable');
-            const font = { family: getComputedStyle(document.body).fontFamily, size: 12 };
-            chart = new Chart(canvas, {
-                type: 'bar',
-                data: { labels: rows.map(p => p.product_name), datasets: [{ label: 'Units sold',
-                    data: rows.map(p => p.units_sold), backgroundColor: '#1A1851',
-                    borderRadius: 3, maxBarThickness: 48, categoryPercentage: 0.7, barPercentage: 0.7 }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false, animation: false,
-                    plugins: { legend: { display: false }, tooltip: { titleFont: font, bodyFont: font,
-                        backgroundColor: '#1A1851', callbacks: {
-                            title: items => rows[items[0]?.dataIndex]?.product_name || '',
-                            label: context => `${numbers.format(context.parsed.y)} units sold`,
-                        } } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { font, color: '#626781', maxRotation: 0, autoSkip: false,
-                            callback: function(value) {
-                                const name = this.getLabelForValue(value);
-                                const limit = Math.max(5, Math.min(16, Math.floor(this.chart.width / Math.max(1, rows.length) / 6) - 2));
-                                if (name.length <= limit) return name;
-                                const split = name.lastIndexOf(' ', limit);
-                                if (split > 0) {
-                                    const rest = name.slice(split + 1);
-                                    return [name.slice(0, split), rest.length > limit ? `${rest.slice(0, limit - 1)}…` : rest];
-                                }
-                                return `${name.slice(0, limit - 1)}…`;
-                            } } },
-                        y: { beginAtZero: true, suggestedMax: 1, border: { display: false }, grid: { color: '#E8EAF0' },
-                            title: { display: true, text: 'Units sold', font, color: '#626781' },
-                            ticks: { precision: 0, font, color: '#626781' } },
-                    },
-                },
-            });
-            canvas.addEventListener('keydown', event => {
-                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) || !rows.length ||
-                    document.querySelector('[data-global-dashboard]').getAttribute('aria-busy') === 'true' || !error.hidden) return;
-                event.preventDefault();
-                active = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 :
-                    Math.max(0, Math.min(rows.length - 1, active + (event.key === 'ArrowLeft' ? -1 : 1)));
-                live.textContent = `${rows[active].product_name}: ${numbers.format(rows[active].units_sold)} units sold.`;
-                const items = [{ datasetIndex: 0, index: active }];
-                chart.setActiveElements(items);
-                chart.tooltip.setActiveElements(items, chart.getDatasetMeta(0).data[active].getCenterPoint());
-                chart.update('none');
-            });
-        } catch (_) {
-            chartFailed = true;
-            content.hidden = true;
-            fallback.hidden = !rows.length;
-            description.classList.remove('visually-hidden');
-        }
-    }
-    sync();
 });

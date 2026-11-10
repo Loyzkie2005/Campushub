@@ -28,6 +28,7 @@
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_empty.css' %}?v=20261022-empty">{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_executive_refinement.css' %}?v=20261103-kpi-trends-activity">{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_attention.css' %}?v=20261103-compact">{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_top_products.css' %}?v=20261110-top-products-table">{% endif %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 {% include 'partials/web_typography.html' %}
 </head>
@@ -621,7 +622,7 @@
     {% if global_dashboard %}<script src="{% static 'components/js/admin_upcoming_reservations.js' %}?v=20261023-users-overview"></script>{% endif %}
     {% if global_dashboard %}<script src="{% static 'components/js/admin_booking_overview.js' %}?v=20261031-booking-bars"></script>{% endif %}
     <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20261023-users-overview"></script>
-    {% if global_dashboard %}<script src="{% static 'components/js/admin_marketplace_products_chart.js' %}?v=20261031-saas-dashboard"></script><script src="{% static 'components/js/admin_dashboard_filter.js' %}?v=20261103-kpi-trends-activity"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_marketplace_products_chart.js' %}?v=20261110-top-products-table"></script><script src="{% static 'components/js/admin_dashboard_filter.js' %}?v=20261103-kpi-trends-activity"></script>{% endif %}
     {% if global_dashboard %}<script src="{% static 'components/js/admin_services_overview.js' %}?v=20261031-services-vertical"></script>{% endif %}
     {% if global_dashboard %}<script src="{% static 'components/js/admin_dashboard_activities.js' %}?v=20261101-activity-context"></script>{% endif %}
     {% if global_dashboard %}<script src="{% static 'components/js/admin_dashboard_executive.js' %}?v=20261031-remove-user-trend-view-chart-data"></script>{% endif %}

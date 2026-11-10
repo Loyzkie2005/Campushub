@@ -571,7 +571,7 @@ class DedicatedDomainDashboardTests(TestCase):
         self.assertContains(response, "System Overview")
         self.assertContains(response, "Sales Summary")
         self.assertContains(response, "Monitor marketplace performance and activity.")
-        self.assertContains(response, "topSellingProductsChart")
+        self.assertContains(response, "topSellingProductsTable")
         self.assertNotContains(response, "dashboard-sales-summary")
 
     def test_marketplace_and_facilities_admin_login_redirect_to_dashboard(self):

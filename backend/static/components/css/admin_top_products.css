@@ -1,0 +1,57 @@
+/* Only the existing Super Admin ranking card; other dashboard tables stay unchanged. */
+[data-global-dashboard] #topSellingProductsCard .top-products-table {
+    width: 100%; table-layout: fixed; border-collapse: collapse; background: #FFFFFF;
+    color: var(--executive-navy, #1A1851); font-size: 13px;
+}
+[data-global-dashboard] #topSellingProductsCard .top-products-rank-column { width: 44px; }
+[data-global-dashboard] #topSellingProductsCard .top-products-units-column { width: 84px; }
+[data-global-dashboard] #topSellingProductsCard .top-products-table :is(th, td) {
+    padding: 7px 4px; border: 0; border-bottom: 1px solid var(--executive-border, #E8EAF0);
+    vertical-align: middle; text-align: left; background: #FFFFFF;
+}
+[data-global-dashboard] #topSellingProductsCard .top-products-table thead th {
+    font-size: 12px; line-height: 1.4; font-weight: 500; color: var(--executive-secondary, #667085);
+}
+[data-global-dashboard] #topSellingProductsCard .top-products-table tbody th { font-weight: 500; }
+[data-global-dashboard] #topSellingProductsCard .top-products-table tr > :first-child { padding-left: 0; }
+[data-global-dashboard] #topSellingProductsCard .top-products-table tr > :last-child {
+    padding-right: 0; text-align: right; font-variant-numeric: tabular-nums;
+}
+[data-global-dashboard] #topSellingProductsCard .top-products-table tbody tr:last-child > * { border-bottom: 0; }
+[data-global-dashboard] #topSellingProductsCard .top-product-rank { font-weight: 500; }
+[data-global-dashboard] #topSellingProductsCard .top-product-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+[data-global-dashboard] #topSellingProductsCard .top-product-thumb {
+    position: relative; display: grid; place-items: center; flex: 0 0 38px;
+    width: 38px; height: 38px; overflow: hidden; border-radius: 6px;
+    color: var(--executive-muted, #98A2B3); background: #FFFFFF;
+}
+[data-global-dashboard] #topSellingProductsCard .top-product-thumb > svg { width: 20px; height: 20px; }
+[data-global-dashboard] #topSellingProductsCard .top-product-thumb > img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #FFFFFF;
+}
+[data-global-dashboard] #topSellingProductsCard .top-product-name {
+    display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+[data-global-dashboard] #topSellingProductsCard .top-product-name:focus {
+    white-space: normal; overflow-wrap: anywhere; outline: 2px solid var(--executive-navy, #1A1851); outline-offset: 2px;
+}
+[data-global-dashboard] .dashboard-executive #topSellingProductsCard [data-products-empty] {
+    display: flex; align-items: center; justify-content: center; min-height: 160px;
+    margin: 0; padding: 0; border: 0; background: #FFFFFF;
+}
+[data-global-dashboard] .dashboard-executive #topSellingProductsCard [data-products-empty] .ch-dashboard-empty { padding: 8px 0; gap: 8px; }
+[data-global-dashboard] #topSellingProductsCard [data-products-empty] h4 { font-size: 14px; }
+[data-global-dashboard] #topSellingProductsCard [data-products-empty] p { font-size: 12px; line-height: 1.5; }
+[data-global-dashboard] #topSellingProductsCard[data-request-state="loading"] [data-products-content] { opacity: .45; pointer-events: none; }
+@media (max-width: 479px) {
+    [data-global-dashboard] #topSellingProductsCard .top-products-rank-column { width: 32px; }
+    [data-global-dashboard] #topSellingProductsCard .top-products-units-column { width: 66px; }
+    [data-global-dashboard] #topSellingProductsCard .top-products-table { font-size: 12px; }
+    [data-global-dashboard] #topSellingProductsCard .top-products-table thead th { font-size: 11px; }
+    [data-global-dashboard] #topSellingProductsCard .top-product-cell { gap: 6px; }
+    [data-global-dashboard] #topSellingProductsCard .top-product-thumb { flex-basis: 36px; width: 36px; height: 36px; }
+}
+@media (max-width: 359px) {
+    [data-global-dashboard] #topSellingProductsCard .top-products-rank-column { width: 26px; }
+    [data-global-dashboard] #topSellingProductsCard .top-products-units-column { width: 56px; }
+}

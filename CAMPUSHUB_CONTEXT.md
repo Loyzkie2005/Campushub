@@ -1,5 +1,10 @@
 # CampusHub Project Context & Development Reference
 
+## Compact Top-Selling Products table - November 10, 2026
+
+- Latest request replaces only the Super Admin ranking chart with a native Rank/Product/Units Sold table: actual top five or fewer records, 36–38px real photos/shared bag fallback, compact white separated rows, right-aligned tabular quantities, safe name ellipsis/full-name focus and unchanged existing trophy/empty copy on a white160px-minimum area (grows for very narrow copy). Preserve card width/placement, provider sorting/eligibility/dates, permissions and global Refresh/error/Retry. No added bars/percentages/columns/actions; no backend/API/database/migration/dependency change. New scoped CSS, existing ranking partial/asset, page asset wiring, component tests/inherited obsolete chart assertion and these two docs only. Existing unrelated uncommitted edits remain separate from this feature commit.
+- **1,368 Chrome checks passed** across seven widths, actual 0/1/3/7-product exports, exact counts/ranks/date filtering, photos/fallback/long names, refresh/failure/retry/no-library/no-JS cases and no overflow/JS errors/writes. **79 Django tests:78 passed, one pre-existing unrelated comparison-count assertion failed** (22.766s); **one baseline audit passed** (0.499s), proving original ranking markup has the same seven-versus-six Booking comparison occurrence mismatch. Isolated local PostgreSQL test databases destroyed. Twelve protected source hashes unchanged; screenshots inspected, syntax/whitespace clean. User requested commit/push; final reply records actual outcome. Exact eight files/current lines, full report/data flow/troubleshooting/safe practice: [ranking guide](docs/dashboard-marketplace-ranked-sales.md#current-compact-three-column-top-selling-products-table---november-10-2026). Evidence `scratch/top-products-table-20261110/`.
+
 ## White Live empty-state panel - November 10, 2026
 
 - Latest user request changes the Live Recommendations empty panel to the existing white surface. Preserve the border, icon tile, title/hint, spacing and tabs in both admin dashboards. This supersedes the earlier pale-panel background below.
