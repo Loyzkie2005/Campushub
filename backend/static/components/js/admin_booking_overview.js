@@ -77,14 +77,15 @@ document.addEventListener('DOMContentLoaded', () => {
         card.querySelector('[data-booking-empty]').hidden = overview.total > 0;
         card.querySelector('[data-booking-period]').textContent = `${overview.grouping[0].toUpperCase() + overview.grouping.slice(1)} requests submitted · ${overview.start_date} – ${overview.end_date}`;
         card.querySelector('[data-booking-view-all]').href = link(overview.view_all_url);
+        // Django supplies chronological, zero-filled periods. Share their exact order everywhere.
+        trendRows = overview.trend;
         const rows = document.createDocumentFragment();
-        for (const item of overview.trend) {
+        for (const item of trendRows) {
             const row = document.createElement('li');
             row.textContent = describe(item);
             rows.append(row);
         }
         card.querySelector('[data-booking-trend-description]').replaceChildren(rows);
-        trendRows = overview.trend;
         activeBucket = -1;
         card.querySelector('[data-booking-chart-live]').textContent = '';
         canvas.setAttribute('aria-label', `${number.format(overview.total)} booking requests submitted from ${overview.start_date} to ${overview.end_date}${executiveMode ? ', vertical bar chart' : ', stacked by status'}. Use left and right arrow keys to inspect each period.`);
@@ -107,9 +108,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         try {
-            const data = { labels: overview.trend.map((row) => row.label), datasets: displayedSeries.map((item) => ({
-                label: item.label, data: overview.trend.map((row) => row[item.key]),
-                stack: 'bookings', backgroundColor: item.color, borderRadius: 2, maxBarThickness: 28,
+            const data = { labels: trendRows.map((row) => row.label), datasets: displayedSeries.map((item) => ({
+                label: item.label, data: trendRows.map((row) => row[item.key]),
+                stack: 'bookings', backgroundColor: item.color, borderRadius: executiveMode ? 3 : 2,
+                maxBarThickness: executiveMode ? 46 : 28,
+                categoryPercentage: executiveMode ? 0.88 : 0.8,
+                barPercentage: executiveMode ? 0.95 : 0.9,
                 borderColor: item.color,
                 borderWidth: !executiveMode && item.key === 'rejected_cancelled' ? 1 : 0,
             })) };
@@ -138,7 +142,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         },
                     } },
                     scales: {
-                        x: { stacked: !executiveMode, grid: { display: false }, ticks: { color: '#626781', maxRotation: 0, maxTicksLimit: 6, font: { size: 12 } } },
+                        x: { stacked: !executiveMode, grid: { display: false },
+                            ticks: { color: '#626781', minRotation: 0, maxRotation: 0,
+                                autoSkip: true, maxTicksLimit: executiveMode ? 8 : 6,
+                                autoSkipPadding: executiveMode ? 8 : 3,
+                                font: { size: executiveMode ? 11 : 12 } } },
                         y: { stacked: !executiveMode, beginAtZero: true, suggestedMax: 1, ticks: { precision: 0, color: '#626781', maxTicksLimit: 5, font: { size: 12 } }, grid: { color: '#eef2f7' } },
                     },
                 } });

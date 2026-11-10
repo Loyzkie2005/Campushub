@@ -1,5 +1,60 @@
 # Super Admin Facilities Overview implementation
 
+## Current: Complete daily calendar order and responsive chart spacing - November 10, 2026
+
+### 1. Cause / reason
+
+The latest explicit brief supersedes the earlier screenshot-based custom tick selection and44px width. Inspection confirmed that Django already creates chronological, zero-filled buckets with `range(period.days)` in `build_booking_overview()`; there was no confirmed backend omission or count-based trend sorting. The previous frontend `bookingDateTicks()` deliberately showed fewer labels even when a short range had space, and `bookingBarThickness()` used populated dates rather than ordinary category spacing. Both custom functions were removed in favor of the requested Chart.js label skipping and46px maximum. Skipping a visible label does not combine dates or remove a bar.
+
+### 2. Exact files changed / current lines and anchors
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/static/components/js/admin_booking_overview.js:81` | `trendRows = overview.trend`: one backend-ordered array supplies descriptions, labels, counts, tooltip dates and keyboard inspection. No frontend sorting, filtering, deduplication or regrouping. |
+| `backend/static/components/js/admin_booking_overview.js:111` | Dataset map reads `trendRows`; executive maximum46, category0.88/bar0.95. Removed the fixed-width callback. Other roles retain maximum28 and category0.8/bar0.9. |
+| `backend/static/components/js/admin_booking_overview.js:145` | X ticks use automatic label skipping, executive limit8, horizontal11px labels and8px skip padding. Removed the custom tick hook. Other-role limit6/font12/default3px skip padding remain. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:623` | Existing Booking script cache version becomes `20261110-booking-daily-order`. |
+| `docs/booking-overview-implementation.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current implementation report and project reference. |
+
+Only these four tracked files were changed for this task. The requested `dashboard_bookings.py`, chart CSS and `super_facilities_overview.html` were inspected and retained. Source hashes also confirm no change to the ranking renderer/CSS/partial or global AJAX controller. Booking Summary and Most-Booked Facilities were compared with the exact pre-task local implementation, including their content and dimensions.
+
+### 3. Changes made
+
+Daily keeps one category and count for every selected calendar day, including zeros, oldest first. A wide November4–10 view shows all seven labels. A thirty-day view retains all30 categories and bars; Chart.js can hide only some tick labels when space is limited. Labels stay centered on their original bucket positions. Weekly and Monthly retain Django's consecutive periods, clipped range boundaries and existing aggregation rules. Exact ISO dates, including years, remain in tooltips.
+
+Super Admin bars remain navy `#1A1851`, capped at46px with the existing3px rounding. Category/bar percentages let bars narrow naturally for dense daily ranges, including empty dates, rather than forcing44px bars across those categories. Existing desktop220px/mobile210px chart heights remain. Label spacing was increased after browser verification found a collision in a90-day phone view using only the initial requested settings.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`build_booking_overview(period, totals, comparison, grouping=...)` remains unchanged. Its inputs are the selected reporting period, existing totals/comparison and requested grouping. It creates empty buckets by iterating every calendar day, then adds the database's submission-date/status counts to them. Daily uses each date; Weekly uses successive seven-day blocks anchored at the selected start; Monthly uses calendar months clipped to the selected range. Dictionary insertion order preserves chronology. The output includes `trend`, grouped ISO start/end dates, labels and existing totals/status/navigation fields.
+
+The template serializes that object into `bookingOverviewData`. Existing initial-load, dashboard-data and booking-trend-data handlers call `render(overview, chartOnly)`. After the existing validation, `trendRows` references the exact provider array. The description loop and chart label/value maps now explicitly read that same reference. Existing tooltip callbacks and keyboard handlers already read `trendRows`, so index3 refers to the same date everywhere. The frontend does not need to sort an already chronological backend response.
+
+Annotated example: Daily November4–10 has seven rows. A zero on November5 stays at index1 even if a narrow screen hides the printed `Nov 05` tick. The bar/data slot, ISO tooltip date and keyboard description still refer to November5. `autoSkip` changes visible ticks only; `maxTicksLimit: 8` is not an eight-record limit. Chart.js calculates each width from its category slot and applies the46px ceiling.
+
+### 5. Backend / API behavior
+
+Unchanged: booking population, submission-date basis, date/status calculations, totals, permissions, Weekly/Monthly rules, global filters and AJAX refresh/retry behavior. The backend's existing daily generation is preserved byte-for-byte. No application server restart or deployment was performed.
+
+### 6. Database / migration impact
+
+No model, migration, application-record, dependency or configuration changes. Django verification used guarded, uniquely named disposable local PostgreSQL test databases and destroyed them afterward. Additional calendar exports use test-only booking fixtures in that disposable database; they do not insert sample records into the application database. The browser replayed these exported HTML/API responses and made no mutating requests.
+
+### 7. Tests performed
+
+- **Three existing Django tests passed** in3.017s: all global date presets/custom/zero ranges; selected grouping/partial buckets; grouping independence from Sales/global dates. Guarded runner: `scratch/test-organization-20261109/run_local_tests.py`, with the three named methods in `modules.reports.tests.test_dashboard_bookings.DashboardBookingOverviewTests`. Result: `scratch/test-organization-20261109/booking-daily-order-results.json`.
+- **One additional calendar/export test passed** in3.473s: exact November4–10 seven-day daily range; October12–November10 thirty-day Daily/Weekly/Monthly; December28–January5 Daily/Weekly/Monthly; consecutive boundaries, zero dates, exact database counts and selected endpoints. Test: `booking_daily_order_exports.BookingCalendarExports.test_calendar_buckets_and_export`, run through the same guarded runner. Both disposable databases were destroyed.
+- **2,923 actual Chart.js Chrome checks passed**: seven widths280–1440px, all groupings,7/30/90-day periods, month/year transitions, zeros/empty/single/multiple data, all labels/values/tooltips, centered tick/bar positions, no bar or label overlap, unchanged compact heights and surrounding content. Added exact all-bucket tooltip comparisons, ordered descriptions, keyboard first/final positions, seven labels when wide enough and the actual Last30Days selector/API refresh path. Existing refresh/error/Retry/loading/resize/no-library cases passed. No JavaScript errors or mutating requests. Command: `node scratch/booking-daily-order-20261110/review.cjs`; results/screenshots in that folder.
+- JavaScript syntax and scoped Git whitespace checks passed. Seven protected source hashes remained unchanged. Desktop and phone screenshots were visually inspected, including seven daily labels and the dense30-day phone view.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+46px is a maximum; thirty-day daily bars are intentionally narrower so each date retains its own position. Narrow screens skip some printed labels, including potentially the final tick, while preserving every underlying date and exact tooltip. Existing all-zero empty presentation is retained. Local only; not committed, pushed or deployed. No physical-device or production-account verification was performed.
+
+If an older chart remains, hard-refresh and confirm the Booking script requests `v=20261110-booking-daily-order`. Inspect `executive.booking_overview.trend` in the existing dashboard GET response: Last7Days must contain seven consecutive ISO dates and Last30Days thirty. Do not diagnose label skipping alone as missing records. If counts differ, compare the submission date rather than the scheduled reservation date; backend date semantics were not changed.
+
+Safe practice exercise: select Last7Days and Daily, inspect all seven response rows, then use Home/RightArrow/End on the focused chart to compare dates/counts with tooltips. Select Last30Days and verify thirty response rows, including zeros. Resize to390px and confirm labels may skip while the row count remains30. Switch Weekly/Monthly and compare bucket start/end dates; a custom December-to-January range can verify year order without editing or creating bookings.
+
 Latest chart-sizing follow-up: Booking Trend keeps the existing combined Summary/Trend card and vertical bars, with a 320px drawing area at screen widths 600px+ and 260px below. Only wrapper sizing and control alignment changed; existing Django counts/date/grouping inputs still feed the same responsive chart renderer. Safe check: change grouping/Refresh and compare counts, then resize without editing a booking. The [dashboard guide](dashboard-analytics-operations-update.md) contains the current eight-part report, exact files/lines, measured checks and troubleshooting for this update, Sales Trend and Users by Type.
 
 ## Latest: Booking Summary inside Booking Trend — October 31, 2026
