@@ -1,4 +1,4 @@
 <span class="bundle-product-photo">
-    {% if product.image_url %}<img src="{{ product.image_url }}" alt="{{ product.name }}" width="52" height="52" loading="lazy" decoding="async">{% endif %}
-    <span class="bundle-photo-placeholder" role="img" aria-label="No image available for {{ product.name }}"{% if product.image_url %} hidden{% endif %}>{% include 'marketplace/partials/inventory_kpi_icon.html' with kind='product' %}</span>
+    {% if product.image_url %}<img src="{{ product.image_url }}" alt="{% if product.demo %}Sample photo for {% endif %}{{ product.name }}" width="52" height="52" loading="lazy" decoding="async">{% endif %}
+    <span class="bundle-photo-placeholder" role="img" aria-label="No image available for {{ product.name }}"{% if product.image_url %} hidden{% endif %}>{% if product.demo %}<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">{% if product.fallback_kind == 'drink' %}<path d="M5 8h12v8a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4ZM17 9h2a2 2 0 0 1 0 4h-2M8 2v3M12 2v3"/>{% else %}<path d="M3 10h18a9 9 0 0 1-18 0ZM7 21h10M8 3v4M12 2v5M16 3v4"/>{% endif %}</svg>{% else %}{% include 'marketplace/partials/inventory_kpi_icon.html' with kind='product' %}{% endif %}</span>
 </span>

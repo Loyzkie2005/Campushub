@@ -15,7 +15,7 @@
     <link rel="stylesheet"
         href="{% static 'marketplace/css/admin_marketplace_dashboard.css' %}?v=20261104-kpi-trends" />
     {% if marketplace.show_bundle_suggestions %}
-    <link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261103-bundle-empty">{% endif %}
+    <link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261110-dashboard-empty-white">{% endif %}
     <link rel="stylesheet" href="{% static 'components/css/admin_dashboard_attention.css' %}?v=20261103-compact" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     {% include 'partials/web_typography.html' %}
@@ -185,6 +185,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'components/js/admin_notifications.js' %}?v=20260726-empty-messages"></script>
     <script src="{% static 'marketplace/js/admin_marketplace_dashboard.js' %}?v=20261103-dashboard-layout"></script>
+    {% if marketplace.show_bundle_suggestions %}<script src="{% static 'marketplace/js/bundle_suggestions.js' %}?v=20261110-dashboard-tabs"></script>{% endif %}
     <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20261026-external-period"></script>
 </body>
 

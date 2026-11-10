@@ -151,3 +151,104 @@ document.addEventListener('DOMContentLoaded', () => {
     }, true);
     if (data.error) renderPanels(); // Server-rendered valid/empty results remain usable without JS.
 });
+
+/* Delegated controls also work after the Super Admin dashboard replaces its fragment. */
+(() => {
+    const selected = new Map();
+    const selectedTabs = new Map();
+    const selector = '[data-demo-bundle-carousel]';
+    function selectTab(card, source, focus = false) {
+        selectedTabs.set(card.getAttribute('aria-labelledby'), source);
+        card.querySelectorAll('[data-bundle-tab]').forEach(tab => {
+            const active = tab.dataset.bundleTab === source;
+            tab.setAttribute('aria-selected', String(active));
+            tab.tabIndex = active ? 0 : -1;
+            if (active && focus) tab.focus();
+        });
+        card.querySelectorAll('[data-bundle-source]').forEach(panel => {
+            panel.hidden = panel.dataset.bundleSource !== source;
+        });
+        const label = card.querySelector('[data-bundle-demo-label]');
+        if (label) label.hidden = source !== 'synthetic';
+    }
+    function show(root, index, announce = false) {
+        const slides = [...root.querySelectorAll('[data-demo-slide]')];
+        if (!slides.length) return;
+        index = Math.max(0, Math.min(slides.length - 1, index));
+        slides.forEach((slide, position) => { slide.hidden = position !== index; });
+        root.dataset.demoIndex = String(index);
+        selected.set(root.getAttribute('aria-labelledby'), slides[index].dataset.demoId);
+        root.querySelectorAll('[data-demo-go]').forEach((dot, position) => {
+            dot.setAttribute('aria-current', position === index ? 'true' : 'false');
+        });
+        const previous = root.querySelector('[data-demo-step="-1"]');
+        const next = root.querySelector('[data-demo-step="1"]');
+        if (previous) previous.disabled = index === 0;
+        if (next) next.disabled = index === slides.length - 1;
+        if (announce) {
+            const status = root.querySelector('[data-demo-announcement]');
+            if (status) status.textContent = slides[index].textContent.trim().replace(/\s+/g, ' ');
+        }
+    }
+    function fallback(image) {
+        if (!image.matches?.('.bundle-product-photo img') || !image.closest(selector)) return;
+        image.hidden = true;
+        const placeholder = image.parentElement.querySelector('.bundle-photo-placeholder');
+        if (placeholder) placeholder.hidden = false;
+    }
+    function initialize() {
+        document.querySelectorAll(selector).forEach(root => {
+            const slides = [...root.querySelectorAll('[data-demo-slide]')];
+            const wanted = selected.get(root.getAttribute('aria-labelledby'));
+            show(root, Math.max(0, slides.findIndex(slide => slide.dataset.demoId === wanted)));
+            const controls = root.querySelector('[data-demo-controls]');
+            if (controls) controls.hidden = slides.length < 2;
+            root.querySelectorAll('.bundle-product-photo img').forEach(image => {
+                if (image.complete && !image.naturalWidth) fallback(image);
+            });
+        });
+        document.querySelectorAll('[data-bundle-tabs]').forEach(card => {
+            selectTab(card, selectedTabs.get(card.getAttribute('aria-labelledby')) || 'synthetic');
+            card.querySelector('[data-bundle-tablist]').hidden = false;
+        });
+    }
+    document.addEventListener('click', event => {
+        const tab = event.target.closest?.('[data-bundle-tab]');
+        if (tab) {
+            selectTab(tab.closest('[data-bundle-tabs]'), tab.dataset.bundleTab);
+            return;
+        }
+        const button = event.target.closest?.('[data-demo-step], [data-demo-go]');
+        const root = button?.closest(selector);
+        if (!root || button.disabled) return;
+        const index = button.hasAttribute('data-demo-go') ? Number(button.dataset.demoGo)
+            : Number(root.dataset.demoIndex || 0) + Number(button.dataset.demoStep);
+        show(root, index, true);
+        if (button.disabled && document.activeElement === button) {
+            root.querySelector('[data-demo-go][aria-current="true"]')?.focus();
+        }
+    });
+    document.addEventListener('keydown', event => {
+        const tab = event.target.closest?.('[data-bundle-tab]');
+        if (tab && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault();
+            const source = event.key === 'Home' ? 'synthetic' : event.key === 'End' ? 'live'
+                : tab.dataset.bundleTab === 'synthetic' ? 'live' : 'synthetic';
+            selectTab(tab.closest('[data-bundle-tabs]'), source, true);
+            return;
+        }
+        const root = event.target.closest?.(selector);
+        if (!root || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        const slides = root.querySelectorAll('[data-demo-slide]');
+        if (!slides.length) return;
+        event.preventDefault();
+        const index = Number(root.dataset.demoIndex || 0);
+        show(root, event.key === 'Home' ? 0 : event.key === 'End' ? slides.length - 1
+            : index + (event.key === 'ArrowRight' ? 1 : -1), true);
+        root.querySelector('[data-demo-go][aria-current="true"]')?.focus();
+    });
+    document.addEventListener('error', event => fallback(event.target), true);
+    document.addEventListener('campushub:dashboard-data', initialize);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize);
+    else initialize();
+})();

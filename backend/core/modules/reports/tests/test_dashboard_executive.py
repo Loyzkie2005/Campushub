@@ -19,6 +19,12 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
 
     def setUp(self):
         super().setUp()
+        from tempfile import TemporaryDirectory
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        demo_report = override_settings(CAMPUSHUB_SELLER_DEMO_REPORT_PATH=str(Path(directory.name) / 'demo.json'))
+        demo_report.enable()
+        self.addCleanup(demo_report.disable)
         if self._testMethodName in fixtures.DedicatedDomainDashboardTests.__dict__:
             return
         Booking.objects.all().delete()
@@ -236,8 +242,9 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
         self.assertIn('class="executive-priority-grid"', html)
         self.assertIn('class="executive-domain-grid"', html)
         self.assertIn('bundle_preview_html', data)
-        self.assertIn('No Bundle Suggestions Yet', data['bundle_preview_html'])
-        self.assertIn(reverse('bundle_monitor_list'), data['bundle_preview_html'])
+        self.assertIn('No saved demo bundles yet.', data['bundle_preview_html'])
+        self.assertIn('Demo Only', data['bundle_preview_html'])
+        self.assertNotIn('View Recommendations', data['bundle_preview_html'])
         self.assertNotIn('<script', data['bundle_preview_html'])
         self.client.force_login(self.marketplace_admin)
         self.assertEqual(self.client.get(reverse('admin_dashboard_api')).status_code, 403)
@@ -321,9 +328,9 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
         start = html.index('<aside class="dashboard-summary-aside executive-bundle-panel"')
         panel = html[start:html.index('</aside>', start)]
         self.assertEqual(panel.count('<a '), 1)
-        self.assertIn(reverse('bundle_monitor_list'), panel)
-        for label in ('Suggested Product Bundles', 'Current saved product bundle recommendations.', 'View Recommendations',
-                      'Saved product combinations will appear here when available.'):
+        self.assertIn('Sample photo credits and licenses', panel)
+        for label in ('Suggested Product Bundles', 'Demo Only', 'No saved demo bundles yet.',
+                      'Synthetic dataset for demonstration only. Not actual customer purchases.'):
             self.assertIn(label, panel)
         for action in ('Recommendation Activity', 'Sent to Sellers', 'Awaiting Seller Response', 'Bundles Created',
                        'Create Bundle', 'Send to Seller', 'Approve Recommendation',

@@ -33,7 +33,7 @@ from modules.reports.models import GeneratedReport
 from modules.reports.reporting import REPORT_GROUPS, REPORT_TITLES, build_report
 from modules.reports.dashboard_periods import build_dashboard_data, resolve_dashboard_period
 from modules.marketplace.services.bundle_suggestions import (
-    can_view_bundle_suggestions, dashboard_bundle_suggestions,
+    can_view_bundle_suggestions, dashboard_bundle_suggestions, dashboard_synthetic_preview,
 )
 
 CATEGORY_COLORS = ("#1A1851", "#FCB315", "#626781", "#9396ac", "#d5d7e0")
@@ -729,6 +729,7 @@ def admin_dashboard_page(request):
             {
                 "marketplace": marketplace_data,
                 "bundle_analysis": marketplace_data["bundle_analysis"],
+                "bundle_demo": dashboard_synthetic_preview(request.user) if marketplace_data['show_bundle_suggestions'] else None,
                 "dashboard_stats": marketplace_data["dashboard_stats"],
                 "best_selling": marketplace_data["best_selling"],
                 "top_categories": marketplace_data["top_categories"],
@@ -1327,6 +1328,7 @@ def admin_dashboard_page(request):
         {
             "show_bundle_suggestions": show_bundle_suggestions,
             "bundle_analysis": dashboard_bundle_suggestions(request.user, limit=2) if show_bundle_suggestions else None,
+            "bundle_demo": dashboard_synthetic_preview(request.user) if show_bundle_suggestions else None,
             "global_dashboard": global_dashboard,
             "executive": global_data['executive'] if global_data else None,
             "dashboard_period": global_data["period"] if global_data else None,
@@ -1401,10 +1403,11 @@ def admin_dashboard_api(request):
     try:
         payload = build_dashboard_data(request.GET)
         if can_view_bundle_suggestions(user):
-            # Reuse saved eligible pairs; a dashboard refresh never runs Apriori.
+            # Both tabs reuse the same saved-data readers as initial render.
             payload['bundle_preview_html'] = render_to_string(
                 'marketplace/partials/super_recommendation_preview.html',
-                {'bundle_analysis': dashboard_bundle_suggestions(user, limit=2)}, request=request)
+                {'bundle_demo': dashboard_synthetic_preview(user),
+                 'bundle_analysis': dashboard_bundle_suggestions(user, limit=2)}, request=request)
         return JsonResponse(payload)
     except ValueError as error:
         return JsonResponse({"error": str(error)}, status=400)

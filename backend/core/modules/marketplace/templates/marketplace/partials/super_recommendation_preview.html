@@ -1,42 +1,42 @@
-<section class="dash-card bundle-dss marketplace-recommendation-summary super-recommendation-preview" aria-labelledby="marketplaceRecommendationsTitle">
-    <header class="executive-card-header bundle-card-header">
-        <div class="bundle-header-copy">
+{% load static %}
+<section class="dash-card bundle-dss marketplace-recommendation-summary dashboard-bundle-demo" aria-labelledby="marketplaceRecommendationsTitle" data-bundle-tabs>
+    <header class="dashboard-bundle-demo__header">
+        <div class="dashboard-bundle-demo__heading">
             <h2 id="marketplaceRecommendationsTitle">Suggested Product Bundles</h2>
-            <p class="super-recommendation-subtitle">Current saved product bundle recommendations.</p>
         </div>
-        <a class="dash-view-all-link" href="{% url 'bundle_monitor_list' %}">View Recommendations <span aria-hidden="true">&rsaquo;</span></a>
+        <span class="dashboard-bundle-demo__label" data-bundle-demo-label>Demo Only</span>
     </header>
-    <div class="executive-card-body bundle-card-body">
-        {% if bundle_analysis.monitor_error %}
-        <p class="marketplace-recommendation-note" role="alert">Unable to load bundle suggestions. Reload the dashboard to retry.</p>
+    <div class="dashboard-bundle-demo__tabs" role="tablist" aria-label="Bundle recommendation source" data-bundle-tablist hidden>
+        <button type="button" role="tab" id="bundleSyntheticTab" aria-controls="bundleSyntheticPanel" aria-selected="true" data-bundle-tab="synthetic">Synthetic Demo</button>
+        <button type="button" role="tab" id="bundleLiveTab" aria-controls="bundleLivePanel" aria-selected="false" tabindex="-1" data-bundle-tab="live">Live Recommendations</button>
+    </div>
+    <div id="bundleSyntheticPanel" role="tabpanel" aria-labelledby="bundleSyntheticTab" tabindex="0" data-demo-bundle-carousel data-bundle-source="synthetic">
+    {% if bundle_demo.error %}
+    <p class="dashboard-bundle-demo__empty" role="alert">Unable to load demo bundles. Refresh the dashboard to retry.</p>
+    {% elif bundle_demo.rows %}
+    {% include 'marketplace/partials/dashboard_bundle_carousel.html' with rows=bundle_demo.rows source='synthetic' %}
+    {% else %}
+    <p class="dashboard-bundle-demo__empty">{% if bundle_demo.state == 'empty' %}No product pairs met the saved analysis criteria.{% else %}No saved demo bundles yet. Results will appear after an authorized synthetic analysis run.{% endif %}</p>
+    {% endif %}
+    <footer class="dashboard-bundle-demo__footer">
+        <a href="{% static 'marketplace/demo/bundles/credits.html' %}" target="_blank" rel="noopener" aria-label="Sample photo credits and licenses (opens in a new tab)" title="Sample photo credits and licenses">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>
+        </a>
+        <p class="dashboard-bundle-demo__disclosure">Synthetic dataset for demonstration only. Not actual customer purchases.</p>
+    </footer>
+    </div>
+    <div id="bundleLivePanel" role="tabpanel" aria-labelledby="bundleLiveTab" tabindex="0" data-demo-bundle-carousel data-bundle-source="live" hidden>
+        {% if bundle_analysis.monitor_error or bundle_analysis.error %}
+        <p class="dashboard-bundle-demo__empty" role="alert">Unable to load live recommendations.</p>
+        {% elif bundle_analysis.monitor_rows %}
+        {% include 'marketplace/partials/dashboard_bundle_carousel.html' with rows=bundle_analysis.monitor_rows source='live' %}
         {% else %}
-        <div class="super-recommendation-list">
-            {% for row in bundle_analysis.monitor_rows|slice:':2' %}
-            <article class="super-recommendation-item" data-recommendation-id="{{ row.id }}">
-                <div class="super-recommendation-products">
-                    <div class="super-recommendation-product">
-                        {% include 'marketplace/partials/bundle_photo.html' with product=row.products.0 %}
-                        <span>{{ row.products.0.name }}</span>
-                    </div>
-                    <span class="super-recommendation-plus" aria-hidden="true">+</span>
-                    <span class="visually-hidden">paired with</span>
-                    <div class="super-recommendation-product">
-                        {% include 'marketplace/partials/bundle_photo.html' with product=row.products.1 %}
-                        <span>{{ row.products.1.name }}</span>
-                    </div>
-                </div>
-                <p class="super-recommendation-seller">Seller: {{ row.seller }}</p>
-                <span class="super-recommendation-status">{% if row.response == 'Awaiting Response' %}Awaiting Seller Response{% elif row.response == 'Not Applicable' %}{{ row.delivery }}{% else %}{{ row.response }}{% endif %}</span>
-            </article>
-            {% empty %}
-            {% if bundle_analysis.error %}
-            <p class="marketplace-recommendation-note" role="alert">Unable to load bundle suggestions. Reload the dashboard to retry.</p>
-            {% elif bundle_analysis.dashboard_summary.suggested %}
-            {% include 'dashboard/partials/empty_state.html' with title='No Eligible Preview' description='Open Recommendations to review saved suggestions and their current eligibility.' icon='bag' %}
-            {% else %}
-            {% include 'dashboard/partials/empty_state.html' with title='No Bundle Suggestions Yet' description='Saved product combinations will appear here when available.' icon='bag' %}
-            {% endif %}
-            {% endfor %}
+        <div class="dashboard-bundle-demo__live-empty" role="status">
+            <span class="dashboard-bundle-demo__empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 6 7-4 7 4-7 4-7-4ZM3.5 6v9l7 4 2-1M10.5 10v9M17.5 6v4M7 4l7 4v3"/><circle cx="17" cy="15.5" r="3"/><path d="m19.2 17.7 2.3 2.3"/></svg>
+            </span>
+            <p class="dashboard-bundle-demo__empty-title">No Live Recommendations Yet</p>
+            <p class="dashboard-bundle-demo__empty-hint">Recommendations will appear here once available.</p>
         </div>
         {% endif %}
     </div>

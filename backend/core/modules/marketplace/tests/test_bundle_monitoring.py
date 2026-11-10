@@ -39,6 +39,13 @@ class BundleMonitoringTests(TestCase):
         super().setUpClass()
 
     def setUp(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        demo_report = override_settings(CAMPUSHUB_SELLER_DEMO_REPORT_PATH=str(Path(directory.name) / 'demo.json'))
+        demo_report.enable()
+        self.addCleanup(demo_report.disable)
         from django.core.cache import cache
         cache.clear()  # Disposable test process only; isolate explicit-run results.
         self.program, _ = Department.objects.get_or_create(code="BSIT", defaults={"name": "Information Technology", "is_program": True})
@@ -788,12 +795,13 @@ class BundleMonitoringTests(TestCase):
         self.assertEqual((summary['sent'], summary['awaiting'], summary['created']), (1, 1, 0))
         self.assertEqual(summary['suggested'], 1)
         html = page.content.decode()
-        start = html.index('class="dash-card bundle-dss marketplace-recommendation-summary super-recommendation-preview"')
+        start = html.index('class="dash-card bundle-dss marketplace-recommendation-summary dashboard-bundle-demo"')
         panel = html[start:html.index('</section>', start)]
-        for label in ('Suggested Product Bundles', 'Awaiting Seller Response'):
+        for label in ('Suggested Product Bundles', 'Demo Only'):
             self.assertIn(label, panel)
         self.assertEqual(panel.count('<a '), 1)
-        self.assertIn(reverse('bundle_monitor_list'), panel)
+        self.assertIn('Sample photo credits and licenses', panel)
+        self.assertNotIn('Awaiting Seller Response', panel)
         for label in ('Bundle Recommendations &amp; Activity', '<table', 'Approve Recommendation', 'Reject Recommendation', '>Support<', '>Confidence<', '>Lift<', 'Outside summary'):
             self.assertNotIn(label, panel)
         self.assertEqual((Product.objects.count(), BundleRecommendation.objects.count(), AccountActivity.objects.count()), before)
@@ -905,19 +913,23 @@ class BundleMonitoringTests(TestCase):
         html = page.content.decode()
         start = html.index('<aside class="dashboard-summary-aside executive-bundle-panel"')
         panel = html[start:html.index('</aside>', start)]
-        self.assertEqual(panel.count('data-recommendation-id='), 2)
+        self.assertEqual(panel.count('data-recommendation-id='), 0)
         self.assertEqual([row['product_b'] for row in page.context['bundle_analysis']['monitor_rows']],
                          ['Isolated extra item 1', 'Isolated extra item 0'])
         self.assertEqual(page.context['bundle_analysis']['dashboard_summary'], {'suggested': 3, 'sent': 1, 'awaiting': 1, 'created': 0})
         self.assertIn('Test Coffee', panel)
         self.assertIn('Seller Example', panel)
+        demo_panel = panel.split('<div id="bundleSyntheticPanel"', 1)[1].split('<div id="bundleLivePanel"', 1)[0]
+        self.assertNotIn('Test Coffee', demo_panel)
+        self.assertNotIn('Seller Example', demo_panel)
         self.assertNotIn('<dt>Suggested Product Bundles</dt>', panel)
-        self.assertIn('Current saved product bundle recommendations.', panel)
+        self.assertIn('Demo Only', panel)
         self.assertNotIn('<dt>', panel)
         self.assertNotIn('Recommendation Activity', panel)
-        self.assertIn('View Recommendations', panel)
-        self.assertIn(reverse('bundle_monitor_list'), panel)
+        self.assertNotIn('View Recommendations', panel)
+        self.assertIn('No saved demo bundles yet.', panel)
         self.assertEqual(panel.count('<a '), 1)
+        self.assertIn('Sample photo credits and licenses', panel)
         self.assertNotIn('executive-bundles', html)
         self.assertEqual(html.count('id="marketplaceRecommendationsTitle"'), 1)
         self.assertLess(html.index('id="dashboardAttentionTitle"'), start)
@@ -930,9 +942,9 @@ class BundleMonitoringTests(TestCase):
             response = self.client.get(reverse('admin_dashboard_api'))
         self.assertEqual(response.status_code, 200)
         preview = response.json()['bundle_preview_html']
-        self.assertEqual(preview.count('data-recommendation-id='), 2)
+        self.assertEqual(preview.count('data-recommendation-id='), 0)
         self.assertIn('Test Coffee', preview)
-        self.assertIn(reverse('bundle_monitor_list'), preview)
+        self.assertIn('No saved demo bundles yet.', preview)
         self.assertEqual(before, (BundleRecommendation.objects.count(), AccountActivity.objects.count(), Product.objects.count()))
         import os
         from pathlib import Path
@@ -946,48 +958,31 @@ class BundleMonitoringTests(TestCase):
             if os.environ.get('DASHBOARD_TOP_REVIEW_DIR'):
                 (target/'without-panel.html').write_bytes(no_panel.content)
 
-    def test_super_preview_uses_product_images_placeholder_and_saved_response(self):
+    def test_live_preview_images_and_seller_response_remain_in_live_service(self):
         from django.template.loader import render_to_string
         from django.utils import timezone
         self.a.image_url = '["/media/isolated-coffee.jpg", "/media/second.jpg"]'
         self.a.save(update_fields=['image_url'])
-        template = 'marketplace/partials/super_recommendation_preview.html'
-        def panel(name=None):
-            html = render_to_string(template, {'bundle_analysis': dashboard_bundle_suggestions(self.root, limit=2)})
-            import os
-            from pathlib import Path
-            if name and os.environ.get('DASHBOARD_TOP_REVIEW_DIR'):
-                target = Path(os.environ['DASHBOARD_TOP_REVIEW_DIR'])
-                target.mkdir(parents=True, exist_ok=True)
-                (target / (name + '.html')).write_text(html, encoding='utf-8')
-            return html
-        html = panel('unsent')
-        self.assertIn('<h2 id="marketplaceRecommendationsTitle">Suggested Product Bundles</h2>', html)
-        self.assertEqual(html.count('>Suggested Product Bundles<'), 1)
-        self.assertNotIn('superBundleSuggestionsTitle', html)
-        self.assertIn('src="/media/isolated-coffee.jpg"', html)
-        self.assertNotIn('/media/second.jpg', html)
-        self.assertIn('No image available for Test Cookie', html)
-        self.assertIn('Seller: Seller Example', html)
-        self.assertIn('Not Sent to Seller', html)
-        self.assertNotIn('Recommendation Activity', html)
-        self.assertNotIn('<dt>', html)
-        self.assertIn(reverse('bundle_monitor_list'), html)
+        def row():
+            return dashboard_bundle_suggestions(self.root, limit=2)['monitor_rows'][0]
+        data = row()
+        self.assertEqual(data['products'][0]['image_url'], '/media/isolated-coffee.jpg')
+        self.assertFalse(data['products'][1]['image_url'])
+        photo = render_to_string('marketplace/partials/bundle_photo.html', {'product': data['products'][0]})
+        self.assertIn('src="/media/isolated-coffee.jpg"', photo)
+        self.assertNotIn('/media/second.jpg', photo)
+        self.assertEqual(data['delivery'], 'Not Sent to Seller')
         self.row.sent_at = timezone.now()
         self.row.save(update_fields=['sent_at'])
-        html = panel('sent')
-        self.assertIn('super-recommendation-status">Awaiting Seller Response', html)
-        self.assertNotIn('No Recommendation Activity Yet', html)
+        self.assertEqual(row()['response'], 'Awaiting Response')
         SellerBundleSuggestion.objects.create(seller=self.seller, product_a=self.a, product_b=self.b, state='dismissed')
-        self.assertIn('super-recommendation-status">Dismissed', panel('dismissed'))
+        self.assertEqual(row()['response'], 'Dismissed')
         Product.objects.create(mobile_seller=self.seller, name='Isolated linked bundle', price=35,
             product_type=Product.TYPE_BUNDLE, source_recommendation=self.row)
-        html = panel('created')
-        self.assertIn('super-recommendation-status">Bundle Created', html)
-        self.assertNotIn('<dt>Bundles Created</dt>', html)
+        self.assertEqual(row()['response'], 'Bundle Created')
         self.assertEqual(dashboard_bundle_suggestions(self.root)['dashboard_summary']['created'], 1)
 
-    def test_super_preview_distinguishes_errors_from_empty_records(self):
+    def test_demo_preview_distinguishes_report_errors_from_empty_and_live_errors(self):
         from django.template.loader import render_to_string
         import os
         from pathlib import Path
@@ -1004,21 +999,22 @@ class BundleMonitoringTests(TestCase):
             data = dashboard_bundle_suggestions(self.root)
             export_page('error')
         html = render_to_string(template, {'bundle_analysis': data})
-        self.assertIn('Unable to load bundle suggestions', html)
-        self.assertIn('Reload the dashboard to retry.', html)
-        self.assertIn(reverse('bundle_monitor_list'), html)
-        for absent in ('No Bundle Suggestions Yet', 'Recommendation Activity', 'private details', '<dt>'):
+        self.assertTrue(data['error'])
+        self.assertIn('No saved demo bundles yet.', html)
+        for absent in ('Unable to load demo bundles', 'Recommendation Activity', 'private details', '<dt>'):
             self.assertNotIn(absent, html)
         BundleRecommendation.objects.all().delete()
         html = render_to_string(template, {'bundle_analysis': dashboard_bundle_suggestions(self.root)})
-        self.assertIn('No Bundle Suggestions Yet', html)
-        self.assertIn('Saved product combinations will appear here when available.', html)
+        self.assertIn('No saved demo bundles yet.', html)
         self.assertNotIn('<dt>Suggested Product Bundles</dt>', html)
         self.assertNotIn('data-recommendation-id=', html)
-        self.assertIn('View Recommendations', html)
+        self.assertNotIn('View Recommendations', html)
+        failed = render_to_string(template, {'bundle_demo': {'error': True, 'rows': []}})
+        self.assertIn('Unable to load demo bundles.', failed)
+        self.assertNotIn('No saved demo bundles yet.', failed)
         export_page('empty')
 
-    def test_super_template_limits_saved_previews_to_two_without_mutating_context(self):
+    def test_demo_card_does_not_consume_or_mutate_live_preview_context(self):
         from django.template.loader import render_to_string
         for index in range(2):
             product = Product.objects.create(mobile_seller=self.seller, department=self.program,
@@ -1028,13 +1024,11 @@ class BundleMonitoringTests(TestCase):
         ids = [row['id'] for row in data['monitor_rows']]
         self.assertEqual(len(ids), 3)
         html = render_to_string('marketplace/partials/super_recommendation_preview.html', {'bundle_analysis': data})
-        self.assertEqual(html.count('data-recommendation-id='), 2)
-        for identity in ids[:2]:
-            self.assertIn(f'data-recommendation-id="{identity}"', html)
-        self.assertNotIn(f'data-recommendation-id="{ids[2]}"', html)
+        self.assertNotIn('data-recommendation-id=', html)
+        self.assertIn('No saved demo bundles yet.', html)
         self.assertEqual([row['id'] for row in data['monitor_rows']], ids)
 
-    def test_shared_dashboard_empty_state_requires_no_saved_records(self):
+    def test_shared_demo_empty_state_is_independent_of_live_records(self):
         import os
         from pathlib import Path
         from django.template.loader import render_to_string
@@ -1048,12 +1042,13 @@ class BundleMonitoringTests(TestCase):
             self.assertEqual(page.status_code, 200)
             self.assertEqual(before, (BundleRecommendation.objects.count(), Product.objects.count(), AccountActivity.objects.count()))
             html = page.content.decode()
-            start = html.index('<section class="dash-card bundle-dss marketplace-recommendation-summary super-recommendation-preview"')
+            start = html.index('<section class="dash-card bundle-dss marketplace-recommendation-summary dashboard-bundle-demo"')
             card = html[start:html.index('</section>', start)]
-            self.assertIn('Current saved product bundle recommendations.', card)
-            self.assertEqual(card.count('View Recommendations'), 1)
-            self.assertIn('href="'+reverse('bundle_monitor_list')+'"', card)
-            for absent in ('Send to Seller', '<button', '<form', 'bundleReviewDialog', '>Support<', '>Confidence<', '>Lift<'):
+            self.assertIn('Demo Only', card)
+            self.assertIn('No saved demo bundles yet.', card)
+            self.assertNotIn('View Recommendations', card)
+            self.assertEqual(card.count('role="tab"'), 2)
+            for absent in ('Send to Seller', '<form', 'bundleReviewDialog', '>Support<', '>Confidence<', '>Lift<'):
                 self.assertNotIn(absent, card)
             directory = os.environ.get('BUNDLE_EMPTY_REVIEW_DIR')
             if directory:
@@ -1064,30 +1059,29 @@ class BundleMonitoringTests(TestCase):
         actors = [('super', self.root), ('manager', self.manager)]
         for role, actor in actors:
             card = dashboard_card(actor, role, 'populated')
-            self.assertIn('data-recommendation-id=', card)
+            self.assertNotIn('data-recommendation-id=', card)
             self.assertNotIn('No Bundle Suggestions Yet', card)
         Product.objects.filter(pk=self.a.pk).update(is_archived=True)
         for role, actor in actors:
             card = dashboard_card(actor, role, 'no-preview')
-            self.assertIn('No Eligible Preview', card)
+            self.assertNotIn('No Eligible Preview', card)
             self.assertNotIn('No Bundle Suggestions Yet', card)
         with patch('modules.marketplace.services.bundle_monitoring.recommendations_for', side_effect=DatabaseError('private details')):
             for role, actor in actors:
                 card = dashboard_card(actor, role, 'error')
-                self.assertIn('Unable to load bundle suggestions', card)
+                self.assertNotIn('Unable to load demo bundles', card)
                 self.assertNotIn('No Bundle Suggestions Yet', card)
                 self.assertNotIn('private details', card)
         BundleRecommendation.objects.all().delete()
         for role, actor in actors:
             card = dashboard_card(actor, role, 'empty')
-            self.assertIn('No Bundle Suggestions Yet', card)
-            self.assertIn('Saved product combinations will appear here when available.', card)
+            self.assertIn('No saved demo bundles yet.', card)
             for absent in ('data-recommendation-id=', 'bundle-product-photo', '<img', 'super-recommendation-status', 'role="alert"'):
                 self.assertNotIn(absent, card)
             data = dashboard_bundle_suggestions(actor)
             data.update(error=True, dashboard_summary={'suggested': None})
             unknown = render_to_string('marketplace/partials/super_recommendation_preview.html', {'bundle_analysis': data})
-            self.assertIn('Unable to load bundle suggestions', unknown)
+            self.assertIn('No saved demo bundles yet.', unknown)
             self.assertNotIn('No Bundle Suggestions Yet', unknown)
 
     def test_listing_is_readonly_and_hides_research_metrics(self):
@@ -1117,7 +1111,8 @@ class BundleMonitoringTests(TestCase):
                           ['Products', 'Inventory', 'Orders', 'Seller Applications'])
         self.assertNotIn(reverse('bundle_monitor_list'), nav)
         self.assertContains(dashboard, 'Suggested Product Bundles')
-        self.assertContains(dashboard, 'View Recommendations')
+        self.assertNotContains(dashboard, 'View Recommendations')
+        self.assertContains(dashboard, 'Demo Only')
         self.assertNotContains(dashboard, 'class="marketplace-recommendation-action" href="'+reverse('bundle_monitor_list')+'"')
 
         listing = self.client.get(reverse('bundle_monitor_list'))
@@ -1153,8 +1148,8 @@ class BundleMonitoringTests(TestCase):
         manager_dashboard = self.client.get(reverse('admin_dashboard_page'))
         self.assertEqual(manager_dashboard.status_code, 200)
         self.assertNotIn(reverse('bundle_monitor_list'), sidebar(manager_dashboard))
-        self.assertContains(manager_dashboard, 'View Recommendations')
-        self.assertContains(manager_dashboard, 'href="'+reverse('bundle_monitor_list')+'"')
+        self.assertNotContains(manager_dashboard, 'View Recommendations')
+        self.assertContains(manager_dashboard, 'Demo Only')
         self.assertEqual(before, (BundleRecommendation.objects.count(), AccountActivity.objects.count(), Product.objects.count()))
 
     def test_bundle_sidebar_visibility_uses_existing_authorization(self):
@@ -1521,9 +1516,9 @@ class BundleMonitoringTests(TestCase):
         before = (AccountActivity.objects.count(), BundleRecommendation.objects.count(), Product.objects.count())
         with patch('modules.marketplace.services.bundle_suggestions.build_bundle_suggestions', side_effect=AssertionError('Dashboard must not mine')):
             response = self.client.get(reverse('admin_dashboard_page'))
-        self.assertContains(response, 'Saved product combinations will appear here when available.', count=1)
-        self.assertContains(response, 'Saved Recommendations')
-        self.assertContains(response, 'Awaiting Seller Response')
+        self.assertContains(response, 'No saved demo bundles yet.', count=1)
+        self.assertNotContains(response, 'Saved Recommendations')
+        self.assertNotContains(response, 'Awaiting Seller Response')
         for label in ('Last Analysis', 'Data Source', 'Analysis Summary', 'Seller Response Rate', 'Bundle Creation Rate'):
             self.assertNotContains(response, label)
         self.assertNotContains(response, 'No Analysis Yet')

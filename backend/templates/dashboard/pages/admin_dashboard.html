@@ -20,7 +20,7 @@
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_most_booked_facilities.css' %}?v=20261007-facility-images" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_upcoming_reservations.css' %}?v=20261006-upcoming" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_summary.css' %}?v=20261022-inter">{% endif %}
-    {% if show_bundle_suggestions %}<link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261103-bundle-empty">{% endif %}
+    {% if show_bundle_suggestions %}<link rel="stylesheet" href="{% static 'marketplace/css/bundle_suggestions.css' %}?v=20261110-dashboard-empty-white">{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_executive.css' %}?v=20261020-header-status-stock">{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_facilities_overview.css' %}?v=20261031-upcoming-reservations-one-row-v2">{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_services_overview.css' %}?v=20261101-services-balanced">{% endif %}
@@ -610,8 +610,8 @@
     <script src="{% static 'marketplace/js/bundle_monitoring.js' %}?v=20261022-monitor"></script>
     {% else %}
     {% include 'marketplace/partials/bundle_dialogs.html' %}
-    <script src="{% static 'marketplace/js/bundle_suggestions.js' %}?v=20261022-monitor"></script>
     {% endif %}
+    <script src="{% static 'marketplace/js/bundle_suggestions.js' %}?v=20261110-dashboard-tabs"></script>
     {% endif %}
     {% if global_dashboard %}{% include 'marketplace/partials/dashboard_order_modals.html' %}{% endif %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

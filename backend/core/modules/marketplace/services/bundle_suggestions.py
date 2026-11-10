@@ -18,6 +18,7 @@ from django.utils import timezone
 from django.db import DatabaseError
 from django.db.models import Q
 from django.urls import reverse
+from django.templatetags.static import static
 
 from .analytics import (MARKET_BASKET_MIN_ORDERS, MARKET_BASKET_MIN_MULTI_ITEM_ORDERS,
                         calculate_market_basket, valid_sales_queryset, _approved_seller_ids, _approved_mobile_seller_ids)
@@ -30,6 +31,15 @@ DISCLOSURE = (
     'transactions or customer purchasing behavior.'
 )
 DATASET = Path(__file__).resolve().parents[1] / 'data' / 'synthetic_order_items.csv'
+# Illustrative assets only. Exact CSV identity/name matching never selects live catalog photos.
+SYNTHETIC_PREVIEW_PHOTOS = {
+    ('P01', 'Pancit Canton'): 'pancit-canton.jpg',
+    ('P02', 'Boiled Egg'): 'boiled-egg.jpg',
+    ('P03', 'Siomai Rice'): 'siomai-rice.jpg',
+    ('P04', 'Gulaman'): 'gulaman-glass.jpg',
+    ('P05', 'Burger'): 'burger.jpg',
+    ('P06', 'Cucumber Lemonade'): 'cucumber-lemonade.jpg',
+}
 EMPTY_MESSAGE = 'No bundle suggestions available yet.'
 EMPTY_DETAIL = 'Suggestions will appear after sufficient completed marketplace transactions are recorded.'
 
@@ -106,6 +116,32 @@ def dashboard_bundle_suggestions(user, *, limit=3):
     }
     from .bundle_monitoring import saved_analysis_summary
     result['analysis_summary'] = saved_analysis_summary(user)
+    return result
+
+
+def dashboard_synthetic_preview(user):
+    """Product-only saved demo projection; never execute research on dashboard GET."""
+    if not can_view_bundle_suggestions(user):
+        raise PermissionDenied
+    from .seller_recommendations import _demo
+    result = {'source': 'synthetic', 'rows': [], 'error': False, 'state': 'not_generated'}
+    try:
+        saved = _demo()
+        if saved is None:
+            return result
+        for row in saved['rows']:
+            products = []
+            for item in row['products']:
+                name = item['name'].lower()
+                photo = SYNTHETIC_PREVIEW_PHOTOS.get((item['id'], item['name']))
+                products.append({'id': f"{item['seller_id']}:{item['id']}", 'name': item['name'],
+                    'image_url': static('marketplace/demo/bundles/' + photo) if photo else '', 'demo': True,
+                    'fallback_kind': 'drink' if re.search(r'\b(coffee|tea|juice|lemonade|drink)\b', name) else 'food'})
+            result['rows'].append({'id': row['id'], 'products': products,
+                'seller': f"Synthetic Seller {row['products'][0]['seller_id']}"})
+        result['state'] = 'ready' if result['rows'] else 'empty'
+    except (OSError, ValueError, KeyError, TypeError):
+        result.update(error=True, state='error', rows=[])
     return result
 
 

@@ -1,5 +1,601 @@
 # Suggested Product Bundles - monitoring and research
 
+## White Live empty-state panel - November 10, 2026
+
+1. **Cause / reason:** The user requested white after the reference design was applied. The confirmed gray surface came from `.dashboard-bundle-demo__live-empty` using the subtle-surface token. This request supersedes the pale background described below.
+2. **Exact files changed:** `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:589` (`.dashboard-bundle-demo__live-empty`) now uses the existing white surface token. `backend/templates/dashboard/pages/admin_dashboard.html:23` and `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18` use CSS version `20261110-dashboard-empty-white`. This guide and `CAMPUSHUB_CONTEXT.md:3` record the result.
+3. **Changes made:** Changed the empty panel background to white in both admin dashboards. Kept the border, rounded corners, icon tile, text, dimensions and source tabs.
+4. **How it works:** Existing authorized `bundle_analysis` input reaches `super_recommendation_preview.html`. A successful read with no `monitor_rows` outputs the empty panel. The shared CSS paints that element using `var(--campushub-surface, #FFFFFF)`, which reuses the white surface rather than defining a new theme. No functions, function inputs/outputs or JavaScript were added. Example: an empty `monitor_rows` list renders the existing title and hint on white; a nonempty list continues into the existing carousel branch.
+5. **Backend / API behavior:** Unchanged; existing saved-record reads, error handling, permissions and recommendation workflows remain.
+6. **Database / migration impact:** None. No models, migrations or application records changed.
+7. **Tests performed:** **1,729 local Chrome assertions passed**, no JavaScript errors or mutating requests, across both roles at six viewport widths. The white-background assertion passed along with existing text, geometry, wrapping, image, tab/carousel and refresh checks. Desktop screenshot visually inspected; `git diff --check` passed. Backend tests were not rerun for this CSS-only change. The ignored existing browser harness was copied to `scratch/dashboard-demo-20261110/review-empty-white.cjs` with the expected empty background changed to white; it reads current local CSS against saved test renders. Results: `scratch/dashboard-demo-20261110/empty-white-browser-result.json`; screenshot: `scratch/dashboard-demo-20261110/empty-white-super-empty-1440.png`. These are local fixture checks, not production verification.
+8. **Remaining limitations / troubleshooting / safe practice:** Local changes only, not deployed. If gray persists, reload and inspect whether the stylesheet URL contains `20261110-dashboard-empty-white`; normal deployment must collect the updated static asset. Safe exercise: select Live Recommendations in a saved empty test render, inspect the empty panel's computed `background-color` (expected `rgb(255, 255, 255)`), resize to a phone width and confirm both text lines wrap without clipping. This requires no record edits. The icon tile intentionally retains its existing soft tint.
+
+## Live empty state matched to supplied reference - November 10, 2026
+
+### 1. Cause / reason
+
+The user supplied a specific empty-state reference. The prior Live state used a small circular icon and only a title. The latest reference explicitly adds a package/search icon on a soft rounded square, a stronger title and the hint **Recommendations will appear here once available.** This supersedes the earlier title-only copy requirement for the successful Live empty state.
+
+### 2. Exact files changed / current lines and anchors
+
+Only these seven files were modified for this follow-up:
+
+| File and line | Anchor / purpose |
+| --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:35`, `:38`, `:39` | Replace only the decorative empty icon SVG; identify the title and add the exact reference hint inside the existing empty branch. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:585`, `:591`, `:596`, `:599`, `:600` | 180px-minimum soft empty panel with 12px corners; 48px icon tile with 16px corners; centered 13px semibold navy title and 12px muted hint. Both wrap on narrow cards. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:23` | CSS version `20261110-dashboard-live-empty` for Super Admin. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18` | Same stylesheet version for Marketplace Admin. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py:215`, `:229` | Existing empty-state test now asserts the reference title/hint and keeps the no-product/no-seller/no-action checks for both roles. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current implementation, verified results and safe practice. |
+
+### 3. Changes made
+
+The Live empty panel now follows the reference: pale `#F7F8FC` surface and subtle border, centered package/search icon on a rounded tile, **No Live Recommendations Yet** in navy, and the exact muted hint below. There are no product cards, seller names, actions or simulated records in the empty branch. Existing source tabs, active underline and card header remain. Product images, populated Live cards, Demo cards/disclosure and carousel styling are unchanged.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No new function or JavaScript. The same outer template receives the existing authorized `bundle_analysis`. The reference state renders only when the live read succeeds and `monitor_rows` is empty. A read failure still renders its existing error, and saved live rows still render the shared actual-record carousel. CSS grid centers the static empty content; the icon is decorative (`aria-hidden`) and the two text lines remain accessible.
+
+```django
+<p class="dashboard-bundle-demo__empty-title">No Live Recommendations Yet</p>
+<p class="dashboard-bundle-demo__empty-hint">Recommendations will appear here once available.</p>
+```
+
+Separate title/hint classes allow independent size, weight and color without changing the data contract or other paragraphs. `min-height` lets the panel grow when the hint wraps on phones; there is no clipped fixed-height text area. The existing shared Montserrat remains.
+
+### 5. Backend / API behavior
+
+Unchanged. No edits to data readers, recommendation generation, Apriori, seller workflows, scope, permissions, refresh routes or actual statuses. No fake live records or extra actions. Normal dashboard refresh still shows actual records automatically when the existing backend returns them.
+
+### 6. Database / migration impact
+
+None. No models, migrations, application/production records, saved reports, CSV, image files or URLs changed. The existing tests ran only in a guarded disposable local PostgreSQL database with a temporary synthetic report, then destroyed that database. Existing uncommitted work was retained.
+
+### 7. Tests performed / actual results
+
+- **11 focused Django tests passed** in 9.156s, zero failures/errors/skips; system check clean and disposable database destroyed. The updated existing empty test verifies the exact reference title/hint for both roles and absence of products, sellers/actions; other cases retain saved-record images/statuses, scope, permissions, refresh, escaping and error checks. Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview`. Report: `scratch/test-organization-20261109/dashboard-empty-reference-results.json`; log: `scratch/dashboard-demo-20261110/empty-reference-django.log`.
+- **1,729 local headless Chrome assertions passed**, zero JavaScript errors or non-GET requests. Both roles at 1440/1024/768/390/320/280px: exact reference copy, 48px icon/16px tile corners, panel at least 180px, centered/wrapping title/hint, semibold title/muted 12px hint and reference surface. Existing tests still cover all saved demo/disposable-test live slides, image decoding and 110px uncropped photos, white panels, no hover tooltip, source/carousel keyboard navigation, recorded sellers/statuses, both refresh paths and image fallback.
+- Harness/report: `scratch/dashboard-demo-20261110/review-empty-reference.cjs`, `empty-reference-browser-result.json`, `empty-reference-browser.log`, fresh renders `empty-reference-fixtures/`. Inspected desktop/phone screenshots include `empty-reference-super-empty-1440.png` and `empty-reference-marketplace-empty-390.png`, plus populated-source renders. Browser requests were intercepted to local test/static data and test-media JPEGs; no production account/chart/media verification is claimed.
+- `git diff --check` passed. JavaScript/backend source and image assets were not changed; no new unit test module or unrelated suite rerun was introduced for this presentation-only follow-up.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Changes are local, not deployed. Normal deployment must collect the shared stylesheet with version `20261110-dashboard-live-empty`; a stale cache may retain the old icon/title-only state. The hint can wrap on phones, as checked at six widths. The state remains empty until actual authorized saved live records qualify; it never fabricates cards to populate the design.
+
+Safe exercise: open the ignored phone test render and temporarily widen/narrow the empty panel in developer tools. Confirm the hint wraps below the title without horizontal scrolling or overlap. Remove the override and run `node scratch/dashboard-demo-20261110/review-empty-reference.cjs`; the reference geometry/text and unchanged source-navigation checks should pass. Do not change actual recommendations, CSV or production records to test empty-state appearance.
+
+## Clean white product panels and unobstructed photos - November 10, 2026
+
+### 1. Cause / reason
+
+The user's screenshots showed broad gray product surfaces around the small full-photo images and, in the preceding hover screenshot, a native tooltip covering the photo. Confirmed local causes were the product panel's pale background, unrestricted row width and demo image `title` attribute. This targeted UI cleanup makes product panels white, bounds their row and removes that tooltip; it does not change the full-photo preference or redesign the dashboard.
+
+### 2. Exact files changed / current lines and anchors
+
+Only these six files were modified in this follow-up:
+
+| File and line | Anchor / change |
+| --- | --- |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:522`, `:528` | `.dashboard-bundle-demo__products` uses full available width capped at 480px and centered margins; `.dashboard-bundle-demo__product` uses the existing white surface token instead of the gray subtle surface. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/bundle_photo.html:2` | Remove the demo-only native `title` tooltip. Preserve image source, accessible alt text, dimensions, lazy loading and error fallback. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:23` | CSS version `20261110-dashboard-clean-panels` for Super Admin. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18` | Same stylesheet version for Marketplace Admin. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current implementation report and project guidance. |
+
+### 3. Changes made
+
+Product panels are now clean white with their existing subtle borders, centered names and equal dimensions. Capping the pair row prevents it from spreading across an unnecessarily wide card; it still shrinks to fit mobile widths. The gold plus stays centered. Hovering a demo image no longer raises a text tooltip over the photograph. The Demo Only badge, accessible sample-photo alt text, disclosure and credits continue identifying demo content. The styled Live empty state remains unchanged.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No function or JavaScript changes. The existing shared source carousel still receives saved demo/live rows and includes `bundle_photo.html` for each actual URL. That image element retains its source and alt text but no longer carries a native tooltip attribute. Scoped CSS centers a bounded grid and changes only its product surfaces to white:
+
+```css
+.dashboard-bundle-demo__products {
+    width: 100%;
+    max-width: 480px; /* Avoid stretching the pair across a wide dashboard card. */
+    margin-inline: auto;
+}
+```
+
+The preceding 110px centered `contain` rule remains: complete photographs keep their proportions and may leave space when their ratio differs from the frame. That space now blends with the white product surface. Existing two-tab selection, independent carousels, recorded sellers/statuses and refresh behavior are unchanged.
+
+### 5. Backend / API behavior
+
+Unchanged. No source reader, Apriori, saved report, recommendation/seller action, scope, permission, API, image URL or photo file was modified. Both roles/sources use the same styling and photo template. No extra UI text, action, source tab or feature was added.
+
+### 6. Database / migration impact
+
+None. No models, migrations, production/application records, CSV or saved-report changes. Existing tests used a guarded disposable local PostgreSQL database and temporary synthetic report; the test database was destroyed afterward. Earlier uncommitted work was retained; no file deletion or destructive Git action occurred.
+
+### 7. Tests performed / actual results
+
+- **11 existing focused Django tests passed** in 5.846s, zero failures/errors/skips; system check clean, disposable database destroyed. Includes both source panels, exact Live empty text, actual saved rows/photos/seller/status, scope/permissions/escaping, refresh and fallback. Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview`. Report: `scratch/test-organization-20261109/dashboard-clean-panels-results.json`; log: `scratch/dashboard-demo-20261110/clean-panels-django.log`.
+- **1,693 local headless Chrome assertions passed**, zero JavaScript errors or non-GET requests. Both roles, four demo/two actual disposable-test live rows and six widths (1440/1024/768/390/320/280px): computed white product backgrounds, row capped at 480px, no image title tooltip, loaded uncropped 110px photos, equal panels, centered plus, wrapping names, preserved tabs/keyboard/arrows/dots/refresh/status, styled exact-empty Live panel and image fallback. Desktop/phone/source/empty-state screenshots were inspected.
+- Harness/report: `scratch/dashboard-demo-20261110/review-clean-panels.cjs`, `clean-panels-browser-result.json`, `clean-panels-browser.log`, fresh renders `clean-panels-fixtures/`; screenshots include `clean-panels-super-synthetic-1440.png`, `clean-panels-marketplace-synthetic-390.png` and `clean-panels-marketplace-empty-390.png`. All browser data was intercepted to local test/static assets; test media URLs use a known local JPEG. No production-account/chart verification is claimed.
+- `git diff --check` passed. No JavaScript or backend source changed, no new unit tests were added, and the broader earlier suites were not rerun for this reversible presentation fix.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+The photograph's own backgrounds (for example, the black table around Pancit Canton or gray counter behind the eggs) remain part of the original image. Only the UI panel background changed; the photo files are preserved and fully visible as the user previously selected. Changes are local, not deployed. Normal deployment should collect CSS `20261110-dashboard-clean-panels`; stale cached CSS can retain the gray panels. The Live empty-state panel intentionally keeps its subtle pale background.
+
+Safe exercise: in developer tools on a local ignored test render, temporarily increase the grid `max-width` to observe how the panels spread on a wide card. Remove the override and run `node scratch/dashboard-demo-20261110/review-clean-panels.cjs`; verify the bounded-row, white-background, absent-tooltip and carousel assertions pass. Keep photo files, CSV, saved reports and production records unchanged.
+
+## Styled Live empty state and smaller uncropped photos - November 10, 2026
+
+### 1. Cause / reason
+
+The user requested a designed Live empty state and smaller photos, then explicitly selected **Show the full photo without cropping**. The previous 140px `cover` frame cropped differently proportioned images. This follow-up keeps the same two-tab component, reduces its image frame to 110px and uses `contain` to preserve the whole photograph. The previously plain empty message receives visual treatment without extra copy or actions.
+
+### 2. Exact files changed / current lines and anchors
+
+Only these seven files were modified in this follow-up; existing earlier uncommitted work remains intact.
+
+| File and current line | Anchor / change |
+| --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:34` | `.dashboard-bundle-demo__live-empty`: wrap the existing exact empty message in a status panel with a decorative outline bundle icon. No description, seller, card or action added. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:533`, `:537` | Existing `.bundle-product-photo` wrapper/image: height 110px; full width, centered `object-fit: contain`, existing 8px radius. Both sources share this rule. |
+| Same file `:585`, `:591`, `:596` | Live empty-state panel, 40px decorative icon circle and centered wrapping navy message on the existing pale surface. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:23` | CSS cache version `20261110-dashboard-tabs-110`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18` | Same stylesheet version for Marketplace Admin. |
+| `backend/core/modules/marketplace/static/marketplace/demo/bundles/credits.html:23` | Update the display description from a cropped 140px frame to proportional uncropped 110px display. Photo files, source links and licenses stay unchanged. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current report and project guidance. |
+
+### 3. Changes made
+
+Live's successful empty state is a restrained bordered panel with a centered outline icon and **No Live Recommendations Yet**. The icon is decorative (`aria-hidden`); the accessible text remains exactly that message. There are no extra descriptions or actions. The two equal product panels now use smaller 110px image areas and show complete photos with their original proportions. Both tabs retain their images/URLs, names, recorded sellers/statuses, arrows, dots and independent selection. Synthetic seller identifiers, Demo Only and its disclosure are preserved.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No function or JavaScript changes. The existing outer template still selects the empty branch only when the authorized saved-live read succeeds with no eligible rows. It now renders the same text plus a decorative inline SVG. Existing CSS centers the icon/text with grid layout; long text wraps on narrow cards.
+
+The unchanged shared inner carousel supplies image URLs to `.bundle-product-photo img`. CSS sets a 110px frame and `object-fit: contain`, which scales the image proportionally using the smaller frame-to-image width/height ratio. Every photo edge stays inside the frame, without stretching or zooming. Different photo proportions can leave neutral space beside or above the photo; this follows the user's explicit no-crop choice.
+
+```css
+.dashboard-bundle-demo .bundle-product-photo img {
+    width: 100%;
+    height: 110px;       /* Smaller shared image area. */
+    object-fit: contain; /* Keep the complete photograph visible. */
+    object-position: center;
+    border-radius: 8px;
+}
+```
+
+### 5. Backend / API behavior
+
+Unchanged: source tabs, saved synthetic/actual live services, preview limits, status interpretation, role/scope permissions, refresh behavior, seller workflows and Apriori. No new records, actions, requests, polling or endpoints. A real live-read error retains its existing error branch rather than showing an empty success. Only presentation changes.
+
+### 6. Database / migration impact
+
+None. No model/migration, production or application-record changes, saved-report edits, CSV changes or photo replacements. Tests used the guarded unique disposable local PostgreSQL database and temporary synthetic report; the database was destroyed after the run.
+
+### 7. Tests performed / actual results
+
+- **11 existing focused Django tests passed** in 7.997s, zero failures/errors/skips; system check clean and disposable database destroyed. These cover exact Live empty text, real saved rows/photos/seller/status, both roles/refresh, escaping, permissions/scope, errors and unchanged live-photo URLs. Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview`. Report: `scratch/test-organization-20261109/dashboard-tabs-110-results.json`; log: `scratch/dashboard-demo-20261110/tabs-110-django.log`.
+- **1,477 local headless Chrome assertions passed**, zero JavaScript errors or non-GET requests. Both roles, all four saved demo pairs/two actual disposable-test live rows and widths 1440/1024/768/390/320/280px: decoded images, 110px image/frame height, complete contained photo/absence of zoom, equal panels, centered plus, wrapping names, both source tabs/keyboard/navigation/refresh/recorded status and existing error fallback. Exact Live empty text remains unchanged, with centered decorative icon/title and no product/seller/action descendants. The existing source-selection and empty-to-records refresh checks still pass.
+- Harness/report: `scratch/dashboard-demo-20261110/review-tabs-110.cjs`, `tabs-110-browser-result.json`, `tabs-110-browser.log`; fresh Django renders `tabs-110-fixtures/`. Desktop/phone source and empty-state screenshots were inspected (`tabs-110-super-synthetic-1440.png`, `tabs-110-marketplace-synthetic-390.png`, `tabs-110-marketplace-empty-1440.png`, `tabs-110-marketplace-empty-390.png`). Requests were routed to local test fixtures/static assets; test `/media/` images use an intercepted local JPEG. No production-account media or production-chart verification is claimed.
+- `git diff --check` passed. No new unit tests or JavaScript changes; the broader preceding 202-test run remains historical, not a rerun for this presentation-only follow-up.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Complete-photo fitting can leave neutral bands when the photo and frame proportions differ. This is intentional under the user's explicit no-crop preference. The frame is smaller without distorting the original image. Existing photos remain illustrative on Demo; Live still uses actual recorded photo URLs. Changes remain local, not deployed. Normal deployment should collect the updated CSS and load `20261110-dashboard-tabs-110`; stale cached CSS can retain the former crop/height.
+
+Safe exercise: in developer tools on an ignored local test render, temporarily toggle `object-fit` from `contain` to `cover` and observe which image edges disappear. Remove the override, run `node scratch/dashboard-demo-20261110/review-tabs-110.cjs` and verify complete-photo fit and 110px-frame assertions pass. Check the Live empty tab retains only its exact message and decorative icon. Do not edit saved reports, CSV, photo files or production records to practice this display rule.
+
+## Synthetic Demo and actual Live Recommendations tabs - November 10, 2026
+
+### 1. Cause / reason
+
+The inspected local dashboard card displayed saved synthetic results only. Both dashboard GET views already provided `bundle_analysis.monitor_rows` from the existing saved-live service, but the card did not render them, and the Super Admin refresh fragment received only synthetic context. The requested tabs now expose those existing read-only live results without changing recommendation generation, seller actions or permissions. No hardcoded sample recommendation, "Sample Seller · Campus Bites", simulated actions or preview disclaimer was present in the inspected current card files; none was introduced.
+
+### 2. Exact files changed / current lines and anchors
+
+This follow-up changes the following files only; other earlier uncommitted work remains intact.
+
+| File and line | Anchor / purpose |
+| --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:2`, `:9`, `:13`, `:28` | Existing shared card: two accessible source tabs; Synthetic Demo initially selected; synthetic-only badge/disclosure; live saved rows or exact minimal empty message. Remove the redundant subtitle. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_carousel.html:1`, `:20`, `:24` | New extracted shared inner partial, containing the existing product pair, seller and carousel controls. Both sources reuse it; live rows additionally render the existing recorded response/delivery status. No duplicate business module or actions. |
+| `backend/core/modules/marketplace/static/marketplace/js/bundle_suggestions.js:158`, `:160`, `:210`, `:216`, `:232` | `selectedTabs`, `selectTab`, initialization and delegated keyboard/click handlers. Separate selection by panel, retain active source on Super Admin fragment refresh, and keep Synthetic Demo the fresh-page default. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:489`, `:490`, `:552` | Existing scoped card styles: panel grid gaps, compact tab underline/hover/focus/wrapping and centered live status. Existing Montserrat/equal panels/140px images remain unchanged. |
+| `backend/core/modules/reports/views.py:1406` | `admin_dashboard_api` fragment rendering now passes existing `dashboard_bundle_suggestions(user, limit=2)` alongside saved demo context, matching the initial Super Admin render. No service/query/workflow changes. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:23`, `:614` | CSS/JS version `20261110-dashboard-tabs`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18`, `:188` | Same CSS/JS version for Marketplace Admin. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py:50`, `:215`, `:234`, `:269`, `:283` | Panel-scoped assertions and four new cases for exact Live empty state, real saved images/names/seller/status/refresh, escaped recorded status data, program scope and honest read errors. Eleven cases total in this class. |
+| `backend/core/modules/marketplace/tests/test_bundle_monitoring.py:920`, `:922`, `:946`, `:1050` | Update earlier demo-only dashboard expectations to allow actual saved records in Live; keep synthetic isolation and read-only/count assertions. |
+| `backend/core/modules/marketplace/tests/test_bundle_suggestions.py:467` | Existing activity-error test now expects the real saved product in the Live tab independently of activity-summary availability. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current implementation, data flow, verification, troubleshooting and safe practice. |
+
+The existing `dashboard_bundle_summary.html` and `executive_dashboard.html` continue including the shared card without modification. Initial dashboard views already supplied the live data; only the existing refresh fragment needed that same context.
+
+### 3. Changes made
+
+- Exactly two tabs: **Synthetic Demo** (fresh-page default) and **Live Recommendations**. Preserve the current compact styling, Montserrat, 140px cover images, equal product panels, plus, seller, arrows and dots. No numerical carousel counter.
+- Synthetic Demo retains its saved pairs, photos, all synthetic seller identifiers including S01, Demo Only badge, disclosure and existing photo-credit icon.
+- A successful Live read with no eligible saved rows renders only **No Live Recommendations Yet** inside the panel: no products, seller, status, actions, footer or additional explanation. The synthetic badge/disclosure is hidden while Live is selected.
+- With actual eligible saved rows, Live shows their database photo URLs, escaped names, actual seller and recorded status using the same inner card partial. The existing `response` value is displayed unless it is Not Applicable; then the existing `delivery` label is used (for example, Not Sent to Seller). These values come from existing saved-record presentation, not simulated state. No Details/Recommend to Seller buttons or preview samples are added.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The existing `dashboard_synthetic_preview(user)` returns saved synthetic rows. The unchanged `dashboard_bundle_suggestions(user, limit=...)` reads actual saved `BundleRecommendation` records through the existing scoped `recommendations_for`/`presentation` services and supplies `monitor_rows`, `monitor_error` and error state. Those services still enforce current eligibility, owner/program/major scope, real seller responses and the existing dashboard preview limits (Super Admin two, Marketplace Admin up to three). Nothing is mined, sent, accepted, dismissed or created by rendering the tabs.
+
+The existing outer partial receives `bundle_demo` and `bundle_analysis`. It renders source-specific states and calls the same extracted product/carousel markup when rows exist:
+
+```django
+{% include 'marketplace/partials/dashboard_bundle_carousel.html' with rows=bundle_analysis.monitor_rows source='live' %}
+```
+
+Here `rows` is the existing authorized saved-live projection, not CSV data or a hardcoded list. The `source` argument controls the display of the actual status; it never changes source queries or seller state.
+
+JavaScript `selectTab(card, source, focus)` accepts the existing card and `synthetic`/`live` source, updates tab `aria-selected`/tabindex, hides the other panel and toggles the synthetic badge. Left/Right/Home/End on tabs activate/focus the corresponding tab; inside a carousel the existing keys select slides. `show(panel, index)` retains its existing bounds, arrows, dots and announcements. Each panel has its own stable `aria-labelledby` key, preventing one source's position from overwriting the other's.
+
+On Super Admin refresh, the existing dashboard API returns both sources in `bundle_preview_html`; the existing dashboard-data event initializes the replacement fragment and restores selected tab/pair by source and saved ID. New real records appear on a normal dashboard GET/refresh as soon as the existing backend exposes them. Marketplace Admin retains its normal full GET reload, which starts at Synthetic Demo. No polling, new API route, source endpoint or backend workflow was added.
+
+### 5. Backend / API behavior
+
+Existing live/synthetic service logic, permissions, filtering, thresholds, CSV and seller actions are unchanged. Only the refresh view passes already available live context into the shared template. The live card cannot create fake records or send recommendations. Anonymous/unauthorized global API access and raw research restrictions remain covered by existing tests. Source switching is local DOM state with no fetch or mutation. A genuine live database read failure shows a concise error rather than misrepresenting it as no records; normal empty rendering contains exactly the requested message.
+
+### 6. Database / migration impact
+
+No model, migration, production/application record, image file, photo URL or saved-report changes. New live test cases create records only in Django's unique disposable local PostgreSQL database and write synthetic test reports only to temporary files. The database is destroyed after testing. No real-account seeding, fake production transactions or forced mining was performed.
+
+### 7. Tests performed / actual results
+
+- **202 Django tests passed** in 47.499s, zero failures/errors/skips; system check clean and disposable local database destroyed. Includes all eleven source-card cases, saved synthetic/live monitoring, executive dashboards and existing mobile seller recommendation/decision workflows. The initial 155-test run found three obsolete demo-only UI assertions; those were updated to assert live records only where now expected while preserving scope, counts and read-only assertions.
+- Final command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview modules.marketplace.tests.test_bundle_suggestions modules.marketplace.tests.test_bundle_monitoring modules.reports.tests.test_dashboard_executive api.tests.test_admin_seller_recommendations api.tests.test_seller_recommendations`. Report: `scratch/test-organization-20261109/dashboard-bundle-tabs-results.json`; log: `scratch/dashboard-demo-20261110/tabs-django.log`.
+- **1,297 local headless Chrome assertions passed**, zero JavaScript errors and zero non-GET requests. Both roles and six viewport widths (1440/1024/768/390/320/280px), all four saved demo slides and two actual test-database live rows: correct default/tab labels/keyboard/focus, hidden opposite source, actual seller/status, decoded image URLs, equal cards, 140px cover photos/8px radius, centered plus, no clipped names, no removed sample/actions/counters, independent carousel positions, arrows/dots and both refresh paths. Empty Live panels were checked for exact text with no image/button/seller/action descendants. Super Admin refresh from an empty fixture to a saved-record fixture showed real rendered rows automatically while retaining Live selection. Existing image-error fallback was tested independently for both sources.
+- Harness/report: `scratch/dashboard-demo-20261110/review-tabs.cjs`, `tabs-browser-result.json`, `tabs-browser.log`, `tabs-fixtures/`. Actual screenshots for both roles/sources at desktop and phone widths, plus exact-empty Live screenshots, were inspected (`tabs-super-synthetic-1440.png`, `tabs-super-live-1440.png`, `tabs-marketplace-live-390.png`, `tabs-marketplace-empty-390.png`, etc.). Browser QA uses actual Django test renders, intercepted local static/API fixtures and stubbed external chart scripts. For the test database's `/media/test-live-*.jpg` URLs the harness serves a known local JPEG to verify loading; it does not claim to inspect real-account media or production charts.
+- `node --check backend/core/modules/marketplace/static/marketplace/js/bundle_suggestions.js` and `git diff --check` passed. Flutter source was unchanged and Flutter tests were not rerun. No optional design-kit score or WCAG certification is claimed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Changes are local, not deployed. Normal deployment must collect the existing shared CSS/JS with version `20261110-dashboard-tabs`. Live displays only records the unchanged saved-live service currently considers eligible and authorized, within its existing preview limits; it does not mine recommendations, bypass scope or fabricate cards to fill space. Refresh the dashboard to retrieve newly available saved rows. Source switching itself makes no request. Without JavaScript, the first synthetic pair/disclosure remain available and tabs/navigation stay hidden.
+
+If Live is empty, verify actual saved recommendation ownership/scope/current eligibility and the administrator's existing analytics permission. Do not insert fake production records to populate it. A file/CSV problem affects Demo's existing error/empty state independently; a live database read failure has its own concise error and does not invent an empty success. No simulated seller action or status was introduced.
+
+Safe practice: run only `modules.marketplace.tests.test_dashboard_synthetic_preview` through the guarded local runner with `DASHBOARD_DEMO_REVIEW_DIR` pointing to an ignored scratch directory. `test_live_empty_panel_contains_only_exact_empty_message_for_both_roles` removes only its disposable test row and verifies the exact empty state. `test_real_saved_live_records_photos_seller_status_and_refresh_for_both_roles` creates only disposable saved rows and checks recorded statuses/URLs plus unchanged counts. In the latter test fixture, change the third product's name, rerun and update only the corresponding assertion; verify that name appears solely in the test Live panel and the synthetic S01 identifier remains. Restore the fixture afterward. Do not edit production orders, synthetic CSV or actual saved reports for this exercise.
+
+## Compact 140px images, equal panels and Montserrat - November 10, 2026
+
+This is the current dashboard-card specification. The user's latest explicit request supersedes the earlier natural-height/contain/Inter choices below: use 140px `cover` images, equal product cards, tighter spacing and Montserrat, preserving the existing images, URLs, saved demo-first results and carousel.
+
+### 1. Cause / reason
+
+The inspected local code had newer uncommitted changes: successful-image wrappers used automatic height and product panels aligned independently at the top. Images with different proportions therefore produced unequal panel heights. The user now requests consistent 140px images and equally sized panels. Before editing, the actual local rendered dashboards were checked with their current classes and styles; both roles used `.dashboard-bundle-demo`, `.dashboard-bundle-demo__product` and `.bundle-product-photo img`, not the legacy `.super-recommendation-preview` styling.
+
+Super Admin's `executive_dashboard.html` includes `super_recommendation_preview.html` inside `[data-bundle-preview]`; Marketplace Admin's dashboard includes `dashboard_bundle_summary.html`, which includes that same partial. The existing shared stylesheet is therefore the correct place for this targeted change. No GitHub version was substituted for local files, no files were deleted and existing uncommitted work was retained.
+
+### 2. Exact files changed / current lines and anchors
+
+Only these six files were changed in this follow-up. Other modified/untracked files already present from earlier work were not reset or overwritten.
+
+| File and current line | Anchor / change |
+| --- | --- |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:460`, `:467`, `:493` | Local `@font-face`, scoped `.dashboard-bundle-demo` font token and heading: reuse bundled Montserrat, 16px heading, 10px internal gaps. |
+| Same file `:506`, `:510`, `:518`, `:522` | Equal-width grid columns stretch panels to the same height; 8px product padding; existing photo wrapper and image both 140px high; `width: 100%`, `object-fit: cover`, centered positioning and 8px image radius. Remove the automatic-height successful-image override. |
+| Same file `:532`, `:554`, `:568` | Seller top margin 10px; compact footer with 8px top padding; retain narrow container spacing and wrapped names. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18` | CSS version `20261110-dashboard-compact-140`. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:23` | Same CSS version for Super Admin. |
+| `backend/core/modules/marketplace/static/marketplace/demo/bundles/credits.html:23` | Correct the existing credit description to identify the centered CSS crop inside a 140px display area. Source/license/photo files remain unchanged. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current eight-part report and latest project context. |
+
+The requested shared partials and `backend/templates/dashboard/partials/executive_dashboard.html` were inspected and retained; they already render the correct shared component and controls. No template duplication or new feature module was needed.
+
+### 3. Changes made
+
+Both roles now use the same compact Montserrat card with navy `#1A1851`, gold `#FCB316` and white. Equal grid tracks keep the product cards equally wide; stretched grid items keep them equally tall even when one name wraps. Both image frames and images remain exactly 140px high and cannot expand with portrait photos. Names sit centered 6px below the images and wrap fully. The gold plus stays centered horizontally and vertically between panels. The recorded synthetic seller is centered below the pair; the first actual saved pair retains **Synthetic Seller S01**, while other pairs retain their own saved seller IDs.
+
+The upper-right Demo Only badge, circular Previous/Next buttons, dots, no-counter behavior, photo credits and compact synthetic disclosure remain. Product padding reduces from 12px to 8px, combination gap from 16px to 12px (8px on narrow cards), seller margin from 16px to 10px and footer spacing from 12px plus 4px margin to 8px without that margin. Shared outer 16px padding is preserved to avoid changing dashboard placement.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No function, template loop or JavaScript changes. The existing permission-checked saved synthetic projection still supplies each row's two photo URLs, names, seller and stable ID to the shared partial. Scoped CSS changes only their display. The font rule reuses `backend/static/assets/fonts/Montserrat-VariableFont_wght.ttf` under a component-specific font-family alias; overriding `--ch-font-ui` inside this card makes existing shared typography rules use Montserrat without changing unrelated dashboard content.
+
+```css
+.dashboard-bundle-demo .bundle-product-photo img {
+    display: block;
+    width: 100%;       /* Fill the existing equal-width product column. */
+    height: 140px;     /* Bound portrait and landscape photos equally. */
+    object-fit: cover; /* Use the user's requested compact centered crop. */
+    object-position: center;
+    border-radius: 8px;
+}
+```
+
+The wrapper has the same 140px height and retains existing overflow handling. The flex column places the name directly after the image; the grid stretches both panels to the taller content height while names remain at the top. Existing image-error handling, keyboard navigation, stable selection on Super Admin refresh and Marketplace full-page refresh are unchanged.
+
+### 5. Backend / API behavior
+
+Unchanged. No synthetic CSV/Apriori/report changes, new recommendations, image substitutions, seller actions, permission changes, live recommendation changes or data writes were introduced. The existing demo-first card still reads saved results without mining on refresh. Actual image files and their URLs are preserved; images are not replaced with icons. The pre-existing fallback is retained only for missing/failed photos.
+
+### 6. Database / migration impact
+
+None. No models, migrations, saved report edits, production operations or application-record changes. Existing focused tests were run using the guarded unique disposable local PostgreSQL test database and temporary report path; the database was destroyed afterward. No destructive Git commands or file deletion occurred.
+
+### 7. Tests performed / actual results
+
+- Before editing, ran the existing local rendered-card browser harness against current local markup/CSS. It confirmed natural-height wrappers, scoped Inter and the shared selectors; existing **720 assertions passed**. This established the local baseline, not a GitHub snapshot.
+- After editing, **7 existing Django tests passed** in 5.476s, zero failures/errors/skips; system check clean and disposable local test database destroyed. Tests cover saved-demo results for both roles, refresh, raw research/role permissions, missing/empty/corrupt/single states, image assets/credits, escaped names and unchanged live image URLs. Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview`. Report: `scratch/test-organization-20261109/dashboard-compact-140-results.json`; log: `scratch/dashboard-demo-20261110/compact-140-django.log`.
+- **828 headless Chrome assertions passed**, zero JavaScript errors or non-GET requests. Fresh Django-rendered local test fixtures, both roles, all four saved slides and viewports **1440/1024/768/390/320/280px**: every image decodes, image/frame heights are exactly 140px, image width fills its frame, computed fit is `cover` with 8px radius, both panels have equal width/height, plus and seller centers align, names sit 6px below photos and wrap without overflow, bundled Montserrat loads, badge stays upper-right, no counter/metrics, controls/dots/keyboard/refresh work, credits open and fallback/empty/error/single states remain usable. Injected unusually long product names still wrap and preserve equal panels.
+- Measured desktop card height at 1440px: **382px for both roles** (prior natural sizing: 416px). At 768px: **382px for both** (prior: 466px). At 390px: **431px for both**; compact phone columns wrap text naturally while retaining the requested 140px photos. Desktop, phone and fallback screenshots were inspected.
+- Browser harness/report: `scratch/dashboard-demo-20261110/review-compact-140.cjs`, `compact-140-browser-result.json`, `compact-140-browser.log`; fresh fixtures `compact-140-fixtures/`; screenshots `compact-140-super-1440.png`, `compact-140-marketplace-390.png` and corresponding role/state images. Browser requests were intercepted to local static/test data and external chart scripts were stubbed; no production-chart or real-account walkthrough is claimed.
+- `git diff --check` passed. JavaScript was unchanged, so syntax/unit suites were not repeated. No new implementation-mirroring unit tests were added for this reversible style change. No optional design-kit gate score or WCAG certification is claimed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+`object-fit: cover` intentionally crops the visible edges of photographs whose proportions differ from the 140px frame; this follows the user's latest explicit requirement and supersedes the earlier no-crop request. The original photo files/URLs remain unchanged. Narrow viewports may wrap the title, names and disclosure onto additional lines; nothing is cut off. This update is local, not deployed. Normal deployment must collect the updated stylesheet and use `20261110-dashboard-compact-140`; a stale cache can still show the older natural heights.
+
+Safe exercise: in browser developer tools on an ignored local test render, temporarily change only the demo image `height` from 140px to 160px. Observe the bounded frame and computed size, then remove the temporary override. Run `node scratch/dashboard-demo-20261110/review-compact-140.cjs`; verify the 140px, equal-panel, image-loading and carousel checks pass. Leave backend records, CSV, saved report, source photo files and production data untouched.
+
+## Full-width photos without cropping - November 10, 2026
+
+### 1. Cause / reason
+
+The preceding `contain` fix showed every image edge but retained a fixed-height frame. That frame left unused space when its proportions differed from the photo. The user requested images that fill the area while remaining uncropped. This follow-up makes each successful photo's frame follow its original proportions instead of forcing it into a common height.
+
+### 2. Exact files changed / current lines and anchors
+
+- `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:501`, `:505`: product panels align at the top and size naturally instead of stretching both to the same height.
+- Same file `:515`, `:517`: `.bundle-product-photo:has(img:not([hidden]))` uses a content-sized block frame; the image uses `display: block; width: 100%; height: auto`. Existing `contain`/center remain as safeguards.
+- Same file `:522`: `.dashboard-bundle-demo__plus` centers itself between the naturally sized product panels.
+- `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18` and `backend/templates/dashboard/pages/admin_dashboard.html:23`: CSS asset version changes to `20261110-dashboard-natural-photos` for both roles.
+- `docs/suggested-product-bundles.md:3` and `CAMPUSHUB_CONTEXT.md:3`: record this follow-up, verification and learning exercise.
+
+### 3. Changes made
+
+Successful sample photos fill the available image width and choose their own proportional height. Their frames contain no letterboxing, forced zoom, crop or stretch. Panels can have different heights because the original images have different proportions. Names, panel padding, Gulaman replacement, seller text, controls and disclosure remain. Missing or failed images retain the existing bounded SVG fallback area.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+There is no new function or JavaScript. The existing saved synthetic projection supplies the same local photo URLs to the shared template. CSS selects a photo wrapper only when it contains an image that is not `hidden`; its height becomes automatic. The browser computes image height from its intrinsic width/height ratio and the available width. The hidden placeholder no longer reserves another grid row because the successful-image wrapper is a block. If the existing error handler hides an image, the `:has` selector stops matching and the original fallback frame returns.
+
+```css
+.dashboard-bundle-demo .bundle-product-photo:has(img:not([hidden])) {
+    display: block;
+    height: auto; /* Wrapper follows the visible image. */
+}
+.dashboard-bundle-demo .bundle-product-photo img {
+    display: block;
+    width: 100%; /* Fill available image width. */
+    height: auto; /* Preserve original photo proportions. */
+}
+```
+
+### 5. Backend / API behavior
+
+Unchanged: saved results, Apriori execution, permissions, refresh endpoints, synthetic identities, seller workflows and live product photos. Only scoped demo CSS and its cache versions changed. No runtime image editing, network image service or new dependency was introduced.
+
+### 6. Database / migration impact
+
+None. No application records, CSV, saved reports, models or migrations changed. Browser verification used existing local test-rendered fixtures; no database write or new analysis run was needed for this style-only change.
+
+### 7. Tests performed / actual results
+
+- **720 local headless Chrome assertions passed**, zero JavaScript errors and zero non-GET requests. Tested both roles at 1440/1024/768/390/320/280px and all four slides: decoded local images, original aspect ratio, full-frame width/height coverage without letterboxing, no transform/offset, complete image fit, panel overflow, arrows/dots/keyboard, both refresh paths, image error fallback, credits and missing/empty/corrupt/single states. Desktop/phone/fallback screenshots were inspected.
+- Evidence: `scratch/dashboard-demo-20261110/review-natural-photos.cjs`, `natural-photo-browser-result.json`, `natural-photo-browser.log`, `natural-photo-super-1440.png`, `natural-photo-marketplace-390.png` and state screenshots. Harness used existing `full-photo-fixtures` with current local CSS; their older query-string version does not affect CSS content in this intercepted asset test. External chart scripts were stubbed; this is card verification, not production-chart/live-account verification.
+- `git diff --check` passed. No new unit tests were added and Django/JavaScript suites were not rerun for this reversible CSS-only change; the preceding seven-test Django result remains historical.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+An uncropped full-width portrait photo is taller than a landscape photo. This natural size difference preserves the complete image; fixed equal image heights would require cropping, stretching or empty bands. Changes remain local, not deployed. On normal deployment collect static assets and confirm CSS `20261110-dashboard-natural-photos` loads. The existing fallback still reserves a compact area when no photo is available.
+
+Safe exercise: open an ignored local render in browser developer tools, select the demo image and temporarily toggle `height: auto` to `height: 100px`. Observe its ratio/frame coverage, then remove the override. Run `node scratch/dashboard-demo-20261110/review-natural-photos.cjs`; verify original-proportion and frame-fill assertions pass. Do not modify the actual saved report, photo files, CSV or production records to practice this CSS behavior.
+
+## Full photos and replacement Gulaman image - November 10, 2026
+
+This follow-up supersedes the cover-fit/zoom behavior and previous Gulaman photo described below. The reference card structure and all saved-data behavior remain.
+
+### 1. Cause / reason
+
+Confirmed cause: the demo-only CSS used `object-fit: cover`, which cuts off image content when its aspect ratio differs from the frame. A separate Gulaman selector also applied `scale(1.5)` and bottom positioning. The user requested complete visible photos and a different Gulaman sample image.
+
+### 2. Exact files changed / current lines and anchors
+
+| File and line | Anchor / change |
+| --- | --- |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:512`, `:515` | `.dashboard-bundle-demo .bundle-product-photo`: slightly taller responsive frame, `object-fit: contain`, centered position; remove Gulaman zoom/offset rule. |
+| `backend/core/modules/marketplace/services/bundle_suggestions.py:39` | `SYNTHETIC_PREVIEW_PHOTOS`: change only the P04/Gulaman display filename to `gulaman-glass.jpg`. |
+| `backend/core/modules/marketplace/static/marketplace/demo/bundles/gulaman-glass.jpg` | New licensed photograph showing a glass of sago and gulaman; remove superseded local `gulaman.jpg`. |
+| `backend/core/modules/marketplace/static/marketplace/demo/bundles/credits.html:23`, `:26` | Explain proportional full-photo display and replace Gulaman attribution/source/license/local filename. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18` | CSS version `20261110-dashboard-full-photos`. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:23` | Same cache version for Super Admin. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | This report and latest project guidance. |
+
+### 3. Changes made
+
+Both dashboard cards show complete, centered images without stretching, cropping or zooming. The photo area now ranges from 88px to 160px tall with available card width, allowing fuller food photos while keeping the existing panels and controls. Narrow photos may have space beside them; this preserves their proportions. The replacement Gulaman photo shows an individual glass rather than the previous street-stall jars. Its new filename also prevents a browser from reusing the old cached image.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The existing `dashboard_synthetic_preview(user)` still reads the validated saved synthetic report. Its existing exact ID/name photo map selects the new Gulaman static asset for P04/Gulaman; no combination or recommendation is added. The shared photo template sends that URL to the browser. Within the demo card only, `object-fit: contain` scales by the smaller of frame-width/image-width and frame-height/image-height, keeping every edge inside the frame. Removing the transform prevents a second zoom from clipping it.
+
+```css
+.dashboard-bundle-demo .bundle-product-photo img {
+    object-fit: contain;      /* Show the entire photograph. */
+    object-position: center;  /* Distribute remaining space evenly. */
+}
+```
+
+The locally bundled replacement is [Sago't Gulaman.jpg by Televido](https://commons.wikimedia.org/wiki/File:Sago%27t_Gulaman.jpg), licensed CC BY-SA 4.0. Source/license metadata was checked and the JPEG preview inspected; bytes are unchanged from the downloaded preview. Credits link the author/source/license. No AI image generation or local raster editing was used.
+
+### 5. Backend / API behavior
+
+No API, permission, role, Apriori, CSV, saved-result, live-photo or seller-workflow behavior changed. Only one synthetic display asset filename changed. Both roles continue sharing the same card and refresh behavior; no mining or remote image fetch occurs on refresh.
+
+### 6. Database / migration impact
+
+No model, migration, application-record or saved-report changes. Test data/report writes were confined to the existing temporary report and disposable local PostgreSQL test database, removed after the run.
+
+### 7. Tests performed / actual results
+
+- **7 focused Django tests passed** in 4.955s: saved results, both roles/refresh, error/empty/single states, image fallback/escaping, local JPEG/credit completeness and unchanged live photo URL. System check clean; unique local test database destroyed. Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview`. Report: `scratch/test-organization-20261109/dashboard-full-photo-results.json`; log: `scratch/dashboard-demo-20261110/full-photo-django.log`.
+- **624 local headless Chrome assertions passed**, zero script errors or non-GET requests. Both roles, four slides and six widths (1440/1024/768/390/320/280px): all photos decode, use `contain`, have no transform/offset and fit entirely within the image frame; carousel arrows/dots/keyboard, responsive panels, both refresh paths, broken-image fallback, credits and missing/empty/corrupt/single states also pass. Actual desktop and phone screenshots were inspected. Cards measured 413px high at 1440px and 410px at 390px.
+- Browser harness/report: `scratch/dashboard-demo-20261110/review-full-photos.cjs`, `full-photo-browser-result.json`, `full-photo-browser.log`; screenshots `full-photo-super-1440.png`, `full-photo-super-390.png`, `full-photo-marketplace-1440.png`, `full-photo-marketplace-390.png`. QA used rendered test fixtures/local static assets with external chart scripts stubbed, not live accounts or production charts.
+- `git diff --check` passed. No JavaScript changed, so its prior syntax result was not rerun for this CSS/asset correction. Earlier 151/240-test runs remain historical; this correction's current Django verification is the seven-test module above. No new implementation-mirroring unit test was added for the reversible style change.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Photos are still illustrative demo assets, not seller uploads. Complete-image fitting can leave neutral space around a photograph; this is expected and prevents the clipping the user reported. Changes are local, not deployed. Normal deployment must collect the replacement static file. If old styling remains, check that `20261110-dashboard-full-photos` loads and the Gulaman URL ends in `gulaman-glass.jpg`.
+
+Safe exercise: in a copy of an ignored `full-photo-fixtures/*.html` render only, add a scoped `object-fit: cover` override and compare the visible image edges. The browser harness's full-photo-fit assertion must fail. Remove that temporary override and rerun `node scratch/dashboard-demo-20261110/review-full-photos.cjs`; verify it passes again. Do not change the real CSV, saved report, live product photos or production records to practice this display rule.
+
+## Reference design and bundled sample photos - November 10, 2026
+
+This follow-up supersedes the 80px image layout and icon-only demo presentation in the preceding implementation report below. It applies the user's supplied card reference to both existing admin dashboards; other dashboard components and recommendation workflows retain their behavior.
+
+### 1. Cause / reason
+
+The user supplied a concrete design and requested sample images for the synthetic dataset. The previous card correctly read saved pairs but used small image areas and fallback icons. It now follows the reference's product panels, top-right Demo Only label, subtitle, centered seller/navigation and divided disclosure footer, with actual illustrative food photos stored locally. Photos are selected once for matching demo products, rather than changing on each refresh or borrowing real sellers' catalog images.
+
+### 2. Exact files changed / current lines and code anchors
+
+All paths are relative to the repository root. This table lists the files touched in this follow-up; the earlier report retains the original implementation's full file list.
+
+| File and current line | Code anchor / purpose |
+| --- | --- |
+| `backend/core/modules/marketplace/services/bundle_suggestions.py:21`, `:35`, `:122`, `:136` | Import Django `static`; `SYNTHETIC_PREVIEW_PHOTOS`; existing `dashboard_synthetic_preview`; exact ID/name lookup adds a local sample image URL only to the synthetic projection. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:1`, `:3`, `:27`, `:53` | Load static tags; reference heading/subtitle; store icon/seller; disclosure divider and photo-credit information link. Continue sharing this partial between both roles. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/bundle_photo.html:2` | Demo-only sample-photo alt/title text. Existing live photo semantics remain unchanged. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:460`, `:499`, `:503`, `:516`, `:546`, `:560` | Existing scoped demo card: larger bordered product panels with names inside, round gold plus, centered circular arrows/navy selected dot, footer and narrow container adaptation. Gulaman display crop focuses on drink jars. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18` | CSS asset version `20261110-dashboard-reference`. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:23` | Same CSS version for Super Admin. Existing carousel script and refresh listeners remain. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py:50`, `:143`, `:191` | Expect local sample images, preserve unknown-name fallbacks, check all six JPEG assets and credits, and prove live image URLs remain unchanged. Seven tests in this class. |
+| `backend/core/modules/marketplace/tests/test_bundle_monitoring.py:802`, `:928` | Existing dashboard tests now allow exactly one informational photo-credit link, without adding recommendation actions. |
+| `backend/core/modules/reports/tests/test_dashboard_executive.py:330` | Same credit-link assertion in the executive dashboard regression. |
+| `backend/core/modules/marketplace/static/marketplace/demo/bundles/credits.html:1` | New local attribution page for all six photos, source/author/license links and explanation of illustrative use/display cropping. |
+| Same static folder: `siomai-rice.jpg`, `gulaman.jpg`, `pancit-canton.jpg`, `boiled-egg.jpg`, `burger.jpg`, `cucumber-lemonade.jpg` | Six new Wikimedia-generated JPEG previews (unchanged file bytes), used only for matching synthetic display products. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current follow-up report and project guidance. |
+
+### 3. Changes made
+
+The heading is 18px Inter with **Recommended product combinations** below it and the Demo Only pill at the far right. Each pale, bordered product panel contains its photo/fallback and name. The plus sits in a small gold circle; seller text has the reference's store icon. Previous/Next are circular and sit beside the centered dots; the selected dot is a navy capsule. A thin divider separates the disclosure footer, whose information icon opens the local photo credits in a new tab. Numeric counters, metrics and dataset-analysis actions remain absent.
+
+Six relevant sample photos cover the six unique products in the current four saved pairs. They are static presentation assets, not additional recommendations or actual seller uploads. The JPEG originals/previews were not edited locally; CSS controls their visible crop, including a closer view of Gulaman jars. The sample nature is identified by Demo Only, the disclosure, image alt/title text and the credits page. Names and sellers still come from the validated saved report.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`dashboard_synthetic_preview(user)` retains its permission and existing `_demo()` saved-report validation. For each saved product, it looks up `(product_id, exact_product_name)` in `SYNTHETIC_PREVIEW_PHOTOS`. A match becomes a Django `static('marketplace/demo/bundles/' + filename)` URL; an unknown/mismatched identity/name receives an empty URL and the existing food/drink SVG fallback. No CSV row, pair rank, seller, threshold, mining result or production product is changed.
+
+```python
+photo = SYNTHETIC_PREVIEW_PHOTOS.get((item['id'], item['name']))
+# This chooses only display artwork; `item` still comes from saved CSV analysis.
+image_url = static('marketplace/demo/bundles/' + photo) if photo else ''
+```
+
+Both roles render the same existing partial. `bundle_photo.html` lazily loads that local image; the existing carousel error handler reveals the fallback if it fails. Existing delegated click/keyboard controls and Super Admin refresh selection retention are unchanged. The container query reduces panel spacing on narrow cards; names wrap instead of being cut off. Photo credits are a static HTML asset, so no new Django route or permission bypass was introduced.
+
+The new photographs retain their individual licenses: [Siomai Rice / Aerous](https://commons.wikimedia.org/wiki/File:Siomai_rice.jpg) and [Cucumber Lemonade / Fastily](https://commons.wikimedia.org/wiki/File:Cucumber_Lemonade_1_2017-07-20.jpg), CC BY-SA 4.0; [Gulaman / Ron Miguel](https://commons.wikimedia.org/wiki/File:Gulaman.jpg), CC BY 2.0; [Pancit Canton / Obsidian Soul](https://commons.wikimedia.org/wiki/File:Lucky_Me_instant_pancit_canton_noodles_(Philippines)_01.jpg), [Boiled Eggs / Alabama Extension](https://commons.wikimedia.org/wiki/File:Boiled_Eggs_(Alabama_Extension).jpg) and [Burger / Miansari66](https://commons.wikimedia.org/wiki/File:Hamburger_(9).jpg), CC0. Source/API license metadata was checked during acquisition; the local credits page links every source, license and bundled filename. No AI image generation was used.
+
+### 5. Backend / API behavior
+
+Only the synthetic card projection gains local photo URLs. Existing dashboard GET/refresh, role checks, saved report/version validation, Apriori services and seller/live recommendation endpoints retain their behavior. No analysis runs on refresh; there is no external image API or image-host request during card use. Raw research stays behind its existing authorization. Existing live product photos are unchanged, verified by regression.
+
+### 6. Database / migration impact
+
+No model, migration, application-record or CSV changes. The existing saved report is not rewritten. New files are static JPEG/credit assets only; no fake transactions, sellers or products were inserted. Explicit analysis inside tests writes only a temporary report, and Django test records stay in a unique disposable local PostgreSQL database that was destroyed afterward.
+
+### 7. Tests performed / actual results
+
+- **151 Django tests passed** in 29.171s, zero failures/errors/skips; system check clean and disposable database destroyed. Includes all seven card cases, existing synthetic/live analysis, role permissions, monitoring and executive dashboard regressions. Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview modules.marketplace.tests.test_bundle_suggestions modules.marketplace.tests.test_bundle_monitoring modules.reports.tests.test_dashboard_executive`. Report: `scratch/test-organization-20261109/dashboard-demo-reference-results.json`; log: `scratch/dashboard-demo-20261110/reference-django.log`.
+- **480 headless Chrome assertions passed**, zero JavaScript errors/non-GET requests. Both roles at 1440/1024/768/390/320/280px: all four pairs' two local photos decode successfully, panels fit without internal horizontal overflow, reference typography/padding/subtitle/circular arrows/centered controls, every dot, keyboard, both refresh paths, failed image fallback and missing/empty/corrupt/single states. The footer opens the local credits page with all six entries. Desktop cards measured 377px high at 1440px; phone cards measured 410px at 390px. Smaller screens grow naturally for wrapped text.
+- Browser harness/report: `scratch/dashboard-demo-20261110/review-reference.cjs`, `reference-browser-result.json`, `reference-browser.log`; actual screenshots `reference-super-1440.png`, `reference-super-390.png`, `reference-marketplace-1440.png`, `reference-marketplace-390.png` and state images were inspected. Browser requests were intercepted to use rendered test fixtures/local assets; external chart scripts were stubbed. This does not claim production chart or live-account verification.
+- All six downloaded JPEGs were viewed, and the browser verified successful decoding. The Django asset test checks that each allowlisted JPEG exists and every filename appears in the credits page. Unknown changed names still use fallbacks; the live image test retains its exact `/media/` URL.
+- Existing carousel JS syntax (`node --check`) and scoped whitespace (`git diff --check`) passed. The earlier broader 240-test run remains historical; this follow-up's actual run is the 151-test set above. Flutter code/tests and production deployment were outside this change. Optional kit gate scripts remain unavailable; no kit score or WCAG certification is claimed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+These are illustrative sample photos, not photos of CampusHub sellers' products. Only the six exact identities/names above have photos; any future saved pairs using other products keep the existing icons. Photos remain consistent on refresh. Adding new images requires an appropriate source/license and a corresponding exact-ID/name entry; never construct recommendations from the photo map. A missing image shows a fallback rather than breaking navigation. The credit icon intentionally opens attribution only, with no dataset-analysis action.
+
+The changes are local and have not been deployed. Normal deployment must include the new static assets in `collectstatic`; refresh a cached browser if it retains the prior card CSS, and confirm `20261110-dashboard-reference` loads. If all pairs are absent, use the earlier saved-report troubleshooting below; do not generate data simply to fill a layout. JavaScript-disabled users still see the first pair/disclosure, with navigation hidden.
+
+Safe learning exercise: in the temporary fixture inside `test_single_saved_pair_uses_fallbacks_without_unnecessary_navigation` (`test_dashboard_synthetic_preview.py:143`), rename "Steamed Rice" to another unmapped food name and run that test using the guarded local runner. It must still return an empty image URL, render the food fallback and omit one-pair navigation. Restore the fixture and rerun. For adding a future demo photo, first check the exact saved CSV ID/name, add a local licensed file/credit, and run `test_demo_photo_assets_are_local_complete_and_do_not_change_live_photos`; it detects missing files or credits without changing the actual saved report or production database.
+
+## Compact saved synthetic dashboard carousel - November 10, 2026
+
+This report supersedes older dashboard-card descriptions below. Live recommendation monitoring, Apriori research and mobile seller workflows retain their existing services and permissions.
+
+### 1. Cause / reason
+
+The two admin dashboard cards previously displayed saved **live** recommendations, seller responses and a navigation action. The requested demonstration instead needs a compact, clearly disclosed carousel of existing **saved synthetic** product pairs, without research metrics or counters. The durable product-only report already existed for seller demonstrations, so a second analyzer or database-backed demo module was unnecessary.
+
+Browser verification also confirmed three presentation causes: the Super Admin template loaded the recommendation script only in its non-global branch; an older shared `!important` rule removed Marketplace card padding; and role-specific inherited font tokens/title rules produced different typography. The fix loads the existing script for both dashboards and excludes only the new card from the legacy style, with scoped Inter typography and title sizing. Other dashboard styles remain intact.
+
+### 2. Exact files changed / current lines and code anchors
+
+Paths are relative to the repository root; line numbers describe this revision. Search the named anchor if later edits move a line.
+
+| File and line | Nearby code anchor | Change / purpose |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/services/bundle_suggestions.py:112` | `dashboard_synthetic_preview` | Authorized product-only projection of the existing durable synthetic report. |
+| `backend/core/modules/reports/views.py:35`, `:732`, `:1331`, `:1406` | helper import, `bundle_demo`, `bundle_preview_html` | Initial render for both roles and Super Admin refresh use the same demo projection; existing live context remains available. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:1` | `data-demo-bundle-carousel` | Replace the existing shared card with heading, Demo Only, pair, seller, arrows/dots, state messages and disclosure. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_summary.html:1` | shared partial include | Remove hidden legacy count/status copy; continue reusing the same card. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/bundle_photo.html:3` | `product.demo` | Optional food/drink SVG fallback for synthetic products; preserve existing live image/fallback behavior. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:140`, `:460` | legacy selector exclusion, `.dashboard-bundle-demo` | Scoped navy/gold/white compact styles, Inter, 80px image areas, 16px padding, visible focus and wrapping. |
+| `backend/core/modules/marketplace/static/marketplace/js/bundle_suggestions.js:155` | `Delegated controls`, `show`, `initialize` | Manual carousel, stable selected IDs, keyboard controls, image errors and refreshed-fragment initialization. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html:18`, `:188` | `20261110-dashboard-demo` | Refresh asset versions and load existing carousel JS only when authorized. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:23`, `:614` | same asset version, `show_bundle_suggestions` | Load shared CSS and carousel script in the global dashboard branch too; preserve existing monitoring script. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py:21` | `DashboardSyntheticPreviewTests` | Six cases covering real saved CSV analysis, both roles, refresh, escaping, state changes, no mining/writes and fallback selection. |
+| `backend/core/modules/marketplace/tests/test_bundle_monitoring.py:41`, `:956`, `:1026` | isolated report settings, live preview service, independent empty state | Update obsolete dashboard UI expectations while retaining scoped live counts, images, seller responses and monitoring tests. |
+| `backend/core/modules/marketplace/tests/test_bundle_suggestions.py:258`, `:333` | isolated report settings, dashboard access tests | Expect the disclosed demo card/script while retaining live API, mining and sales assertions. |
+| `backend/core/modules/reports/tests/test_dashboard_executive.py:20`, `:245`, `:329` | isolated report settings, saved refresh/card assertions | Preserve executive layout/permissions tests; update the two former live-card expectations. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | this report / latest context entry | Record implementation, data flow, debugging, verification and safe practice. |
+
+### 3. Changes made
+
+Both dashboards now show the same compact card with two side-by-side image/fallback areas, a gold plus, individual product names and the saved synthetic seller. The heading includes **Demo Only**. Previous/Next buttons stop at either end; dots select a pair directly. The card has no numeric counter, Support/Confidence/Lift, transaction/rule counts or analysis/navigation action. Its exact disclosure is: "Synthetic dataset for demonstration only. Not actual customer purchases."
+
+The first pair is readable without JavaScript; navigation becomes available after initialization. There is no automatic slide timer. Keyboard Left/Right, Home and End work inside the card, with a visible focus outline, descriptive dot labels, one `aria-current` dot and a polite product-name announcement. Nonselected slides use `hidden`. A single saved pair omits unnecessary navigation entirely.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+1. The existing explicit Super Admin **Run Demo Analysis** POST calls `execute_synthetic_research(user)` (`bundle_suggestions.py:387`). It analyzes `synthetic_order_items.csv` with the existing Apriori implementation and calls `publish_demo(snapshot, result, limits)` (`seller_recommendations.py:141`). This writer atomically saves the product-only report; this implementation does not change or invoke that POST from dashboard code.
+2. Dashboard GET calls `dashboard_synthetic_preview(user)`. Input is the authenticated admin identity. It enforces `can_view_bundle_suggestions` and calls the existing `_demo()` reader (`seller_recommendations.py:166`). The reader validates report format, two-product/same-seller identities, configured thresholds and the CSV SHA-256 version; it performs no mining or SQL writes.
+3. Output is `{source, rows, error, state}`. Each row contains only stable ID, seller text and two display products. No metrics, raw CSV rows or actual production transactions are copied into the card. The synthetic IDs are never treated as live `Product` primary keys.
+4. Both dashboard templates receive that output as `bundle_demo` and render the same partial. Super Admin's existing refresh API returns the same HTML as `bundle_preview_html`; the existing filter script replaces the fragment and dispatches `campushub:dashboard-data`. The new delegated listener restores the selected pair by saved ID. Marketplace Admin's existing refresh reloads the authorized dashboard GET and initializes the first pair.
+5. JavaScript `show(root, index, announce)` clamps the selected index, toggles slide visibility, updates disabled arrows/dots and optionally announces the pair. `initialize()` restores saved selection after refresh and reveals controls only for multiple slides. `fallback(image)` hides a failed image and reveals the existing accessible placeholder. There are no new fetches or mutating carousel actions.
+
+The CSV/report contains names and identities, **not product photos**. The card therefore uses a truthful navy food/drink illustration with a "No image available for ..." accessible label. It does not borrow a real seller's photo by coincidentally matching numeric IDs. Drink words use whole-word matching so "Steamed Rice" receives a food icon and "Iced Tea" a drink icon. Existing live images retain their current common photo template behavior.
+
+Annotated output example (structure only; names/IDs always come from the validated report):
+
+```python
+preview = dashboard_synthetic_preview(request.user)  # Permissions, saved file, version check.
+for row in preview['rows']:
+    names = [product['name'] for product in row['products']]  # Exactly two saved names.
+    seller = row['seller']  # Synthetic seller identity, never a live account lookup.
+```
+
+### 5. Backend / API behavior
+
+No route, permission definition, seller action, CSV, threshold or mining algorithm changed. Marketplace Admin sees the same safe product-only demo projection as Super Admin only with existing marketplace analytics permission. Raw research execution/results retain their existing Super Admin boundary. Anonymous and Marketplace Admin requests to the global dashboard API remain 401 and 403 respectively. Existing saved live `bundle_analysis`, attention items, live recommendation API, seller decisions, product approval and creation flows remain unchanged; only this dashboard card uses `bundle_demo`.
+
+### 6. Database / migration impact
+
+No model or migration changes. No demo products, orders, sellers, recommendations or audit records were created in the application database. Dashboard rendering is read-only. Mining tests explicitly execute analysis only against a temporary report location and disposable local test database, removed afterward. A separate read-only local report check returned **ready, four pairs** without regenerating results. Local PostgreSQL readiness was verified before testing (48 tables, 108 applied migrations, no pending migrations or missing columns).
+
+### 7. Tests performed / actual results
+
+- **240 Django tests passed** in 52.970s, zero failures/errors/skips; system check clean and unique disposable local PostgreSQL database destroyed. Includes all six new card cases, existing live/CSV monitoring, mobile seller recommendations/decisions, executive dashboards, periods/refresh and role permissions. Initial runs found obsolete live-card UI assertions; those were updated, keeping the live service/data assertions. No failing result is represented as a pass.
+- Final command from repository root: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview modules.marketplace.tests.test_bundle_suggestions modules.marketplace.tests.test_bundle_monitoring api.tests.test_admin_seller_recommendations api.tests.test_seller_recommendations modules.reports.tests.test_dashboard_periods modules.reports.tests.test_dashboard_executive accounts.tests.test_admin_workflows.DomainAnalyticsPermissionTests`. Credential-free report: `scratch/test-organization-20261109/dashboard-demo-final-results.json`; log: `scratch/dashboard-demo-20261110/django-final.log`.
+- **366 headless Chrome browser assertions passed**, zero script errors and zero non-GET requests. Actual Django-rendered test dashboards and local static files were routed locally; external chart/bootstrap scripts were stubbed, so this is a card verification, not a claim to have tested production charts. Tested both roles at viewport widths **1440, 1024, 768, 390, 320 and 280**: no horizontal overflow inside the card, identical Inter/title size/16px padding, two image areas, plus, disclosure, no metrics/counter, first/last arrows, every dot, keyboard controls, both refresh paths and broken images. Also rendered missing/empty/corrupt/single-pair states. Screenshots of both desktop/phone cards and state views were inspected.
+- Browser artifacts/harness: `scratch/dashboard-demo-20261110/review.cjs`, `browser-result.json`, `super-1440.png`, `super-390.png`, `marketplace-1440.png`, `marketplace-390.png` and state images. At 1440px both cards measured 274px high; at 390px both measured 317px. Very narrow screens grow naturally as text/dots wrap.
+- `node --check backend/core/modules/marketplace/static/marketplace/js/bundle_suggestions.js` passed. `git diff --check` passed (only normal Windows LF/CRLF notices).
+- The optional design-kit accuracy scripts/token kit are not installed alongside these skill folders. Existing CampusHub styles and actual project/browser checks were used; no kit gate score or WCAG certification is claimed. Flutter source was unchanged and Flutter tests were not rerun for this web-only change.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+No production deployment, live account walkthrough or public-domain change was performed. The browser checks use local test fixtures, not current account data. Actual synthetic product photos are unavailable in the existing report, so the current four pairs use the described fallbacks. Without JavaScript the first pair/disclosure remain visible but navigation stays hidden.
+
+- **No saved demo bundles yet:** the report is missing or stale relative to CSV bytes/thresholds. A Super Admin can explicitly use the existing Research Analytics / Synthetic Results **Run Demo Analysis** action. Refresh never runs it. Do not seed fake orders to populate this card.
+- **No product pairs met ...:** a valid saved run has zero qualifying pairs. This differs from a missing run and a loading error.
+- **Unable to load demo bundles:** the file is unreadable/malformed or its CSV cannot be read. Check `CAMPUSHUB_SELLER_DEMO_REPORT_PATH` (default `backend/core/var/reports/seller-bundle-demo.v1.json`) and file permissions, then use the normal authorized analysis action if regeneration is needed. Internal file contents/errors are not exposed to users.
+- **Old styling/hidden arrows:** refresh cached static assets and confirm both `20261110-dashboard-demo` assets load. The Super Admin global branch must include the carousel script. Do not restore legacy `super-recommendation-preview` classes to the new partial.
+
+Safe learning exercise: run only `modules.marketplace.tests.test_dashboard_synthetic_preview` through the guarded local runner. In `test_single_saved_pair_uses_fallbacks_without_unnecessary_navigation` (`test_dashboard_synthetic_preview.py:139`), change the temporary fixture's "Iced Tea" to "Coffee" and verify the drink fallback and absence of navigation still pass; restore it and rerun. This edits only a disposable test fixture, not the real CSV, saved application report or production records. To inspect full local test renders, set `DASHBOARD_DEMO_REVIEW_DIR` to an ignored `scratch/` directory before the run, then use the included browser harness with those fixtures. Missing/error-state tests demonstrate safe troubleshooting without running Apriori on refresh.
+
 ## Integrated mobile admin, live and demo sections - November 9, 2026
 
 This supersedes the earlier mobile source-tab layout. Seller Home and the existing Suggested Product Bundles destination now show **From Marketplace Admin → Recommended for You (Live Data) → Synthetic Demo (Testing Only)** as three stacked sections. The existing dashboard, navigation, real product approval workflow, CSV analysis and device-local demo form/storage remain in place. Development and verification use PC PostgreSQL only; production was not contacted or changed during this implementation.
