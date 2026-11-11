@@ -55,8 +55,12 @@ document.addEventListener('DOMContentLoaded', () => {
         card.querySelector('#bookingGroupingSelect').value = overview.grouping;
         if (!chartOnly) {
             card.querySelector('[data-booking-total]').textContent = number.format(overview.total);
-            card.querySelector('[data-booking-comparison]').textContent = overview.total > 0 && overview.comparison.previous_value === 0
-                ? 'New booking activity' : overview.comparison.comparison_text;
+            const comparison = card.querySelector('[data-booking-comparison]');
+            if (comparison) {
+                comparison.textContent = overview.total > 0 && overview.comparison.previous_value === 0
+                    ? 'New booking activity' : overview.comparison.comparison_text;
+                if (executiveMode) comparison.title = comparison.textContent;
+            }
             for (const key of keys) {
                 const row = card.querySelector(`[data-booking-status="${key}"]`);
                 if (!row) continue;

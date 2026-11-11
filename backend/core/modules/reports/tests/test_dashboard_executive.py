@@ -121,7 +121,7 @@ class ExecutiveDashboardTests(fixtures.DedicatedDomainDashboardTests):
             html = page.content.decode()
             section = html[html.index('<section class="executive-section executive-facilities"'):html.index('aria-labelledby="servicesOverviewTitle"')]
             for text in ('Monitor facility bookings, demand, and availability.', 'View Analytics',
-                         'Booking Summary', 'Bookings in Selected Period', 'Approved Bookings', 'Pending Bookings',
+                         'Booking Summary', 'Total Requests', '<h3>Approved</h3>', '<h3>Pending</h3>',
                          'Booking Trend', 'Most-Booked Facilities', 'Facility Attention', 'facilities-reservations-table'):
                 self.assertIn(text, section)
             self.assertNotIn('Booking Revenue', section)

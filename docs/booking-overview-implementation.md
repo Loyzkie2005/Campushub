@@ -1,5 +1,66 @@
 # Super Admin Facilities Overview implementation
 
+## Current: Booking Summary KPI cards only - November 11, 2026
+
+### 1. Cause / reason
+
+The three Super Admin summary cards had long labels, repeated descriptions, comparison text and no top-right icons. Their compact override used 11px labels, 22px values, 10px padding and 8px corners. The requested finish uses only Label + Value + Icon. Inspection also confirmed that removing the comparison paragraph without updating `render()` would cause a null-element error during initial rendering and AJAX refresh.
+
+### 2. Exact files changed / current lines and anchors
+
+| File / current line | Anchor and change |
+| --- | --- |
+| `backend/templates/dashboard/partials/super_facilities_overview.html:11` | `booking-overview__metrics`: retain three cards and the original bindings/links; use Total Requests, Approved and Pending; remove the three paragraphs; add decorative calendar, calendar-check and clock SVGs. Total/clock reuse `booking_overview_icon.html`; calendar-check uses the same inline SVG pattern within this partial. |
+| `backend/static/components/css/admin_booking_overview.css:370` | Super Admin `#bookingOverviewCard .booking-overview__metrics`: update the existing summary-only overrides to equal-height white cards, 14px padding, 1px `#DCE2EE` borders, 10px corners, 12px gaps, 12px semibold labels and 26px bold values in Montserrat/navy. Line 401 styles 32px icon containers; line 417 restores three equal columns when the booking container is at least 480px wide. |
+| `backend/static/components/js/admin_booking_overview.js:105` | `const comparison` / `if (comparison)`: update comparison text only when that optional element exists. All numeric rendering and chart logic remain as before. |
+| `backend/templates/dashboard/pages/admin_dashboard.html:20` | Booking CSS cache version becomes `20261111-booking-summary-kpis`; the corresponding booking script version changes at line 627. No header or page-layout markup changes. |
+| `backend/core/modules/reports/tests/test_dashboard_executive.py:124` | `test_facilities_layout_summary_charts_and_booking_links`: update the existing expected labels to the requested three labels. |
+| `docs/booking-overview-implementation.md:3` | This implementation, troubleshooting and learning report. Earlier entries describe historical changes. |
+
+### 3. Changes made
+
+The Total Requests card remains a non-interactive total. Approved/Pending retain their existing booking-status navigation. Each card places its icon at the top right and its value beneath the label. The icon background is `#E8EEFF`, border `#DAE3FA`, and stroke `#1A1851`. Values and labels are navy. No new metric, badge, subtitle, comparison indicator, dependency, shadow or gradient is added. Narrow containers stack the cards rather than squeeze the label/icon row; existing grid auto-rows keep heights equal.
+
+Only summary selectors were changed in the booking stylesheet. `admin_executive_refinement.css` was inspected and left unchanged; the existing more-specific booking selectors own this refinement. Booking Trend, ranking, reservations, attention, other dashboard sections, header and sidebar keep their existing code and styling.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The existing Django overview provider supplies actual selected-period counts. The template renders `overview.total`, `overview.approved` and `overview.pending` directly into the same `strong` elements. Initial JSON then enters `render(overview, chartOnly)` in `admin_booking_overview.js`; later global date/Refresh events enter the same function through `campushub:dashboard-data`. Status rows keep `data-booking-status`, so the existing loop updates each value and its real destination URL. Grouping-only events still use `chartOnly=true` and preserve summary values.
+
+The only JavaScript change makes the removed paragraph optional:
+
+```javascript
+const comparison = card.querySelector('[data-booking-comparison]');
+if (comparison) {
+    // Existing comparison updates run only in templates that still display it.
+}
+```
+
+Input: the existing validated overview response. Output: the same updated counts, navigation and chart, with comparison text updated only where its element exists. This keeps the shared controller compatible with other templates while allowing a minimal Super Admin summary. CSS uses the existing named `booking-overview` container so the available card width, rather than just the screen width, determines stacking.
+
+### 5. Backend / API behavior
+
+Unchanged: no provider, calculation, query, status definition, permission or endpoint changes. Global dates, Refresh, grouping, status links, session-aware URLs and the existing error/Retry path remain. The API may still return comparison data; the three cards do not display it.
+
+### 6. Database / migration impact
+
+None. No models, migrations, settings or application records changed. Django verification used the existing guarded runner with a disposable PostgreSQL test database on loopback port 5432, which was destroyed afterward. Browser responses came from those test-record exports; no sample records were added to the application database.
+
+### 7. Tests performed
+
+- Six focused existing Django tests passed in 7.442s: actual status counts, global date presets/custom dates, supported status-filter navigation, endpoint permissions, independent grouping, and the empty/populated executive layout with booking links. System check reported no issues. The layout/export test was rerun after the final calendar-check SVG adjustment and passed in 3.880s.
+- `node scratch/booking-summary-kpis-20261111/review.cjs`: **355 browser assertions passed**, zero JavaScript errors and zero mutating requests. Actual rendered empty/populated dashboard exports were checked at 280, 320, 390, 600, 768, 1024, 1440 and 1920px. Checks cover exactly three cards, actual counts, labels, links, colors/borders/padding/type/icons, equal dimensions, mobile stacking, desktop columns, no page/text overflow, date filtering, refresh to empty/populated states, independent grouping, errors/Retry, keyboard focus/Enter and missing-chart fallback.
+- At 390/1440px, before/after stylesheet/script comparisons confirmed unchanged surrounding section dimensions/styles and Booking Trend drawing dimensions/type/data/options. Desktop populated and mobile empty screenshots were visually inspected; the final desktop screenshot confirms the calendar-check stroke is visible. Browser evidence and screenshots: `scratch/booking-summary-kpis-20261111/`. Django reports: `scratch/test-organization-20261109/booking-summary-kpis-results.json` and `booking-summary-kpis-render-results.json`.
+- JavaScript syntax and scoped Git whitespace checks passed. The optional design skill kit is absent (`.agents/tokens` and `.agents/scripts/accuracy_report.mjs` do not exist), so its quality gate was unavailable; no score is claimed for it.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Verification used local Chrome with exported Django test responses, rather than a signed-in physical-device session or a deployed site. The full application suite, other browser engines and full accessibility certification were not run. This change is prepared as a scoped Git commit; no deployment was performed. Other existing working-tree changes were preserved.
+
+If old styling remains, hard-refresh and inspect the booking CSS/JS URLs for `v=20261111-booking-summary-kpis`. If cards disappear on refresh, inspect the existing dashboard GET response and browser console; the missing comparison paragraph should no longer throw an error. A narrow Facilities column deliberately stacks cards even on a wider device.
+
+Safe practice exercise: choose an existing date range, inspect `executive.booking_overview` in the dashboard GET response, and compare `total`, `approved` and `pending` with the three visible values. Press Refresh, change Daily to Weekly, and verify the totals still match. Resize to 390px to verify stacking, then use Tab and Enter on Approved to verify the existing status destination. This exercise needs no booking creation or editing. For CSS practice, temporarily change only the summary padding from 14px to 16px, inspect the three cards at both widths, then restore 14px.
+
 ## Current: Complete daily calendar order and responsive chart spacing - November 10, 2026
 
 ### 1. Cause / reason
@@ -447,3 +508,7 @@ Manual test:
 - Chart grouping is automatic; there is no separate Booking Overview grouping dropdown.
 - A dashboard API failure uses the shared global refresh/Retry request, so Retry refreshes the other dashboard summaries too.
 - Chrome was exercised; Firefox/Safari and physical touch hardware were not tested in this task. Screenshots use isolated test fixtures, not live booking totals.
+
+### Publication scope - November 11, 2026
+
+The Git commit contains only the Booking Summary template, summary CSS, optional-comparison guard, two booking asset cache versions, expected labels and this report. Earlier uncommitted chart, attention, dashboard and other work remains in the local folder. The detailed test results above describe the complete local working tree at implementation time. Source line numbers in that report refer to that local tree; use the named anchors when reviewing this isolated commit.

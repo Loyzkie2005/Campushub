@@ -16,7 +16,7 @@
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_system_status.css' %}?v=20261005-online-green" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_marketplace_overview.css' %}?v=20261031-recent-orders-balanced" />{% endif %}
     <link rel="stylesheet" href="{% static 'components/css/admin_dashboard_palette.css' %}?v=20261006-navy-columns" />
-    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_booking_overview.css' %}?v=20261031-summary-in-trend" />{% endif %}
+    {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_booking_overview.css' %}?v=20261111-booking-summary-kpis" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_most_booked_facilities.css' %}?v=20261007-facility-images" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_upcoming_reservations.css' %}?v=20261006-upcoming" />{% endif %}
     {% if global_dashboard %}<link rel="stylesheet" href="{% static 'components/css/admin_dashboard_summary.css' %}?v=20261022-inter">{% endif %}
@@ -620,7 +620,7 @@
     <script src="{% static 'components/js/admin_dashboard.js' %}?v=20261022-inter"></script>
     {% if global_dashboard %}<script src="{% static 'components/js/admin_most_booked_facilities.js' %}?v=20261022-empty"></script>{% endif %}
     {% if global_dashboard %}<script src="{% static 'components/js/admin_upcoming_reservations.js' %}?v=20261023-users-overview"></script>{% endif %}
-    {% if global_dashboard %}<script src="{% static 'components/js/admin_booking_overview.js' %}?v=20261110-booking-daily-order"></script>{% endif %}
+    {% if global_dashboard %}<script src="{% static 'components/js/admin_booking_overview.js' %}?v=20261111-booking-summary-kpis"></script>{% endif %}
     <script src="{% static 'components/js/admin_sales_overview.js' %}?v=20261023-users-overview"></script>
     {% if global_dashboard %}<script src="{% static 'components/js/admin_marketplace_products_chart.js' %}?v=20261110-top-products-table"></script><script src="{% static 'components/js/admin_dashboard_filter.js' %}?v=20261103-kpi-trends-activity"></script>{% endif %}
     {% if global_dashboard %}<script src="{% static 'components/js/admin_services_overview.js' %}?v=20261031-services-vertical"></script>{% endif %}
