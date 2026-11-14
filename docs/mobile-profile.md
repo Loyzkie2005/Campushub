@@ -467,7 +467,7 @@ If the icon changes but a form remains light, inspect whether a descendant reint
 
 ## Login and Sign Up white form panels - November 2, 2026
 
-This entry is scoped to the two existing authentication layouts. It supersedes older dark-form layout descriptions for Login/Sign Up only. Profile, Home, startup, Django authentication, navigation destinations and the app-wide Poppins theme remain as before. The user explicitly requested Montserrat and gold `#FCB316` on these forms.
+This entry is scoped to the two existing authentication layouts. It supersedes older dark-form layout descriptions for Login/Sign Up only. Profile, Home, startup, Django authentication, navigation destinations and the app-wide Poppins theme remain as before. The user explicitly requested Montserrat and gold `#FCB315` on these forms.
 
 ### 1. Cause / reason
 
@@ -495,7 +495,7 @@ Scratch evidence and one-time edit/verification helpers are in `scratch/mobile-a
 
 ### 3. Changes made
 
-Both screens now present the existing USTP Oroquieta photo above a white form panel with 32dp upper corners and a genuine 28dp overlap. The original CampusHub logo is beside its centered brand text, with Login or Create Account directly underneath. Headings/input text use navy `#1A1851`; primary buttons use gold `#FCB316` with navy labels. The light form presentation is deliberate in both selected app themes. The existing theme toggle remains available and continues to update the user's app-wide choice; it does not recolor these two explicitly white form panels.
+Both screens now present the existing USTP Oroquieta photo above a white form panel with 32dp upper corners and a genuine 28dp overlap. The original CampusHub logo is beside its centered brand text, with Login or Create Account directly underneath. Headings/input text use navy `#1A1851`; primary buttons use gold `#FCB315` with navy labels. The light form presentation is deliberate in both selected app themes. The existing theme toggle remains available and continues to update the user's app-wide choice; it does not recolor these two explicitly white form panels.
 
 Inputs share 14dp rounding, subtle gray outlines, pale neutral fill, 16dp field spacing and visible password controls. First/Last Name stay side by side; other inputs use the available full form width. Recovery, terms and account links use readable navy text and wrap instead of clipping. Button height is a minimum rather than a fixed constraint, allowing enlarged text. The layout retains the existing password checklist/error feedback and uses no new social-authentication buttons.
 
@@ -1280,7 +1280,7 @@ The native phone/gallery/permission flow, real device process-death recovery, iO
 
 The old Profile showed detailed identity/contact fields, a role badge, Marketplace rows and order cards together. It used older blue tokens and did not have the requested account/navigation hierarchy. The replacement keeps the real session and seller state while moving details and saved orders to their own destinations.
 
-Design read: a calm university account page, preserving CampusHub's Flutter/Material controls, navy #1A1851, gold #FCB316, Montserrat and flat surfaces. A 128dp navy cover and overlapping 96dp avatar establish identity; grouped white navigation cards provide the requested hierarchy. Gold is limited to the wordmark and actual unread counts. Profile uses the requested #F7F8FC light page background, even when the surrounding app has a dark theme; it does not rewrite the global theme or bottom navigation.
+Design read: a calm university account page, preserving CampusHub's Flutter/Material controls, navy #1A1851, gold #FCB315, Montserrat and flat surfaces. A 128dp navy cover and overlapping 96dp avatar establish identity; grouped white navigation cards provide the requested hierarchy. Gold is limited to the wordmark and actual unread counts. Profile uses the requested #F7F8FC light page background, even when the surrounding app has a dark theme; it does not rewrite the global theme or bottom navigation.
 
 Applied ui-ux-pro-max for Flutter text scaling, safe areas and touch targets, frontend-design-codex for local tokens/component reuse/visual verification, and the applicable preserve-brand/audit guidance from design-taste-frontend. The latter's marketing-page/React defaults do not fit this existing Flutter account page and were not imposed. Existing brand/specification dictated the design, so no generated artwork or stock images were needed.
 

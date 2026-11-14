@@ -1,6 +1,112 @@
 # Product Details — approval, listing and inventory
 
-## Current: automatic product ownership and buyer-action protection - November 4, 2026
+## Current: one scrolling photo/content layout, without the pinned sheet edge
+
+### Section 10 implementation report
+
+1. **Cause / reason.** Confirmed in the existing source: `_ProductSheetEdge` was a white, 20px rounded container positioned at the bottom of the pinned flexible header. Its 16px overlap and `edgeHeightFor()` padding made that curve remain above the independently scrolling product content. The requested change removes this overlay while retaining the existing collapsed toolbar. This section supersedes the rounded-sheet details in the previous update below; ownership, pricing and purchase behavior from that update remain.
+
+2. **Exact files changed / current lines and anchors.** Paths start at the repository root. Task-start copies are in `scratch/product-header-scroll/*.before`; existing staged and unstaged changes were preserved.
+
+   | File | Current line / anchor | What changed and why |
+   | --- | --- | --- |
+   | `campushub/lib/module_app/screens/product_details_screen.dart` | 617 owner review-status padding; 719 `_ProductHeaderSpace`; 756 `product-header-space` | Give the first owner-status content a normal 16px gap. Remove the pinned white sheet from the header Stack; retain the photo, collapsed name/divider and multi-photo overlay. The new header key supports bounds checks. |
+   | Same screen | 820 `_ProductImageIndicators`; 839 pagination key; 860 bottom padding; 862 dot keys | Replace `_ProductSheetEdge` with an unfilled dot overlay. Keep existing image semantics, selection callbacks and 48px tap targets. Draw 6px white circles, active navy, with a light shadow, 12px above the photo area's bottom. |
+   | Same screen | 897 `_ProductHeroImage`; 909 `heightFor`; 916 top-only padding | Delete `sheetOverlap`, `edgeHeightFor` and bottom-overlap arithmetic. Single-photo height is the existing width-clamped photo height; multiple photos retain the additional 48px pagination allowance. |
+   | Same screen | 1086 `_ProductInfoContainer` padding | Start normal product content 16px below the photo on the existing white page, with no negative offset or rounded content edge. |
+   | `campushub/test/product_details_layout_test.dart` | 379 existing header test; 476 new one/three-photo cases; 936 pagination geometry | Replace obsolete sheet-edge expectations, verify scroll/fade behavior, and update the existing image-linked variant test to pagination over the photo. |
+   | `docs/product-details-status-inventory.md` | 3 this report | Record cause, functions/data flow, verification, existing failures and a safe exercise. |
+
+3. **Changes made / expected behavior.** The rounded strip is gone for both single and multiple photos. Dots appear only with two or more photos, centered over the gallery's bottom with their visible circles 12px above it. Inactive dots are white; the active dot is navy. Their background is transparent and their existing `dotsOpacity` fade is retained. The title, price and description use the normal content sliver and move together as the header collapses. Fully collapsed, the existing white bar keeps Back, the fading product name, eligible cart/favorite controls and its 0.5px `#E2E8F0` divider. The ordinary pinned toolbar remains the top boundary for scrolling content; there is no longer a curve/strip extending into that content. Application source changed from 2,480 to 2,460 lines relative to the task-start copy.
+
+4. **How it works / functions, inputs, outputs and data flow.** `_ProductHeaderSpace` receives the existing name, image list, current image index, selection callback and photo widget. It reads `FlexibleSpaceBarSettings` to calculate collapse progress. It outputs the photo, `_ProductImageIndicators` only for a multi-photo gallery, and the unchanged collapsed name/divider layers. No per-frame screen-level `setState` was added.
+
+   `_ProductImageIndicators` maps the image count and selected index to semantic 48px buttons; each button calls the existing `onImageSelected(index)` callback. `_selectImage` and the existing PageController still handle selection/swiping and reduced motion. The 6px circles sit at the bottom of these targets with 12px padding; this keeps the small visuals and useful touch areas together. Opacity fades the whole row, and IgnorePointer prevents hidden dots intercepting taps. The image renderer, BoxFit.contain behavior and decode limits were retained.
+
+   `_ProductHeroImage.heightFor(width, imageCount)` returns `width.clamp(240.0, 320.0) + (imageCount > 1 ? 48 : 0)`. Its PageView has only top safe-area padding. `_ProductInfoContainer` now uses `EdgeInsets.fromLTRB(20, 16, 20, 24)` and follows the header as an ordinary sliver.
+
+   Annotated example at 375px width: one photo gives a 320px expanded photo area; three photos give 368px including the existing pagination allowance. The content begins 16px below either area. At 20% collapse, `dotsOpacity = 1 - progress * 2.5` is 0.5; at 40% it reaches zero. The name/divider continue fading in over the last 20%, using their original formula. Floating-point opacity comparisons in the tests use a small tolerance.
+
+5. **Backend / API behavior.** None changed. Product reads, saved images and image-linked variants, actual ownership, favorites, cart, checkout, seller editing/navigation and prices keep their existing data/callback paths.
+
+6. **Database / migration impact.** None. No backend, model, migration, dependency, database row or stored image was changed. Both edited Dart files retain CRLF without a byte-order mark. Render data and HTTP responses are local test fixtures, and the scratch harness uses a bundled campus photo only for visual inspection; it is never inserted into a product record.
+
+7. **Tests performed / actual results.**
+   - Baseline `flutter analyze --no-pub`: **No issues found** (4.3 seconds). After editing: **No issues found** (5.3 seconds); evidence: `scratch/product-header-scroll/analyze-after.log`.
+   - Baseline `flutter test --no-pub --reporter expanded test/product_details_layout_test.dart`: **26 passed, 6 failed**. After editing: **28 passed, the same 6 failed**. The two new one/three-photo cases passed. An explicit comparison of failing test names found no difference. Evidence: `scratch/product-header-before.log` and `scratch/product-header-scroll/tests-after.log`.
+   - The new cases verify no sheet edge, expanded heights, normal 16px content spacing, 6px round dot colors/shadows, the 12px photo-bottom inset, 48px tap targets, image selection, intermediate/zero dot opacity, no hit targets when hidden, matching title/price/description scroll deltas, and the collapsed white bar/divider and controls.
+   - Confirmed pre-existing failures: the header-content, checkout-selection and cart cases still expect `Clothing` while the canonical value is `Clothing and Merch`; the no-variants, saved-groups and web-group cases hit Flutter's existing ListTile/colored-DecoratedBox assertion. Some checkout runs also emit that assertion. These are not attributed to the header change and were not repaired by changing unrelated behavior.
+   - Scratch-only `header_scroll_render_test.dart`: **2/2 passed**. It captured one and three photos at expanded, partial, fading-title, collapsed and further-content-scroll positions using bundled fonts and local fixtures. Photos were explicitly decoded and the render tree repainted before final capture. Visual inspection confirmed the straight photo/content boundary and retained collapsed title/divider. Evidence: `scratch/product-header-scroll/render.log` and `renders/1-photo-*.png`, `3-photo-*.png`.
+   - Scoped whitespace checks and CRLF verification passed. The full unrelated application suite was not run.
+
+8. **Remaining limitations / troubleshooting / safe practice.** The complete Product Details suite remains red because of the six recorded baseline failures; the new header cases and render checks pass. No physical-phone/emulator walkthrough was performed. Existing contain-fit images can have normal letterboxing; the dots are positioned relative to the gallery area. If a curve remains on a running app, hot restart and confirm no `_ProductSheetEdge`, `sheetOverlap` or `edgeHeightFor` references remain in this screen. Safe exercise: trace `dotsOpacity` from the flexible-header settings into `_ProductImageIndicators`, then run `flutter test --no-pub test/product_details_layout_test.dart --plain-name 'photos scroll as one page with fading overlay dots'`. Verify both cases pass, compare the expanded/partial/collapsed fixture captures, and confirm a single-photo gallery has no dots. This exercise performs no live data writes.
+
+## Previous update: "Your product" cards, rounded sheet header, owner Edit Product - November 15, 2026
+
+### 1. Cause / reason
+- Own-product cards showed a cut-off seller name next to the "Your product" chip; other sellers' names were gray.
+- The Home Marketplace preview listed the viewer's own products.
+- On Product Details the photo ended in a hard horizontal cut, the collapsed bar had no title, several texts were gray, the price read `₱50` while cards read `₱50.00`, and owners saw no actions at all.
+- **Confirmed bug found while checking prices:** `_parsePriceLabel` split ranges on mis-encoded characters (`â€“`, bytes `C3 A2 E2 82 AC E2 80 9C`) instead of the en dash, so `₱50.00 – ₱80.00` became `50.0080.00` → `0`. Products whose `price_display` is a range showed `₱0` and sent base price `0` to cart/checkout.
+
+### 2. Exact files changed / current lines and anchors
+| File | Line | Anchor |
+| --- | --- | --- |
+| `campushub/lib/module_app/widgets/home/home_preview_cards.dart` | 338 | `if (_isOwn)` — chip only (left), else seller name (ink) + cart |
+| same | 389 | new `class OwnProductChip` (shared chip) |
+| `campushub/lib/module_app/screens/dashboard_screen.dart` | 1080 | `_LargeProductCard`: chip replaces the seller line; seller name ink; no cart for own |
+| same | ~490 | `HomePage(viewerRef: 'mobile:<id>')` |
+| `campushub/lib/module_app/screens/home_page.dart` | 60, 336–360 | `viewerRef`; Marketplace `content:` drops own rows; `<2` → message |
+| `campushub/lib/module_app/models/product_item.dart` | 137, 145 | `parsePriceLabel`, `formatPeso` |
+| `campushub/lib/module_app/screens/product_details_screen.dart` | 220 | `_loadRelatedProducts` excludes own + current |
+| same | 415, 446 | `_parsePriceLabel`, `_formatPriceDisplay` use the shared helpers |
+| same | 500 | `_openSellerProducts` (Edit Product) |
+| same | 597 | `systemOverlayStyle` (dark icons) |
+| same | 682 | `bottomNavigationBar: _ownsProduct == true ? _OwnerBottomBar(...)` |
+| same | 724, 825, 907 | `_ProductHeaderSpace`, `_ProductSheetEdge`, `_ProductHeroImage` |
+| same | 1956 | `class _OwnerBottomBar` |
+| same | 2336 | `product-related-fade` (`MarketplaceEdgeFade`) |
+| Tests | — | `home_product_ownership_test.dart`, `product_details_layout_test.dart`, `product_item_test.dart` |
+
+### 3. Changes made
+- **Cards:** own product → only `OwnProductChip` (`#EEF0F8` fill, navy 11px w600), left-aligned, no seller name, no cart. Others → seller name full width, `HomeAppColors.ink` (`#17172A`), 1 line, ellipsis, cart on the right. Same rule on the Marketplace grid card (the chip takes the seller line's place there).
+- **Home preview:** own products removed (same test as "Hide my products": `sellerRef == 'mobile:<id>'`). 0 left → existing empty text; 1 left → "Browse all products in the Marketplace." with a **See All** button.
+- **Header:** white sheet edge with 20px top corners pinned to the header's bottom, overlapping the photo by 16px; holds the image dots when there are several photos. Collapsed: product name (16px navy w600, 1 line) fades in between Back and Cart/Favorite, plus a 0.5px `#E2E8F0` divider; both hidden while expanded. Photo starts below the status bar so dark status icons stay readable; dark icons on the white collapsed bar.
+- **Text:** category, sold count, "No reviews yet" (summary and section), description, seller "Online/Offline", review text, "No suggestions yet" and the Expiry label now use ink.
+- **Price:** one formatter, `ProductItem.formatPeso`, matching the backend `Product.get_price_display` (`₱50.00`, `₱1,250.00`).
+- **You May Also Like:** 24px right-edge fade; excludes the viewer's own products and the current product.
+- **Owner:** bottom bar shows "This is your product" + **Edit Product**.
+
+### 4. How it works / functions, inputs, outputs, data flow
+- `ownsProduct(viewerId, sellerRef:, sellerId:)` (`services/product_ownership.dart`) returns `true`/`false`/`null`. `_ownsProduct == true` → owner bar; `false` → buyer bar; `null` (not signed in) → no bar.
+- **Why the sheet edge is inside the header:** `CustomScrollView` paints its first sliver (the pinned `SliverAppBar`) *on top of* later slivers. A content sliver translated up 16px would be hidden under the photo, so the requested `Transform.translate` on the first `SliverToBoxAdapter` would not show. `_ProductHeaderSpace` reads `FlexibleSpaceBarSettings` (rebuilt as the header shrinks):
+  ```dart
+  progress = (maxExtent - currentExtent) / (maxExtent - minExtent); // 0 open, 1 collapsed
+  collapsedOpacity = ((progress - 0.8) / 0.2).clamp(0, 1);           // title + divider
+  dotsOpacity = (1 - progress * 2.5).clamp(0, 1);                     // image dots
+  ```
+  No `setState` per scroll frame; only the header rebuilds.
+- `formatPeso(1250)` → `₱1,250.00`; `parsePriceLabel('₱50.00 – ₱80.00')` → `50.0`.
+- **Edit Product:** the mobile app has **no product edit form and no mobile product-update API** (checked `mobile_seller_views.py` and `seller_add_product_page.dart`). The button opens the existing seller workspace on **My Products** (`SellerDashboardPage(initialDestination: SellerDestination.products)`); its "back to CampusHub" returns to this Product Details page.
+
+### 5. Backend / API behavior
+No backend change. Home filtering is client-side on `seller_ref` from `/api/products/approved/`.
+
+### 6. Database / migration impact
+None.
+
+### 7. Tests performed / actual results
+- `flutter analyze`: **No issues found.**
+- `flutter test` on the 9 affected files: **81 passed, 6 failed**. The same 6 fail on the original code (I swapped the pre-edit files back in and reran): "Clothing" vs "Clothing and Merch" category expectations, and a `ListTile` inside a coloured `DecoratedBox` assertion in the variant tests. No new failures.
+- Tests updated where this task intentionally changed behavior: owner bar, `₱250.00`/`₱260.00`, photo 16px under the dots strip, Home excluding own products, price row-or-stack (the test font draws each glyph 1em wide, so `₱250.00` may stack in tests while it fits with Inter). New assertions: sheet-edge radius/overlap, collapsed title/divider, `formatPeso`/`parsePriceLabel`, ink seller name.
+- Not run on a device or emulator.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+- **Adidas / "Lester Bulay" owner check (confirmed from the database):** products `#41 Adidas` and `#34 Adidas XL Pro` have `seller_id = 1`, `mobile_seller_id = NULL`, so `seller_ref = "admin:1"` (a **web admin** account). The mobile accounts named Lester Bulay are `mobile:17`, `mobile:22`, `mobile:24`, `mobile:26`. `"admin:1" != "mobile:<id>"`, so the app correctly treats the viewer as a buyer and shows cart and favorite. It is the same person's name on two separate accounts, which by design are never matched by name. To see the owner view, create the product from the mobile seller account.
+- "Picked for you" on Home can still include own products (not in scope).
+- Practice: in `_ProductHeaderSpace`, change `0.8` to `0.5` so the title fades in earlier; run the "titleless gallery header" test and scroll on a device to compare.
+
+## Earlier: automatic product ownership and buyer-action protection - November 4, 2026
 
 ### 1. Cause / reason
 
@@ -229,7 +335,7 @@ The user supplied the existing mobile product-detail screenshot and requested a 
 
 | File | Current lines and nearby anchor | What changed and why |
 | --- | --- | --- |
-| `campushub/lib/module_app/theme/marketplace_colors.dart` | 10 `ProductDetailsColors` | Added scoped navy/gold, neutral, pale-gold and gradient tokens so the new presentation has one palette definition. The requested Product Details gold is exactly `#FCB316`. Existing shared marketplace white card tokens remain at5–6. |
+| `campushub/lib/module_app/theme/marketplace_colors.dart` | 10 `ProductDetailsColors` | Added scoped navy/gold, neutral, pale-gold and gradient tokens so the new presentation has one palette definition. The requested Product Details gold is exactly `#FCB315`. Existing shared marketplace white card tokens remain at5–6. |
 | `campushub/lib/module_app/screens/product_details_screen.dart` | 119 `_selectImage`;126 `jumpToPage`;549 `category: widget.category`;620 `_ProductHeroImage`;725 `_ProductHeaderButton`;760 `_ProductDetailsCartButton` | Reduced motion now jumps instead of animating the gallery. Forward actual category to the information widget; round the gallery's lower corners, replace cream with a gentle navy/white/gold backing, keep actual images clear, enlarge indicator targets to48dp, give selected favorites a pale-gold backing and use the scoped gold for the cart count. |
 | Same screen | 819 `_ProductInfoContainer`;878 `product-summary-panel`;1071 `_ProductDescription`;1105 `_ProductVariantChoices`;1186 `MaterialTapTargetSize.padded`;1242 `_ColorVariantChoice` | Added620dp bounded reading width,24dp section rhythm and a rounded navy summary containing saved category, reviews, badge/name and gold price. White name26sp, price32sp, description14sp. Choices retain saved data; text chips gain selected checks/pale gold and48dp targets; color-swatch targets also grow to48dp. |
 | Same screen | 1461 `_SellerIdentity`;1547 `Flexible`;1575 `_ProductBottomBar`;1598 `largeText`;1685 `_BottomIconTextAction` | Pale rounded seller surface,44dp photo and full wrapping name; status text can shrink/wrap inside its row. Gold Buy Now becomes the primary action; footer uses a centered620dp maximum and SafeArea. When scaled14sp exceeds20dp, Chat/Add to Cart occupy a row above full-width Buy Now. |
@@ -1012,7 +1118,7 @@ Lines are current approximate starting points. Search the named anchor after lat
 
 Product Information now contains Product ID, Category, Department, Seller, Price, Approval Status, Listing Status, Inventory Status, Created Date and Last Updated. The old standalone Active/Archived badge is now the labelled Approval Status badge, displaying Pending/Approved/Rejected independently of listing archival.
 
-Inventory Information now contains **On Hand**, **Reserved**, **Available**, **Low Stock Threshold** and **Inventory Status** using the existing compact grid. Exactly one unit reads `1 pc`; other quantities use `pcs`. Both cards use the same backend inventory state. Healthy text is navy `#1A1851`; Low Stock is gold `#FCB316`; Out of Stock is the explicitly requested muted red `#B42318`. Listing is plain neutral/navy text; existing approved/pending/rejected badge styling is reused.
+Inventory Information now contains **On Hand**, **Reserved**, **Available**, **Low Stock Threshold** and **Inventory Status** using the existing compact grid. Exactly one unit reads `1 pc`; other quantities use `pcs`. Both cards use the same backend inventory state. Healthy text is navy `#1A1851`; Low Stock is gold `#FCB315`; Out of Stock is the explicitly requested muted red `#B42318`. Listing is plain neutral/navy text; existing approved/pending/rejected badge styling is reused.
 
 ## 4. How It Works — functions, inputs and outputs
 

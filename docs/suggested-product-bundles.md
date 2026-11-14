@@ -1,5 +1,871 @@
 # Suggested Product Bundles - monitoring and research
 
+## One-row synthetic footer — November 13, 2026
+
+1. **Cause / reason:** The Synthetic Demo footer previously split the disclosure sentence and the action links across two rows. Shortening the disclosure copy to `"Demo data only, not real customer purchases."` allows the `ⓘ` credits icon, the disclosure note, and `See All Bundles →` to sit on one vertically centered row (`auto minmax(0, 1fr) auto`), wrapping `See All Bundles →` cleanly under the note only on very narrow cards (`≤360px`).
+2. **Exact files changed / current anchors:**
+   - `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:23`–`:30` (anchor `<footer class="dashboard-bundle-demo__footer">`): reorders children to `.dashboard-bundle-demo__credits`, `.dashboard-bundle-demo__disclosure` (`Demo data only, not real customer purchases.`), and `.dashboard-bundle-demo__see-all`.
+   - `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:991`–`:1015` (anchor `/* One-row synthetic footer`): sets `grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 12px;`, places credits in column 1 (with `.bundle-info__tip` opening right via `left: 0; right: auto; transform: none;`), disclosure (`12px` `#17172A`) in column 2, and `See All Bundles →` (`13px`/`500` `#1A1851`, `#FCB315` hover underline) in column 3 (`grid-column: 2; grid-row: 2; justify-self: start;` under `@container bundle-demo (max-width: 360px)`).
+   - `backend/templates/dashboard/pages/admin_dashboard.html:24`: bumps `bundle_suggestions.css` to `?v=20261113-bundle-footer-row`.
+   - `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py:101`, `:136`, `:149` and `backend/core/modules/reports/tests/test_dashboard_executive.py:412`: updates the expected disclosure text and CSS version key.
+3. **Changes made:** Layout and text only on the Synthetic tab footer; the Live tab is untouched. All touched files preserve CRLF.
+4. **How it works / functions, inputs, outputs and data flow:**
+   - No Python view or JavaScript logic changed. The template outputs the three footer children in left-to-right visual and DOM order (`credits` → `disclosure` → `see-all`). When `user.is_superuser` is false (or `bundle_demo.total` is 0), the third child is omitted and the `minmax(0, 1fr)` second column keeps the note left-aligned beside the `ⓘ` icon.
+   - Annotated example:
+     ```css
+     @container bundle-demo (max-width: 360px) {
+         .dashboard-bundle-demo [data-bundle-source="synthetic"] .dashboard-bundle-demo__see-all {
+             grid-column: 2; grid-row: 2; justify-self: start;
+         }
+     }
+     ```
+5. **Backend / API behavior:** Unchanged.
+6. **Database / migration impact:** None.
+7. **Tests performed:** `test_dashboard_synthetic_preview` + `test_dashboard_executive` (41/41 passed), `manage.py check` (0 issues), and 11/11 headless Chrome checks (`scratch/bundle-footer-row/review.cjs`) verifying the one-row layout, tooltip opening right without clipping, gold underline on `See All Bundles →` hover, non-superuser hiding of `See All`, and `≤360px` container wrapping.
+8. **Remaining limitations / troubleshooting / safe practice:** Hard-refresh (`Ctrl+F5`) if an open tab still caches the old stylesheet. Safe practice: resize the Suggested Product Bundles card in DevTools responsive mode above and below `360px` container width to observe `See All Bundles →` moving between column 3 (row 1, right-aligned) and column 2 (row 2, left-aligned under the note).
+
+## Right-aligned "See All Bundles" footer link and credits tooltip — November 12, 2026
+
+### 1. Cause / reason
+
+In the two-row Synthetic Demo footer of the Suggested Product Bundles card (`dashboard-bundle-demo`), `.dashboard-bundle-demo__see-all` (`See All Bundles →`) had been placed on the left (`grid-column: 1; grid-row: 2; justify-self: start;`) and `.dashboard-bundle-demo__credits` (`ⓘ`) on the right (`grid-column: 2; grid-row: 2; justify-self: end;`). In addition:
+1. The footer `ⓘ` credits link (`.dashboard-bundle-demo__credits`) only had a native browser `title` attribute instead of the styled `#1A1851` navy tooltip used by the metric `ⓘ` buttons (`Support`, `Confidence`, `Lift`).
+2. Bootstrap's default `--bs-tooltip-opacity: 0.9` left `.bundle-info-tooltip` semi-transparent (allowing product captions behind the tooltip to bleed through), and `container: 'body'` without a panel `boundary` allowed left/right edge tooltips to protrude past the card's content margin.
+3. Under `@container bundle-demo (max-width: 440px)` (where metric tiles stack vertically), the CSS fallback `.bundle-info__tip` used `width: 200px; left: 50%; transform: translateX(-50%)`, which overflowed the horizontal card bounds at `1024px` and `390px`.
+
+### 2. Exact files changed / current lines and code anchors
+
+| File | Current line / anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html` | `23`–`30`, `<footer class="dashboard-bundle-demo__footer">` | Place `.dashboard-bundle-demo__credits` before `.dashboard-bundle-demo__see-all` so DOM focus order matches visual left-to-right order; add `position-relative`, `bundle-info`, `aria-describedby="bundle-demo-credits-tip"`, `data-bs-title="Sample photo credits and licenses"`, and `<span class="bundle-info__tip" id="bundle-demo-credits-tip" role="tooltip">Sample photo credits and licenses</span>`, removing the duplicate native `title` attribute. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css` | `935`–`947` (`.bundle-info__tip`, `.bundle-info-tooltip`, `@container bundle-demo (max-width: 440px)`), `999`–`1007` (`.dashboard-bundle-demo__credits`, `.dashboard-bundle-demo__see-all`) | Set `pointer-events: none` on `.bundle-info__tip`; set `--bs-tooltip-opacity: 1` on `.bundle-info-tooltip`; align stacked narrow fallback tooltips with `width: 180px; left: 0; right: auto; transform: none`; place `.dashboard-bundle-demo__credits` at `grid-column: 1; grid-row: 2; justify-self: start` (with `.bundle-info__tip` at `left: 0; right: auto; transform: none`) and `.dashboard-bundle-demo__see-all` at `grid-column: 2; grid-row: 2; justify-self: end`. |
+| `backend/core/modules/marketplace/static/marketplace/js/bundle_suggestions.js` | `206`–`213` (`initBundleTooltips`), `282` (`window.addEventListener('load', ...)`) | Extend `initBundleTooltips(root)` selector to `.dashboard-bundle-demo [data-bs-toggle="tooltip"], .dashboard-bundle-demo .dashboard-bundle-demo__credits`, pass `boundary: panel \|\| 'clippingParents'` (`panel = element.closest('[data-bundle-source]') \|\| element.closest('.dashboard-bundle-demo')`), and re-run `initBundleTooltips()` on `window` `load`. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` | `24`, `560` | Bump `bundle_suggestions.css` and `bundle_suggestions.js` cache keys to `?v=20261112-bundle-footer-tooltip`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` | `19`, `183` | Bump `bundle_suggestions.css` and `bundle_suggestions.js` cache keys to `?v=20261112-bundle-footer-tooltip`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/bundle_monitoring.html` | `9` | Bump `bundle_suggestions.css` cache key to `?v=20261112-bundle-footer-tooltip`. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py` | `99`–`100`, `130`–`131`, `147` | Update asset version assertions and assert `id="bundle-demo-credits-tip"`, `data-bs-title="Sample photo credits and licenses"`, and `footer.index('dashboard-bundle-demo__credits') < footer.index(link)`. |
+
+### 3. Changes made, functions, inputs/outputs, and data flow
+
+- **Template rendering (`super_recommendation_preview.html`):**
+  - Inputs: `bundle_demo` (`rows`, `total`, `state`, `error`) and `user.is_superuser`.
+  - Output: Row 1 of `<footer class="dashboard-bundle-demo__footer">` renders `.dashboard-bundle-demo__disclosure`. Row 2 renders `.dashboard-bundle-demo__credits` on the left (`grid-column: 1`) and, when `bundle_demo.total and user.is_superuser` is truthy, `.dashboard-bundle-demo__see-all` (`See All Bundles →`) on the right (`grid-column: 2`).
+- **Tooltip initialization (`initBundleTooltips(root = document)` in `bundle_suggestions.js`):**
+  - Input: `root` DOM node (defaults to `document`; called on `DOMContentLoaded`, `window.load`, and `campushub:dashboard-data` Refresh events).
+  - Data flow:
+    1. Disposes any tracked Bootstrap `Tooltip` instances whose trigger elements were disconnected during a dashboard fragment refresh.
+    2. Queries `.dashboard-bundle-demo [data-bs-toggle="tooltip"], .dashboard-bundle-demo .dashboard-bundle-demo__credits`.
+    3. Resolves `panel = element.closest('[data-bundle-source]') || element.closest('.dashboard-bundle-demo')` and calls `window.bootstrap.Tooltip.getOrCreateInstance(element, { placement: 'top', fallbackPlacements: ['top'], container: 'body', boundary: panel || 'clippingParents', customClass: 'bundle-info-tooltip', animation: false })`.
+    4. Sets `element.dataset.bundleTooltipReady = 'true'` so the CSS-only `.bundle-info__tip` fallback remains hidden when Bootstrap owns the tooltip, and restores `aria-describedby` when the tooltip hides.
+  - Annotated example:
+    ```javascript
+    const panel = element.closest('[data-bundle-source]') || element.closest('.dashboard-bundle-demo');
+    const instance = window.bootstrap.Tooltip.getOrCreateInstance(element, {
+        placement: 'top', fallbackPlacements: ['top'], container: 'body',
+        boundary: panel || 'clippingParents',
+        customClass: 'bundle-info-tooltip', animation: false,
+    });
+    ```
+    Why this approach was chosen: Using `container: 'body'` prevents clipping by parent containers, while `boundary: panel` constrains Popper's horizontal placement to the card's inner content column so edge triggers (`Support ⓘ`, `Lift ⓘ`, and footer `Credits ⓘ`) never overhang the card border.
+
+### 4. Backend / API and database impact
+
+- **Backend / API:** Unchanged. No views, services, Apriori calculations, permissions, or endpoints were modified.
+- **Database / migrations:** None. Zero schema or record changes.
+
+### 5. Verification results and remaining limitations
+
+- `node --check backend/core/modules/marketplace/static/marketplace/js/bundle_suggestions.js`: passed.
+- `manage.py check`: `0` issues.
+- `manage.py test modules.marketplace.tests.test_dashboard_synthetic_preview --keepdb -v 2`: **20/20 passed**.
+- `manage.py test modules.reports.tests.test_dashboard_executive --keepdb -v 2`: **21/21 passed**.
+- Headless Chrome verification (`review.cjs` across `1440px`, `1024px`, and `390px` for `super` and `marketplace` roles in both `bootstrap` and `fallback` modes): **368/368 checks passed**, `0` JS errors, `0` non-GET requests.
+- Line endings: all 7 modified files verified `CRLF clean`.
+- **Remaining limitations:** None in the Suggested Product Bundles footer or tooltips; unrelated pre-existing failures in the broader test suite remain unchanged.
+
+### 6. Troubleshooting and safe practice exercise
+
+- **Troubleshooting:**
+  - If `See All Bundles →` still appears on the left after reloading, hard-refresh (`Ctrl+F5`) and confirm `bundle_suggestions.css?v=20261112-bundle-footer-tooltip` is loaded.
+  - If a tooltip appears semi-transparent, verify `.bundle-info-tooltip` includes `--bs-tooltip-opacity: 1`.
+- **Safe practice exercise:**
+  1. Open `/admin-dashboard/` as Super Admin and locate the **Suggested Product Bundles** card.
+  2. Confirm `See All Bundles →` is aligned to the right edge of the footer and the `ⓘ` icon is aligned to the left edge of row 2.
+  3. Hover and press `Tab` to focus the footer `ⓘ` icon and the `Support`, `Confidence`, and `Lift` `ⓘ` buttons; verify each shows a solid `#1A1851` tooltip above the icon and `Escape` dismisses it.
+  4. Run `backend/core/venv/Scripts/python.exe backend/core/manage.py test modules.marketplace.tests.test_dashboard_synthetic_preview --keepdb` and confirm all 20 tests pass.
+
+## Unboxed synthetic carousel and compact disclosure — November 12, 2026
+
+**Reason:** The oval pill around the synthetic carousel arrows/dots was unnecessary, and the complete synthetic dataset disclaimer wrapped even on wider cards.
+
+**Implementation:** In `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css`, the existing synthetic `.dashboard-bundle-demo__controls` rule (near the November 12 navigation section) now has no border, background, rounding, or outer padding. The two existing chevrons, eight dot selectors (when present), their active/focus states, and all handlers remain unchanged. The `.dashboard-bundle-demo__disclosure` retains the exact full sentence and uses `white-space: nowrap` when the card permits. Below 790px card width, the disclaimer occupies its own full-width footer row (10px type) before the preserved photo-credit and Super Admin `See all bundles` links. At 460px or below in the card's content container, the disclaimer returns to readable 11px wrapping to avoid clipping or horizontal scrolling on phones. CSS browser geometry was checked with a synthetic fixture at 1440, 1024, 800, 680 and 390px browser widths: unboxed controls, both chevrons, eight dots, unchanged disclaimer, no card overflow, and one displayed line on the 520px-wide card at 1440px. The older fixture did not initialize the carousel interactions reliably, so those were not browser-verified in this run; JavaScript was untouched. The existing targeted Django test `test_dashboard_pages_refresh_and_actual_projection_share_one_card_and_preserve_live_data` passed 1/1 after its expected stylesheet version key was updated; `manage.py check` reported no issues. `git diff --check` was clean. There were no changes to database tables, migrations, or working order records.
+
+**Files:** Only the shared carousel CSS and its stylesheet cache keys in `backend/templates/dashboard/pages/admin_dashboard.html`, `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` and `backend/core/modules/marketplace/templates/marketplace/pages/bundle_monitoring.html`. Cache key `20261112-unboxed-carousel`. No template content, JavaScript, data, permissions, API, database, migrations, or live recommendation logic changed.
+
+**Data flow and practice:** Django still renders the synthetic disclosure and the existing carousel control elements; the unchanged carousel JavaScript handles next/previous and dot selection. To verify, open Synthetic Demo on both dashboards, compare at wide and narrow widths, select dots, navigate with arrows, and confirm the Live tab is unchanged. To practice CSS safely, inspect the nav computed border/background and text `white-space` at a wide and a phone-sized card, without changing any orders or bundle records.
+
+
+
+## Current: Bundle Analysis page with durable results - November 12, 2026
+
+This rebuild replaces the "Dataset & Apriori Analysis" content on the Super Admin research page (`/admin-bundle-suggestions/research/`). The Apriori math, thresholds, permissions (only Super Admin runs or reads practice data), live-order logic and the dashboard card are unchanged.
+
+### 1. Cause / reason
+
+- **Confirmed problem (P1):** results were read only from Django's in-process memory cache (no `CACHES` setting means `LocMemCache`, one-hour timeout). After the cache expired or the server restarted, the page showed "Synthetic analysis results unavailable", even though the last Run had already written a durable report (`var/reports/seller-bundle-demo.v1.json`) that the dashboard card was still using.
+- **Request:** a simpler presentation for the defense. The page has a source switch, run actions, a summary line, four tabs, a seller filter, clear states, a sidebar link, and dark readable text only.
+
+### 2. Exact files changed / current lines and code anchors
+
+| File | Current line / anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/services/bundle_suggestions.py` | 363, `seller_count`; 463, `_analysis_row()`; 476, `_bundle_order()`; 481, `_report_last_run()`; 494, `_report_analysis()`; 512, per-direction `lift`; 520, `saved_bundle_analysis()` | Adds distinct seller and product counts to the CSV snapshot. Adds the read-only analysis builder: it reads the cache first, then falls back to the durable report. CRLF kept. |
+| `backend/core/modules/marketplace/services/seller_recommendations.py` | 12, `timezone` import; 157, `completed_at` | `publish_demo()` now stores the Run time in the report (additive key; `_demo()` validation is unchanged). |
+| `backend/core/modules/marketplace/bundle_monitoring_views.py` | 240, `ANALYSIS_TABS`; 244, `_analysis_selection()`; 257, `_worked_example()`; 264, `_render_analysis()`; 280, `data['live'] = data['analysis']`; 289, `saved_bundle_analysis(request…)`; 330, `run_research()`; 341, `reverse_research_results()` | New query parameters (`source`, `tab`, `seller`, `page`; 10 rows per page), new context, an error state with a POST "Try again" after a failed Run, and a redirect to `tab=bundles`. The old search box (`q`) and the itemsets table were removed. CRLF kept. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/bundle_analysis_readonly.html` | whole file, `<section class="ba-card"` | New content section: switch, Last run / Run again, summary, tabs, seller chips, tables, How-it's-computed boxes, states and the practice-data disclosure. CRLF kept. |
+| `.../partials/ba_facts.html`, `.../partials/ba_pager.html` | new | Facts grid (Orders · Items sold · Sellers · Products) and the "Showing 1–10 of 70 · most frequent first" pager with Previous/Next. |
+| `.../pages/bundle_monitoring.html` | 10, `?v=20261112-bundle-analysis`; 18, `elif mode == 'research'`; 20-21 `bm-title` | Header title "Bundle Analysis". Research mode removes the subtitle and "Back to Suggestions". CSS cache key bumped. |
+| `.../partials/bundle_header_breadcrumb.html` | 3, `elif mode == 'research'` | Breadcrumb Dashboard › Marketplace › Bundle Analysis. |
+| `backend/templates/partials/admin_sidebar.html` | 34-35 group open condition; 70-75 `{% if user.is_superuser %}` link | "Bundle Analysis" after Seller Applications, for superusers only. It is active (with `aria-current`) when `active_page == 'bundle_analysis'`. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_monitoring.css` | 659, `Bundle Analysis content section` | One appended dated section. Every rule is scoped under `.ba-card` so the older `.bm-page a/th/small` rules cannot recolor it. Captions use a `<span>`, because `admin_layout.css` fades every `<small>` with `!important`. The original mixed CRLF/LF prefix is byte-identical. |
+| `backend/core/modules/marketplace/tests/test_bundle_monitoring.py` | research tests (see 7) | Old assertions on the removed layout were updated. Sidebar checks now look for the list link (`href="…"`) instead of the URL prefix that the new research link shares. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py` | 401-525, `test_bundle_analysis_*`, `test_sidebar_bundle_analysis_*` | Seven new tests. |
+
+### 3. Changes made
+
+- **Top bar:** "Real orders" / "Practice data" switch. With results, the right side shows "Last run Nov 12, 2:38 AM" and "Run again" (the existing CSRF POST). "Download CSV" is hidden because no export endpoint was built.
+- **Summary:** "70 bundles found in 1,000 practice orders from 5 sellers".
+- **Tabs:** Bundles (pairs) · All rules (both directions) · Data used (facts plus order lines) · How it's computed (the thresholds from settings, the formulas, and a worked example using the top bundle's stored counts).
+- **Seller chips:** All, S01–S05 on the Bundles, All rules and Data used tabs.
+- **States:**
+  - Not run: "Practice data is ready" plus the facts and a centered "No results yet" with a large Run Demo Analysis button.
+  - Real orders: "No bundles from real orders yet" with the saved reason, or a link to the suggested bundles when real-order suggestions exist.
+  - Error: `role="alert"` with "Try again".
+  - Marketplace Admin: "Practice data is restricted".
+- **Facts:** Orders = transactions (1,000) · Items sold = CSV line items (2,027) · Sellers = distinct `seller_id` (5) · Products = distinct `product_id` (30; the old "Unique Products 150" counted seller+product pairs).
+- **Removed:** the "Dataset & Apriori Analysis" heading and subtitle, "Back to Suggestions", "Unique Products".
+- **Text colors:** only `#1A1851` and `#17172A` (plus white on navy, and the disclosure's brown on cream). No `#667085` or `#98A2B3`.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`research(request)` (GET, Super Admin or Marketplace Admin) calls `_render_analysis()`:
+
+1. `_analysis_selection()` turns `?source=` and `?tab=` into `('synthetic'|'live', 'bundles'|'rules'|'data'|'how')`. Legacy links keep working: `tab=results` opens Bundles, `tab=dataset` opens Data used, and `tab=marketplace|synthetic` picks a source.
+2. For practice data (Super Admin only), `research_dataset()` reads and validates the CSV (it never mines), then fills in `facts`. `saved_bundle_analysis(user, snapshot, limits)` returns:
+   - **cache hit:** rows from the last Run (`origin='cache'`);
+   - **cache miss:** `_demo()` reads the durable report, and `_report_analysis()` rebuilds the bundles and both rule directions (`origin='report'`);
+   - **neither:** `None`, which shows "No results yet".
+3. The selected tab's rows are filtered by `seller`, paginated 10 per page, and rendered.
+
+Rules from the report, for each stored pair with counts `together`, `source` (first item), `target` (second item) and `N` (that seller's orders):
+
+```python
+# A -> B                                  # B -> A (swap source/target)
+confidence = together / source            confidence = together / target
+lift = confidence / (target / N)          lift = confidence / (source / N)
+# keep if confidence >= limits[1] and lift > limits[2]; support = stored value
+```
+
+Lift is mathematically the same in both directions, but it is computed per direction exactly as `calculate_market_basket` does. A float rounding edge (Pandesal → Coffee 3-in-1 is 10.57 one way, 10.58 the other) therefore matches the Run's own rules and `research/market_basket/results_per_seller/association_rules.csv`. "Last run" is the report's `completed_at`, or the report file's modified time for older reports, shown in Asia/Manila.
+
+Why this approach: the report is already written by the authorized Run and already used by the dashboard card, so it is the existing source of truth that survives restarts. Rebuilding the rules from stored counts needs no new storage and never runs Apriori on GET.
+
+### 5. Backend / API behavior
+
+- URLs and names are unchanged (`bundle_monitor_research`, `bundle_monitor_research_run`).
+- GET never mines or writes the cache. The Run POST is still Super Admin only, still requires CSRF, and now redirects to `?source=synthetic&tab=bundles` (keeping `seller` if one was given).
+- Marketplace Admin keeps read-only Real orders access; practice data stays restricted.
+- The dashboard card, the seller APIs and live-order logic are unchanged. The dashboard card's existing `?tab=results` link opens Bundles.
+
+### 6. Database / migration impact
+
+None. No models, migrations or settings changed. The only data change is an additive `completed_at` key in the durable JSON report, written on the next explicit Run. The real `var/reports/seller-bundle-demo.v1.json` was not modified by testing (SHA-256 matched the task-start backup after the test runs).
+
+### 7. Tests performed / evidence
+
+- **Before edits:** `test_bundle_monitoring`, `test_dashboard_synthetic_preview`, `test_bundle_suggestions` and `api.tests.test_seller_recommendations` ran 176 tests with 2 failures: `test_carousel_send_errors_csrf_scope_and_empty_are_not_success` and `test_phase2_naming_and_empty_states_for_both_roles`. Both concern the Suggested Product Bundle list page, not this change.
+- **After edits:** 183 tests. The same 2 failures and no new failures or errors. These 2 are not claimed as fixed.
+- **New tests (all pass):**
+  - 70 bundles and 138 rules rebuilt from the report after `cache.clear()`, with `calculate_market_basket` patched to raise. The derived rule set equals the Run's rules exactly.
+  - Last run falls back to the file time in Manila.
+  - "No results yet" with Products 30 and Sellers 5 when there is no report.
+  - An invalid report shows an error with Try again.
+  - The sidebar link is superuser only and active on its page.
+  - Tabs, seller filter, pagination (Showing 11–20 of 138) and a worked example that matches the top bundle.
+  - The disclosure appears for practice data only; Real orders shows its empty state; the manager sees the restricted state.
+- **Real-report cross-check (read-only, using a backup copy):** 70 bundles and 138 rules, identical to `research/.../association_rules.csv`.
+- **Headless Chrome** at 1440, 1024 and 390px over exported test pages (not-run, all four tabs, a "restart" export with the cache cleared, Real orders, manager): **30/30 checks** with no page overflow, zero text colors outside the allowed set, and no JS errors. Wide tables scroll inside their own frame on phones. Evidence: `scratch/bundle-analysis-20261112/`.
+
+### 8. Remaining limitations / troubleshooting and safe practice
+
+- "Download CSV" is not built (hidden).
+- The search box and frequent-itemsets table from the old page were removed.
+- Real orders shows no rule table, because raw live rules were never saved.
+- Browser checks used exported test pages, not a live login. The "restart" was simulated by clearing the cache, which is what a restart does to `LocMemCache`.
+
+**Troubleshooting:**
+- **"No results yet" after a Run:** check that `var/reports/seller-bundle-demo.v1.json` exists and that its `limits`/`version` match the current thresholds and CSV. `_demo()` treats a mismatch as not generated.
+- **Error state:** the report JSON or CSV failed validation.
+- **Gray captions:** something reintroduced `<small>` in the table header.
+
+**Safe practice:**
+1. Open `/admin-bundle-suggestions/research/?source=synthetic&tab=how`.
+2. Note the worked example: Support = 20 ÷ 186 = 10.75%.
+3. Recompute it by hand from the Bundles row for S04 Pancit Canton + Boiled Egg.
+4. Restart the dev server and reload: the same numbers appear (origin `report`).
+5. Run `manage.py test modules.marketplace.tests.test_dashboard_synthetic_preview --keepdb` and read `test_bundle_analysis_rebuilds_70_bundles_and_138_rules_from_report_after_cache_expiry` to see how the 138 is verified.
+
+No data is changed by this exercise.
+
+## Current: compact carousel pill and right-hand footer link - November 12, 2026
+
+This small follow-up supersedes the previous header-link placement and stretched Synthetic Demo navigation. It changes the shared card footer, appends one CSS section and updates cache/test expectations. All carousel markup and application JavaScript remain unchanged.
+
+### 1. Cause / reason
+
+The requested bottom row uses one compact pill around the existing arrows/dots and places See all bundles to the right of the disclosure. Earlier rules set the controls to a full-width grid under 560px and distributed the arrows to its edges. The new last section overrides those styles at matching scope so the pill remains intrinsically sized and right-aligned. No new controller or business behavior is needed.
+
+### 2. Exact files changed / current lines and anchors
+
+Paths are relative to the repository root. Use the anchors when later work moves line numbers.
+
+| File | Current line / anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html` | 3, header; 23, footer; 27, disclosure; 28, `dashboard-bundle-demo__see-all` | Remove the existing conditional link from the header, use Bootstrap `d-flex align-items-center gap-3` for the footer, and place the exact same protected link after the disclosure. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css` | 946, dated compact-bottom section; 947, controls; 952, arrows; 958, dots | Append the requested auto-width bordered pill, arrow/dot sizes, colors, spacing and active-dot width feedback. No earlier CSS section is rewritten. |
+| Same CSS | 969, reduced motion; 972, narrow-container override; 977, footer | Disable width feedback for reduced motion, override the earlier stretched narrow controls and style the flex disclosure/right link. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` | 24, `bundle_suggestions.css` | Bump only the CSS query key to `20261112-bundle-bottom`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` | 19, shared CSS | Same CSS key for Marketplace Admin. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/bundle_monitoring.html` | 9, shared CSS | Same CSS key for the existing shared asset. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py` | 100, CSS key; 111, control hooks; 127, footer links; 143, placement | Update intentional expectations for footer-only Super Admin link, disclosure-before-link order, the unchanged eight dots, aria-current/disabled labels and live-region hook. Existing role normalization still strips only the conditional link. |
+| `docs/suggested-product-bundles.md` | 3, this report | Record the scope, functions/data flow, actual results, troubleshooting and safe exercise. |
+| `CAMPUSHUB_CONTEXT.md` | 3, compact-bottom note | Preserve the new explicit choice and verification scope. |
+
+The shared carousel template, photo partial, entire bundle JavaScript file and both bundle service files hash-match task-start backups. CSS keeps CRLF; the five edited template/test files keep their original LF. No inline styles or scripts were added. JavaScript asset keys remain unchanged because no application JavaScript changed.
+
+### 3. Changes made
+
+The Synthetic controls now form one white 1px-border pill with 2px padding/gaps and a 999px radius. Arrows are 24px with 14px navy chevrons, transparent individual backgrounds/borders, the requested hover surface and muted disabled color. Existing dot targets become 12x24px; spans are 5px inactive circles or a 14x5px navy active bar. Focus remains visibly outlined; active width transitions take 150ms and are removed for reduced motion.
+
+The pill's width stays automatic. It measures 190x30px for the existing eight dots. Above 560px card content width it shares the seller row; at or below that width it sits below the seller, right-aligned. This is based on card width, so a narrow card can use that arrangement on a desktop viewport.
+
+The footer contains credits, a flexible full disclosure paragraph, and the existing See all bundles link on the right. The link stays one line and vertically centered beside the text. The same `bundle_demo.total and user.is_superuser` condition and `bundle_monitor_research?source=synthetic&tab=results` destination remain. It is inside the Synthetic panel, so it hides automatically on Live. The header retains Demo Only and its original visibility hook.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+Existing Django data flow stays: permission-checked dashboard -> saved synthetic projection -> shared card/carousel templates -> existing delegated tab/navigation handlers. No Python runtime function or query was changed.
+
+The unmodified carousel partial still renders `nav.dashboard-bundle-demo__controls[data-demo-controls]`, both `data-demo-step` buttons, `.dashboard-bundle-demo__dots`, `data-demo-go`, `aria-current`, accessible labels and the polite live region. The unmodified `show()` reads the requested index, toggles slides/current dot/disabled arrows and announces the selected slide. Existing Refresh initialization preserves source/slide selection. CSS changes only how those nodes look and align.
+
+Annotated example: eight already-rendered dot buttons -> the CSS gives each a 12x24px target -> the existing active dot's inner span becomes 14x5px -> clicking Next still calls the same handler and updates the same `aria-current` and disabled properties. A single saved pair still renders no unnecessary navigation, as covered by the existing preview tests.
+
+The footer's Bootstrap flex row gives the disclosure `flex:1; min-width:0`; credits/link do not shrink. This was chosen to preserve the complete sentence and keep the real link usable without adding JavaScript. The CSS selectors all limit the control changes to `data-bundle-source="synthetic"`; Live controls keep their former styles.
+
+### 5. Backend / API behavior
+
+No changes to data, saved reports, bundle calculations/order/limit, permissions, APIs, navigation logic or tooltip setup. Both services, photos and the carousel/JavaScript sources are protected by hash checks. The Live template tail is byte-identical. Browser comparison confirms unchanged Live text/photos/status/inner computed styles; only numeric fixture recommendation IDs are normalized when comparing independently created test databases.
+
+### 6. Database / migration impact
+
+None. No models, migrations, dependencies, working-record writes, analysis publication, server restart or deployment. The regression runs used guarded disposable local PostgreSQL test databases, destroyed afterward. Browser requests used Django-rendered test fixtures and intercepted read-only responses, with zero browser writes.
+
+### 7. Tests performed / actual results and troubleshooting
+
+Evidence: `scratch/bundle-bottom-20261112/`.
+
+- Required bundle/API modules plus all `modules.reports`: **same 722 discovered tests before/after**. Baseline: 35 failures/34 errors in 295.567s. After: 34 failures/34 errors in 304.910s. **No new failure/error IDs.** One existing booking-render failure did not recur; no claim is made that this presentation patch fixed it. Unrelated failures/errors remain recorded.
+- The preview's CSS-version expectation was corrected to the new key and the final focused rerun passed **13/13** tests in 12.533s. This rerun verifies the current assertion/source; it is reported separately from the full-run logs, which loaded the prior expectation. Footer placement/role checks, existing saved-data/permission/escaping tests and unchanged control hooks passed.
+- Chrome: **576/576 checks passed** for Super Admin and Marketplace Admin at **1440, 1024 and 390px**, plus a wide-card case. All eight dots, arrows, disabled first/last states, Home/End, focus rings, actual Refresh source/slide preservation, footer ordering/alignment, hidden link on Live, Marketplace absence, no card overflow, reduced motion and Live style parity were exercised. Zero JavaScript errors or browser writes.
+- Actual measured pill is 190x30px; arrows 24x24px with 14px SVGs; dot targets 12x24px; inner spans 5x5px / 14x5px. The wide case confirms seller/pill share a row; narrow cards retain the compact right-aligned pill beneath the seller.
+- Inspected desktop, phone, focused-control and wide-card screenshots: border/spacing, arrow/dot alignment, disabled colors, active bar, footer wrapping and link centering. See `super-1440.png`, `super-390.png`, `marketplace-390.png`, `super-focus-390.png` and `wide-desktop-1440.png`.
+- `audit.py` verifies five protected file hashes, unchanged Live template tail, append-only CSS, original LF/CRLF conventions and no added inline source. Targeted `git diff --check` found no whitespace errors, only informational line-ending warnings.
+
+Chrome reports `display:flex` for this inline-flex grid item because grid layout blockifies its outer display; the measured auto width, not that computed display string alone, proves it stays compact. Color assertions wait for the existing hover/focus color transition to settle. Independent fixture databases generated different recommendation PKs; all other Live content and computed styles compare unchanged.
+
+Repeat from the repository root:
+
+```powershell
+backend/core/venv/Scripts/python.exe -B scratch/bundle-bottom-20261112/audit.py
+node scratch/bundle-bottom-20261112/review.cjs
+# Existing guarded runner: scratch/bundle-bottom-20261112/run_local_tests.py
+# Use modules.marketplace.tests.test_dashboard_synthetic_preview for the 13 focused cases.
+# Full module labels and actual IDs are preserved in baseline-results.json / after-results.json.
+```
+
+If the pill stretches, inspect the last dated selector and the earlier 560px container rule; do not change the carousel JS. If the old header link remains, reload with cache disabled and verify CSS key `20261112-bundle-bottom` and the current partial. If the link appears on Live, confirm it remains inside `bundleSyntheticPanel`. If a current-dot test seems to fail immediately after a click, distinguish the semantic aria-current update from the short width animation before changing application behavior.
+
+Safe practice exercise: in a temporary local copy, change only the last pill `gap:2px` to `gap:3px`. Reload, inspect its small width change, click first/last dots, and confirm the same records and disabled states remain. Restore 2px and rerun the browser check. This demonstrates that CSS geometry is separate from carousel state and Django data.
+
+### 8. Remaining limitations
+
+The recorded broader-suite failures/errors remain; no all-suite-green claim is made. Browser review used isolated Django-rendered fixtures rather than an authenticated working-data session. The full disclosure may wrap into more than two lines on very narrow cards while the link remains on one line on its right, matching the requested flex structure; no text is clipped or abbreviated. Changes are local only, without commit, push or deployment.
+
+## Current: header link and metric info tooltips - November 12, 2026
+
+### 1. Cause / reason
+
+The current Synthetic Demo already had metric tiles and a disclosure. This follow-up moves its protected bundle link into the header, replaces whole-tile native tooltips with small info-button tooltips above the labels, puts the Support count beside its percentage and makes the strip white. The user explicitly selected stacked metric tiles on narrow cards. Existing photos, saved data, calculations, permissions, carousel behavior and Live results are retained.
+
+### 2. Exact files changed / current lines and code anchors
+
+All paths are relative to the repository root. Use the anchors if subsequent changes move these lines.
+
+| File | Current line / anchor | Change and reason |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html` | 3, header; 5, `data-bundle-demo-label`; 6, `dashboard-bundle-demo__see-all`; 24, footer | Move the Super-only link before Demo Only, say See all bundles, retain its URL/condition, and leave only credits plus disclosure in the footer. Move the existing visibility hook to their shared header action group so the original tab handler hides both on Live. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_carousel.html` | 16, metric definition list; 19/28/37, info buttons; 24, Support value/count | Use Bootstrap row/flex/spacing/border utilities, remove native tile titles, and add 3 accessible info buttons per slide. The count is the actual n-of-N without the extra word orders. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css` | 921, dated polish section; 924, focus; 938, CSS tooltip; 946, narrow-card query | Append one section for the new header link, white strip, requested density/type/dividers, focus and tooltip fallback. The existing CSS prefix is unchanged. Stack metric tiles at 440px or less of card content width so percentage/count stay beside one another. |
+| `backend/core/modules/marketplace/static/marketplace/js/bundle_suggestions.js` | 200, `bundleTooltips`; 201, `initBundleTooltips()`; 224, initialization call | Add tooltip-only setup/cleanup to the existing initializer, which already runs on DOM readiness and after Refresh. Removing these additions produces the byte-identical original carousel script. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` | 24, CSS; 560, JS | Bump both asset keys to `20261112-bundle-polish`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` | 19, CSS; 183, JS | Same keys for Marketplace Admin. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/bundle_monitoring.html` | 9, CSS | Update the existing shared CSS include. This page loads `bundle_monitoring.js`, not `bundle_suggestions.js`; no unrelated script was added. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py` | 99, cache keys; 112, metrics; 116, info buttons; 121, footer; 131, link matching | Update intentional markup expectations: header-only protected link, 24 info buttons across 8 slides, top placement, no tile title, inline count and credits-only footer. Continue comparing role cards after stripping the authorized link. |
+| `docs/suggested-product-bundles.md` | 3, this report | Record functions/data flow, checks, troubleshooting and a safe exercise. |
+| `CAMPUSHUB_CONTEXT.md` | 3, bundle polish note | Preserve the latest explicit card choice and verification scope. |
+
+CSS/JS retain their original CRLF; the six touched template/test files retain LF. No inline styles/scripts were added to source. Bootstrap/Popper generates its normal runtime tooltip positioning attributes; these are library output, not hand-written inline application CSS.
+
+### 3. Changes made
+
+- Header: See all bundles followed by the arrow, then Demo Only. The original `bundle_demo.total and user.is_superuser` condition and synthetic research/results URL remain. Bootstrap handles flex/wrapping/alignment; 12px/600 navy link styling has hover underline and a visible focus ring.
+- Metrics: white bordered 10px-radius strip, 10px/14px tile padding, left-aligned 11px labels and 18px/600 navy tabular values. Support's actual n-of-N sits beside its percentage. No browser-native title remains on an entire tile.
+- Tooltips: Support, Confidence and Lift each have a 13px info icon in a 24px button, a descriptive accessible label and the exact requested explanatory text. Bootstrap places the tooltip above; the CSS-only alternative supports hover and focus when Bootstrap JavaScript is unavailable.
+- Footer: one flex row containing the existing credits action and the full disclosure; the all-bundles link is removed from it. With sufficient width the disclosure is one visual line. Narrow cards wrap the full sentence rather than clipping it or reducing the required font size.
+- Responsive: as explicitly selected by the user, tiles stack on narrow **containers**, including a narrow dashboard card on a larger viewport. This keeps Support's percentage/count on one line. Existing photo and carousel-control layouts remain.
+
+Main layout/spacing/borders use Bootstrap utilities. Scoped CSS retains the supplied component density/divider/type rules, the necessary CSS-only tooltip positioning and the container stacking compatibility rule. Small meaningful text/info icons use the existing readable secondary gray `#667085` instead of `#98A2B3`, preserving the prior contrast adaptation.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The existing permission-checked `dashboard_synthetic_preview(user)` still supplies each saved product pair, Support, Confidence, Lift, together count, seller transaction count and total. The shared template renders those unchanged values. Only Synthetic Demo's existing condition contains the new info buttons. Live template markup and inner computed styles remain unchanged.
+
+Example from the isolated saved-result fixture: `support=10.75`, `together_count=20`, `seller_transactions=186` -> displayed `10.8%` beside `20 of 186`. The Support button explains that these are this seller's orders containing both items; no calculation moves into JavaScript. Product names in the Confidence explanation remain escaped by Django, and Bootstrap's normal text-only tooltip behavior is retained.
+
+`initBundleTooltips(root=document)` takes a DOM root and reads only tooltip buttons inside `.dashboard-bundle-demo`. If `window.bootstrap.Tooltip` exists, it creates/reuses each instance, requests top placement, uses a dedicated tooltip class, and marks that button ready so the CSS fallback does not also appear. Its Map avoids duplicate setup and disposes instances whose old elements were removed by Refresh, including a tooltip appended to the document body. After a Bootstrap tooltip hides, the button's description is restored to its permanent inline help text. Escape hides the Bootstrap tooltip.
+
+The unchanged `initialize()` now calls this helper before its existing work. It already runs on DOM readiness and `campushub:dashboard-data`, so the existing refreshed Django fragment gets tooltips without modifying the global controller. When Bootstrap is absent, no ready marker is set; `.bundle-info` hover/focus reveals its nested `.bundle-info__tip` above the button using CSS alone.
+
+The original `selectTab()`, `show()`, dot/arrow/keyboard handlers, source-selection memory and live region are unchanged. The existing `data-bundle-demo-label` hook now controls the header action group instead of only the badge: switching to Live hides both the synthetic navigation link and Demo Only using the original code.
+
+### 5. Backend / API behavior
+
+No endpoint, permission, saved report, analysis, metric, ordering, selection limit or API response shape changed. Both bundle service files and the shared photo partial hash-match task-start backups. Licensed photos and image fallbacks remain. This update does not publish recommendations or run an analysis against working records. The protected research destination remains server-checked.
+
+### 6. Database / migration impact
+
+None: no models, migrations, dependencies or working-record writes. Both bundle regression runs used guarded disposable local PostgreSQL databases, destroyed afterward. Browser review used exported Django test pages and intercepted read-only responses. Bootstrap 5.3.2 was already used by these pages; its existing CDN script was cached only under the task's scratch folder for repeatable tests, not added as an application dependency.
+
+### 7. Tests performed / actual results and troubleshooting
+
+Evidence: `scratch/bundle-polish-20261112/`.
+
+- Same **233 bundle/API tests** before and after. Baseline: 11 failures/3 errors in 62.071s. After: 10 failures/3 errors in 53.884s. **Zero new failures** and identical discovered IDs. All **13 Synthetic Demo preview tests passed**. The baseline preview assertion was on the stale stylesheet cache key; its intentional markup/cache expectations were updated. No claim is made to fixing the other pre-existing bundle failures/errors.
+- Chrome: **2,384/2,384 checks passed** for both roles at **1440, 1024 and 390px**, with Bootstrap loaded and with Bootstrap JavaScript absent. Every slide's three tooltips was exercised on hover/focus. Checks cover top placement, viewport containment, exact text, 24px targets, focus rings, white strip/radius, beside-value counts, stacking, header link/role/position, full disclosure, dots/arrows/Home/End, actual Refresh replacement, selected tab/slide preservation and old-tooltip disposal. No JavaScript errors or browser writes.
+- Live panel HTML/computed inner styles match baseline at all role/viewport/mode combinations. Its server template tail is byte-identical. Removing the added tooltip helper/call produces the byte-identical original carousel JS. The CSS prefix before the appended section is unchanged.
+- Extra Chrome checks: 26 changed-text/icon/tooltip samples, minimum **4.97:1**; header link has 2px focus ring/2px offset in both modes; metric values are 18px/600. A 670px-content harness verifies a single visual disclosure line. This is component verification, not full-site accessibility certification.
+- Desktop/phone and both tooltip modes were inspected visually. See `bootstrap-super-1440.png`, `bootstrap-super-390.png`, `bootstrap-tooltip-super-390.png`, `fallback-tooltip-super-390.png` and `wide-desktop-1440.png`. Tooltip screenshots use the full viewport where needed so overlays extending beyond the card are not artificially cropped.
+- `node --check` passed for the changed script. `audit.py` verified protected files, exact carousel boundary, Live markup, append-only CSS, original line endings and no inline source additions. Scoped `git diff --check` found no whitespace errors, only informational line-ending warnings.
+
+Chrome initially exposed hidden absolutely positioned fallback text contributing to phone overflow, and a last-tile selector overriding the narrow positioning rule. The fallback now uses display:none until hover/focus and a correctly scoped narrow centering rule. The final browser run above passed after both fixes.
+
+Repeat from the repository root:
+
+```powershell
+backend/core/venv/Scripts/python.exe -B scratch/bundle-polish-20261112/audit.py
+node scratch/bundle-polish-20261112/review.cjs
+node scratch/bundle-polish-20261112/review.cjs --extras
+# Regression runner: use scratch/bundle-polish-20261112/run_local_tests.py
+# with the same bundle/API module labels listed in baseline-results.json.
+```
+
+If the old footer link remains, disable cache and verify the CSS/JS query keys are `20261112-bundle-polish`. If two tooltips appear, inspect the button's ready marker and that Bootstrap is initialized once; do not add a second global tooltip initializer. If a tooltip survives Refresh, inspect the helper's disconnected-instance cleanup. If a fallback clips on a phone, inspect the last-tile versus narrow-container specificity before widening the whole dashboard. If header actions stay visible on Live, ensure the original visibility hook remains on their shared group.
+
+Safe practice exercise: in a temporary local copy, change only the Support explanation text in `data-bs-title` and its nested fallback span to the same short sentence. Reload with Bootstrap enabled, then block only Bootstrap JavaScript and reload. Verify identical help text above the button on hover and keyboard focus, Refresh once, and confirm `10.8%`/`20 of 186` did not change. Restore the wording and rerun the preview test/browser check. This teaches the distinction between help copy, tooltip lifecycle and saved numeric data.
+
+### 8. Remaining limitations
+
+The 10 pre-existing failures and 3 errors remain in the recorded bundle suite. Verification used rendered isolated Django pages in Chrome rather than a newly authenticated working-data session. The CSS-only fallback closes when hover/focus leaves the button; Bootstrap additionally handles the added Escape action. Full disclosure text wraps on narrow cards even on desktop-sized viewports, while a sufficiently wide card keeps one visual line. No photos were replaced with the illustrative placeholders in the reference. No commit, push or deployment was performed.
+
+## Minimalist Synthetic Demo metrics and footer - November 12, 2026
+
+This presentation-only update supersedes the older sentence-style metrics and two-line count footer below. Work began November 11; verification and this report finished November 12. The existing Apriori calculations, eight-slide selection, saved report, permissions, API and carousel JavaScript are unchanged.
+
+### 1. Cause / reason
+
+The previous Synthetic Demo combined Support, Confidence and Lift into one sentence and repeated the dataset total in a separate footer line. The supplied brief asks for three scannable metric tiles, Inter typography, quieter controls and one protected text link. Inspection also confirmed existing dashboard styles that overrode card padding/radius, declared every `h2` weight `600 !important`, and applied a 3px focus offset after this stylesheet. The new component selectors handle those confirmed cascade conflicts locally.
+
+### 2. Exact files changed / current lines and nearby anchors
+
+Paths are relative to the repository root. Line numbers refer to this completed implementation; use the named anchors if later work moves them.
+
+| File | Current line and anchor | What changed and why |
+| --- | --- | --- |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_carousel.html` | 16, `<dl class="dashboard-bundle-demo__metrics">`; 19, Support `<dd>` | Replace only the synthetic metrics sentence with three definition-list tiles, existing values, order-count subline and individual explanatory `title` attributes. Keep the synthetic/support-present condition. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html` | 27, `dashboard-bundle-demo__disclosure`; 28, `dashboard-bundle-demo__all-rules` | Remove the old count and footer-copy wrapper; use the requested disclosure and a Super-Admin-only `View all N bundles` text link to the existing research results. |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css` | 656, dated minimalist section; 657, scoped card selector | Replace the two final “Apriori evidence”/“Eight slides” sections with one dated section. Use shared component variables, 20px padding, 12px card radius, Inter, 500 labels and 600 metric numbers. Preserve the Live panel's existing font token. |
+| Same CSS file | 731, metrics; 776, seller; 785, controls; 803, focus; 838, footer | Three equal metric columns, tabular numerals, compact controls, no dot wrapping, responsive seller/navigation placement, accessible focus and footer text-link override. |
+| Same CSS file | 888, 560px container query; 904, 360px query; 915, reduced motion | Stack seller/navigation at the specified card width; use 16px values and 8px horizontal tile padding on narrow cards so Confidence stays intact; remove hover/focus transition duration when reduced motion is requested. |
+| `backend/templates/dashboard/pages/admin_dashboard.html` | 24, `bundle_suggestions.css` | CSS cache key becomes `20261111-synthetic-minimal`. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html` | 19, `bundle_suggestions.css` | Same cache key for Marketplace Admin. |
+| `backend/core/modules/marketplace/templates/marketplace/pages/bundle_monitoring.html` | 9, `bundle_suggestions.css` | Same cache key for the existing shared stylesheet. |
+| `backend/core/modules/marketplace/tests/test_dashboard_synthetic_preview.py` | 4, `import re`; 100, cache key; 114, metric labels; 123, protected-link match | Update only intentionally changed markup expectations: eight of each metric/order subline, new disclosure/cache key, Super-only 70-bundle link and role comparison after removing that link. Existing escaping, permission, saved-result and Live tests remain. |
+| `backend/core/modules/reports/tests/test_dashboard_executive.py` | 333, disclosure expectation | Expect the new dashboard disclosure. The backend/API disclosure text is not changed. |
+| `docs/suggested-product-bundles.md` | 3, this dated report | Record the implementation, verification, data flow, troubleshooting and safe exercise. |
+| `CAMPUSHUB_CONTEXT.md` | 3, minimalist Synthetic Demo note | Preserve scope, verification and the link to this guide. |
+
+The CSS file retains CRLF; all seven touched template/test files retain their existing LF endings. No inline styles or scripts were added. The brief's abbreviated `marketplace/pages/...` paths resolve under `backend/core/modules/marketplace/templates/` in this checkout.
+
+### 3. Changes made
+
+- Keep the title and existing Demo Only label; apply the requested Inter/white/navy/gold component treatment. Gold is reserved for the active underline and plus, with the explicitly requested pale-gold Demo Only exception.
+- Retain the same two images, 115px photo height, names and 400px maximum pair width. Photo cards use 10px corners; the plus is 28px.
+- Render Support and Confidence to one decimal and Lift to two, using the existing template filters. Keep the actual `together_count` and `seller_transactions` directly below Support.
+- Keep 28px arrows and at least 24px dot targets, a 6px inactive dot and 18x6px active dot. Targets never wrap. At narrow card widths, horizontal gaps reduce so all eight targets fit the tested phone layout.
+- Above 560px of card content, seller and navigation share a row. At or below it, seller occupies its own row and the navigation fills the next. This is a **container** breakpoint: a card can be narrow even on a desktop viewport. The actual 1440px dashboard fixtures have about 480px of card content, so they correctly use the stacked version. A separate 670px-content render verifies the wide arrangement.
+- The footer keeps credits, disclosure and the optional text link in one row when there is room. Below 360px of card content, the text link moves beneath the disclosure. The old “Top N of M” sentence is removed.
+
+Three small accessibility adaptations to the literal visual values are deliberate: the meaningful 11px order count and credits action use secondary `#667085` instead of muted `#98A2B3`; the requested pale inactive dot fill retains a 1px secondary-gray border. Measured secondary-on-tile contrast is **4.69:1**; the requested muted-on-tile value is **2.43:1**. Compact tiles use 8px horizontal padding below 360px so their labels remain readable. These changes preserve the requested palette and structure while avoiding unreadable small content.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+The existing Django permission-checked dashboard calls `dashboard_synthetic_preview(user)` in `services/bundle_suggestions.py:128`. It reads the saved report, adds existing image/fallback information, preserves each row's metrics, sorts and returns up to eight rows plus `total`. This update does not edit that function or run an analysis against working records.
+
+The shared card partial passes `bundle_demo.rows` into `dashboard_bundle_carousel.html`. Its existing synthetic-only condition controls the new `<dl>`; each `<dt>` names a metric and each `<dd>` contains the already computed value. Template autoescaping still applies to product names in captions, accessible dot labels and the Confidence tooltip.
+
+Annotated test-fixture example:
+
+```text
+Inputs already supplied by Django:
+support=10.75, together_count=20, seller_transactions=186,
+confidence=90.91, lift=6.76
+
+Template output:
+Support     10.8%    # floatformat:1; no recalculation
+            20 of 186 orders
+Confidence  90.9%    # same saved value, one decimal
+Lift        6.76     # same saved value, two decimals
+```
+
+CSS subgrid keeps photo pair on row 1, metrics on row 2, and seller on row 3; the controls share row 3 on wide cards or move to row 4 on narrow cards. This avoids moving/duplicating controls or changing JavaScript.
+
+The unchanged `selectTab()` (`bundle_suggestions.js:160`), `show()` (`:174`) and `initialize()` (`:199`) still use the existing `data-bundle-*` / `data-demo-*` attributes. Inputs are the selected source or slide index; outputs are panel/slide visibility, `aria-selected`, `aria-current`, disabled arrows and the existing polite live-region announcement. The same delegated events reinitialize an actual refreshed fragment and remember the selected tab/slide. No autoplay or new transition logic was added.
+
+The footer condition is `bundle_demo.total and user.is_superuser`. Its link opens the existing `bundle_monitor_research` route with `source=synthetic&tab=results`. Existing server-side access checks remain authoritative. The template condition is presentation gating, not a replacement for permission enforcement.
+
+### 5. Backend / API behavior
+
+No Python runtime view/service, endpoint, calculation, permission, data selection or API schema changed. Browser checks used full Django-rendered fixtures exported by the existing tests, with requests intercepted locally; they did not authenticate to or modify the working application. Saved Live markup and the measured inner-panel computed styles match the pre-change render at all six role/viewport combinations. The carousel script and both bundle service files hash-match the source backups.
+
+The new disclosure is dashboard copy only. Existing mobile/seller API output and saved-report disclosure text remain unchanged, as required by the no-API-change scope.
+
+### 6. Database / migration impact
+
+No migrations, schema changes, new dependencies, working-record writes, analysis publication or deployment. Both regression runs verified the local PostgreSQL identity before creating uniquely named disposable test databases; Django destroyed each test database afterward. Browser checks recorded zero non-GET requests. No image generation, image replacement or mobile changes were made for this task.
+
+### 7. Tests performed / actual results and troubleshooting
+
+Evidence is in `scratch/synthetic-demo-minimal-20261111/`:
+
+- **706 tests before and after**, covering the bundle suggestion/monitoring/product/stock/threshold modules, Synthetic Demo preview, seller recommendation APIs and all `modules.reports`. Baseline: 27 failures and 3 errors in 280.804s. After: the **identical 27 failure IDs and 3 error IDs**, with the identical discovered test list, in 296.631s. **Zero new failures or errors.** The pre-existing failures were not fixed or hidden.
+- All **13 Synthetic Demo preview tests passed**. Their assertions include the eight Support/Confidence/Lift definitions and order sublines, role-only 70-bundle link, identical normalized role panels, escaping, no mining on dashboard reads, real saved Live rows, permissions, empty/error/single states and read-only record counts.
+- Chrome final review: **749/749 checks passed**, plus **3/3 wide-card checks**. Both roles were checked at **1440, 1024 and 390px**, including all eight slides, equal photo cards, aligned three-column tiles, readable labels, loaded/fallback photos, dot targets/no wrapping, role-only link, source tabs, arrows, Home/End keys, 2px focus ring/offset, actual Refresh fragment replacement, single/missing/empty/error views and reduced motion. Zero JavaScript errors or browser writes.
+- The 670px-content harness confirms the wide seller/navigation row, the shared footer row and working navigation with a visible keyboard focus ring.
+- Computed text contrasts: secondary/tile 4.69:1; navy/white 16.24:1; Demo Only text/background 7.30:1; plus symbol/gold 8.97:1. These measurements cover the changed component roles, not a full-site accessibility certification.
+- Inspected the desktop, phone and wide-card screenshots. Font/weight, image crop, title/name wrapping, tile alignment, controls, footer and focus were checked visually. See `after-super-1440.png`, `after-super-390.png`, `after-marketplace-1440.png` and `wide-card-focus-1440.png`.
+- `audit.py`: protected source hashes, unchanged line-ending conventions, no added inline styles/scripts and exact before/after test IDs verified. Targeted `git diff --check`: no whitespace errors.
+- The optional design kit's `.agents/tokens` and `.agents/scripts/accuracy_report.mjs` are absent, so that kit's gate was unavailable. No kit result or N/N score is claimed; project test and Chrome results above were measured directly.
+
+Useful repeat commands from the repository root (they require the already installed local Python/PostgreSQL/Chrome setup):
+
+```powershell
+# Compare the recorded test results and protected source files.
+backend/core/venv/Scripts/python.exe -B scratch/synthetic-demo-minimal-20261111/audit.py
+# Inspect the exported Django pages with the actual current styles and script.
+node scratch/synthetic-demo-minimal-20261111/review.cjs
+node scratch/synthetic-demo-minimal-20261111/review.cjs --wide
+```
+
+To repeat the regression suite, use this folder's guarded `run_local_tests.py` with the exact labels recorded under `discovered` in `baseline-results.json`; set `CAMPUSHUB_TEST_REPORT` to a new report filename to preserve the evidence. The original commands and durations are in the task's tool record; do not run an analysis or create working records to check layout.
+
+If the old look remains, reload the dashboard with cache disabled and verify its stylesheet query is `20261111-synthetic-minimal`. If only Super Admin differs, inspect the dated scoped card selector before changing global dashboard styles. If a title reverts to weight 600, inspect the existing global `h2 !important` rule; the local 500 override is intentional. If navigation stacks on a large monitor, check **card content width**, not viewport width.
+
+Safe practice exercise: in a temporary local copy, change only the new `--demo-feedback` value from `150ms ease-out` to `100ms ease-out`. Reload, hover/focus the arrows and tabs, then enable reduced motion and verify the computed transition durations become zero. Restore 150ms and rerun Chrome review. This teaches the component token/data-flow boundary without touching metrics, account permissions or records.
+
+### 8. Remaining limitations
+
+The broader suite still has its 27 pre-existing failures and 3 errors; see the recorded result IDs/logs. Visual verification used exported Django test pages in Chrome at the requested viewports, not a newly authenticated live session. Full-site accessibility and narrower-than-390px dashboards were not audited. A row of eight distinct 24px dot targets plus two arrows requires sufficient card space; do not infer that arbitrarily narrow containers were verified. The long disclosure wraps naturally within its footer column rather than being clipped to force a single text line. Existing Bootstrap, page layout, Live behavior and photo cropping remain intact. Changes are local only: no commit, push or deployment was performed.
+
+## Per-seller synthetic Apriori, rule evidence and research disclosure - November 11, 2026
+
+### 1. Cause / reason
+- The adviser asked for three things:
+  - integrate the synthetic dataset;
+  - show suggested product bundles from it on a seller or admin dashboard;
+  - disclose that the dataset is synthetic.
+- Chapter 4 also needs Support, Confidence and Lift for every association rule, computed in Python.
+- The Synthetic Demo tab showed only 4 bundles. **Confirmed cause:**
+  - `_analyze_synthetic_snapshot` keyed items as `seller:product`, which is correct because a bundle belongs to one seller.
+  - But it divided by all 1,000 transactions.
+  - Each seller has only about 190–225 transactions, so most real pairs fell under 2% support and lift was inflated.
+- Mining each seller with its own N gives **70 pairs / 138 rules**:
+  - S01 197 transactions, 13 pairs;
+  - S02 225, 15 pairs;
+  - S03 204, 13 pairs;
+  - S04 186, 15 pairs;
+  - S05 188, 14 pairs.
+- `research/market_basket/apriori_synthetic.py --per-seller` reproduces these numbers independently.
+
+### 2. Exact files changed / current lines and anchors
+- `backend/core/modules/marketplace/services/bundle_suggestions.py`
+  - Line 27 `DISCLOSURE = (`: the adviser's wording.
+  - Line 43 `SYNTHETIC_DASHBOARD_LIMIT = 8`.
+  - Line 128 `def dashboard_synthetic_preview`: adds evidence, sorts by support, keeps the top 8 and sets `total`.
+  - Line 145 `fallback_kind`: drink icon for water/shake/gulaman/palamig.
+  - Line 369 `def _analyze_synthetic_snapshot`: per-seller mining; line 403 `seller_transaction_counts`.
+  - Line 434 `RESEARCH_FORMAT = 2`: the research cache ignores old global-N results.
+- `backend/core/modules/marketplace/services/seller_recommendations.py`
+  - Line 19 `DEMO_FORMAT = 2`.
+  - Line 142 `def publish_demo`: saves a `metrics` block per row (line 150).
+  - Line 171 `def _demo`: format-1 reports read as *not generated*, and metrics are validated.
+- `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_carousel.html`
+  - Line 16 `dashboard-bundle-demo__metrics`: "Bought together in X% of orders (n of N) · Y% confidence · Lift Z" (same wording as the Live cards' stored evidence).
+- `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html`
+  - Line 27 `dashboard-bundle-demo__footer-copy`: "Top 8 of 70 …".
+  - A "View all rules" link for Super Admin only.
+  - The new disclosure text.
+- `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css`
+  - Line 657 `/* Apriori evidence …`: metrics row and footer count.
+  - Line 670 `/* Eight slides …`: arrows and dots on their own full-width row.
+- CSS cache key `?v=20261111-synthetic-evidence` in:
+  - `backend/templates/dashboard/pages/admin_dashboard.html`
+  - `marketplace/pages/admin_marketplace_dashboard.html`
+  - `marketplace/pages/bundle_monitoring.html`
+- Tests:
+  - `modules/marketplace/tests/test_dashboard_synthetic_preview.py`: lines 56, 88, 141 (new) and 168 (new).
+  - `modules/marketplace/tests/test_bundle_monitoring.py`: `test_research_reads_csv_but_does_not_touch_live_records` expects one Apriori run per seller.
+  - `api/tests/test_seller_recommendations.py`: new disclosure; the report keeps metrics, but the seller API never exposes them.
+  - `modules/reports/tests/test_dashboard_executive.py` line 333: new disclosure text.
+- New `research/market_basket/`:
+  - `apriori_synthetic.py`
+  - `README.md`
+  - `results/` and `results_per_seller/` (CSV and summary).
+
+### 3. Changes made
+- **Per-seller Apriori.** Baskets are grouped by seller, and `calculate_market_basket` runs once per seller.
+  - Each row, directional rule and itemset carries `seller_transactions` (that seller's N).
+  - Rows are ranked by lift, confidence, support.
+- **Evidence on the admin dashboard.** Each Synthetic Demo slide shows Support (with "n of N"), Confidence and Lift.
+  - Only users who pass `can_view_bundle_suggestions` see this card.
+  - The seller/mobile projection stays product-only.
+- **Top 8, most frequent first.** The carousel shows the 8 highest-support bundles, plus a count line "Top 8 of 70 …".
+  - Super Admin also sees a "View all rules" link to the Research page, which lists every rule.
+- **Disclosure.** It appears on the dashboard footer, the API `disclosure` field and the Python outputs.
+- **Old saved reports.** A format-1 report or research cache entry now reads as *Not generated*, so stale 4-bundle results are never shown.
+
+### 4. How it works / functions, inputs, outputs and data flow
+1. A Super Admin opens **Research** and clicks **Run analysis**, which calls `execute_synthetic_research(user)`.
+   - `research_dataset()` reads the CSV and builds baskets keyed `S01:P03`, …
+   - `_analyze_synthetic_snapshot(snapshot, limits)`:
+     - groups baskets by seller;
+     - calls `calculate_market_basket(seller_baskets, …)` per seller;
+     - merges the results.
+2. `publish_demo(snapshot, result, limits)` writes the durable JSON report (`CAMPUSHUB_SELLER_DEMO_REPORT_PATH`).
+   - Format 2: products plus `metrics` {support, confidence, lift, together_count, source_count, target_count, seller_transactions}.
+3. Dashboard GET calls `dashboard_synthetic_preview(user)`. It checks permission, then `_demo()` reads and validates the report. **It never mines.**
+   - It adds photos and evidence, sorts by support and keeps 8.
+   - `dashboard_bundle_carousel.html` renders the slides.
+4. Annotated example (first slide):
+
+   ```python
+   {'products': [Pancit Canton, Boiled Egg], 'seller': 'Synthetic Seller S04',
+    'support': 10.75,      # 20 of S04's 186 orders had both
+    'confidence': 90.91,   # 20 of the 22 Pancit Canton orders also had Boiled Egg
+    'lift': 6.76,          # 0.9091 / (25/186)
+    'together_count': 20, 'seller_transactions': 186}
+   ```
+
+5. **Why per seller?** A synthetic transaction never mixes sellers, and a bundle can only hold one seller's items. So each seller is its own market, and N must be that seller's transactions.
+
+### 5. Backend / API behavior
+- RBAC is unchanged:
+  - mining requires Super Admin (`_research_access`);
+  - the dashboard card requires `can_view_bundle_suggestions`.
+- The mobile seller API returns the same product-only rows, now up to 70. Tests assert that no support, confidence, lift or metrics leak.
+- The disclosure text changed.
+
+### 6. Database / migration impact
+- None. The report is a JSON file and the research result is cached.
+- **After updating, a Super Admin must click Run analysis once.** Until then the Synthetic Demo tab honestly shows the not-generated state.
+
+### 7. Tests performed / actual results
+- Bundle test set, run on a copy of your current folder (Nov 11, 15:01):
+  - `test_bundle_suggestions`, `test_bundle_monitoring`, `test_dashboard_synthetic_preview`, `test_live_bundle_thresholds`, `test_bundles`
+  - `reports.test_dashboard_periods`
+  - `api.test_seller_recommendations`, `api.test_admin_seller_recommendations`
+- Results:
+  - **Before:** 263 tests, 11 failures + 5 errors.
+  - **After:** 265 tests, 10 failures + 5 errors.
+  - **No new failures.** `test_dashboard_pages_refresh…` now passes.
+- The rest of `modules.reports`: 473 tests, 17 failures + 2 errors both before and after. These are pre-existing and unrelated; the only new failure was the old disclosure text, which was then updated.
+- The remaining 15 failed before this change and are unrelated:
+  - bundle order and variant tests;
+  - legacy dashboard date tests;
+  - two monitoring empty-state copy tests.
+- New tests:
+  - Per-seller N math is checked by an independent recount for every row.
+  - A format-1 report reads as not generated until a re-run.
+- Chrome screenshots of the card at 1440px and 390px:
+  - metrics row present;
+  - dots on one line;
+  - honest "No image" icon for products without sample photos.
+- The Python script and the system agree: 70 pairs, 138 rules, and the same top rule (Cheese Sticks → Buko Juice, S04: 2.15% / 80.00% / 21.26).
+
+### 8. Remaining limitations / troubleshooting / safe practice
+- **Live analysis issue (follow-up):** the Live tab still mines all sellers together with a global N, the same pattern fixed here for synthetic data. Live data is small today, so this was not changed in this step.
+- **Photos:** only 6 synthetic products have licensed sample photos (P01–P06). The others show the honest food/drink icon.
+- **Troubleshooting:** if the Synthetic Demo tab says no saved bundles, run **Research → Run analysis** as Super Admin. A report saved before November 11 is format 1 and is intentionally ignored.
+- **Practice exercise:**
+  1. In `bundle_suggestions.py` line 43, change `SYNTHETIC_DASHBOARD_LIMIT = 8` to `5`.
+  2. Reload the dashboard. Expected: 5 dots and "Top 5 of 70".
+  3. Run `python manage.py test modules.marketplace.tests.test_dashboard_synthetic_preview`. The test that expects 8 slides fails, which shows that the test protects the limit.
+  4. Change the value back to 8.
+
+## Pylance typing fix for the analysis renderer - November 10, 2026
+
+### 1. Cause / reason
+
+`_render_analysis()` builds one render context with `data = dict(...)`. Pylance inferred that dictionary as `dict[str, str | bool | int | list[Any] | None]` from the initial literal values. Later real assignments (a workflow summary dict, paginator `Page` objects, and nested statistics updates) were therefore reported as invalid argument/index types. The runtime behavior was already correct; only the static type was too narrow.
+
+### 2. Exact files changed / current lines
+
+| File and current line | Anchor / change |
+| --- | --- |
+| `backend/core/modules/marketplace/bundle_monitoring_views.py:5` | Add `from typing import Any`. |
+| `backend/core/modules/marketplace/bundle_monitoring_views.py:270` | Annotate the existing render context as `data: dict[str, Any]`; the literal values, keys and later assignments are unchanged. |
+
+### 3. Changes made / how it works
+
+The annotation widens the context to match what the function actually stores: strings, booleans, integers, lists, `None`, analysis dictionaries and Django `Page` objects. No key, value, query, template variable or response changed, so the rendered dashboard and bundle workflow behave exactly as before.
+
+### 4. Tests performed
+
+- `py_compile` passed for the changed view.
+- **83/83 existing `modules.marketplace.tests.test_bundle_monitoring` tests passed** in 23.241s; system check reported no issues.
+
+### 5. Remaining limitations
+
+Pylance was not available as a command-line check in this environment; the annotation removes the reported inference conflict by construction. No migration, database or API change.
+
+## Independent Live Apriori thresholds and three-order pair minimum - November 10, 2026
+
+### 1. Cause / reason
+
+Live and Synthetic previously used the same `thresholds()` settings, including 30% confidence, and the shared calculator had no separate pair-frequency gate. The user requested stricter Live-only qualification while preserving Synthetic research, other analytics, eligibility, interfaces and seller workflows. The implementation adds independent Live settings and an opt-in counter check to the existing calculator. It does not reconstruct purchases or replace the recommendation system.
+
+### 2. Exact modified files / current lines and anchors
+
+| File and current line | Anchor / change |
+| --- | --- |
+| `backend/core/core/settings.py:218` | Four new `CAMPUSHUB_LIVE_BUNDLE_MIN_*` environment settings with defaults 0.02, 0.40, 1 and 3. Existing unprefixed synthetic settings remain unchanged. |
+| `backend/core/modules/marketplace/services/analytics.py:556`, `:560`, `:597` | Add keyword-only `minimum_pair_count=0`, validate it as a non-negative integer, and skip pairs below it before directional rule calculation. Existing defaults, basket/order safeguards, formulas, formatting and itemset behavior remain. |
+| `backend/core/modules/marketplace/services/bundle_suggestions.py:176`, `:186`, `:223`, `:276`, `:446` | Document the existing synthetic helper; add validated `live_thresholds()`; enforce Live settings inside the reader as well as the public builder; pass Live's pair count to the calculator; select Live/Synthetic settings independently. The new internal live threshold metadata includes the minimum pair count; public product-only projection is unchanged. |
+| `backend/core/modules/marketplace/tests/test_live_bundle_thresholds.py:1` | 17 focused boundary/isolation tests covering all requested gates, directional confidence, rounding traps, per-order deduplication, preserved safeguards/defaults and invalid/stricter configuration. |
+| `backend/core/modules/marketplace/tests/test_bundle_suggestions.py:529`, `:548` | Existing actual live-reader integration expectation now checks 40% confidence and three pair orders, alongside original support/lift and real-product inputs. A regression test confirms old three-value and explicitly weaker four-value internal limits cannot lower the configured Live policy. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | Current policy, exact files, functions/data flow, measured tests, limitations and safe practice. |
+
+No dashboard/template/style, API view, monitoring workflow, seller workflow, model or migration edits in this task. Earlier unrelated local UI changes were preserved.
+
+### 3. Changes made / configuration
+
+| Gate | Live default and required floor | Synthetic / existing research |
+| --- | --- | --- |
+| Support | `>= 0.02` | Existing `>= 0.02` default retained |
+| Directional confidence | `>= 0.40` | Existing `>= 0.30` default retained |
+| Lift | Strictly `> 1.0` | Existing strict `> 1.0` retained |
+| Pair co-purchases | At least 3 distinct eligible orders | No new pair-count gate |
+
+Configure Live independently using `CAMPUSHUB_LIVE_BUNDLE_MIN_SUPPORT`, `CAMPUSHUB_LIVE_BUNDLE_MIN_CONFIDENCE`, `CAMPUSHUB_LIVE_BUNDLE_MIN_LIFT`, and `CAMPUSHUB_LIVE_BUNDLE_MIN_PAIR_COUNT`. Values may be made stricter; configurations below the requested floors, non-finite values or fractional/invalid pair counts fail closed through the existing analysis-error path. Synthetic retains `CAMPUSHUB_BUNDLE_MIN_SUPPORT`, `CAMPUSHUB_BUNDLE_MIN_CONFIDENCE`, and `CAMPUSHUB_BUNDLE_MIN_LIFT`. No environment file was edited.
+
+Shared `calculate_market_basket()` callers that omit the new option retain a zero extra pair minimum and their original thresholds/results. Synthetic uses that default. Its CSV, seller IDs/photos, saved report, settings signature, research cache key and rendering are unchanged. No automatic product approval/publication or new recommendation action was added.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+`live_thresholds()` reads only the new Live settings and returns `(support_fraction, confidence_fraction, exclusive_lift_floor, minimum_pair_orders)`. Existing `thresholds()` continues returning the original three-value Synthetic tuple. `build_bundle_suggestions(source='live')` selects the Live tuple and sends it to the existing `analyze_live()`; the Synthetic branch retains its existing cache/reader and three-value tuple.
+
+`analyze_live()` retains its actual completed/paid order queryset, authorized seller/program scope, product/seller eligibility, catalog/photos and genuine transaction boundary. Each persisted order is processed once. Before reading records, it takes the stricter value of each supplied/configured Live limit; existing internal three-value callers receive the configured fourth pair minimum. Neither the legacy tuple nor explicitly weaker limits can bypass the Live policy. The fourth value is passed as `minimum_pair_count`. The public live API and mobile live endpoint keep their current authorization and product-only response shape.
+
+`calculate_market_basket()` converts each transaction to a set of product IDs, so repeated product lines and quantities cannot increase product/pair order counts. It retains the existing minimum 3 eligible orders and 2 multi-item orders. Its existing counters supply `N` eligible baskets, `AB` orders containing both products, `A` orders containing the source and `B` orders containing the target. It now rejects `AB < minimum_pair_count` first, then applies the existing unrounded formulas per direction:
+
+```text
+support(A,B)   = AB / N
+confidence(A→B) = AB / A
+lift(A→B)      = (AB / A) / (B / N)
+```
+
+All four Live conditions must hold for a directional rule. An unordered pair can retain an independently qualifying reverse direction, as before; the code never fabricates a reversed rule. Only after qualification are percentages/lift rounded for the existing presentation fields. A true lift of 1.001 can therefore qualify while its two-decimal display is 1.00; displayed rounded values must not be used for requalification. The same rule applies to confidence/support that would round upward to a boundary: they are rejected if the unrounded fraction is too small.
+
+Annotated mathematical example, not application data: `AB=3`, `N=150`, `A=5`, `B=5` gives support2%, confidence60%, lift18 and three co-purchases, so both directions pass. `AB=2` fails the new Live count gate even if all three ratios exceed their limits. Synthetic is intentionally unaffected by that new gate.
+
+The original row formatter still maps IDs to actual product names/photos/sellers and enforces same-owner pairing. Existing explicit analysis persistence, highlighting, seller Accept/Decline and bundle submission retain their permissions/status rules. Dashboard GET still reads saved results without mining or writes; the existing `No Live Recommendations Yet` branch and all styling remain intact.
+
+### 5. Backend / API behavior
+
+Computed Live candidates now require 2% support, 40% directional confidence, strict lift above1 and three eligible co-purchase orders, or stricter configured values. Other analytics using the shared helper without the new option retain prior behavior. Existing completed/paid qualification, excluded pending/unpaid/cancelled orders, positive valid transaction rules, product eligibility, seller scope and authorization remain unchanged.
+
+Existing dashboard recommendations are saved snapshots. Their current/read-only display, statuses and seller interactions are not rewritten by this configuration change. Apply the new policy to persisted snapshots through the existing authorized explicit live-analysis refresh, which already re-evaluates current recommendations. No such application/production refresh was run during this task, and page GETs were not changed to mine or write. This preserves the current workflow rather than silently altering records.
+
+### 6. Database / migration impact
+
+None. No schema, model, migration, application/production order/recommendation records, demo report, CSV, asset or dependency changes. Tests used the existing guarded runner and isolated localhost PostgreSQL test databases; all were destroyed afterward. Tests that execute demo research continue using temporary report paths. SHA-256 checks confirm the actual synthetic CSV and `backend/core/var/reports/seller-bundle-demo.v1.json` remained byte-for-byte unchanged.
+
+### 7. Tests performed / actual results
+
+- **18 focused tests passed** in0.381s, including the17 new boundary tests and the existing database-backed Live reader case; disposable database destroyed. Covered 39.99% rejection/exact40% acceptance, below/exact2%, lift1 rejection/greater-than1 acceptance, two-vs-three co-purchases, all gates together, directional asymmetry, duplicate item lines, raw values that round to passing display values, original eligible/multi-order safeguards, unchanged shared defaults, Synthetic30%/two-pair behavior, independent settings, stricter settings and invalid configuration. Initial all-pure invocation hit the existing runner's database-setup assumption before running tests; the valid focused run included the database-backed case and created/destroyed its test database.
+- **223 tests passed** in48.024s on the final run, zero failures/errors/skips; system checks clean and disposable database destroyed. Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_live_bundle_thresholds modules.marketplace.tests.test_bundle_suggestions modules.marketplace.tests.test_bundle_monitoring modules.marketplace.tests.test_dashboard_synthetic_preview api.tests.test_seller_recommendations api.tests.test_admin_seller_recommendations modules.reports.tests.test_marketplace_analytics`. This includes the focused coverage, added legacy-caller policy-bypass regression, API permissions/scopes, completed/paid exclusions, unchanged catalog/photos/actual sellers, explicit refresh/read-only GET, recommendation status/activity, seller actions/idempotency/submission behavior, saved demo/research results and shared analytics. Reports: `scratch/test-organization-20261109/live-bundle-boundaries.json`, `live-bundle-final-results.json`. An earlier222-test run also passed before the final internal-caller hardening.
+- SHA-256 comparison confirms unchanged Synthetic CSV/report, seller/monitoring service files, API/monitoring views, shared dashboard partial and bundle stylesheet from task start. Evidence `scratch/live-bundle-policy-20261110/unchanged-hashes.json`. Existing saved/demo code paths were inspected alongside the new policy. No new browser run was necessary for this backend-only change; the existing dashboard empty/rendering tests passed. `git diff --check` passed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Local only, not deployed or pushed. Existing persisted Live snapshots require the existing explicit authorized analysis refresh to be assessed under the new policy; no automatic backfill/record mutation was performed. Invalid new settings cause the normal analysis error rather than a misleading successful empty result. Changing only unprefixed Synthetic settings will not alter Live and could invalidate existing demo research signatures, so use the new Live names for Live policy changes.
+
+Confirmed storage limitation: the current Live reader has one sellable product per persisted order and no verified multi-product order-item relation. It intentionally does not infer purchases from quantities, legacy customization JSON, bundle recipes or buyer/date proximity. Consequently current data can remain insufficient for real co-purchase rules regardless of thresholds. This task does not rebuild checkout/storage, fabricate baskets or import Synthetic history into Live. The existing honest empty state remains correct until genuine eligible basket evidence is available. Unrounded qualification is preserved, while displayed metrics retain their previous precision.
+
+Safe exercise: run the focused18-test command in the guarded runner, then inspect `test_support_exactly_two_percent_passes` and `test_two_copurchases_fail_and_three_pass_all_four_conditions`. Temporarily raise only the Live pair minimum to4 inside an `override_settings` block and verify the three-pair test fixture no longer qualifies; confirm Synthetic outputs remain equal. Restore the override and rerun. This changes no application records/settings files. Never seed purchases or lower Synthetic thresholds to fill the Live dashboard.
+
+## Synthetic plus in gold and navy - November 10, 2026
+
+1. **Cause / reason:** The user requested gold and navy blue for the Synthetic Demo plus. The shared baseline uses a pale gold mix and brown symbol; changing it globally would also affect Live.
+2. **Exact files changed:** `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:616`, `[data-bundle-source="synthetic"] .dashboard-bundle-demo__plus`, adds a source-specific color override. This guide at line 3 and `CAMPUSHUB_CONTEXT.md:3` record the change; earlier uncommitted changes are retained.
+3. **Changes made:** Solid brand gold `#FCB315` circle with a navy `#1A1851` plus, using the existing `--demo-gold` and `--demo-navy` variables. Size, circular shape, position, photos and bottom-row alignment remain.
+4. **How it works / functions and data flow:** No function, JavaScript or template change. Existing saved pairs flow into the shared carousel and render the same decorative plus. The Synthetic ancestor matches the new selector, overriding only its background and text color. Example: Synthetic computes gold/navy; Live continues using the baseline pale-gold/brown rule. The plus remains `aria-hidden` with the existing accessible paired-with text.
+5. **Backend / API behavior:** Unchanged, including permissions, saved data and refresh.
+6. **Database / migration impact:** None; no records, models, migrations or assets changed.
+7. **Tests performed:** **2,296 local Chrome checks passed**, no JavaScript errors or mutating requests. Both dashboards at six widths, including exact computed gold/navy colors on every saved demo pair, existing photo/layout/seller/controls/source/keyboard/refresh/fallback checks and populated Live pixel equality against `38cc6687`. Desktop screenshot inspected; `git diff --check` passed. Harness/report: `scratch/dashboard-demo-20261110/review-synthetic-plus-colors.cjs`, `synthetic-plus-colors-browser-result.json`. Current CSS is checked against saved local test renders with intercepted test media; no production verification claimed. No new unit tests or Django rerun for this color-only change.
+8. **Remaining limitations / troubleshooting / safe practice:** Local only, not deployed/pushed. Hard-refresh if cached colors remain. In a local saved test render, inspect the plus under Synthetic: expected background `rgb(252, 179, 21)` and text `rgb(26, 24, 81)`. Switch to Live and confirm its colors remain unchanged; do not edit any saved records. Run `node scratch/dashboard-demo-20261110/review-synthetic-plus-colors.cjs` to verify the restored style and existing behavior.
+
+## Synthetic seller left and carousel right at card edges - November 10, 2026
+
+1. **Cause / reason:** The latest screenshot request places the saved synthetic seller at the left and existing carousel controls at the right. The preceding group's `max-width:400px` also constrained the bottom row, keeping it away from the card edges. This request supersedes that whole-group width constraint.
+2. **Exact files changed:** `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:604`, inside `.dashboard-bundle-demo__synthetic-display`, removes only the wrapper's `max-width:400px`. `docs/suggested-product-bundles.md:3` and `CAMPUSHUB_CONTEXT.md:3` record this follow-up. The earlier template changes remain unchanged.
+3. **Changes made:** The white Synthetic wrapper now fills the dashboard card's content width. Seller stays left; existing arrows/dots stay right. The product pair retains its independent 400px cap and centered position, 115px photos, names and gold plus. Tabs, badge, actual seller IDs, disclosure, controls and responsive behavior are retained.
+4. **How it works / functions and data flow:** No functions or inputs/outputs change. Existing `bundle_demo.rows` flows through the shared partials into the same selected article, saved seller and existing navigation. The parent grid now spans all available content width, so the seller's first column begins at the left content edge and navigation's second column ends at the right edge. The product row still spans both columns but retains its own centered `max-width`. Example: on a 600px content area, the pair remains at most 400px while the seller and navigation use the full 600px row. This separates photo sizing from bottom-row alignment without extra markup or JavaScript.
+5. **Backend / API behavior:** Unchanged. Live Recommendations, saved-data readers, refresh, permissions and workflows remain unchanged.
+6. **Database / migration impact:** None. No models, migrations, records, reports, CSVs, image assets or settings changed.
+7. **Tests performed:** **2,248 local Chrome assertions passed**, zero JavaScript errors or mutating requests. Both roles at six widths (1440/1024/768/390/320/280px), including explicit seller-left/control-right edge checks on every saved demo pair, retained white area/115px photos/centered pair, tabs/disclosure/IDs, keyboard/carousel/refresh/fallback/empty/error/single states and populated Live pixel equality against `38cc6687`. Desktop screenshot inspected; `git diff --check` passed. Harness/report: `scratch/dashboard-demo-20261110/review-synthetic-edge-row.cjs`, `synthetic-edge-row-browser-result.json`. Current CSS/JavaScript were tested against the preceding step's local Django fixtures and intercepted test media. No new unit tests or Django rerun for this single CSS constraint removal; previous test results remain historical.
+8. **Remaining limitations / troubleshooting / safe practice:** Local only, not deployed/pushed. Hard-refresh if the old cached CSS still centers the bottom row. Safe exercise: select Synthetic Demo, inspect `.dashboard-bundle-demo__synthetic-display` and confirm it fills the card's content width; check that `.dashboard-bundle-demo__products` still has `max-width:400px`. Resize to 390px and navigate Next/Previous without editing any records. Rerun `node scratch/dashboard-demo-20261110/review-synthetic-edge-row.cjs` to verify seller/control edge alignment and preserved source behavior. Existing subgrid support and attribution-page wording limitations described below remain.
+
+## White synthetic surface and aligned content group - November 10, 2026
+
+### 1. Cause / reason
+
+The user's screenshot showed the newly introduced gray inner surface and a bottom row spread across its width. The latest explicit request removes that gray and permits repositioning. The confirmed source was `.dashboard-bundle-demo__synthetic-display` using `#F8F9FC`, 12px desktop padding and 8px narrow padding. This follow-up supersedes only that surface/spacing choice from the previous section. Applied the requested `emil-design-eng` and `frontend-design` skills; frequent carousel navigation remains immediate.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Gray rounded inner container | Existing white surface token | Removes the unnecessary nested-container appearance. |
+| Product pair capped at 400px; bottom row spreads farther | Entire display group capped at 400px and centered | Aligns saved seller and existing controls beneath the product cards. |
+| 12px/8px inner padding | 2px top spacing on wider cards, zero narrow padding | Keeps photos prominent and reduces wasted space. |
+| Border-only pressed feedback | Instant subtle `.97` press scale on enabled Synthetic controls | Adds direct feedback without animation or delayed keyboard navigation. |
+
+### 2. Exact files changed / current lines and anchors
+
+- `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:602`, `.dashboard-bundle-demo__synthetic-display`: existing two-column grid now has `width:100%`, `max-width:400px`, centered margins, white surface and reduced padding. `:636` adds Synthetic-only enabled-button pressed feedback; `:642` removes narrow-screen inner padding while retaining a 10px row gap.
+- `docs/suggested-product-bundles.md:3` and `CAMPUSHUB_CONTEXT.md:3`: current report, data flow, results and safe practice. The two shared partial changes from the preceding implementation remain in the working tree unchanged; this follow-up adds no template changes.
+
+### 3. Changes made
+
+The component now has one clean white surface around the existing bordered product cards. Product photos remain 115px cover images with rounded top corners and centered names. The gold plus, actual saved seller IDs, two source tabs, Demo Only badge, original arrows/dots, disclosure and photo fallbacks are retained. Seller and controls remain left/right below the pair, with the whole group centered instead of being separated by the width of a larger container. No new content, buttons, counters or decorative animation.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No new or modified function, JavaScript or template contract. The existing saved-demo projection supplies `bundle_demo.rows` to the populated Synthetic branch. Its existing display wrapper surrounds the shared carousel; the selected article and existing navigation share the subgrid bottom row. The CSS change bounds that wrapper, so its product row, saved seller and controls use the same width. Inputs remain saved names/photos/sellers/IDs and selected pair; outputs remain the same text/images/controls with white background and tighter geometry.
+
+```css
+[data-bundle-source="synthetic"] .dashboard-bundle-demo__synthetic-display {
+    max-width: 400px; /* Bound products and bottom row together. */
+    margin-inline: auto; /* Center that group inside the dashboard card. */
+    background: var(--campushub-surface, #FFFFFF); /* Reuse the existing white token. */
+}
+```
+
+The source selector prevents these rules affecting Live. Press feedback uses an immediate transform, with no transition, keyframe or entry animation. Hidden-slide behavior, keyboard selection, focus outlines, active dots and disabled boundaries continue to come from the existing implementation.
+
+### 5. Backend / API behavior
+
+Unchanged. Existing saved results, authorization, refresh, analysis and seller workflows are preserved. No reads or writes were added. Live Recommendations keeps its existing populated cards, photo fit, statuses and white empty state.
+
+### 6. Database / migration impact
+
+None. No models, migrations, report/CSV data, product photos, URLs, application records or production settings changed. The browser harness used the prior step's locally rendered disposable-test fixtures and current local CSS/JavaScript; it issued no mutating requests.
+
+### 7. Tests performed / actual results
+
+- **2,200 local headless Chrome assertions passed**, zero JavaScript errors or mutating requests. Both roles at 1440/1024/768/390/320/280px: exact white synthetic surface; equal bordered cards; 115px cover photos; no image padding; centered names/plus; seller left and controls right without overlap; actual S01 and other saved seller IDs; tabs/badge/disclosure; existing controls/keyboard/independent positions; refresh; empty/error/single states; missing/broken image fallbacks.
+- Populated Live pixels match commit `38cc6687` at all 12 role/width combinations, using the same normalized capture boundary described below. Live empty-state white surface, title/hint, icon, geometry and wrapping checks also passed.
+- Desktop and phone Synthetic screenshots inspected for both roles. Harness: `scratch/dashboard-demo-20261110/review-synthetic-white.cjs`; results: `synthetic-white-browser-result.json`; screenshots: `synthetic-white-{super,marketplace}-synthetic-{1440,390}.png`. These use the prior `synthetic-115-fixtures` with current stylesheet content and intercepted test media, not production account data.
+- `git diff --check` passed. No new unit tests and no Django suite rerun for this CSS-only follow-up; the preceding step's 11-test result remains historical, not a newly executed result.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Local only, not deployed or pushed. Existing stylesheet URLs remain unchanged; Ctrl+Shift+R may be needed when a browser caches the old surface. CSS subgrid remains a requirement and was verified in installed Chrome, not legacy browsers. The existing attribution-page sizing sentence remains outside this change, as noted in the preceding implementation.
+
+Safe exercise: select Synthetic Demo in a local saved test render. Inspect `.dashboard-bundle-demo__synthetic-display`; computed background should be `rgb(255, 255, 255)` and width no greater than 400px. Temporarily remove `max-width` in developer tools to observe the seller/controls spread apart, then restore it. Resize to 390px, navigate Next/Previous and switch to Live; verify the seller IDs, photos and source-specific layouts remain. Run `node scratch/dashboard-demo-20261110/review-synthetic-white.cjs` to verify restoration without editing any saved data.
+
+## Synthetic-only 115px photo layout - November 10, 2026
+
+### 1. Cause / reason
+
+The user requested a targeted Synthetic Demo presentation update based on commit `38cc6687`. Inspection confirmed that the baseline shares 110px `contain` images, padded product panels and centered seller/navigation rows between Synthetic and Live. Changing those shared selectors would also change Live. The new rules therefore select only descendants of `[data-bundle-source="synthetic"]`; the existing Live declarations remain intact.
+
+### 2. Exact files changed / current lines and anchors
+
+| File and current line | Anchor and change |
+| --- | --- |
+| `backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css:601` | Synthetic-only block: `#F8F9FC` display background, compact equal white cards capped by a 400px pair row, 115px cover photos without panel padding, rounded top corners, centered names and existing gold plus. |
+| Same CSS, `:625`, `:630`, `:640` | Seller left and existing arrows/dots right in one shared grid row; narrow cards wrap the dots inside the right-hand area. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/dashboard_bundle_carousel.html:1` | Add `dashboard-bundle-demo__synthetic-slides` only when `source == 'synthetic'`. Keep all original articles, buttons, SVGs, IDs, ARIA and fallback includes. |
+| `backend/core/modules/marketplace/templates/marketplace/partials/super_recommendation_preview.html:17` | Wrap only the populated Synthetic include in `dashboard-bundle-demo__synthetic-display`. Error/empty, disclosure, header/tabs/badge and all Live branches retain their content. |
+| `docs/suggested-product-bundles.md:3`, `CAMPUSHUB_CONTEXT.md:3` | This implementation report, verified results, troubleshooting and learning exercise. |
+
+### 3. Changes made
+
+The pale background surrounds two small equal white cards and their compact bottom row. Images fill each 115px frame edge-to-edge using `object-fit: cover`; the existing photos are unchanged, so some edges are intentionally cropped in the display. Names stay centered below the photos. The existing plus stays centered between the products. Actual synthetic IDs, including **Synthetic Seller S01**, remain. Both dashboards use these same partials and stylesheet. No buttons, counters, metrics or visible copy were added.
+
+### 4. How it works / functions, inputs, outputs and data flow
+
+No function or JavaScript changes. The existing saved-demo reader provides `bundle_demo.rows`; its existing products, names, photo URLs, seller and stable pair IDs pass into `dashboard_bundle_carousel.html` with `source='synthetic'`. The outer partial adds the display wrapper only for a populated result. The inner partial adds the class conditionally; with `source='live'`, its class output is unchanged. Saved data and the original carousel data attributes remain the inputs to the existing JavaScript; the output is the same selected pair and accessible controls, now arranged by CSS.
+
+The display wrapper defines two columns and two rows. CSS `subgrid` lets the slides and currently visible article share those tracks: products span the first row, the article's seller occupies the bottom left, and its existing sibling navigation occupies the bottom right. This avoids duplicate seller content, moving controls in JavaScript or removing carousel semantics with `display: contents`. Original hidden-slide rules continue to hide inactive articles. A single pair retains the seller row without adding navigation.
+
+```css
+[data-bundle-source="synthetic"] .bundle-product-photo img {
+    object-fit: cover; /* Fill the frame; the file and its proportions are unchanged. */
+}
+```
+
+The 115px frame and rounded top corners are set on both the image and its wrapper. A missing/broken image still uses the existing accessible food/drink placeholder inside that same bounded frame. This keeps the layout steady without replacing photos or inventing records.
+
+### 5. Backend / API behavior
+
+Unchanged. Dashboard GET/refresh still read saved results with the existing authorization and never run analysis automatically. Actual synthetic sellers, reports, source selection, independent pair positions, error states and existing refresh behavior are preserved. Live remains at its baseline 110px `contain` photos and white empty state.
+
+### 6. Database / migration impact
+
+None. No backend, model, migration, permission, saved report, CSV, image asset, application record or production setting changed. The focused Django suite used the existing guarded runner, created a unique disposable local PostgreSQL database and destroyed it after completion. Browser media came from local test fixtures, not real account uploads.
+
+### 7. Tests performed / actual results
+
+- **11 existing focused Django tests passed** in 9.458s with no system-check issues; disposable database destroyed. Command: `backend/core/venv/Scripts/python.exe -B scratch/test-organization-20261109/run_local_tests.py modules.marketplace.tests.test_dashboard_synthetic_preview`. Environment selected fresh renders in `scratch/dashboard-demo-20261110/synthetic-115-fixtures` and report `scratch/test-organization-20261109/dashboard-synthetic-115-results.json`. Tests cover both authorized dashboards, saved sellers/data/photos, refresh, permissions, escaping and honest empty/error/fallback states. No new unit tests were introduced for this presentation change.
+- **2,200 local headless Chrome assertions passed**, no JavaScript errors or mutating requests. Both roles at 1440/1024/768/390/320/280px: pale synthetic area, equal white bordered cards, exact 115px cover photos, no image padding, rounded corners, centered names/plus, seller-left/navigation-right alignment without overlap, original six controls for four saved pairs, actual S01 and other saved IDs, tabs/badge/disclosure, navigation/keyboard/focus, independent source positions, refresh and image fallbacks. Additional saved missing/empty/error/single-pair renders passed.
+- Populated Live screenshots matched the baseline stylesheet from commit `38cc6687` at all 12 role/width combinations. Capture-only positioning uses the same integer width and origin on each side to exclude pixels outside fractional element edges; the first raw comparison exposed only that external one-pixel strip, not a changed Live style. Existing empty Live geometry/text/white-background checks passed.
+- Desktop and phone screenshots were visually inspected for both roles. Harness: `scratch/dashboard-demo-20261110/review-synthetic-115.cjs`; report `synthetic-115-browser-result.json`; screenshots `synthetic-115-{super,marketplace}-synthetic-{1440,390}.png`. The harness uses freshly rendered Django fixtures and current local CSS/JavaScript. `node --check` on existing bundle JavaScript and `git diff --check` passed.
+
+### 8. Remaining limitations / troubleshooting / safe practice
+
+Local only, not deployed or pushed. The three requested application files are the only runtime files changed; dashboard stylesheet URL versions remain unchanged. If a browser retains the old styling, hard-refresh with Ctrl+Shift+R. Normal deployment must collect the updated static asset. The layout uses CSS subgrid, verified in installed Chrome; legacy browsers without subgrid were not tested. The existing attribution page remains outside this requested file scope: its older photo-sizing sentence still describes 110px uncropped previews, while source/license links and photo files remain unchanged.
+
+Safe exercise: open a fresh local test render, select Synthetic Demo, and inspect a product photo. Verify computed height `115px`, `object-fit: cover` and zero card padding. Temporarily change only the Synthetic selector to `contain` in developer tools and observe the neutral bands; switch to Live and confirm it remains at 110px/contain. Remove the temporary override, navigate Next/Previous, and resize to 390px to confirm seller and controls remain separate. Do not edit saved reports or records for this exercise. Rerun the browser harness above to verify the original layout is restored.
+
 ## White Live empty-state panel - November 10, 2026
 
 1. **Cause / reason:** The user requested white after the reference design was applied. The confirmed gray surface came from `.dashboard-bundle-demo__live-empty` using the subtle-surface token. This request supersedes the pale background described below.
@@ -285,7 +1151,7 @@ The requested shared partials and `backend/templates/dashboard/partials/executiv
 
 ### 3. Changes made
 
-Both roles now use the same compact Montserrat card with navy `#1A1851`, gold `#FCB316` and white. Equal grid tracks keep the product cards equally wide; stretched grid items keep them equally tall even when one name wraps. Both image frames and images remain exactly 140px high and cannot expand with portrait photos. Names sit centered 6px below the images and wrap fully. The gold plus stays centered horizontally and vertically between panels. The recorded synthetic seller is centered below the pair; the first actual saved pair retains **Synthetic Seller S01**, while other pairs retain their own saved seller IDs.
+Both roles now use the same compact Montserrat card with navy `#1A1851`, gold `#FCB315` and white. Equal grid tracks keep the product cards equally wide; stretched grid items keep them equally tall even when one name wraps. Both image frames and images remain exactly 140px high and cannot expand with portrait photos. Names sit centered 6px below the images and wrap fully. The gold plus stays centered horizontally and vertically between panels. The recorded synthetic seller is centered below the pair; the first actual saved pair retains **Synthetic Seller S01**, while other pairs retain their own saved seller IDs.
 
 The upper-right Demo Only badge, circular Previous/Next buttons, dots, no-counter behavior, photo credits and compact synthetic disclosure remain. Product padding reduces from 12px to 8px, combination gap from 16px to 12px (8px on narrow cards), seller margin from 16px to 10px and footer spacing from 12px plus 4px margin to 8px without that margin. Shared outer 16px padding is preserved to avoid changing dashboard placement.
 
@@ -1118,7 +1984,7 @@ Existing unrelated database-tunnel, Android-forwarding and network-guide edits w
 
 ### 3. Changes made
 
-The carousel uses `PageView.builder` with one full-width page, no timer or automatic advancement. Every card in a source uses the same measured height: actual text style/scaling and available width determine header/name/button/explanation space. Names wrap to two lines with a tooltip for the full name. The source label itself wraps without truncation. Cards use navy, white, a subtle border and 12px corners; gold `#FCB316` marks the plus and selected indicator. The button spans the card width. Indicators appear only with multiple records and use a window of at most seven dots for large result sets; the position label always reports the full list count.
+The carousel uses `PageView.builder` with one full-width page, no timer or automatic advancement. Every card in a source uses the same measured height: actual text style/scaling and available width determine header/name/button/explanation space. Names wrap to two lines with a tooltip for the full name. The source label itself wraps without truncation. Cards use navy, white, a subtle border and 12px corners; gold `#FCB315` marks the plus and selected indicator. The button spans the card width. Indicators appear only with multiple records and use a window of at most seven dots for large result sets; the position label always reports the full list count.
 
 Product images come only from verified owner catalog records. Unmapped CSV products use the existing `ProductImage` placeholder and remain labelled Synthetic Demo. The card has no Support, Confidence, Lift or View Suggestion control. Those metrics remain in the complete admin research result. Dismiss is available in the three-dot menu, hides only the selected source/revision/ID for that seller and leaves saved suggestions intact. Failed dismissal leaves the card visible. Removing the last card reveals the existing empty state without dots/actions. Retry is reserved for an actual source-loading error.
 
@@ -2492,7 +3358,7 @@ Safe practice exercise: open the existing list, confirm the gold Bundle Suggesti
 1. **Cause / reason.** The Suggested Product Bundles card in the Marketplace Admin dashboard (`/admin-dashboard/` for Marketplace Admins using `admin_marketplace_dashboard.html`) exhibited visual and layout inconsistencies when compared to the clean Super Admin reference card (`super_recommendation_preview.html`). Specifically, the card subtitle was separated outside the header, the empty state used a left-aligned plain text div without an institutional shopping bag icon, metric counters were oversized (22px vs. institutional 16px), and spacing between the empty state and the Recommendation Activity section lacked a consistent divider (`border-top: 1px solid #E8EAF0; padding-top: 12px;`).
 2. **Exact files changed.**
    - [admin_recommendation_summary.html](file:///c:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/templates/marketplace/partials/admin_recommendation_summary.html): Lines 2-5 moved the subtitle inside `<header>` as `<p class="marketplace-recommendation-subtitle super-recommendation-subtitle">`. Lines 16-20 integrated `dashboard/partials/empty_state.html` with `icon='bag'` for centered empty states. Lines 23-46 wrapped activity metrics in `<div class="marketplace-recommendation-activity super-recommendation-activity">` with `<h3>Recommendation Activity</h3>`, preserving all 4 scoped operational counts (`Saved Suggestions`, `Sent to Sellers`, `Awaiting Seller Response`, `Bundles Created`) and the expandable rates disclosure details block.
-   - [bundle_suggestions.css](file:///c:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css): Lines 2-32 unified card container rules (`display: grid; align-content: start; gap: 12px; padding: 16px; border-radius: 14px; height: auto;`), title `h2` (`16px; font-weight: 600; color: #1A1851;`), subtitle (`12px; color: #667085;`), centered `.ch-dashboard-empty` with 24px icon, activity divider (`border-top: 1px solid #E8EAF0; padding-top: 12px;`), compact activity metrics (`padding: 5px 0; dt: 12px, #667085; dd: 16px, #1A1851, font-weight 600, tabular-nums;`), and 40px action link with gold hover underline (`text-decoration-color: #FCB316`).
+   - [bundle_suggestions.css](file:///c:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/static/marketplace/css/bundle_suggestions.css): Lines 2-32 unified card container rules (`display: grid; align-content: start; gap: 12px; padding: 16px; border-radius: 14px; height: auto;`), title `h2` (`16px; font-weight: 600; color: #1A1851;`), subtitle (`12px; color: #667085;`), centered `.ch-dashboard-empty` with 24px icon, activity divider (`border-top: 1px solid #E8EAF0; padding-top: 12px;`), compact activity metrics (`padding: 5px 0; dt: 12px, #667085; dd: 16px, #1A1851, font-weight 600, tabular-nums;`), and 40px action link with gold hover underline (`text-decoration-color: #FCB315`).
    - [admin_marketplace_dashboard.css](file:///c:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/static/marketplace/css/admin_marketplace_dashboard.css): Lines 613-615 synchronized `.bundle-dss.marketplace-recommendation-summary` to `border-radius: 14px; padding: 16px;` and counts row padding to `5px 0;` to eliminate conflicting overrides.
    - [admin_marketplace_dashboard.html](file:///c:/Users/leste/Desktop/CAMPUSHUB/backend/core/modules/marketplace/templates/marketplace/pages/admin_marketplace_dashboard.html): Lines 15-16 bumped stylesheet cache versions to `?v=20261025-bundle-sync`.
    - [admin_dashboard.html](file:///c:/Users/leste/Desktop/CAMPUSHUB/backend/templates/dashboard/pages/admin_dashboard.html): Line 23 bumped stylesheet cache version to `?v=20261025-bundle-sync`.
@@ -3864,7 +4730,7 @@ Source changes update only this section. Sales Overview dates/grouping continue 
 
 This is an extension of the existing operational dashboard, not a new global design system. No global `DESIGN.md`, sidecar, or replacement product brief was created.
 
-- Navy (`#1A1851`) identifies headings, text, controls, and selected page state; gold (`#FCB316`) marks disclosure and focus; white/light (`#FFFFFF`, `#f8fafc`) provide surfaces. Semi-transparent navy supplies borders and the dialog backdrop. No new gradient, glass surface, or decorative chart was added.
+- Navy (`#1A1851`) identifies headings, text, controls, and selected page state; gold (`#FCB315`) marks disclosure and focus; white/light (`#FFFFFF`, `#f8fafc`) provide surfaces. Semi-transparent navy supplies borders and the dialog backdrop. No new gradient, glass surface, or decorative chart was added.
 - Montserrat headings use 16px in the section and 18px in review; the compact table/body labels are 11–13px, with 14–15px product content and 18–20px review metrics. Arial/body fallbacks follow the incumbent surface rather than introducing another display face.
 - Evidence appears in order: source/disclosure, counts and factual table, then two-product review and close. Bordered cards and contained scrolling provide structure. The table stays at least 950px wide inside its own horizontal scroll region; the source control stacks below the heading at 600px and below.
 - Controls use 44px minimum height, visible gold keyboard focus, accessible table headings, and a labelled native dialog. The product cards remain distinct and side by side at the checked desktop/phone widths.
